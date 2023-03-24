@@ -1,0 +1,19 @@
+[advisories]
+unmaintained = "deny"
+yanked = "deny"
+notice = "deny"
+unsound = "deny"
+
+[licenses]
+allow-osi-fsf-free = "either"
+
+[bans]
+multiple-versions = "deny"
+wildcards = "deny"
+skip = [
+  { name = "syn", version = "1.0" }, # from bevy_derive v0.10.0
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

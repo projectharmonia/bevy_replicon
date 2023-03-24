@@ -1,0 +1,8 @@
+# Binaries
+target
+
+# Neovim
+neovim.json
+
+# Code coverage
+html
