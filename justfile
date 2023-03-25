@@ -10,6 +10,4 @@ coverage *ARGS: raw-coverage
     --excl-start "mod tests" \
     --excl-line "#\[" \
     --ignore "/*" \
-    --ignore "src/ui*" \
-    --ignore "*/main.rs" \
     {{ ARGS }}
