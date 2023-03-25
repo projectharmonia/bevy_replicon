@@ -151,7 +151,7 @@ mod tests {
             .add_plugin(TestNetworkPlugin);
 
         let mut dummy_events = app.world.resource_mut::<Events<DummyEvent>>();
-        dummy_events.send(DummyEvent);
+        dummy_events.send_default();
 
         app.update();
         app.update();
@@ -194,7 +194,7 @@ mod tests {
             .add_client_event::<DummyEvent>();
 
         let mut dummy_events = app.world.resource_mut::<Events<DummyEvent>>();
-        dummy_events.send(DummyEvent);
+        dummy_events.send_default();
 
         app.update();
 
@@ -204,7 +204,7 @@ mod tests {
         assert_eq!(client_events.len(), 1);
     }
 
-    #[derive(Deserialize, Serialize, Debug)]
+    #[derive(Deserialize, Serialize, Debug, Default)]
     struct DummyEvent;
 
     #[derive(Deserialize, Serialize, Debug)]
