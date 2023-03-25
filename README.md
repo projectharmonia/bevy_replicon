@@ -9,8 +9,8 @@ Write the same logic that works for both multiplayer and single-player. The crat
 You need to add [`ReplicationPlugins`] to your app:
 
 ```rust
-use bevy_mod_replication::prelude::*;
 use bevy::prelude::*;
+use bevy_mod_replication::prelude::*;
 
 let mut app = App::new();
 app.add_plugins(MinimalPlugins)
@@ -20,8 +20,8 @@ app.add_plugins(MinimalPlugins)
 This group contains necessary replication stuff and setups server and client plugins to let you host and join games from the same application. If you planning to separate client and server you can use [`PluginGroupBuilder::disable`] to disable [`ClientPlugin`] or [`ServerPlugin`]. You can also configure how often updates are sent from server to clients:
 
 ```rust
-# use bevy_mod_replication::prelude::*;
 # use bevy::prelude::*;
+# use bevy_mod_replication::prelude::*;
 # let mut app = App::new();
 app.add_plugins(MinimalPlugins).add_plugins(
     ReplicationPlugins
@@ -44,8 +44,8 @@ By default, no components are replicated. To start replication, you need two thi
 1. Mark component type for replication. Component should implement [`Reflect`], have `#[reflect(Component)]` and be be registered in Bevy type registry. You can use [`replication_rules::AppReplicationExt::register_and_replicate`] to register type and mark component for replication:
 
 ```rust
-# use bevy_mod_replication::prelude::*;
 # use bevy::prelude::*;
+# use bevy_mod_replication::prelude::*;
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
 app.register_and_replicate::<DummyComponent>();
@@ -89,8 +89,8 @@ impl FromWorld for MappedComponent {
 If you need more control, you add special rules. For example, if you don't want to replicate [`Transform`] on entities marked for replication if your special component is present, you can do the following:
 
 ```rust
-# use bevy_mod_replication::prelude::*;
 # use bevy::prelude::*;
+# use bevy_mod_replication::prelude::*;
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
 app.replicate::<Visibility>()
@@ -109,8 +109,8 @@ Could be called any number times.
 The idea was borrowed from [iyes_scene_tools](https://github.com/IyesGames/iyes_scene_tools#blueprints-pattern). You don't want to replicate all components because not all of them are necessary to send over the network. Components that computed based on other components (like [`GlobalTransform`]) can be inserted after replication. This is easily done using a system with an [`Added`] query filter. This way, you detect when such entities are spawned into the world, and you can do any additional setup on them using code. For example, if you have a character with mesh, you can replicate only your `Player` component and insert necessary components after replication:
 
 ```rust
-# use bevy_mod_replication::prelude::*;
 # use bevy::prelude::*;
+# use bevy_mod_replication::prelude::*;
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
 app.replicate::<Transform>()
@@ -150,8 +150,8 @@ Event replication replace RPCs (remote procedure calls) in other engines and, un
 To replicate your event from client to server just create your event as a client event. These events will be replicated to server as [`network_event::client_event::ClientEvent<T>`] wrapper that contains sender ID and the replicated event. If you are not a client (a single-player session or you are host), the [`network_event::client_event::ClientEvent<T>`] will also be emitted with [`server::SERVER_ID`] as sender ID. This way your game logic will work the same on client, server and in single-player session.
 
 ```rust
-# use bevy_mod_replication::prelude::*;
 # use bevy::prelude::*;
+# use bevy_mod_replication::prelude::*;
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 app.add_client_event::<DummyEvent>()
@@ -196,8 +196,8 @@ impl MapEntities for MappedEvent {
 A similar technique is used to replicate an event from server to clients. To do this, create a server event and send it from server using [`network_event::server_event::ServerEvent<T>`]. This wrapper contains send parameters and the event itself. Just like events sent from the client, they will be emitted locally on the server (if [`server::SERVER_ID`] is not excluded from the send list):
 
 ```rust
-# use bevy_mod_replication::prelude::*;
 # use bevy::prelude::*;
+# use bevy_mod_replication::{prelude::*, renet::RenetConnectionConfig};
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 app.add_server_event::<DummyEvent>()
