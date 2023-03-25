@@ -6,3 +6,6 @@ neovim.json
 
 # Code coverage
 html
+
+# For library
+Cargo.lock
