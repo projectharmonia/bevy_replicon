@@ -17,7 +17,7 @@ use crate::{
 
 /// An extension trait for [`App`] for creating server events.
 pub trait ServerEventAppExt {
-    /// Registers event `T` that will be emitted on client after sending [`ServerEvent<T>`] on server.
+    /// Registers event `T` that will be emitted on client after sending [`ToClients<T>`] on server.
     fn add_server_event<T: Event + Serialize + DeserializeOwned + Debug>(&mut self) -> &mut Self;
 
     /// Same as [`Self::add_server_event`], but additionally maps server entities to client after receiving.
@@ -52,7 +52,7 @@ impl ServerEventAppExt for App {
         let current_channel_id = REPLICATION_CHANNEL_ID + network_channels.server;
 
         self.add_event::<T>()
-            .init_resource::<Events<ServerEvent<T>>>()
+            .init_resource::<Events<ToClients<T>>>()
             .insert_resource(EventChannel::<T>::new(current_channel_id))
             .add_system(receiving_system.in_set(OnUpdate(ClientState::Connected)))
             .add_systems(
@@ -71,10 +71,10 @@ impl ServerEventAppExt for App {
 
 fn sending_system<T: Event + Serialize + Debug>(
     mut server: ResMut<RenetServer>,
-    mut server_events: EventReader<ServerEvent<T>>,
+    mut server_events: EventReader<ToClients<T>>,
     channel: Res<EventChannel<T>>,
 ) {
-    for ServerEvent { event, mode } in server_events.iter() {
+    for ToClients { event, mode } in server_events.iter() {
         let message = bincode::serialize(&event).expect("event should be serializable");
 
         match *mode {
@@ -100,13 +100,13 @@ fn sending_system<T: Event + Serialize + Debug>(
     }
 }
 
-/// Transforms [`ServerEvent<T>`] events into [`T`] events to "emulate"
+/// Transforms [`ToClients<T>`] events into [`T`] events to "emulate"
 /// message sending for offline mode or when server is also a player
 fn local_resending_system<T: Event + Debug>(
-    mut server_events: ResMut<Events<ServerEvent<T>>>,
+    mut server_events: ResMut<Events<ToClients<T>>>,
     mut local_events: EventWriter<T>,
 ) {
-    for ServerEvent { event, mode } in server_events.drain() {
+    for ToClients { event, mode } in server_events.drain() {
         match mode {
             SendMode::Broadcast => {
                 debug!("converted broadcasted server event {event:?} into a local");
@@ -159,7 +159,7 @@ fn receiving_and_mapping_system<T: Event + MapEntities + DeserializeOwned + Debu
 
 /// An event that will be send to client(s).
 #[derive(Clone, Copy, Debug)]
-pub struct ServerEvent<T> {
+pub struct ToClients<T> {
     pub mode: SendMode,
     pub event: T,
 }
@@ -198,8 +198,8 @@ mod tests {
             (SendMode::BroadcastExcept(SERVER_ID), 1),
             (SendMode::BroadcastExcept(client_id), 0),
         ] {
-            let mut server_events = app.world.resource_mut::<Events<ServerEvent<DummyEvent>>>();
-            server_events.send(ServerEvent {
+            let mut server_events = app.world.resource_mut::<Events<ToClients<DummyEvent>>>();
+            server_events.send(ToClients {
                 mode: send_mode,
                 event: DummyEvent,
             });
@@ -228,8 +228,8 @@ mod tests {
             .resource_mut::<NetworkEntityMap>()
             .insert(server_entity, client_entity);
 
-        let mut server_events = app.world.resource_mut::<Events<ServerEvent<MappedEvent>>>();
-        server_events.send(ServerEvent {
+        let mut server_events = app.world.resource_mut::<Events<ToClients<MappedEvent>>>();
+        server_events.send(ToClients {
             mode: SendMode::Broadcast,
             event: MappedEvent(server_entity),
         });
@@ -260,15 +260,15 @@ mod tests {
             (SendMode::BroadcastExcept(SERVER_ID), 0),
             (SendMode::BroadcastExcept(DUMMY_CLIENT_ID), 1),
         ] {
-            let mut server_events = app.world.resource_mut::<Events<ServerEvent<DummyEvent>>>();
-            server_events.send(ServerEvent {
+            let mut server_events = app.world.resource_mut::<Events<ToClients<DummyEvent>>>();
+            server_events.send(ToClients {
                 mode: send_mode,
                 event: DummyEvent,
             });
 
             app.update();
 
-            let server_events = app.world.resource::<Events<ServerEvent<DummyEvent>>>();
+            let server_events = app.world.resource::<Events<ToClients<DummyEvent>>>();
             assert!(server_events.is_empty());
 
             let mut dummy_events = app.world.resource_mut::<Events<DummyEvent>>();

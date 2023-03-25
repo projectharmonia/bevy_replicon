@@ -18,7 +18,7 @@ use crate::{
 
 /// An extension trait for [`App`] for creating client events.
 pub trait ClientEventAppExt {
-    /// Registers [`ClientEvent<T>`] event that will be emitted on server after sending `T` event on client.
+    /// Registers [`FromClient<T>`] event that will be emitted on server after sending `T` event on client.
     fn add_client_event<T: Event + Serialize + DeserializeOwned + Debug>(&mut self) -> &mut Self;
 
     /// Same as [`Self::add_client_event`], but additionally maps client entities to server before sending.
@@ -53,7 +53,7 @@ impl ClientEventAppExt for App {
         let current_channel_id = REPLICATION_CHANNEL_ID + network_channels.client;
 
         self.add_event::<T>()
-            .add_event::<ClientEvent<T>>()
+            .add_event::<FromClient<T>>()
             .insert_resource(EventChannel::<T>::new(current_channel_id))
             .add_system(sending_system.in_set(OnUpdate(ClientState::Connected)))
             .add_system(local_resending_system::<T>.in_set(ServerSet::Authority))
@@ -92,15 +92,15 @@ fn mapping_and_sending_system<T: Event + MapEntities + Serialize + Debug>(
     }
 }
 
-/// Transforms [`T`] events into [`ClientEvent<T>`] events to "emulate"
+/// Transforms [`T`] events into [`FromClient<T>`] events to "emulate"
 /// message sending for offline mode or when server is also a player
 fn local_resending_system<T: Event + Debug>(
     mut events: ResMut<Events<T>>,
-    mut client_events: EventWriter<ClientEvent<T>>,
+    mut client_events: EventWriter<FromClient<T>>,
 ) {
     for event in events.drain() {
         debug!("converted client event {event:?} into a local");
-        client_events.send(ClientEvent {
+        client_events.send(FromClient {
             client_id: SERVER_ID,
             event,
         })
@@ -108,7 +108,7 @@ fn local_resending_system<T: Event + Debug>(
 }
 
 fn receiving_system<T: Event + DeserializeOwned + Debug>(
-    mut client_events: EventWriter<ClientEvent<T>>,
+    mut client_events: EventWriter<FromClient<T>>,
     mut server: ResMut<RenetServer>,
     channel: Res<EventChannel<T>>,
 ) {
@@ -118,7 +118,7 @@ fn receiving_system<T: Event + DeserializeOwned + Debug>(
                 .tap_err(|e| error!("unable to deserialize event from client {client_id}: {e}"))
             {
                 debug!("received event {event:?} from client {client_id}");
-                client_events.send(ClientEvent { client_id, event });
+                client_events.send(FromClient { client_id, event });
             }
         }
     }
@@ -127,7 +127,7 @@ fn receiving_system<T: Event + DeserializeOwned + Debug>(
 /// An event indicating that a message from client was received.
 /// Emited only on server.
 #[derive(Clone, Copy)]
-pub struct ClientEvent<T> {
+pub struct FromClient<T> {
     pub client_id: u64,
     pub event: T,
 }
@@ -156,7 +156,7 @@ mod tests {
         app.update();
         app.update();
 
-        let client_events = app.world.resource::<Events<ClientEvent<DummyEvent>>>();
+        let client_events = app.world.resource::<Events<FromClient<DummyEvent>>>();
         assert_eq!(client_events.len(), 1);
     }
 
@@ -181,7 +181,7 @@ mod tests {
 
         let mapped_entities: Vec<_> = app
             .world
-            .resource_mut::<Events<ClientEvent<MappedEvent>>>()
+            .resource_mut::<Events<FromClient<MappedEvent>>>()
             .drain()
             .map(|event| event.event.0)
             .collect();
@@ -201,7 +201,7 @@ mod tests {
 
         assert!(app.world.resource::<Events<DummyEvent>>().is_empty());
 
-        let client_events = app.world.resource::<Events<ClientEvent<DummyEvent>>>();
+        let client_events = app.world.resource::<Events<FromClient<DummyEvent>>>();
         assert_eq!(client_events.len(), 1);
     }
 

@@ -20,8 +20,8 @@ pub mod prelude {
     pub use super::{
         client::{map_entity::ReflectMapEntity, ClientPlugin, ClientState},
         network_event::{
-            client_event::{ClientEvent, ClientEventAppExt},
-            server_event::{SendMode, ServerEvent, ServerEventAppExt},
+            client_event::{ClientEventAppExt, FromClient},
+            server_event::{SendMode, ServerEventAppExt, ToClients},
         },
         renet::{RenetClient, RenetServer},
         replication_core::{AppReplicationExt, NetworkChannels, Replication, ReplicationRules},

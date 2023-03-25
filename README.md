@@ -147,7 +147,7 @@ Event replication replace RPCs (remote procedure calls) in other engines and, un
 
 ### From client to server
 
-To replicate your event from client to server just create your event as a client event. These events will be replicated to server as [`network_event::client_event::ClientEvent<T>`] wrapper that contains sender ID and the replicated event. If you are not a client (a single-player session or you are host), the [`network_event::client_event::ClientEvent<T>`] will also be emitted with [`server::SERVER_ID`] as sender ID. This way your game logic will work the same on client, server and in single-player session.
+To replicate your event from client to server just create your event as a client event. These events will be replicated to server as [`network_event::client_event::FromClient<T>`] wrapper that contains sender ID and the replicated event. If you are not a client (a single-player session or you are host), the [`network_event::client_event::FromClient<T>`] will also be emitted with [`server::SERVER_ID`] as sender ID. This way your game logic will work the same on client, server and in single-player session.
 
 ```rust
 # use bevy::prelude::*;
@@ -162,8 +162,8 @@ fn event_sending_system(mut dummy_events: EventWriter<DummyEvent>) {
     dummy_events.send_default()
 }
 
-fn event_receiving_system(mut dummy_events: EventReader<ClientEvent<DummyEvent>>) {
-    for ClientEvent { client_id, event } in dummy_events.iter() {
+fn event_receiving_system(mut dummy_events: EventReader<FromClient<DummyEvent>>) {
+    for FromClient { client_id, event } in dummy_events.iter() {
         info!("received event {event:?} from client {client_id}");
     }
 }
@@ -195,7 +195,7 @@ impl MapEntities for MappedEvent {
 
 ### From server to client
 
-A similar technique is used to replicate an event from server to clients. To do this, create a server event and send it from server using [`network_event::server_event::ServerEvent<T>`]. This wrapper contains send parameters and the event itself. Just like events sent from the client, they will be emitted locally on the server (if [`server::SERVER_ID`] is not excluded from the send list):
+A similar technique is used to replicate an event from server to clients. To do this, create a server event and send it from server using [`network_event::server_event::ToClients<T>`]. This wrapper contains send parameters and the event itself. Just like events sent from the client, they will be emitted locally on the server (if [`server::SERVER_ID`] is not excluded from the send list):
 
 ```rust
 # use bevy::prelude::*;
@@ -206,8 +206,8 @@ A similar technique is used to replicate an event from server to clients. To do 
 app.add_server_event::<DummyEvent>()
     .add_system(event_sending_system);
 
-fn event_sending_system(mut dummy_events: EventWriter<ServerEvent<DummyEvent>>) {
-    dummy_events.send(ServerEvent {
+fn event_sending_system(mut dummy_events: EventWriter<ToClients<DummyEvent>>) {
+    dummy_events.send(ToClients {
         mode: SendMode::Broadcast,
         event: DummyEvent,
     });
