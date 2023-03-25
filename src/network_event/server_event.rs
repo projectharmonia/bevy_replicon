@@ -11,7 +11,7 @@ use super::EventChannel;
 use crate::{
     client::{map_entity::NetworkEntityMap, ClientState},
     server::{ServerSet, ServerState, SERVER_ID},
-    NetworkChannels, REPLICATION_CHANNEL_ID,
+    REPLICATION_CHANNEL_ID, prelude::NetworkChannels,
 };
 
 /// An extension trait for [`App`] for creating server events.

@@ -1,7 +1,7 @@
 use bevy::{ecs::system::SystemChangeTick, prelude::*, utils::HashSet};
 
 use super::AckedTicks;
-use crate::{replication_rules::Replication, server::ServerState};
+use crate::{replication_core::Replication, server::ServerState};
 
 /// Tracks entity despawns of entities with [`Replication`] component in [`DespawnTracker`] resource.
 ///

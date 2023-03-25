@@ -22,7 +22,7 @@ use tap::TapFallible;
 
 use crate::{
     client::LastTick,
-    replication_rules::ReplicationRules,
+    replication_core::ReplicationRules,
     world_diff::{ComponentDiff, WorldDiff, WorldDiffSerializer},
     REPLICATION_CHANNEL_ID,
 };

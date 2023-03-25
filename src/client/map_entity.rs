@@ -4,7 +4,7 @@ use bevy::{
     reflect::FromType,
 };
 
-use crate::replication_rules::Replication;
+use crate::replication_core::Replication;
 
 /// Maps server entities to client entities and vice versa.
 ///

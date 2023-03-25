@@ -1,7 +1,7 @@
 use bevy::{ecs::component::ComponentId, prelude::*, utils::HashMap};
 
 use super::AckedTicks;
-use crate::replication_rules::{Replication, ReplicationRules};
+use crate::replication_core::{Replication, ReplicationRules};
 use crate::server::ServerState;
 
 /// Stores component removals in [`RemovalTracker`] component to make them persistent across ticks.
@@ -64,7 +64,7 @@ pub(crate) struct RemovalTracker(pub(crate) HashMap<ComponentId, u32>);
 
 #[cfg(test)]
 mod tests {
-    use crate::replication_rules::AppReplicationExt;
+    use crate::replication_core::AppReplicationExt;
 
     use super::*;
 

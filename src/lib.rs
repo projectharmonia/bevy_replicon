@@ -3,7 +3,7 @@
 
 pub mod client;
 pub mod network_event;
-pub mod replication_rules;
+pub mod replication_core;
 pub mod server;
 #[cfg(test)]
 mod test_network;
@@ -11,10 +11,9 @@ mod world_diff;
 
 use bevy::{app::PluginGroupBuilder, prelude::*};
 pub use bevy_renet::renet;
-use renet::{ChannelConfig, ReliableChannelConfig, UnreliableChannelConfig};
 
 use client::ClientPlugin;
-use replication_rules::ReplicationRulesPlugin;
+use replication_core::ReplicationCorePlugin;
 use server::ServerPlugin;
 
 pub mod prelude {
@@ -25,9 +24,9 @@ pub mod prelude {
             server_event::{SendMode, ServerEvent, ServerEventAppExt},
         },
         renet::{RenetClient, RenetServer},
-        replication_rules::{AppReplicationExt, Replication, ReplicationRules},
+        replication_core::{NetworkChannels, AppReplicationExt, Replication, ReplicationRules},
         server::{ServerPlugin, ServerSet, ServerState, SERVER_ID},
-        NetworkChannels, ReplicationPlugins,
+        ReplicationPlugins,
     };
 }
 
@@ -38,46 +37,10 @@ pub struct ReplicationPlugins;
 impl PluginGroup for ReplicationPlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<Self>()
-            .add(ReplicationRulesPlugin)
+            .add(ReplicationCorePlugin)
             .add(ClientPlugin)
             .add(ServerPlugin::default())
     }
-}
-
-/// An event channel counter
-///
-/// Used to create channels for each event.
-#[derive(Clone, Copy, Default, Resource)]
-pub struct NetworkChannels {
-    /// Increments with each server event registration.
-    server: u8,
-    /// Increments with each client event registration.
-    client: u8,
-}
-
-impl NetworkChannels {
-    pub fn server_channels(&self) -> Vec<ChannelConfig> {
-        channel_configs(self.server)
-    }
-
-    pub fn client_channels(&self) -> Vec<ChannelConfig> {
-        channel_configs(self.client)
-    }
-}
-
-fn channel_configs(events_count: u8) -> Vec<ChannelConfig> {
-    let mut channel_configs = Vec::with_capacity((events_count + 1).into());
-    channel_configs.push(ChannelConfig::Unreliable(UnreliableChannelConfig {
-        channel_id: REPLICATION_CHANNEL_ID,
-        ..Default::default()
-    }));
-    for channel_id in 1..=events_count {
-        channel_configs.push(ChannelConfig::Reliable(ReliableChannelConfig {
-            channel_id: REPLICATION_CHANNEL_ID + channel_id,
-            ..Default::default()
-        }));
-    }
-    channel_configs
 }
 
 #[cfg(test)]
@@ -91,7 +54,7 @@ mod tests {
     use super::*;
     use crate::{
         client::map_entity::{NetworkEntityMap, ReflectMapEntity},
-        replication_rules::{AppReplicationExt, Replication},
+        replication_core::{AppReplicationExt, Replication},
         server::{despawn_tracker::DespawnTracker, removal_tracker::RemovalTracker, AckedTicks},
         test_network::TestNetworkPlugin,
     };

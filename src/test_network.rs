@@ -9,7 +9,7 @@ use bevy_renet::renet::{
     ServerAuthentication, ServerConfig,
 };
 
-use super::{NetworkChannels, ReplicationPlugins};
+use super::{replication_core::NetworkChannels, ReplicationPlugins};
 
 /// Automates server and client creation for unit tests.
 pub(super) struct TestNetworkPlugin;

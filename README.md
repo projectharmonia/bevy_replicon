@@ -41,7 +41,7 @@ It's a process of sending component changes from server to clients in order to k
 
 By default, no components are replicated. To start replication, you need two things:
 
-1. Mark component type for replication. Component should implement [`Reflect`], have `#[reflect(Component)]` and be be registered in Bevy type registry. You can use [`replication_rules::AppReplicationExt::register_and_replicate`] to register type and mark component for replication:
+1. Mark component type for replication. Component should implement [`Reflect`], have `#[reflect(Component)]` and be be registered in Bevy type registry. You can use [`replication_core::AppReplicationExt::register_and_replicate`] to register type and mark component for replication:
 
 ```rust
 # use bevy::prelude::*;
@@ -55,7 +55,7 @@ app.register_and_replicate::<DummyComponent>();
 struct DummyComponent;
 ```
 
-You can use just [`replication_rules::AppReplicationExt::replicate`] if the component type is already registered using [`App::register_type`]. It's true for Bevy built-in components, like [`Transform`].
+You can use just [`replication_core::AppReplicationExt::replicate`] if the component type is already registered using [`App::register_type`]. It's true for Bevy built-in components, like [`Transform`].
 
 If your component contains [`Entity`] then it cannot be deserialized as is because entity IDs are different on server and client. The client should do the mapping. Therefore, to replicate such components properly, they need implement and reflect [`bevy::ecs::entity::MapEntities`]:
 
@@ -84,7 +84,7 @@ impl FromWorld for MappedComponent {
 }
 ```
 
-2. You need to choose entities you want to replicate using [`replication_rules::Replication`] component. Just insert it to the entity you want to replicate. Only components marked for replication will be replicated.
+2. You need to choose entities you want to replicate using [`replication_core::Replication`] component. Just insert it to the entity you want to replicate. Only components marked for replication will be replicated.
 
 If you need more control, you add special rules. For example, if you don't want to replicate [`Transform`] on entities marked for replication if your special component is present, you can do the following:
 
@@ -226,7 +226,7 @@ Just like with client events, if the event contains [`Entity`], then `add_mapped
 
 To connect to the server or create it, you need to initialize the [`bevy_renet::renet::RenetClient`] or [`bevy_renet::renet::RenetServer`] resource from Renet. All Renet API is re-exported from this plugin.
 
-The only part of it that handled by this plugin is channels that used for events and component replication. These channels should be obtained from the [`NetworkChannels`] resource. So when creating server you need to initialize [`bevy_renet::renet::RenetConnectionConfig`] like this:
+The only part of it that handled by this plugin is channels that used for events and component replication. These channels should be obtained from the [`replication_core::NetworkChannels`] resource. So when creating server you need to initialize [`bevy_renet::renet::RenetConnectionConfig`] like this:
 
 ```rust
 # use bevy_mod_replication::{prelude::*, renet::RenetConnectionConfig};
@@ -238,7 +238,7 @@ let connection_config = RenetConnectionConfig {
 };
 ```
 
-For client you need to swap [`NetworkChannels::server_channels`] and [`NetworkChannels::client_channels()`].
+For client you need to swap [`replication_core::NetworkChannels::server_channels`] and [`replication_core::NetworkChannels::client_channels()`].
 
 For full example of how to initialize server or client see the example in the repository.
 

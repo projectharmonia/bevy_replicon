@@ -4,14 +4,52 @@ use bevy::{
     reflect::GetTypeRegistration,
     utils::{HashMap, HashSet},
 };
+use bevy_renet::renet::{ChannelConfig, ReliableChannelConfig, UnreliableChannelConfig};
 
-pub(super) struct ReplicationRulesPlugin;
+use crate::REPLICATION_CHANNEL_ID;
 
-impl Plugin for ReplicationRulesPlugin {
+pub(super) struct ReplicationCorePlugin;
+
+impl Plugin for ReplicationCorePlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<Replication>()
             .init_resource::<ReplicationRules>();
     }
+}
+
+/// A resource to create channels for [`bevy_renet::renet::RenetConnectionConfig`]
+/// based on number of added server and client events.
+#[derive(Clone, Copy, Default, Resource)]
+pub struct NetworkChannels {
+    /// Increments with each server event registration.
+    pub(super) server: u8,
+    /// Increments with each client event registration.
+    pub(super) client: u8,
+}
+
+impl NetworkChannels {
+    pub fn server_channels(&self) -> Vec<ChannelConfig> {
+        channel_configs(self.server)
+    }
+
+    pub fn client_channels(&self) -> Vec<ChannelConfig> {
+        channel_configs(self.client)
+    }
+}
+
+fn channel_configs(events_count: u8) -> Vec<ChannelConfig> {
+    let mut channel_configs = Vec::with_capacity((events_count + 1).into());
+    channel_configs.push(ChannelConfig::Unreliable(UnreliableChannelConfig {
+        channel_id: REPLICATION_CHANNEL_ID,
+        ..Default::default()
+    }));
+    for channel_id in 1..=events_count {
+        channel_configs.push(ChannelConfig::Reliable(ReliableChannelConfig {
+            channel_id: REPLICATION_CHANNEL_ID + channel_id,
+            ..Default::default()
+        }));
+    }
+    channel_configs
 }
 
 pub trait AppReplicationExt {
