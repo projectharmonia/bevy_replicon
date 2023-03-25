@@ -3,6 +3,7 @@ unmaintained = "deny"
 yanked = "deny"
 notice = "deny"
 unsound = "deny"
+ignore = ["RUSTSEC-2022-0048"]
 
 [licenses]
 allow-osi-fsf-free = "either"
@@ -11,7 +12,9 @@ allow-osi-fsf-free = "either"
 multiple-versions = "deny"
 wildcards = "deny"
 skip = [
-  { name = "syn", version = "1.0" }, # from bevy_derive v0.10.0
+  { name = "syn", version = "1.0" },           # from bevy_derive v0.10.0
+  { name = "ahash", version = "0.7.6" },       # from bevy_utils v0.10.0
+  { name = "redox_syscall", version = "0.2" }, # from notify v5.1.0
 ]
 
 [sources]
