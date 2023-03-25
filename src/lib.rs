@@ -1,3 +1,6 @@
+#![warn(clippy::doc_markdown)]
+#![doc = include_str!("../README.md")]
+
 pub mod client;
 pub mod network_event;
 pub mod replication_rules;

@@ -433,6 +433,7 @@ checksum = "0a065c7ac81cd7cf3f1b8f15c4a93db5f07274ddaaec145ba7d0393be0c9c413"
 dependencies = [
  "bevy_a11y",
  "bevy_app",
+ "bevy_asset",
  "bevy_core",
  "bevy_core_pipeline",
  "bevy_derive",

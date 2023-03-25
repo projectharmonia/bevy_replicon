@@ -4,12 +4,10 @@ on:
     branches:
       - master
     paths-ignore:
-      - "**.md"
       - ".gitignore"
       - ".github/dependabot.yml"
   pull_request:
     paths-ignore:
-      - "**.md"
       - ".gitignore"
       - ".github/dependabot.yml"
 env:
@@ -33,8 +31,8 @@ jobs:
           cargo fmt --check
           taplo fmt --check
 
-  clippy:
-    name: Clippy
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - name: Clone repo
@@ -48,6 +46,9 @@ jobs:
 
       - name: Clippy
         run: cargo clippy --no-deps --tests -- -D warnings
+
+      - name: Rustdoc
+        run: cargo rustdoc -- -D warnings
 
   test:
     name: Test
@@ -84,7 +85,7 @@ jobs:
   codecov:
     name: Upload to Codecov
     if: github.actor != 'dependabot[bot]'
-    needs: [test, clippy, format]
+    needs: [test, lint, format]
     runs-on: ubuntu-latest
     steps:
       - name: Clone repo

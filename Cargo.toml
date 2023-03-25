@@ -16,3 +16,8 @@ derive_more = { version = "0.99", default-features = false, features = [
 
 [dev-dependencies]
 serde_test = "1.0"
+bevy = { version = "0.10", default-features = false, features = [
+  "bevy_render",
+  "bevy_asset",
+  "bevy_pbr",
+] }

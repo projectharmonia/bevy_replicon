@@ -20,12 +20,12 @@ pub trait ClientEventAppExt {
     /// Registers [`ClientEvent<T>`] event that will be emitted on server after sending `T` event on client.
     fn add_client_event<T: Event + Serialize + DeserializeOwned + Debug>(&mut self) -> &mut Self;
 
-    /// Same as [`add_client_event`], but additionally maps client entities to server before sending.
+    /// Same as [`Self::add_client_event`], but additionally maps client entities to server before sending.
     fn add_mapped_client_event<T: Event + Serialize + DeserializeOwned + Debug + MapEntities>(
         &mut self,
     ) -> &mut Self;
 
-    /// Same as [`add_client_event`], but uses the specified sending system.
+    /// Same as [`Self::add_client_event`], but uses the specified sending system.
     fn add_client_event_with<T: Event + Serialize + DeserializeOwned + Debug, Marker>(
         &mut self,
         sending_system: impl IntoSystemConfig<Marker>,

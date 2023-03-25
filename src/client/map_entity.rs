@@ -57,7 +57,7 @@ impl NetworkEntityMap {
     }
 }
 
-/// Like [`ReflectMapEntities`], but maps only a single entity instead of all entities from [`EntityMap`].
+/// Like [`bevy::ecs::reflect::ReflectMapEntities`], but maps only a single entity instead of all entities from [`EntityMap`].
 #[derive(Clone)]
 pub struct ReflectMapEntity {
     map_entities: fn(&mut World, &EntityMap, Entity) -> Result<(), MapEntitiesError>,
