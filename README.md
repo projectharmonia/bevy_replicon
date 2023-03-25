@@ -154,6 +154,7 @@ To replicate your event from client to server just create your event as a client
 # use bevy_mod_replication::prelude::*;
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
+# app.add_plugins(ReplicationPlugins);
 app.add_client_event::<DummyEvent>()
     .add_system(event_sending_system);
 
@@ -178,6 +179,7 @@ Just like components, if an event contains [`Entity`], then the client should ma
 # use bevy::{prelude::*, ecs::entity::{EntityMap, MapEntities, MapEntitiesError}};
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
+# app.add_plugins(ReplicationPlugins);
 app.add_mapped_client_event::<MappedEvent>();
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -200,6 +202,7 @@ A similar technique is used to replicate an event from server to clients. To do 
 # use bevy_mod_replication::{prelude::*, renet::RenetConnectionConfig};
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
+# app.add_plugins(ReplicationPlugins);
 app.add_server_event::<DummyEvent>()
     .add_system(event_sending_system);
 
@@ -229,8 +232,11 @@ To connect to the server or create it, you need to initialize the [`bevy_renet::
 The only part of it that handled by this plugin is channels that used for events and component replication. These channels should be obtained from the [`replication_core::NetworkChannels`] resource. So when creating server you need to initialize [`bevy_renet::renet::RenetConnectionConfig`] like this:
 
 ```rust
+# use bevy::prelude::*;
 # use bevy_mod_replication::{prelude::*, renet::RenetConnectionConfig};
-# let network_channels = NetworkChannels::default();
+# let mut app = App::new();
+# app.add_plugins(ReplicationPlugins);
+let network_channels = app.world.resource::<NetworkChannels>();
 let connection_config = RenetConnectionConfig {
     send_channels_config: network_channels.server_channels(),
     receive_channels_config: network_channels.client_channels(),

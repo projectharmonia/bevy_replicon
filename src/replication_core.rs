@@ -13,6 +13,7 @@ pub(super) struct ReplicationCorePlugin;
 impl Plugin for ReplicationCorePlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<Replication>()
+            .init_resource::<NetworkChannels>()
             .init_resource::<ReplicationRules>();
     }
 }

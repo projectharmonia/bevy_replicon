@@ -9,19 +9,16 @@ use bevy_renet::renet::{
     ServerAuthentication, ServerConfig,
 };
 
-use super::{replication_core::NetworkChannels, ReplicationPlugins};
+use super::replication_core::NetworkChannels;
 
 /// Automates server and client creation for unit tests.
 pub(super) struct TestNetworkPlugin;
 
 impl Plugin for TestNetworkPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(MinimalPlugins)
-            .add_plugins(ReplicationPlugins);
+        app.add_plugins(MinimalPlugins);
 
-        let network_channels = *app
-            .world
-            .get_resource_or_insert_with(NetworkChannels::default);
+        let network_channels = app.world.resource_mut::<NetworkChannels>();
         let client_channels = network_channels.client_channels();
         let server_channels = network_channels.server_channels();
 

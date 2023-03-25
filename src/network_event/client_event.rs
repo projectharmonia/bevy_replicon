@@ -11,8 +11,9 @@ use tap::TapFallible;
 use super::EventChannel;
 use crate::{
     client::{map_entity::NetworkEntityMap, ClientState},
+    prelude::NetworkChannels,
     server::{ServerSet, ServerState, SERVER_ID},
-    REPLICATION_CHANNEL_ID, prelude::NetworkChannels,
+    REPLICATION_CHANNEL_ID,
 };
 
 /// An extension trait for [`App`] for creating client events.
@@ -47,11 +48,9 @@ impl ClientEventAppExt for App {
         &mut self,
         sending_system: impl IntoSystemConfig<Marker>,
     ) -> &mut Self {
-        let mut event_counter = self
-            .world
-            .get_resource_or_insert_with(NetworkChannels::default);
-        event_counter.client += 1;
-        let current_channel_id = REPLICATION_CHANNEL_ID + event_counter.client;
+        let mut network_channels = self.world.resource_mut::<NetworkChannels>();
+        network_channels.client += 1;
+        let current_channel_id = REPLICATION_CHANNEL_ID + network_channels.client;
 
         self.add_event::<T>()
             .add_event::<ClientEvent<T>>()
@@ -147,7 +146,8 @@ mod tests {
     #[test]
     fn sending_receiving() {
         let mut app = App::new();
-        app.add_client_event::<DummyEvent>()
+        app.add_plugins(ReplicationPlugins)
+            .add_client_event::<DummyEvent>()
             .add_plugin(TestNetworkPlugin);
 
         let mut dummy_events = app.world.resource_mut::<Events<DummyEvent>>();
@@ -163,7 +163,8 @@ mod tests {
     #[test]
     fn mapping() {
         let mut app = App::new();
-        app.add_mapped_client_event::<MappedEvent>()
+        app.add_plugins(ReplicationPlugins)
+            .add_mapped_client_event::<MappedEvent>()
             .add_plugin(TestNetworkPlugin);
 
         let client_entity = Entity::from_raw(0);

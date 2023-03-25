@@ -24,7 +24,7 @@ pub mod prelude {
             server_event::{SendMode, ServerEvent, ServerEventAppExt},
         },
         renet::{RenetClient, RenetServer},
-        replication_core::{NetworkChannels, AppReplicationExt, Replication, ReplicationRules},
+        replication_core::{AppReplicationExt, NetworkChannels, Replication, ReplicationRules},
         server::{ServerPlugin, ServerSet, ServerState, SERVER_ID},
         ReplicationPlugins,
     };
@@ -62,7 +62,8 @@ mod tests {
     #[test]
     fn acked_ticks_cleanup() {
         let mut app = App::new();
-        app.add_plugin(TestNetworkPlugin);
+        app.add_plugins(ReplicationPlugins)
+            .add_plugin(TestNetworkPlugin);
 
         let mut client = app.world.resource_mut::<RenetClient>();
         client.disconnect();
@@ -80,7 +81,8 @@ mod tests {
     #[test]
     fn tick_acks_receiving() {
         let mut app = App::new();
-        app.add_plugin(TestNetworkPlugin);
+        app.add_plugins(ReplicationPlugins)
+            .add_plugin(TestNetworkPlugin);
 
         for _ in 0..10 {
             app.update();
@@ -94,7 +96,8 @@ mod tests {
     #[test]
     fn spawn_replication() {
         let mut app = App::new();
-        app.add_plugin(TestNetworkPlugin)
+        app.add_plugins(ReplicationPlugins)
+            .add_plugin(TestNetworkPlugin)
             .register_and_replicate::<TableComponent>();
 
         // Wait two ticks to send and receive acknowledge.
@@ -130,7 +133,8 @@ mod tests {
     #[test]
     fn change_replicaiton() {
         let mut app = App::new();
-        app.add_plugin(TestNetworkPlugin)
+        app.add_plugins(ReplicationPlugins)
+            .add_plugin(TestNetworkPlugin)
             .register_and_replicate::<TableComponent>()
             .register_and_replicate::<SparseSetComponent>();
 
@@ -171,7 +175,8 @@ mod tests {
     #[test]
     fn entity_mapping() {
         let mut app = App::new();
-        app.add_plugin(TestNetworkPlugin)
+        app.add_plugins(ReplicationPlugins)
+            .add_plugin(TestNetworkPlugin)
             .register_and_replicate::<MappedComponent>();
 
         app.update();
@@ -199,6 +204,7 @@ mod tests {
     fn removal_replication() {
         let mut app = App::new();
         app.register_type::<NonReflectedComponent>()
+            .add_plugins(ReplicationPlugins)
             .add_plugin(TestNetworkPlugin);
 
         app.update();
@@ -228,7 +234,8 @@ mod tests {
     #[test]
     fn despawn_replication() {
         let mut app = App::new();
-        app.add_plugin(TestNetworkPlugin);
+        app.add_plugins(ReplicationPlugins)
+            .add_plugin(TestNetworkPlugin);
 
         app.update();
         app.update();
