@@ -4,6 +4,7 @@ use bevy::{
         reflect::ReflectMapEntities,
     },
     prelude::*,
+    scene,
 };
 
 use crate::prelude::{AppReplicationExt, ReflectMapEntity};
@@ -16,7 +17,7 @@ pub struct ParentSyncPlugin;
 impl Plugin for ParentSyncPlugin {
     fn build(&self, app: &mut App) {
         app.register_and_replicate::<ParentSync>()
-            .add_system(Self::parent_sync_system);
+            .add_system(Self::parent_sync_system.after(scene::scene_spawner_system));
     }
 }
 
@@ -52,6 +53,8 @@ impl MapEntities for ParentSync {
 
 #[cfg(test)]
 mod tests {
+    use bevy::scene::ScenePlugin;
+
     use crate::replication_core::ReplicationCorePlugin;
 
     use super::*;
@@ -59,11 +62,21 @@ mod tests {
     #[test]
     fn entity_mapping() {
         let mut app = App::new();
-        app.add_plugin(ReplicationCorePlugin)
+        app.add_plugin(AssetPlugin::default())
+            .add_plugin(ScenePlugin)
+            .add_plugin(ReplicationCorePlugin)
             .add_plugin(ParentSyncPlugin);
 
-        let parent = app.world.spawn_empty().id();
-        app.world.spawn(ParentSync(parent));
+        let mut other_world = World::new();
+        let parent = other_world.spawn_empty().id();
+        other_world.spawn(ParentSync(parent));
+        let dynamic_scene =
+            DynamicScene::from_world(&other_world, app.world.resource::<AppTypeRegistry>());
+
+        let mut scenes = app.world.resource_mut::<Assets<DynamicScene>>();
+        let scene_handle = scenes.add(dynamic_scene);
+        let mut scene_spawner = app.world.resource_mut::<SceneSpawner>();
+        scene_spawner.spawn_dynamic(scene_handle);
 
         app.update();
 
