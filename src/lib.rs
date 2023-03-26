@@ -102,7 +102,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(ReplicationPlugins)
             .add_plugin(TestNetworkPlugin)
-            .register_and_replicate::<TableComponent>();
+            .replicate::<TableComponent>();
 
         // Wait two ticks to send and receive acknowledge.
         app.update();
@@ -139,8 +139,8 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(ReplicationPlugins)
             .add_plugin(TestNetworkPlugin)
-            .register_and_replicate::<TableComponent>()
-            .register_and_replicate::<SparseSetComponent>();
+            .replicate::<TableComponent>()
+            .replicate::<SparseSetComponent>();
 
         app.update();
         app.update();
@@ -181,7 +181,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(ReplicationPlugins)
             .add_plugin(TestNetworkPlugin)
-            .register_and_replicate::<MappedComponent>();
+            .replicate::<MappedComponent>();
 
         app.update();
         app.update();
