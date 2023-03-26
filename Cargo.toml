@@ -19,5 +19,5 @@ serde_test = "1.0"
 bevy = { version = "0.10", default-features = false, features = [
   "bevy_render",
   "bevy_asset",
-  "bevy_pbr",
+  "bevy_sprite",
 ] }

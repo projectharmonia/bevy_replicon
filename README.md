@@ -121,7 +121,7 @@ app.replicate::<Transform>()
 fn player_init_system(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
     spawned_players: Query<Entity, Added<Player>>,
 ) {
     for entity in &spawned_players {
