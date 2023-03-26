@@ -141,6 +141,10 @@ struct Player;
 
 If your game have save states you probably want to re-use the same logic to keep you saves clean. Also, although `Handle<T>` can technically be serialized, they won't be valid after deserialization.
 
+### Component relations
+
+Sometimes components depend on each other. For example, [`Parent`] and [`Children`]. In this case, you can't just replicate the [`Parent`] because you not only need to add it to the [`Children`] of the parent, but also remove it from the [`Children`] of the old one. In this case, you need to create a third component that correctly updates the other two when it changes, and only replicate that one. This crate provides [`parent_sync::ParentSync`] component that does just that for Bevy hierarchy. For your custom components with relations you need to write your own with a similar pattern.
+
 ## Event replication
 
 Event replication replace RPCs (remote procedure calls) in other engines and, unlike components, can be sent both from server to clients and from clients to server.

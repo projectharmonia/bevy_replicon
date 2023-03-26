@@ -3,6 +3,7 @@
 
 pub mod client;
 pub mod network_event;
+pub mod parent_sync;
 pub mod replication_core;
 pub mod server;
 #[cfg(test)]
@@ -13,6 +14,7 @@ use bevy::{app::PluginGroupBuilder, prelude::*};
 pub use bevy_renet::renet;
 
 use client::ClientPlugin;
+use parent_sync::ParentSyncPlugin;
 use replication_core::ReplicationCorePlugin;
 use server::ServerPlugin;
 
@@ -23,6 +25,7 @@ pub mod prelude {
             client_event::{ClientEventAppExt, FromClient},
             server_event::{SendMode, ServerEventAppExt, ToClients},
         },
+        parent_sync::{ParentSync, ParentSyncPlugin},
         renet::{RenetClient, RenetServer},
         replication_core::{AppReplicationExt, NetworkChannels, Replication, ReplicationRules},
         server::{ServerPlugin, ServerSet, ServerState, SERVER_ID},
@@ -38,6 +41,7 @@ impl PluginGroup for ReplicationPlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<Self>()
             .add(ReplicationCorePlugin)
+            .add(ParentSyncPlugin)
             .add(ClientPlugin)
             .add(ServerPlugin::default())
     }
