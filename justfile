@@ -10,4 +10,5 @@ coverage *ARGS: raw-coverage
     --excl-start "mod tests" \
     --excl-line "#\[" \
     --ignore "/*" \
+    --ignore "examples/*" \
     {{ ARGS }}
