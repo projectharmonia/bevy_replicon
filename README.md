@@ -41,21 +41,21 @@ It's a process of sending component changes from server to clients in order to k
 
 By default, no components are replicated. To start replication, you need two things:
 
-1. Mark component type for replication. Component should implement [`Reflect`], have `#[reflect(Component)]` and be be registered in Bevy type registry. You can use [`replication_core::AppReplicationExt::register_and_replicate`] to register type and mark component for replication:
+1. Mark component type for replication. Component should implement [`Reflect`], have `#[reflect(Component)]`. You can use [`replication_core::AppReplicationExt::replicate`] to mark the component for replication:
 
 ```rust
 # use bevy::prelude::*;
 # use bevy_mod_replication::prelude::*;
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
-app.register_and_replicate::<DummyComponent>();
+app.replicate::<DummyComponent>();
 
 #[derive(Component, Default, Reflect)]
 #[reflect(Component)]
 struct DummyComponent;
 ```
 
-You can use just [`replication_core::AppReplicationExt::replicate`] if the component type is already registered using [`App::register_type`]. It's true for Bevy built-in components, like [`Transform`].
+This also automatically registers the specified type in [`bevy::reflect::TypeRegistryInternal`], so you don't need to call [`App::register_type()`] if you replicating the type.
 
 If your component contains [`Entity`] then it cannot be deserialized as is because entity IDs are different on server and client. The client should do the mapping. Therefore, to replicate such components properly, they need implement and reflect [`bevy::ecs::entity::MapEntities`]:
 
@@ -84,7 +84,7 @@ impl FromWorld for MappedComponent {
 }
 ```
 
-2. You need to choose entities you want to replicate using [`replication_core::Replication`] component. Just insert it to the entity you want to replicate. Only components marked for replication will be replicated.
+2. You need to choose entities you want to replicate using [`replication_core::Replication`] component. Just insert it to the entity you want to replicate. Only components marked for replication through [`replication_core::AppReplicationExt::replicate`] will be replicated.
 
 If you need more control, you add special rules. For example, if you don't want to replicate [`Transform`] on entities marked for replication if your special component is present, you can do the following:
 
@@ -94,7 +94,7 @@ If you need more control, you add special rules. For example, if you don't want 
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
 app.replicate::<Visibility>()
-    .register_and_replicate::<DummyComponent>()
+    .replicate::<DummyComponent>()
     .not_replicate_if_present::<Visibility, DummyComponent>();
 
 # #[derive(Component, Default, Reflect)]
@@ -115,7 +115,7 @@ The idea was borrowed from [iyes_scene_tools](https://github.com/IyesGames/iyes_
 # app.add_plugins(ReplicationPlugins);
 app.replicate::<Transform>()
     .replicate::<Visibility>()
-    .register_and_replicate::<Player>()
+    .replicate::<Player>()
     .add_system(player_init_system);
 
 fn player_init_system(

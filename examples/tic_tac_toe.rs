@@ -43,9 +43,9 @@ impl Plugin for TicTacToePlugin {
             .init_resource::<GameFont>()
             .init_resource::<SymbolFont>()
             .init_resource::<CurrentTurn>()
-            .register_and_replicate::<Symbol>()
-            .register_and_replicate::<BoardCell>()
-            .register_and_replicate::<Player>()
+            .replicate::<Symbol>()
+            .replicate::<BoardCell>()
+            .replicate::<Player>()
             .add_client_event::<CellPick>()
             .insert_resource(ClearColor(BACKGROUND_COLOR))
             .add_startup_systems((

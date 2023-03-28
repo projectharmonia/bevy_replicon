@@ -16,7 +16,7 @@ pub struct ParentSyncPlugin;
 /// This allows to save / replicate hierarchy using only [`ParentSync`] component.
 impl Plugin for ParentSyncPlugin {
     fn build(&self, app: &mut App) {
-        app.register_and_replicate::<ParentSync>()
+        app.replicate::<ParentSync>()
             .add_system(Self::parent_sync_system.after(scene::scene_spawner_system));
     }
 }

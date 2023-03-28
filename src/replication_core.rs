@@ -54,13 +54,10 @@ fn channel_configs(events_count: u8) -> Vec<ChannelConfig> {
 }
 
 pub trait AppReplicationExt {
-    /// A shorthand for [`App::register_type`] with [`Self::replicate`].
-    fn register_and_replicate<T: Component + GetTypeRegistration>(&mut self) -> &mut Self;
-
     /// Marks component for replication.
     ///
-    /// The component should be registered, implement [`Reflect`] and have `#[reflect(Component)]`.
-    fn replicate<T: Component>(&mut self) -> &mut Self;
+    /// The component should implement [`Reflect`] and have `#[reflect(Component)]`.
+    fn replicate<T: Component + GetTypeRegistration>(&mut self) -> &mut Self;
 
     /// Ignores component `T` replication if component `U` is present on the same entity.
     ///
@@ -72,11 +69,8 @@ pub trait AppReplicationExt {
 }
 
 impl AppReplicationExt for App {
-    fn register_and_replicate<T: Component + GetTypeRegistration>(&mut self) -> &mut Self {
-        self.register_type::<T>().replicate::<T>()
-    }
-
-    fn replicate<T: Component>(&mut self) -> &mut Self {
+    fn replicate<T: Component + GetTypeRegistration>(&mut self) -> &mut Self {
+        self.register_type::<T>();
         let component_id = self.world.init_component::<T>();
         let mut replication_rules = self.world.resource_mut::<ReplicationRules>();
         replication_rules.replicated.insert(component_id);
