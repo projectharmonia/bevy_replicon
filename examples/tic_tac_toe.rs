@@ -8,7 +8,7 @@ use std::{
 
 use anyhow::Result;
 use bevy::prelude::*;
-use bevy_mod_replication::{
+use bevy_replicon::{
     prelude::*,
     renet::{
         ClientAuthentication, RenetConnectionConfig, ServerAuthentication, ServerConfig,

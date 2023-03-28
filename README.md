@@ -1,6 +1,6 @@
-# bevy_mod_replication
+# bevy_replicon
 
-[![codecov](https://codecov.io/gh/lifescape-game/bevy_mod_replication/branch/master/graph/badge.svg?token=N1G28NQB1L)](https://codecov.io/gh/lifescape-game/bevy_mod_replication)
+[![codecov](https://codecov.io/gh/lifescapegame/bevy_replicon/branch/master/graph/badge.svg?token=N1G28NQB1L)](https://codecov.io/gh/lifescapegame/bevy_replicon)
 
 Write the same logic that works for both multiplayer and single-player. The crate provides synchronization of components and events between the server and clients using the [Renet](https://github.com/lucaspoffo/renet) library for the [Bevy game engine](https://bevyengine.org).
 
@@ -10,7 +10,7 @@ You need to add [`ReplicationPlugins`] to your app:
 
 ```rust
 use bevy::prelude::*;
-use bevy_mod_replication::prelude::*;
+use bevy_replicon::prelude::*;
 
 let mut app = App::new();
 app.add_plugins(MinimalPlugins)
@@ -21,7 +21,7 @@ This group contains necessary replication stuff and setups server and client plu
 
 ```rust
 # use bevy::prelude::*;
-# use bevy_mod_replication::prelude::*;
+# use bevy_replicon::prelude::*;
 # let mut app = App::new();
 app.add_plugins(MinimalPlugins).add_plugins(
     ReplicationPlugins
@@ -45,7 +45,7 @@ By default, no components are replicated. To start replication, you need two thi
 
 ```rust
 # use bevy::prelude::*;
-# use bevy_mod_replication::prelude::*;
+# use bevy_replicon::prelude::*;
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
 app.replicate::<DummyComponent>();
@@ -61,7 +61,7 @@ If your component contains [`Entity`] then it cannot be deserialized as is becau
 
 ```rust
 # use bevy::{prelude::*, ecs::entity::{EntityMap, MapEntities, MapEntitiesError}};
-# use bevy_mod_replication::prelude::*;
+# use bevy_replicon::prelude::*;
 #[derive(Component, Reflect)]
 #[reflect(Component, MapEntity)]
 struct MappedComponent(Entity);
@@ -90,7 +90,7 @@ If you need more control, you add special rules. For example, if you don't want 
 
 ```rust
 # use bevy::prelude::*;
-# use bevy_mod_replication::prelude::*;
+# use bevy_replicon::prelude::*;
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
 app.replicate::<Visibility>()
@@ -110,7 +110,7 @@ The idea was borrowed from [iyes_scene_tools](https://github.com/IyesGames/iyes_
 
 ```rust
 # use bevy::prelude::*;
-# use bevy_mod_replication::prelude::*;
+# use bevy_replicon::prelude::*;
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
 app.replicate::<Transform>()
@@ -155,7 +155,7 @@ To replicate your event from client to server just create your event as a client
 
 ```rust
 # use bevy::prelude::*;
-# use bevy_mod_replication::prelude::*;
+# use bevy_replicon::prelude::*;
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
@@ -179,7 +179,7 @@ struct DummyEvent;
 Just like components, if an event contains [`Entity`], then the client should map it before sending it to the server. To do this, use `add_mapped_client_event`:
 
 ```rust
-# use bevy_mod_replication::prelude::*;
+# use bevy_replicon::prelude::*;
 # use bevy::{prelude::*, ecs::entity::{EntityMap, MapEntities, MapEntitiesError}};
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
@@ -203,7 +203,7 @@ A similar technique is used to replicate an event from server to clients. To do 
 
 ```rust
 # use bevy::prelude::*;
-# use bevy_mod_replication::{prelude::*, renet::RenetConnectionConfig};
+# use bevy_replicon::{prelude::*, renet::RenetConnectionConfig};
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
@@ -237,7 +237,7 @@ The only part of it that handled by this plugin is channels that used for events
 
 ```rust
 # use bevy::prelude::*;
-# use bevy_mod_replication::{prelude::*, renet::RenetConnectionConfig};
+# use bevy_replicon::{prelude::*, renet::RenetConnectionConfig};
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
 let network_channels = app.world.resource::<NetworkChannels>();
