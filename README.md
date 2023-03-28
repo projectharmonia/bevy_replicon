@@ -1,4 +1,4 @@
-# bevy_replicon
+# Bevy Replicon
 
 [![codecov](https://codecov.io/gh/lifescapegame/bevy_replicon/branch/master/graph/badge.svg?token=N1G28NQB1L)](https://codecov.io/gh/lifescapegame/bevy_replicon)
 
