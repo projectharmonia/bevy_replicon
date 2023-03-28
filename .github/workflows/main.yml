@@ -67,7 +67,7 @@ jobs:
         run: rustup component add llvm-tools-preview
 
       - name: Install Grcov
-        run: cargo install grcov
+        run: cargo install --version 0.8.13 grcov
 
       - name: Install Just
         run: cargo install just
