@@ -101,8 +101,8 @@ mod tests {
     fn spawn_replication() {
         let mut app = App::new();
         app.add_plugins(ReplicationPlugins)
-            .add_plugin(TestNetworkPlugin)
-            .replicate::<TableComponent>();
+            .replicate::<TableComponent>()
+            .add_plugin(TestNetworkPlugin);
 
         // Wait two ticks to send and receive acknowledge.
         app.update();
@@ -135,12 +135,14 @@ mod tests {
     }
 
     #[test]
-    fn change_replicaiton() {
+    fn insert_replicaiton() {
         let mut app = App::new();
         app.add_plugins(ReplicationPlugins)
-            .add_plugin(TestNetworkPlugin)
             .replicate::<TableComponent>()
-            .replicate::<SparseSetComponent>();
+            .replicate::<SparseSetComponent>()
+            .replicate::<IgnoredComponent>()
+            .not_replicate_if_present::<IgnoredComponent, ExclusionComponent>()
+            .add_plugin(TestNetworkPlugin);
 
         app.update();
         app.update();
@@ -166,6 +168,7 @@ mod tests {
         // since in test client and server in the same world.
         let mut replicated_entity = app.world.entity_mut(replicated_entity);
         replicated_entity.remove::<SparseSetComponent>();
+        replicated_entity.remove::<TableComponent>();
         replicated_entity.remove::<NonReflectedComponent>();
         let replicated_entity = replicated_entity.id();
 
@@ -173,6 +176,7 @@ mod tests {
 
         let replicated_entity = app.world.entity(replicated_entity);
         assert!(replicated_entity.contains::<SparseSetComponent>());
+        assert!(replicated_entity.contains::<TableComponent>());
         assert!(!replicated_entity.contains::<NonReflectedComponent>());
     }
 
@@ -180,8 +184,8 @@ mod tests {
     fn entity_mapping() {
         let mut app = App::new();
         app.add_plugins(ReplicationPlugins)
-            .add_plugin(TestNetworkPlugin)
-            .replicate::<MappedComponent>();
+            .replicate::<MappedComponent>()
+            .add_plugin(TestNetworkPlugin);
 
         app.update();
         app.update();
@@ -207,8 +211,8 @@ mod tests {
     #[test]
     fn removal_replication() {
         let mut app = App::new();
-        app.register_type::<NonReflectedComponent>()
-            .add_plugins(ReplicationPlugins)
+        app.add_plugins(ReplicationPlugins)
+            .register_type::<NonReflectedComponent>()
             .add_plugin(TestNetworkPlugin);
 
         app.update();
@@ -300,4 +304,11 @@ mod tests {
 
     #[derive(Component, Reflect)]
     struct NonReflectedComponent;
+
+    #[derive(Component, Default, Reflect)]
+    #[reflect(Component)]
+    struct IgnoredComponent;
+
+    #[derive(Component, Reflect)]
+    struct ExclusionComponent;
 }
