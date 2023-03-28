@@ -10,14 +10,6 @@ pub mod server;
 mod test_network;
 mod world_diff;
 
-use bevy::{app::PluginGroupBuilder, prelude::*};
-pub use bevy_renet::renet;
-
-use client::ClientPlugin;
-use parent_sync::ParentSyncPlugin;
-use replication_core::ReplicationCorePlugin;
-use server::ServerPlugin;
-
 pub mod prelude {
     pub use super::{
         client::{map_entity::ReflectMapEntity, ClientPlugin, ClientState},
@@ -32,6 +24,11 @@ pub mod prelude {
         ReplicationPlugins,
     };
 }
+
+use bevy::{app::PluginGroupBuilder, prelude::*};
+pub use bevy_renet::renet;
+use prelude::*;
+use replication_core::ReplicationCorePlugin;
 
 const REPLICATION_CHANNEL_ID: u8 = 0;
 
