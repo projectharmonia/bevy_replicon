@@ -55,6 +55,8 @@ app.replicate::<DummyComponent>();
 struct DummyComponent;
 ```
 
+This also automatically registers the specified type in [`bevy::reflect::TypeRegistryInternal`], so you don't need to call [`App::register_type()`] if you replicating the type.
+
 If your component contains [`Entity`] then it cannot be deserialized as is because entity IDs are different on server and client. The client should do the mapping. Therefore, to replicate such components properly, they need implement and reflect [`bevy::ecs::entity::MapEntities`]:
 
 ```rust
