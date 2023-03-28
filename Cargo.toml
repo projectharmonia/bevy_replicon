@@ -16,7 +16,7 @@ keywords = [
 ]
 categories = ["game-development", "network-programming"]
 license = "MIT OR Apache-2.0"
-exclude = [".github", "assets", "codecov.yml", "deny.toml", "examples"]
+include = ["/src", "/LICENSE*"]
 
 [dependencies]
 bevy_renet = "0.0.7"
