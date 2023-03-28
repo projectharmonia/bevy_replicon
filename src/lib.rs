@@ -344,13 +344,13 @@ creation / connection systems and corresponding UI.
 #![doc = include_str!("../README.md")]
 
 pub mod client;
+pub mod tick;
 pub mod network_event;
 pub mod parent_sync;
 pub mod replication_core;
 pub mod server;
 #[cfg(test)]
 mod test_network;
-mod tick;
 mod world_diff;
 
 pub mod prelude {

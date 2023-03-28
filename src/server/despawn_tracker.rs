@@ -1,7 +1,7 @@
 use bevy::{ecs::system::SystemChangeTick, prelude::*, utils::HashSet};
 
 use super::AckedTicks;
-use crate::{replication_core::Replication, server::ServerState, tick::Tick};
+use crate::{replication_core::Replication, server::ServerState, tick::NetworkTick};
 
 /// Tracks entity despawns of entities with [`Replication`] component in [`DespawnTracker`] resource.
 ///
@@ -47,7 +47,7 @@ impl DespawnTrackerPlugin {
     }
 
     fn detection_system(
-        change_tick: SystemChangeTick,
+        network_tick: Res<NetworkTick>,
         mut tracker: ResMut<DespawnTracker>,
         entities: Query<Entity>,
     ) {
@@ -58,7 +58,7 @@ impl DespawnTrackerPlugin {
 
         tracked_entities.retain(|&entity| {
             if entities.get(entity).is_err() {
-                despawns.push((entity, Tick::new(change_tick.change_tick())));
+                despawns.push((entity, *network_tick));
                 false
             } else {
                 true
@@ -70,8 +70,8 @@ impl DespawnTrackerPlugin {
 #[derive(Default, Resource)]
 pub(crate) struct DespawnTracker {
     tracked_entities: HashSet<Entity>,
-    /// Entities and ticks when they were despawned.
-    pub(crate) despawns: Vec<(Entity, Tick)>,
+    /// Entities and network ticks when they were despawned.
+    pub(crate) despawns: Vec<(Entity, NetworkTick)>,
 }
 
 #[cfg(test)]
@@ -95,7 +95,7 @@ mod tests {
         const DUMMY_CLIENT_ID: u64 = 0;
         app.world
             .resource_mut::<AckedTicks>()
-            .insert(DUMMY_CLIENT_ID, Tick::new(0));
+            .insert(DUMMY_CLIENT_ID, Default::default());
 
         let replicated_entity = app.world.spawn(Replication).id();
 

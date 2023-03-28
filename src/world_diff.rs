@@ -19,34 +19,26 @@ use serde::{
 };
 use strum::{EnumDiscriminants, EnumVariantNames, IntoStaticStr, VariantNames};
 
-use crate::tick::Tick;
+use crate::tick::NetworkTick;
 
 /// Changed world data and current tick from server.
 ///
 /// Sent from server to clients.
-pub(super) struct WorldDiff {
-    pub(super) tick: Tick,
-    pub(super) entities: HashMap<Entity, Vec<ComponentDiff>>,
-    pub(super) despawns: Vec<Entity>,
+pub struct WorldDiff {
+    pub tick: NetworkTick,
+    pub entities: HashMap<Entity, Vec<ComponentDiff>>,
+    pub despawns: Vec<Entity>,
 }
 
 impl WorldDiff {
     /// Creates a new [`WorldDiff`] with a tick and empty entities.
-    pub(super) fn new(tick: Tick) -> Self {
+    pub fn new(tick: NetworkTick) -> Self {
         Self {
             tick,
             entities: Default::default(),
             despawns: Default::default(),
         }
     }
-}
-
-/// Fields of [`WorldDiff`] for manual deserialization.
-#[derive(Deserialize, IntoStaticStr, EnumVariantNames)]
-enum WorldDiffField {
-    Tick,
-    Entities,
-    Despawned,
 }
 
 /// Type of component or resource change.
@@ -70,6 +62,14 @@ impl ComponentDiff {
             ComponentDiff::Removed(type_name) => type_name,
         }
     }
+}
+
+/// Fields of [`WorldDiff`] for manual deserialization.
+#[derive(Deserialize, IntoStaticStr, EnumVariantNames)]
+enum WorldDiffField {
+    Tick,
+    Entities,
+    Despawned,
 }
 
 #[derive(Constructor)]

@@ -8,7 +8,7 @@ use super::AckedTicks;
 use crate::{
     replication_core::{Replication, ReplicationRules},
     server::ServerState,
-    tick::Tick,
+    tick::NetworkTick,
 };
 
 /// Stores component removals in [`RemovalTracker`] component to make them persistent across ticks.
@@ -71,7 +71,7 @@ impl RemovalTrackerPlugin {
 }
 
 #[derive(Component, Default, Deref, DerefMut)]
-pub(crate) struct RemovalTracker(pub(crate) HashMap<ComponentId, Tick>);
+pub(crate) struct RemovalTracker(pub(crate) HashMap<ComponentId, NetworkTick>);
 
 #[cfg(test)]
 mod tests {
@@ -98,7 +98,7 @@ mod tests {
         const DUMMY_CLIENT_ID: u64 = 0;
         app.world
             .resource_mut::<AckedTicks>()
-            .insert(DUMMY_CLIENT_ID, Tick::new(0));
+            .insert(DUMMY_CLIENT_ID, Default::default());
 
         let replicated_entity = app.world.spawn((Transform::default(), Replication)).id();
 

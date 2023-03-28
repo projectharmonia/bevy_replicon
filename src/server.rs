@@ -24,6 +24,7 @@ use tap::TapFallible;
 use crate::{
     client::LastTick,
     replication_core::ReplicationRules,
+    tick::NetworkTick,
     tick::Tick,
     world_diff::{ComponentDiff, WorldDiff, WorldDiffSerializer},
     REPLICATION_CHANNEL_ID,
@@ -110,7 +111,7 @@ impl ServerPlugin {
         let registry = registry.read();
         let mut client_diffs: HashMap<_, _> = acked_ticks
             .iter()
-            .map(|(&client_id, &last_tick)| (client_id, WorldDiff::new(last_tick)))
+            .map(|(&client_id, &last_tick)| (client_id, WorldDiff::new(last_tick.get())))
             .collect();
         collect_changes(&mut client_diffs, set.p0(), &registry, &replication_rules);
         collect_removals(&mut client_diffs, set.p0(), &change_tick, &removal_trackers);
@@ -320,4 +321,4 @@ pub enum ServerState {
 ///
 /// Used only on server.
 #[derive(Default, Deref, DerefMut, Resource)]
-pub(super) struct AckedTicks(HashMap<u64, Tick>);
+pub(super) struct AckedTicks(HashMap<u64, NetworkTick>);
