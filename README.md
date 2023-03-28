@@ -257,3 +257,9 @@ For full example of how to initialize server or client see the example in the re
 When configuring systems for multiplayer game, you often want to run some systems only on when you have authority over the world simulation (on server or in single-player session). For example, damage registration or procedural level generation systems. For this just add your systems to the [`server::ServerSet::Authority`] system set. If you want your systems to run only on frames when server send updates to clients use [`server::ServerSet::Tick`].
 
 We also have states for server and client: [`server::ServerState`] or [`client::ClientState`]. They rarely used for gameplay systems (since you write the same logic for multiplayer and single-player!), but could be used for server creation / connection systems and corresponding UI.
+
+## Bevy compatibility
+
+| bevy | bevy_replicon |
+|------|---------------|
+| 0.10 | 0.1           |
