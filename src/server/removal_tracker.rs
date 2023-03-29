@@ -1,10 +1,13 @@
-use bevy::ecs::component::Tick;
-use bevy::ecs::system::SystemChangeTick;
-use bevy::{ecs::component::ComponentId, prelude::*, utils::HashMap};
+use bevy::{
+    ecs::{component::ComponentId, system::SystemChangeTick},
+    prelude::*,
+    utils::HashMap,
+};
 
 use super::AckedTicks;
 use crate::replication_core::{Replication, ReplicationRules};
 use crate::server::ServerState;
+use crate::tick::Tick;
 
 /// Stores component removals in [`RemovalTracker`] component to make them persistent across ticks.
 ///
@@ -43,7 +46,7 @@ impl RemovalTrackerPlugin {
         for mut removal_tracker in &mut removal_trackers {
             removal_tracker.retain(|_, tick| {
                 client_acks.values().any(|last_tick| {
-                    Tick::new(*tick).is_newer_than(*last_tick, change_tick.change_tick())
+                    tick.is_newer_than(*last_tick, Tick::new(change_tick.change_tick()))
                 })
             });
         }
@@ -58,7 +61,7 @@ impl RemovalTrackerPlugin {
             let entities: Vec<_> = set.p0().removed_with_id(component_id).collect();
             for entity in entities {
                 if let Ok(mut removal_tracker) = set.p1().get_mut(entity) {
-                    removal_tracker.insert(component_id, current_tick);
+                    removal_tracker.insert(component_id, Tick::new(current_tick));
                 }
             }
         }
@@ -66,7 +69,7 @@ impl RemovalTrackerPlugin {
 }
 
 #[derive(Component, Default, Deref, DerefMut)]
-pub(crate) struct RemovalTracker(pub(crate) HashMap<ComponentId, u32>);
+pub(crate) struct RemovalTracker(pub(crate) HashMap<ComponentId, Tick>);
 
 #[cfg(test)]
 mod tests {
@@ -93,7 +96,7 @@ mod tests {
         const DUMMY_CLIENT_ID: u64 = 0;
         app.world
             .resource_mut::<AckedTicks>()
-            .insert(DUMMY_CLIENT_ID, 0);
+            .insert(DUMMY_CLIENT_ID, Tick::new(0));
 
         let replicated_entity = app.world.spawn((Transform::default(), Replication)).id();
 

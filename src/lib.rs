@@ -8,6 +8,7 @@ pub mod replication_core;
 pub mod server;
 #[cfg(test)]
 mod test_network;
+mod tick;
 mod world_diff;
 
 pub mod prelude {
@@ -58,6 +59,7 @@ mod tests {
         replication_core::{AppReplicationExt, Replication},
         server::{despawn_tracker::DespawnTracker, removal_tracker::RemovalTracker, AckedTicks},
         test_network::TestNetworkPlugin,
+        tick::Tick,
     };
 
     #[test]
@@ -71,7 +73,7 @@ mod tests {
         let client_id = client.client_id();
 
         let mut acked_ticks = app.world.resource_mut::<AckedTicks>();
-        acked_ticks.insert(client_id, 0);
+        acked_ticks.insert(client_id, Tick::new(0));
 
         app.update();
 
@@ -91,7 +93,9 @@ mod tests {
 
         let acked_ticks = app.world.resource::<AckedTicks>();
         let client = app.world.resource::<RenetClient>();
-        assert!(matches!(acked_ticks.get(&client.client_id()), Some(&last_tick) if last_tick > 0));
+        assert!(
+            matches!(acked_ticks.get(&client.client_id()), Some(&last_tick) if last_tick.get() > 0)
+        );
     }
 
     #[test]
@@ -216,7 +220,7 @@ mod tests {
         app.update();
 
         // Mark components as removed.
-        const REMOVAL_TICK: u32 = 1; // Should be more then 0 since both client and server starts with 0 tick and think that everything is replicated at this point.
+        const REMOVAL_TICK: Tick = Tick::new(1); // Should be more then 0 since both client and server starts with 0 tick and think that everything is replicated at this point.
         let replication_id = app.world.init_component::<Replication>();
         let removal_tracker = RemovalTracker(HashMap::from([(replication_id, REMOVAL_TICK)]));
         let replicated_entity = app
@@ -251,7 +255,7 @@ mod tests {
             .spawn_empty()
             .push_children(&[children_entity])
             .id();
-        let current_tick = app.world.read_change_tick();
+        let current_tick = Tick::new(app.world.read_change_tick());
         let mut despawn_tracker = app.world.resource_mut::<DespawnTracker>();
         despawn_tracker
             .despawns
