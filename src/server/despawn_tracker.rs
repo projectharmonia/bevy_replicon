@@ -1,4 +1,8 @@
-use bevy::{ecs::system::SystemChangeTick, prelude::*, utils::HashSet};
+use bevy::{
+    ecs::{component::Tick, system::SystemChangeTick},
+    prelude::*,
+    utils::HashSet,
+};
 
 use super::AckedTicks;
 use crate::{replication_core::Replication, server::ServerState};
@@ -34,10 +38,16 @@ impl DespawnTrackerPlugin {
     /// Cleanups all acknowledged despawns.
     ///
     /// Cleans all despawns if [`AckedTicks`] is empty.
-    fn cleanup_system(mut despawn_tracker: ResMut<DespawnTracker>, client_acks: Res<AckedTicks>) {
-        despawn_tracker
-            .despawns
-            .retain(|(_, tick)| client_acks.values().any(|last_tick| last_tick < tick));
+    fn cleanup_system(
+        change_tick: SystemChangeTick,
+        mut despawn_tracker: ResMut<DespawnTracker>,
+        client_acks: Res<AckedTicks>,
+    ) {
+        despawn_tracker.despawns.retain(|(_, tick)| {
+            client_acks.values().any(|last_tick| {
+                Tick::new(*tick).is_newer_than(*last_tick, change_tick.change_tick())
+            })
+        });
     }
 
     fn detection_system(

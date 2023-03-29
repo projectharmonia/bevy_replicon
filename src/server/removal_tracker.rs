@@ -1,3 +1,5 @@
+use bevy::ecs::component::Tick;
+use bevy::ecs::system::SystemChangeTick;
 use bevy::{ecs::component::ComponentId, prelude::*, utils::HashMap};
 
 use super::AckedTicks;
@@ -34,12 +36,16 @@ impl RemovalTrackerPlugin {
 
     /// Cleanups all acknowledged despawns.
     fn cleanup_system(
+        change_tick: SystemChangeTick,
         client_acks: Res<AckedTicks>,
         mut removal_trackers: Query<&mut RemovalTracker>,
     ) {
         for mut removal_tracker in &mut removal_trackers {
-            removal_tracker
-                .retain(|_, tick| client_acks.values().any(|last_tick| last_tick < tick));
+            removal_tracker.retain(|_, tick| {
+                client_acks.values().any(|last_tick| {
+                    Tick::new(*tick).is_newer_than(*last_tick, change_tick.change_tick())
+                })
+            });
         }
     }
 
