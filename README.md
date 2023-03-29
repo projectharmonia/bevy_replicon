@@ -43,7 +43,7 @@ It's a process of sending component changes from server to clients in order to k
 
 By default, no components are replicated. To start replication, you need two things:
 
-1. Mark component type for replication. Component should implement [`Reflect`], have `#[reflect(Component)]`. You can use [`AppReplicationExt::replicate()`] to mark the component for replication:
+1. Mark component type for replication. Component should implement [`Reflect`], have `#[reflect(Component)]` and all its fields should be registered. You can use [`AppReplicationExt::replicate()`] to mark the component for replication:
 
 ```rust
 # use bevy::prelude::*;
