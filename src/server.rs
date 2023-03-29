@@ -142,10 +142,7 @@ impl ServerPlugin {
                 }
             }
 
-            if let Some(tick) = received_ticks
-                .into_iter()
-                .max_by(|a, b| a.get().cmp(&b.get()))
-            {
+            if let Some(tick) = received_ticks.into_iter().max_by_key(|tick| tick.get()) {
                 let last_tick = acked_ticks.entry(client_id).or_insert(Tick::new(0));
                 if !last_tick.is_newer_than(tick.0, Tick::new(change_tick.change_tick())) {
                     *last_tick = tick.0;
