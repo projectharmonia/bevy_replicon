@@ -1,11 +1,17 @@
 pub mod map_entity;
 
-use bevy::{ecs::system::Command, prelude::*, reflect::TypeRegistryInternal, utils::HashMap};
+use bevy::{
+    ecs::system::{Command, SystemChangeTick},
+    prelude::*,
+    reflect::TypeRegistryInternal,
+    utils::HashMap,
+};
 use bevy_renet::{renet::RenetClient, RenetClientPlugin};
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeSeed, Deserialize, Serialize};
 
 use crate::{
+    tick::Tick,
     world_diff::{ComponentDiff, WorldDiff, WorldDiffDeserializer},
     REPLICATION_CHANNEL_ID,
 };
@@ -60,6 +66,7 @@ impl ClientPlugin {
 
     fn world_diff_receiving_system(
         mut commands: Commands,
+        change_tick: SystemChangeTick,
         mut last_tick: ResMut<LastTick>,
         mut client: ResMut<RenetClient>,
         registry: Res<AppTypeRegistry>,
@@ -81,8 +88,12 @@ impl ClientPlugin {
 
         if let Some(world_diff) = received_diffs
             .into_iter()
-            .max_by_key(|world_diff| world_diff.tick)
-            .filter(|world_diff| world_diff.tick > last_tick.0)
+            .max_by_key(|world_diff| world_diff.tick.get())
+            .filter(|world_diff| {
+                world_diff
+                    .tick
+                    .is_newer_than(last_tick.0, Tick::new(change_tick.change_tick()))
+            })
         {
             last_tick.0 = world_diff.tick;
             commands.apply_world_diff(world_diff);
@@ -106,8 +117,14 @@ pub enum ClientState {
 /// Last received tick from server.
 ///
 /// Exists only on clients, sent to the server.
-#[derive(Resource, Default, Serialize, Deserialize)]
-pub(super) struct LastTick(pub(super) u32);
+#[derive(Resource, Serialize, Deserialize, Deref, DerefMut)]
+pub(super) struct LastTick(pub(super) Tick);
+
+impl Default for LastTick {
+    fn default() -> Self {
+        Self(Tick::new(0))
+    }
+}
 
 trait ApplyWorldDiffExt {
     fn apply_world_diff(&mut self, world_diff: WorldDiff);

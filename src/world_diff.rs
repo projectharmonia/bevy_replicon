@@ -19,18 +19,20 @@ use serde::{
 };
 use strum::{EnumDiscriminants, EnumVariantNames, IntoStaticStr, VariantNames};
 
+use crate::tick::Tick;
+
 /// Changed world data and current tick from server.
 ///
 /// Sent from server to clients.
 pub(super) struct WorldDiff {
-    pub(super) tick: u32,
+    pub(super) tick: Tick,
     pub(super) entities: HashMap<Entity, Vec<ComponentDiff>>,
     pub(super) despawns: Vec<Entity>,
 }
 
 impl WorldDiff {
     /// Creates a new [`WorldDiff`] with a tick and empty entities.
-    pub(super) fn new(tick: u32) -> Self {
+    pub(super) fn new(tick: Tick) -> Self {
         Self {
             tick,
             entities: Default::default(),
@@ -353,7 +355,7 @@ mod tests {
     #[test]
     fn world_diff_ser() {
         const ENTITY_INDEX: u32 = 0;
-        const TICK: u32 = 0;
+        const TICK: Tick = Tick::new(0);
         let registry = TypeRegistryInternal::default();
         let world_diff = WorldDiff {
             tick: TICK,
@@ -373,7 +375,13 @@ mod tests {
                     len: WorldDiffField::VARIANTS.len(),
                 },
                 Token::Str(WorldDiffField::Tick.into()),
-                Token::U32(TICK),
+                Token::Struct {
+                    name: "Tick",
+                    len: 1,
+                },
+                Token::Str("tick"),
+                Token::U32(TICK.get()),
+                Token::StructEnd,
                 Token::Str(WorldDiffField::Entities.into()),
                 Token::Map { len: Some(1) },
                 Token::Struct {
