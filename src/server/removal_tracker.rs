@@ -5,9 +5,11 @@ use bevy::{
 };
 
 use super::AckedTicks;
-use crate::replication_core::{Replication, ReplicationRules};
-use crate::server::ServerState;
-use crate::tick::Tick;
+use crate::{
+    replication_core::{Replication, ReplicationRules},
+    server::ServerState,
+    tick::Tick,
+};
 
 /// Stores component removals in [`RemovalTracker`] component to make them persistent across ticks.
 ///
