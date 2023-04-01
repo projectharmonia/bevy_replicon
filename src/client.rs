@@ -1,7 +1,9 @@
-pub mod map_entity;
-
 use bevy::{
-    ecs::system::{Command, SystemChangeTick},
+    ecs::{
+        entity::{EntityMap, MapEntitiesError},
+        reflect::ReflectMapEntities,
+        system::{Command, SystemChangeTick},
+    },
     prelude::*,
     reflect::TypeRegistryInternal,
     utils::HashMap,
@@ -13,9 +15,8 @@ use serde::{de::DeserializeSeed, Deserialize, Serialize};
 use crate::{
     tick::Tick,
     world_diff::{ComponentDiff, WorldDiff, WorldDiffDeserializer},
-    REPLICATION_CHANNEL_ID,
+    Replication, REPLICATION_CHANNEL_ID,
 };
-use map_entity::{NetworkEntityMap, ReflectMapEntity};
 
 pub struct ClientPlugin;
 
@@ -193,12 +194,63 @@ fn apply_component_diff(
     match component_diff {
         ComponentDiff::Changed(component) => {
             reflect_component.apply_or_insert(&mut world.entity_mut(client_entity), &**component);
-            if let Some(reflect_map_entities) = registration.data::<ReflectMapEntity>() {
+            if let Some(reflect_map_entities) = registration.data::<ReflectMapEntities>() {
                 reflect_map_entities
-                    .map_entities(world, entity_map.to_client(), client_entity)
+                    .map_specific_entities(world, entity_map.to_client(), &[client_entity])
                     .unwrap_or_else(|e| panic!("entities in {type_name} should be mappable: {e}"));
             }
         }
         ComponentDiff::Removed(_) => reflect_component.remove(&mut world.entity_mut(client_entity)),
+    }
+}
+
+/// Maps server entities to client entities and vice versa.
+///
+/// Used only on client.
+#[derive(Default, Resource)]
+pub(crate) struct NetworkEntityMap {
+    server_to_client: EntityMap,
+    client_to_server: EntityMap,
+}
+
+impl NetworkEntityMap {
+    #[cfg(test)]
+    pub(crate) fn insert(&mut self, server_entity: Entity, client_entity: Entity) {
+        self.server_to_client.insert(server_entity, client_entity);
+        self.client_to_server.insert(client_entity, server_entity);
+    }
+
+    pub(crate) fn get_by_server_or_spawn(
+        &mut self,
+        world: &mut World,
+        server_entity: Entity,
+    ) -> Entity {
+        *self
+            .server_to_client
+            .entry(server_entity)
+            .or_insert_with(|| {
+                let client_entity = world.spawn(Replication).id();
+                self.client_to_server.insert(client_entity, server_entity);
+                client_entity
+            })
+    }
+
+    pub(crate) fn remove_by_server(
+        &mut self,
+        server_entity: Entity,
+    ) -> Result<Entity, MapEntitiesError> {
+        let client_entity = self.server_to_client.remove(server_entity);
+        if let Some(client_entity) = client_entity {
+            self.client_to_server.remove(client_entity);
+        }
+        client_entity.ok_or(MapEntitiesError::EntityNotFound(server_entity))
+    }
+
+    pub(crate) fn to_client(&self) -> &EntityMap {
+        &self.server_to_client
+    }
+
+    pub(crate) fn to_server(&self) -> &EntityMap {
+        &self.client_to_server
     }
 }

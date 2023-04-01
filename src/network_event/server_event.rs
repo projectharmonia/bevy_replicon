@@ -9,7 +9,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use super::EventChannel;
 use crate::{
-    client::{map_entity::NetworkEntityMap, ClientState},
+    client::{ClientState, NetworkEntityMap},
     prelude::NetworkChannels,
     server::{ServerSet, ServerState, SERVER_ID},
     REPLICATION_CHANNEL_ID,

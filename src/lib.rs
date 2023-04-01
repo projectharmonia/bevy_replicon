@@ -72,13 +72,19 @@ This also automatically registers the specified type, so you don't need to call
 If your component contains [`Entity`] then it cannot be deserialized as is
 because entity IDs are different on server and client. The client should do the
 mapping. Therefore, to replicate such components properly, they need implement
-[`bevy::ecs::entity::MapEntities`] and have `#[reflect(MapEntity)]`:
+[`bevy::ecs::entity::MapEntities`] and have `#[reflect(MapEntities)]`:
 
 ```rust
-# use bevy::{prelude::*, ecs::entity::{EntityMap, MapEntities, MapEntitiesError}};
+# use bevy::{
+#     ecs::{
+#         entity::{EntityMap, MapEntities, MapEntitiesError},
+#         reflect::ReflectMapEntities,
+#     },
+#     prelude::*,
+# };
 # use bevy_replicon::prelude::*;
 #[derive(Component, Reflect)]
-#[reflect(Component, MapEntity)]
+#[reflect(Component, MapEntities)]
 struct MappedComponent(Entity);
 
 impl MapEntities for MappedComponent {
@@ -229,8 +235,14 @@ map it before sending it to the server.
 To do this, use [`ClientEventAppExt::add_mapped_client_event()`]:
 
 ```rust
+# use bevy::{
+#     ecs::{
+#         entity::{EntityMap, MapEntities, MapEntitiesError},
+#         reflect::ReflectMapEntities,
+#     },
+#     prelude::*,
+# };
 # use bevy_replicon::prelude::*;
-# use bevy::{prelude::*, ecs::entity::{EntityMap, MapEntities, MapEntitiesError}};
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
@@ -343,7 +355,7 @@ mod world_diff;
 
 pub mod prelude {
     pub use super::{
-        client::{map_entity::ReflectMapEntity, ClientPlugin, ClientState},
+        client::{ClientPlugin, ClientState},
         network_event::{
             client_event::{ClientEventAppExt, FromClient},
             server_event::{SendMode, ServerEventAppExt, ToClients},
@@ -378,14 +390,17 @@ impl PluginGroup for ReplicationPlugins {
 #[cfg(test)]
 mod tests {
     use bevy::{
-        ecs::entity::{EntityMap, MapEntities, MapEntitiesError},
+        ecs::{
+            entity::{EntityMap, MapEntities, MapEntitiesError},
+            reflect::ReflectMapEntities,
+        },
         utils::HashMap,
     };
     use bevy_renet::renet::RenetClient;
 
     use super::*;
     use crate::{
-        client::map_entity::{NetworkEntityMap, ReflectMapEntity},
+        client::NetworkEntityMap,
         replication_core::{AppReplicationExt, Replication},
         server::{despawn_tracker::DespawnTracker, removal_tracker::RemovalTracker, AckedTicks},
         test_network::TestNetworkPlugin,
@@ -608,7 +623,7 @@ mod tests {
     }
 
     #[derive(Component, Reflect)]
-    #[reflect(Component, MapEntity)]
+    #[reflect(Component, MapEntities)]
     struct MappedComponent(Entity);
 
     impl MapEntities for MappedComponent {

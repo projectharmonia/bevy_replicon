@@ -7,7 +7,7 @@ use bevy::{
     scene,
 };
 
-use crate::prelude::{AppReplicationExt, ReflectMapEntity};
+use crate::AppReplicationExt;
 
 pub struct ParentSyncPlugin;
 
@@ -33,7 +33,7 @@ impl ParentSyncPlugin {
 }
 
 #[derive(Component, Reflect, Clone, Copy)]
-#[reflect(Component, MapEntities, MapEntity)]
+#[reflect(Component, MapEntities)]
 pub struct ParentSync(pub Entity);
 
 // We need to impl either [`FromWorld`] or [`Default`] so [`SyncParent`] can be registered as [`Reflect`].
