@@ -276,10 +276,7 @@ fn collect_removals(
     for (entity, removal_tracker) in removal_trackers {
         for world_diff in client_diffs.values_mut() {
             for (&component_id, &tick) in removal_tracker.iter() {
-                if !world_diff
-                    .tick
-                    .is_newer_than(tick, Tick::new(change_tick.change_tick()))
-                {
+                if tick.is_newer_than(world_diff.tick, Tick::new(change_tick.change_tick())) {
                     // SAFETY: `component_id` was obtained from `RemovalTracker` that always contains valid components.
                     let component_info =
                         unsafe { world.components().get_info_unchecked(component_id) };
@@ -301,10 +298,7 @@ fn collect_despawns(
 ) {
     for (entity, tick) in despawn_tracker.despawns.iter().copied() {
         for world_diff in client_diffs.values_mut() {
-            if !world_diff
-                .tick
-                .is_newer_than(tick, Tick::new(change_tick.change_tick()))
-            {
+            if tick.is_newer_than(world_diff.tick, Tick::new(change_tick.change_tick())) {
                 world_diff.despawns.push(entity);
             }
         }
