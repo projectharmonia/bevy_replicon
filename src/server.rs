@@ -128,24 +128,20 @@ impl ServerPlugin {
     }
 
     fn tick_acks_receiving_system(
-        change_tick: SystemChangeTick,
         mut acked_ticks: ResMut<AckedTicks>,
         mut server: ResMut<RenetServer>,
     ) {
         for client_id in server.clients_id() {
-            let mut received_ticks = Vec::<LastTick>::new();
+            let mut last_message = None;
             while let Some(message) = server.receive_message(client_id, REPLICATION_CHANNEL_ID) {
-                if let Ok(tick) = bincode::deserialize(&message).tap_err(|e| {
-                    error!("unable to deserialize a tick from client {client_id}: {e}")
-                }) {
-                    received_ticks.push(tick);
-                }
+                last_message = Some(message);
             }
 
-            if let Some(tick) = received_ticks.into_iter().max_by_key(|tick| tick.get()) {
-                let last_tick = acked_ticks.entry(client_id).or_insert(Tick::new(0));
-                if !last_tick.is_newer_than(tick.0, Tick::new(change_tick.change_tick())) {
-                    *last_tick = tick.0;
+            if let Some(last_message) = last_message {
+                if let Ok(tick) = bincode::deserialize::<LastTick>(&last_message)
+                    .tap_err(|e| error!("unable to deserialize tick from client {client_id}: {e}"))
+                {
+                    acked_ticks.insert(client_id, tick.0);
                 }
             }
         }
