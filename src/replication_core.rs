@@ -42,6 +42,7 @@ fn channel_configs(events_count: u8) -> Vec<ChannelConfig> {
     let mut channel_configs = Vec::with_capacity((events_count + 1).into());
     channel_configs.push(ChannelConfig::Unreliable(UnreliableChannelConfig {
         channel_id: REPLICATION_CHANNEL_ID,
+        sequenced: true,
         ..Default::default()
     }));
     for channel_id in 1..=events_count {

@@ -2,7 +2,7 @@ use bevy::{
     ecs::{
         entity::{EntityMap, MapEntitiesError},
         reflect::ReflectMapEntities,
-        system::{Command, SystemChangeTick},
+        system::Command,
     },
     prelude::*,
     reflect::TypeRegistryInternal,
@@ -67,35 +67,26 @@ impl ClientPlugin {
 
     fn world_diff_receiving_system(
         mut commands: Commands,
-        change_tick: SystemChangeTick,
         mut last_tick: ResMut<LastTick>,
         mut client: ResMut<RenetClient>,
         registry: Res<AppTypeRegistry>,
     ) {
-        let registry = registry.read();
-        let mut received_diffs = Vec::<WorldDiff>::new();
+        let mut last_message = None;
         while let Some(message) = client.receive_message(REPLICATION_CHANNEL_ID) {
+            last_message = Some(message);
+        }
+
+        if let Some(last_message) = last_message {
+            let registry = registry.read();
             // Set options to match `bincode::serialize`.
             // https://docs.rs/bincode/latest/bincode/config/index.html#options-struct-vs-bincode-functions
             let options = DefaultOptions::new()
                 .with_fixint_encoding()
                 .allow_trailing_bytes();
-            let mut deserializer = bincode::Deserializer::from_slice(&message, options);
+            let mut deserializer = bincode::Deserializer::from_slice(&last_message, options);
             let world_diff = WorldDiffDeserializer::new(&registry)
                 .deserialize(&mut deserializer)
                 .expect("server should send only world diffs over replication channel");
-            received_diffs.push(world_diff);
-        }
-
-        if let Some(world_diff) = received_diffs
-            .into_iter()
-            .max_by_key(|world_diff| world_diff.tick.get())
-            .filter(|world_diff| {
-                world_diff
-                    .tick
-                    .is_newer_than(last_tick.0, Tick::new(change_tick.change_tick()))
-            })
-        {
             last_tick.0 = world_diff.tick;
             commands.apply_world_diff(world_diff);
         }
