@@ -1,9 +1,5 @@
 use bevy::{
-    ecs::{
-        entity::{EntityMap, MapEntitiesError},
-        reflect::ReflectMapEntities,
-        system::Command,
-    },
+    ecs::{entity::EntityMap, reflect::ReflectMapEntities, system::Command},
     prelude::*,
     reflect::TypeRegistryInternal,
     utils::HashMap,
@@ -143,10 +139,12 @@ impl Command for ApplyWorldDiff {
             }
 
             for server_entity in self.0.despawns {
-                let client_entity = entity_map
-                    .remove_by_server(server_entity)
-                    .expect("server should send valid entities to despawn");
-                world.entity_mut(client_entity).despawn_recursive();
+                // The entity might have already been deleted with the last diff,
+                // but the server might not yet have received confirmation from the
+                // client and could include the deletion in the latest diff.
+                if let Some(client_entity) = entity_map.remove_by_server(server_entity) {
+                    world.entity_mut(client_entity).despawn_recursive();
+                }
             }
         });
     }
@@ -211,11 +209,7 @@ impl NetworkEntityMap {
         self.client_to_server.insert(client_entity, server_entity);
     }
 
-    pub(crate) fn get_by_server_or_spawn(
-        &mut self,
-        world: &mut World,
-        server_entity: Entity,
-    ) -> Entity {
+    fn get_by_server_or_spawn(&mut self, world: &mut World, server_entity: Entity) -> Entity {
         *self
             .server_to_client
             .entry(server_entity)
@@ -226,15 +220,12 @@ impl NetworkEntityMap {
             })
     }
 
-    pub(crate) fn remove_by_server(
-        &mut self,
-        server_entity: Entity,
-    ) -> Result<Entity, MapEntitiesError> {
+    fn remove_by_server(&mut self, server_entity: Entity) -> Option<Entity> {
         let client_entity = self.server_to_client.remove(server_entity);
         if let Some(client_entity) = client_entity {
             self.client_to_server.remove(client_entity);
         }
-        client_entity.ok_or(MapEntitiesError::EntityNotFound(server_entity))
+        client_entity
     }
 
     pub(crate) fn to_client(&self) -> &EntityMap {
