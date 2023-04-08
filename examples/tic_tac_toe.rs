@@ -311,7 +311,7 @@ impl TicTacToePlugin {
         mut game_state: ResMut<NextState<GameState>>,
         players: Query<&Symbol, With<Player>>,
     ) {
-        for event in server_event.iter() {
+        for event in &mut server_event {
             match event {
                 ServerEvent::ClientConnected(client_id, _) => {
                     let server_symbol = players.single();

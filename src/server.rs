@@ -151,7 +151,7 @@ impl ServerPlugin {
         mut server_events: EventReader<ServerEvent>,
         mut acked_ticks: ResMut<AckedTicks>,
     ) {
-        for event in server_events.iter() {
+        for event in &mut server_events {
             if let ServerEvent::ClientDisconnected(id) = event {
                 acked_ticks.remove(id);
             }

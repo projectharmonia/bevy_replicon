@@ -68,7 +68,7 @@ fn sending_system<T: Event + Serialize + Debug>(
     mut client: ResMut<RenetClient>,
     channel: Res<EventChannel<T>>,
 ) {
-    for event in events.iter() {
+    for event in &mut events {
         let message = bincode::serialize(&event).expect("client event should be serializable");
         client.send_message(channel.id, message);
         debug!("sent client event {event:?}");

@@ -74,7 +74,7 @@ fn sending_system<T: Event + Serialize + Debug>(
     mut server_events: EventReader<ToClients<T>>,
     channel: Res<EventChannel<T>>,
 ) {
-    for ToClients { event, mode } in server_events.iter() {
+    for ToClients { event, mode } in &mut server_events {
         let message = bincode::serialize(&event).expect("event should be serializable");
 
         match *mode {

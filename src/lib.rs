@@ -221,7 +221,7 @@ fn event_sending_system(mut dummy_events: EventWriter<DummyEvent>) {
 }
 
 fn event_receiving_system(mut dummy_events: EventReader<FromClient<DummyEvent>>) {
-    for FromClient { client_id, event } in dummy_events.iter() {
+    for FromClient { client_id, event } in &mut dummy_events {
         info!("received event {event:?} from client {client_id}");
     }
 }
@@ -285,7 +285,7 @@ fn event_sending_system(mut dummy_events: EventWriter<ToClients<DummyEvent>>) {
 }
 
 fn event_receiving_system(mut dummy_events: EventReader<DummyEvent>) {
-    for event in dummy_events.iter() {
+    for event in &mut dummy_events {
         info!("received event {event:?} from server");
     }
 }
