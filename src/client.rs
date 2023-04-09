@@ -29,16 +29,14 @@ impl Plugin for ClientPlugin {
                     Self::connecting_state_system
                         .run_if(bevy_renet::client_connecting)
                         .run_if(state_exists_and_equals(ClientState::NoConnection)),
+                    Self::connected_state_system
+                        .run_if(bevy_renet::client_connected)
+                        .run_if(state_exists_and_equals(ClientState::Connecting)),
                 )
                     .before(run_enter_schedule::<ClientState>)
                     .in_base_set(CoreSet::StateTransitions),
             )
-            .add_systems((
-                Self::connected_state_system
-                    .run_if(bevy_renet::client_connected)
-                    .in_set(OnUpdate(ClientState::Connecting)),
-                Self::client_reset_system.in_schedule(OnExit(ClientState::Connected)),
-            ))
+            .add_system(Self::client_reset_system.in_schedule(OnExit(ClientState::Connected)))
             .add_systems(
                 (
                     Self::tick_ack_sending_system,
