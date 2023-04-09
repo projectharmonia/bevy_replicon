@@ -450,8 +450,6 @@ mod tests {
             .replicate::<TableComponent>()
             .add_plugin(TestNetworkPlugin);
 
-        // Wait two ticks to send and receive acknowledge.
-        app.update();
         app.update();
 
         let server_entity = app.world.spawn((TableComponent, Replication)).id();
@@ -490,7 +488,6 @@ mod tests {
             .not_replicate_if_present::<IgnoredComponent, ExclusionComponent>()
             .add_plugin(TestNetworkPlugin);
 
-        app.update();
         app.update();
 
         let replicated_entity = app
@@ -534,7 +531,6 @@ mod tests {
             .add_plugin(TestNetworkPlugin);
 
         app.update();
-        app.update();
 
         let client_parent = app.world.spawn_empty().id();
         let server_parent = app.world.spawn_empty().id();
@@ -561,7 +557,6 @@ mod tests {
             .register_type::<NonReflectedComponent>()
             .add_plugin(TestNetworkPlugin);
 
-        app.update();
         app.update();
 
         // Mark components as removed.
@@ -591,7 +586,6 @@ mod tests {
         app.add_plugins(ReplicationPlugins)
             .add_plugin(TestNetworkPlugin);
 
-        app.update();
         app.update();
 
         let children_entity = app.world.spawn_empty().id();
