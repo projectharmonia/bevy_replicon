@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Do not panic if an entity was already despawned on client.
+- Fix panic that could occur when RenetServer or RenetClient resources are removed.
 
 ## [0.2.1] - 2023-04-02
 
