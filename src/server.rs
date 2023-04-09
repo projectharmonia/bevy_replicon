@@ -3,6 +3,7 @@ pub(super) mod removal_tracker;
 
 use std::time::Duration;
 
+use bevy::ecs::schedule::run_enter_schedule;
 use bevy::{
     ecs::{
         archetype::ArchetypeId,
@@ -54,14 +55,18 @@ impl Plugin for ServerPlugin {
             .configure_set(ServerSet::Authority.run_if(not(resource_exists::<RenetClient>())))
             .init_resource::<AckedTicks>()
             .add_state::<ServerState>()
-            .add_systems((
-                Self::no_server_state_system
-                    .in_set(OnUpdate(ServerState::Hosting))
-                    .run_if(resource_removed::<RenetServer>()),
-                Self::hosting_state_system
-                    .in_set(OnUpdate(ServerState::NoServer))
-                    .run_if(resource_added::<RenetServer>()),
-            ))
+            .add_systems(
+                (
+                    Self::no_server_state_system
+                        .run_if(state_exists_and_equals(ServerState::Hosting))
+                        .run_if(resource_removed::<RenetServer>()),
+                    Self::hosting_state_system
+                        .run_if(state_exists_and_equals(ServerState::NoServer))
+                        .run_if(resource_added::<RenetServer>()),
+                )
+                    .before(run_enter_schedule::<ServerState>)
+                    .in_base_set(CoreSet::StateTransitions),
+            )
             .add_systems(
                 (
                     Self::tick_acks_receiving_system,
