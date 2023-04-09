@@ -56,10 +56,18 @@ impl Plugin for ServerPlugin {
             .add_state::<ServerState>()
             .add_systems((
                 Self::no_server_state_system
-                    .in_set(OnUpdate(ServerState::Hosting))
+                    // Must have commands applied before other systems that rely on ServerState so
+                    // it isn't out of sync for a frame, which would cause systems to panic trying to
+                    // access RenetServer after it's removed.
+                    .in_base_set(CoreSet::PreUpdate)
+                    .run_if(state_exists_and_equals(ServerState::Hosting))
                     .run_if(resource_removed::<RenetServer>()),
                 Self::hosting_state_system
-                    .in_set(OnUpdate(ServerState::NoServer))
+                    // Should have commands applied before other systems that rely on ServerState so
+                    // it isn't out of sync for a frame, which would cause ServerState::Hosting
+                    // systems to not run for that frame when they could.
+                    .in_base_set(CoreSet::PreUpdate)
+                    .run_if(state_exists_and_equals(ServerState::NoServer))
                     .run_if(resource_added::<RenetServer>()),
             ))
             .add_systems(

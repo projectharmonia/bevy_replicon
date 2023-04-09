@@ -23,10 +23,19 @@ impl Plugin for ClientPlugin {
             .init_resource::<LastTick>()
             .init_resource::<NetworkEntityMap>()
             .add_systems((
-                Self::no_connection_state_system.run_if(resource_removed::<RenetClient>()),
+                Self::no_connection_state_system
+                    // Must have commands applied before other systems that rely on ClientState so
+                    // it isn't out of sync for a frame, which would cause systems to panic trying
+                    // to access RenetClient after it's removed.
+                    .in_base_set(CoreSet::PreUpdate)
+                    .run_if(resource_removed::<RenetClient>()),
                 Self::connecting_state_system
+                    // Should have commands applied before other systems that rely on ClientState so
+                    // it isn't out of sync for a frame, which would cause ClientState::Connecting
+                    // systems to not run for that frame when they could.
+                    .in_base_set(CoreSet::PreUpdate)
                     .run_if(bevy_renet::client_connecting)
-                    .in_set(OnUpdate(ClientState::NoConnection)),
+                    .run_if(state_exists_and_equals(ClientState::NoConnection)),
                 Self::connected_state_system
                     .run_if(bevy_renet::client_connected)
                     .in_set(OnUpdate(ClientState::Connecting)),
