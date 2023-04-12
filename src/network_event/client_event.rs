@@ -6,7 +6,6 @@ use bevy::{
 };
 use bevy_renet::renet::{RenetClient, RenetServer};
 use serde::{de::DeserializeOwned, Serialize};
-use tap::TapFallible;
 
 use super::EventChannel;
 use crate::{
@@ -114,11 +113,12 @@ fn receiving_system<T: Event + DeserializeOwned + Debug>(
 ) {
     for client_id in server.clients_id() {
         while let Some(message) = server.receive_message(client_id, channel.id) {
-            if let Ok(event) = bincode::deserialize(&message)
-                .tap_err(|e| error!("unable to deserialize event from client {client_id}: {e}"))
-            {
-                debug!("received event {event:?} from client {client_id}");
-                client_events.send(FromClient { client_id, event });
+            match bincode::deserialize(&message) {
+                Ok(event) => {
+                    debug!("received event {event:?} from client {client_id}");
+                    client_events.send(FromClient { client_id, event });
+                }
+                Err(e) => error!("unable to deserialize event from client {client_id}: {e}"),
             }
         }
     }

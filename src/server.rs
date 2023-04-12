@@ -20,7 +20,6 @@ use bevy_renet::{
     renet::{RenetClient, RenetServer, ServerEvent},
     RenetServerPlugin,
 };
-use tap::TapFallible;
 
 use crate::{
     client::LastTick,
@@ -143,10 +142,11 @@ impl ServerPlugin {
             }
 
             if let Some(last_message) = last_message {
-                if let Ok(tick) = bincode::deserialize::<LastTick>(&last_message)
-                    .tap_err(|e| error!("unable to deserialize tick from client {client_id}: {e}"))
-                {
-                    acked_ticks.insert(client_id, tick.0);
+                match bincode::deserialize::<LastTick>(&last_message) {
+                    Ok(tick) => {
+                        acked_ticks.insert(client_id, tick.0);
+                    }
+                    Err(e) => error!("unable to deserialize tick from client {client_id}: {e}"),
                 }
             }
         }
