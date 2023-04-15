@@ -262,7 +262,7 @@ impl MapEntities for MappedEvent {
 There is also [`ClientEventAppExt::add_client_reflect_event()`] and [`ClientEventAppExt::add_mapped_client_reflect_event()`]
 for events that contains `Box<dyn Reflect>`. To serialize such event you need to write serializer and deserializer manually
 because for such types you need acess to [`AppTypeRegistry`]. It's pretty straigtforward but requires some boilerplate.
-See [`BuildEventSerializer`], [`BuildEventDeserializer`] and tests in module [`network_event::client_event`] for example.
+See [`BuildEventSerializer`], [`BuildEventDeserializer`] and module `network_event::test_events` (used for unit tests) as example.
 Don't forget to check what inside every `Box<dyn Reflect>` from a client, it could be anything!
 
 ### From server to client
