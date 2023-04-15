@@ -5,9 +5,13 @@ use bevy::{
     prelude::*,
 };
 use bevy_renet::renet::{RenetClient, RenetServer};
-use serde::{de::DeserializeOwned, Serialize};
+use bincode::{DefaultOptions, Options};
+use serde::{
+    de::{DeserializeOwned, DeserializeSeed},
+    Serialize,
+};
 
-use super::EventChannel;
+use super::{BuildEventDeserializer, BuildEventSerializer, EventChannel};
 use crate::{
     client::{ClientState, NetworkEntityMap},
     prelude::NetworkChannels,
@@ -23,6 +27,27 @@ pub trait ServerEventAppExt {
     fn add_mapped_server_event<T: Event + Serialize + DeserializeOwned + Debug + MapEntities>(
         &mut self,
     ) -> &mut Self;
+
+    /// Same as [`Self::add_server_event`], but the event will be serialized/deserialized using `S`/`D`
+    /// with access to [`AppTypeRegistry`].
+    ///
+    /// Needed to send events that contain things like `Box<dyn Reflect>`.
+    fn add_server_reflect_event<T, S, D>(&mut self) -> &mut Self
+    where
+        T: Event + Debug,
+        S: BuildEventSerializer<T> + 'static,
+        D: BuildEventDeserializer + 'static,
+        for<'a> S::EventSerializer<'a>: Serialize,
+        for<'a, 'de> D::EventDeserializer<'a>: DeserializeSeed<'de, Value = T>;
+
+    /// Same as [`Self::add_server_reflect_event`], but additionally maps client entities to client after receiving.
+    fn add_mapped_server_reflect_event<T, S, D>(&mut self) -> &mut Self
+    where
+        T: Event + Debug + MapEntities,
+        S: BuildEventSerializer<T> + 'static,
+        D: BuildEventDeserializer + 'static,
+        for<'a> S::EventSerializer<'a>: Serialize,
+        for<'a, 'de> D::EventDeserializer<'a>: DeserializeSeed<'de, Value = T>;
 
     /// Same as [`Self::add_server_event`], but uses specified sending and receiving systems.
     fn add_server_event_with<T: Event + Debug, Marker1, Marker2>(
@@ -43,6 +68,34 @@ impl ServerEventAppExt for App {
         self.add_server_event_with::<T, _, _>(
             sending_system::<T>,
             receiving_and_mapping_system::<T>,
+        )
+    }
+
+    fn add_server_reflect_event<T, S, D>(&mut self) -> &mut Self
+    where
+        T: Event + Debug,
+        S: BuildEventSerializer<T> + 'static,
+        D: BuildEventDeserializer + 'static,
+        for<'a> S::EventSerializer<'a>: Serialize,
+        for<'a, 'de> D::EventDeserializer<'a>: DeserializeSeed<'de, Value = T>,
+    {
+        self.add_server_event_with::<T, _, _>(
+            sending_reflect_system::<T, S>,
+            receiving_reflect_system::<T, D>,
+        )
+    }
+
+    fn add_mapped_server_reflect_event<T, S, D>(&mut self) -> &mut Self
+    where
+        T: Event + Debug + MapEntities,
+        S: BuildEventSerializer<T> + 'static,
+        D: BuildEventDeserializer + 'static,
+        for<'a> S::EventSerializer<'a>: Serialize,
+        for<'a, 'de> D::EventDeserializer<'a>: DeserializeSeed<'de, Value = T>,
+    {
+        self.add_server_event_with::<T, _, _>(
+            sending_reflect_system::<T, S>,
+            receiving_and_mapping_reflect_system::<T, D>,
         )
     }
 
@@ -79,7 +132,7 @@ fn sending_system<T: Event + Serialize + Debug>(
     channel: Res<EventChannel<T>>,
 ) {
     for ToClients { event, mode } in &mut server_events {
-        let message = bincode::serialize(&event).expect("event should be serializable");
+        let message = bincode::serialize(&event).expect("server event should be serializable");
 
         match *mode {
             SendMode::Broadcast => {
@@ -98,6 +151,44 @@ fn sending_system<T: Event + Serialize + Debug>(
                 if client_id != SERVER_ID {
                     server.send_message(client_id, channel.id, message);
                     debug!("sent direct server event {event:?} to client {client_id}");
+                }
+            }
+        }
+    }
+}
+
+fn sending_reflect_system<T, S>(
+    mut server: ResMut<RenetServer>,
+    mut server_events: EventReader<ToClients<T>>,
+    channel: Res<EventChannel<T>>,
+    registry: Res<AppTypeRegistry>,
+) where
+    T: Event + Debug,
+    S: BuildEventSerializer<T>,
+    for<'a> S::EventSerializer<'a>: Serialize,
+{
+    let registry = registry.read();
+    for ToClients { event, mode } in &mut server_events {
+        let serializer = S::new(&registry, event);
+        let message = bincode::serialize(&serializer).expect("server event should be serializable");
+
+        match *mode {
+            SendMode::Broadcast => {
+                server.broadcast_message(channel.id, message);
+                debug!("broadcasted server reflect event {event:?}");
+            }
+            SendMode::BroadcastExcept(client_id) => {
+                if client_id == SERVER_ID {
+                    server.broadcast_message(channel.id, message);
+                } else {
+                    server.broadcast_message_except(client_id, channel.id, message);
+                }
+                debug!("broadcasted server reflect event {event:?} except client {client_id}");
+            }
+            SendMode::Direct(client_id) => {
+                if client_id != SERVER_ID {
+                    server.send_message(client_id, channel.id, message);
+                    debug!("sent direct server reflect event {event:?} to client {client_id}");
                 }
             }
         }
@@ -156,7 +247,65 @@ fn receiving_and_mapping_system<T: Event + MapEntities + DeserializeOwned + Debu
         debug!("received mapped event {event:?} from server");
         event
             .map_entities(entity_map.to_client())
-            .unwrap_or_else(|e| panic!("unable to map entities for server event {event:?}: {e}"));
+            .unwrap_or_else(|e| panic!("server event {event:?} should map its entities: {e}"));
+        server_events.send(event);
+    }
+}
+
+fn receiving_reflect_system<T, D>(
+    mut server_events: EventWriter<T>,
+    mut client: ResMut<RenetClient>,
+    channel: Res<EventChannel<T>>,
+    registry: Res<AppTypeRegistry>,
+) where
+    T: Event + Debug,
+    D: BuildEventDeserializer,
+    for<'a, 'de> D::EventDeserializer<'a>: DeserializeSeed<'de, Value = T>,
+{
+    let registry = registry.read();
+    while let Some(message) = client.receive_message(channel.id) {
+        // Set options to match `bincode::serialize`.
+        // https://docs.rs/bincode/latest/bincode/config/index.html#options-struct-vs-bincode-functions
+        let options = DefaultOptions::new()
+            .with_fixint_encoding()
+            .allow_trailing_bytes();
+        let mut deserializer = bincode::Deserializer::from_slice(&message, options);
+        let event = D::new(&registry)
+            .deserialize(&mut deserializer)
+            .expect("server should send valid reflect events");
+        debug!("received reflect event {event:?} from server");
+        server_events.send(event);
+    }
+}
+
+fn receiving_and_mapping_reflect_system<T, D>(
+    mut server_events: EventWriter<T>,
+    mut client: ResMut<RenetClient>,
+    entity_map: Res<NetworkEntityMap>,
+    channel: Res<EventChannel<T>>,
+    registry: Res<AppTypeRegistry>,
+) where
+    T: Event + MapEntities + Debug,
+    D: BuildEventDeserializer,
+    for<'a, 'de> D::EventDeserializer<'a>: DeserializeSeed<'de, Value = T>,
+{
+    let registry = registry.read();
+    while let Some(message) = client.receive_message(channel.id) {
+        // Set options to match `bincode::serialize`.
+        // https://docs.rs/bincode/latest/bincode/config/index.html#options-struct-vs-bincode-functions
+        let options = DefaultOptions::new()
+            .with_fixint_encoding()
+            .allow_trailing_bytes();
+        let mut deserializer = bincode::Deserializer::from_slice(&message, options);
+        let mut event = D::new(&registry)
+            .deserialize(&mut deserializer)
+            .expect("server should send valid mapped reflect events");
+        debug!("received mapped reflect event {event:?} from server");
+        event
+            .map_entities(entity_map.to_client())
+            .unwrap_or_else(|e| {
+                panic!("server reflect event {event:?} should map its entities: {e}")
+            });
         server_events.send(event);
     }
 }
@@ -178,14 +327,16 @@ pub enum SendMode {
 
 #[cfg(test)]
 mod tests {
-    use bevy::ecs::{
-        entity::{EntityMap, MapEntitiesError},
-        event::Events,
-    };
-    use serde::Deserialize;
+    use bevy::ecs::event::Events;
 
     use super::*;
-    use crate::{test_network::TestNetworkPlugin, ReplicationPlugins};
+    use crate::{
+        network_event::test_events::{
+            DummyEvent, ReflectEvent, ReflectEventDeserializer, ReflectEventSerializer,
+        },
+        test_network::TestNetworkPlugin,
+        ReplicationPlugins,
+    };
 
     #[test]
     fn sending_receiving() {
@@ -254,6 +405,72 @@ mod tests {
     }
 
     #[test]
+    fn sending_receiving_reflect() {
+        let mut app = App::new();
+        app.add_plugins(ReplicationPlugins)
+            .register_type::<Transform>()
+            .add_server_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>()
+            .add_plugin(TestNetworkPlugin);
+
+        app.world
+            .resource_mut::<Events<ToClients<ReflectEvent>>>()
+            .send(ToClients {
+                mode: SendMode::Broadcast,
+                event: ReflectEvent {
+                    entity: Entity::PLACEHOLDER,
+                    component: Transform::IDENTITY.clone_value(),
+                },
+            });
+
+        app.update();
+        app.update();
+
+        let transforms: Vec<_> = app
+            .world
+            .resource_mut::<Events<ReflectEvent>>()
+            .drain()
+            .map(|event| Transform::from_reflect(&*event.component).unwrap())
+            .collect();
+        assert_eq!(transforms, [Transform::IDENTITY]);
+    }
+
+    #[test]
+    fn sending_receiving_and_mapping_reflect() {
+        let mut app = App::new();
+        app.add_plugins(ReplicationPlugins)
+            .register_type::<Transform>()
+            .add_mapped_server_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>()
+            .add_plugin(TestNetworkPlugin);
+
+        let client_entity = Entity::from_raw(0);
+        let server_entity = Entity::from_raw(client_entity.index() + 1);
+        app.world
+            .resource_mut::<NetworkEntityMap>()
+            .insert(server_entity, client_entity);
+
+        app.world
+            .resource_mut::<Events<ToClients<ReflectEvent>>>()
+            .send(ToClients {
+                mode: SendMode::Broadcast,
+                event: ReflectEvent {
+                    entity: server_entity,
+                    component: Transform::IDENTITY.clone_value(),
+                },
+            });
+
+        app.update();
+        app.update();
+
+        let mapped_entities: Vec<_> = app
+            .world
+            .resource_mut::<Events<ReflectEvent>>()
+            .drain()
+            .map(|event| event.entity)
+            .collect();
+        assert_eq!(mapped_entities, [client_entity]);
+    }
+
+    #[test]
     fn local_resending() {
         let mut app = App::new();
         app.add_plugins(ReplicationPlugins)
@@ -285,16 +502,6 @@ mod tests {
                 events_count,
                 "event should be emited {events_count} times for {mode:?}"
             );
-        }
-    }
-
-    #[derive(Deserialize, Serialize, Debug)]
-    struct DummyEvent(Entity);
-
-    impl MapEntities for DummyEvent {
-        fn map_entities(&mut self, entity_map: &EntityMap) -> Result<(), MapEntitiesError> {
-            self.0 = entity_map.get(self.0)?;
-            Ok(())
         }
     }
 }

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Support for sending events that contains `Box<dyn Reflect>` via custom serialization implementation.
+
 ### Changed
 
 - Accept receiving system in `add_client_event_with` and sending system in `add_server_event_with`.

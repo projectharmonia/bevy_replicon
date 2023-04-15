@@ -1,9 +1,11 @@
 pub mod client_event;
 pub mod server_event;
+#[cfg(test)]
+mod test_events;
 
 use std::marker::PhantomData;
 
-use bevy::prelude::*;
+use bevy::{prelude::*, reflect::TypeRegistryInternal};
 
 /// Holds a channel ID for `T`.
 #[derive(Resource)]
@@ -19,4 +21,20 @@ impl<T> EventChannel<T> {
             marker: PhantomData,
         }
     }
+}
+
+/// Creates a struct implements serialization for the event using [`TypeRegistryInternal`].
+pub trait BuildEventSerializer<T> {
+    type EventSerializer<'a>
+    where
+        T: 'a;
+
+    fn new<'a>(registry: &'a TypeRegistryInternal, event: &'a T) -> Self::EventSerializer<'a>;
+}
+
+/// Creates a struct implements deserialization for the event using [`TypeRegistryInternal`].
+pub trait BuildEventDeserializer {
+    type EventDeserializer<'a>;
+
+    fn new(registry: &TypeRegistryInternal) -> Self::EventDeserializer<'_>;
 }

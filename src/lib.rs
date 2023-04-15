@@ -259,6 +259,12 @@ impl MapEntities for MappedEvent {
 }
 ```
 
+There is also [`ClientEventAppExt::add_client_reflect_event()`] and [`ClientEventAppExt::add_mapped_client_reflect_event()`]
+for events that contains `Box<dyn Reflect>`. To serialize such event you need to write serializer and deserializer manually
+because for such types you need acess to [`AppTypeRegistry`]. It's pretty straigtforward but requires some boilerplate.
+See [`BuildEventSerializer`], [`BuildEventDeserializer`] and tests in module [`network_event::client_event`] for example.
+Don't forget to check what inside every `Box<dyn Reflect>` from a client, it could be anything!
+
 ### From server to client
 
 A similar technique is used to send events from server to clients. To do this,
@@ -296,6 +302,8 @@ struct DummyEvent;
 
 Just like with client events, if the event contains [`Entity`], then
 [`ServerEventAppExt::add_mapped_server_event()`] should be used instead.
+
+And for events with `Box<dyn Reflect>` you can use [`ServerEventAppExt::add_server_reflect_event()`] and [`ServerEventAppExt::add_mapped_server_reflect_event()`].
 
 ## Server and client creation
 
@@ -359,6 +367,7 @@ pub mod prelude {
         network_event::{
             client_event::{ClientEventAppExt, FromClient},
             server_event::{SendMode, ServerEventAppExt, ToClients},
+            BuildEventDeserializer, BuildEventSerializer,
         },
         parent_sync::{ParentSync, ParentSyncPlugin},
         renet::{RenetClient, RenetServer},
