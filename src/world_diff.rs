@@ -164,7 +164,7 @@ impl<'de> DeserializeSeed<'de> for WorldDiffDeserializer<'_> {
 
     fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Self::Value, D::Error> {
         deserializer.deserialize_struct(
-            any::type_name::<WorldDiff>(),
+            any::type_name::<Self::Value>(),
             WorldDiffField::VARIANTS,
             self,
         )
