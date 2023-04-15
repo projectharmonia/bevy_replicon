@@ -12,7 +12,6 @@ use crate::{
     client::{ClientState, NetworkEntityMap},
     prelude::NetworkChannels,
     server::{ServerSet, ServerState, SERVER_ID},
-    REPLICATION_CHANNEL_ID,
 };
 
 /// An extension trait for [`App`] for creating client events.
@@ -47,13 +46,14 @@ impl ClientEventAppExt for App {
         &mut self,
         sending_system: impl IntoSystemConfig<Marker>,
     ) -> &mut Self {
-        let mut network_channels = self.world.resource_mut::<NetworkChannels>();
-        network_channels.client += 1;
-        let current_channel_id = REPLICATION_CHANNEL_ID + network_channels.client;
+        let channel_id = self
+            .world
+            .resource_mut::<NetworkChannels>()
+            .create_client_channel();
 
         self.add_event::<T>()
             .add_event::<FromClient<T>>()
-            .insert_resource(EventChannel::<T>::new(current_channel_id))
+            .insert_resource(EventChannel::<T>::new(channel_id))
             .add_system(sending_system.in_set(OnUpdate(ClientState::Connected)))
             .add_system(local_resending_system::<T>.in_set(ServerSet::Authority))
             .add_system(receiving_system::<T>.in_set(OnUpdate(ServerState::Hosting)));

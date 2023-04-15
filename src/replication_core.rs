@@ -23,9 +23,9 @@ impl Plugin for ReplicationCorePlugin {
 #[derive(Clone, Copy, Default, Resource)]
 pub struct NetworkChannels {
     /// Increments with each server event registration.
-    pub(super) server: u8,
+    server: u8,
     /// Increments with each client event registration.
-    pub(super) client: u8,
+    client: u8,
 }
 
 impl NetworkChannels {
@@ -35,6 +35,16 @@ impl NetworkChannels {
 
     pub fn client_channels(&self) -> Vec<ChannelConfig> {
         channel_configs(self.client)
+    }
+
+    pub(super) fn create_client_channel(&mut self) -> u8 {
+        self.client += 1;
+        self.client + REPLICATION_CHANNEL_ID
+    }
+
+    pub(super) fn create_server_channel(&mut self) -> u8 {
+        self.server += 1;
+        self.server + REPLICATION_CHANNEL_ID
     }
 }
 
