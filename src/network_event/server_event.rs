@@ -412,26 +412,35 @@ mod tests {
             .add_server_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>()
             .add_plugin(TestNetworkPlugin);
 
-        app.world
-            .resource_mut::<Events<ToClients<ReflectEvent>>>()
-            .send(ToClients {
-                mode: SendMode::Broadcast,
-                event: ReflectEvent {
-                    entity: Entity::PLACEHOLDER,
-                    component: Transform::IDENTITY.clone_value(),
-                },
-            });
+        let client_id = app.world.resource::<RenetClient>().client_id();
+        for (mode, events_count) in [
+            (SendMode::Broadcast, 1),
+            (SendMode::Direct(SERVER_ID), 0),
+            (SendMode::Direct(client_id), 1),
+            (SendMode::BroadcastExcept(SERVER_ID), 1),
+            (SendMode::BroadcastExcept(client_id), 0),
+        ] {
+            app.world
+                .resource_mut::<Events<ToClients<ReflectEvent>>>()
+                .send(ToClients {
+                    mode,
+                    event: ReflectEvent {
+                        entity: Entity::PLACEHOLDER,
+                        component: Transform::IDENTITY.clone_value(),
+                    },
+                });
 
-        app.update();
-        app.update();
+            app.update();
+            app.update();
 
-        let transforms: Vec<_> = app
-            .world
-            .resource_mut::<Events<ReflectEvent>>()
-            .drain()
-            .map(|event| Transform::from_reflect(&*event.component).unwrap())
-            .collect();
-        assert_eq!(transforms, [Transform::IDENTITY]);
+            let transforms: Vec<_> = app
+                .world
+                .resource_mut::<Events<ReflectEvent>>()
+                .drain()
+                .map(|event| Transform::from_reflect(&*event.component).unwrap())
+                .collect();
+            assert_eq!(transforms, vec![Transform::IDENTITY; events_count]);
+        }
     }
 
     #[test]
