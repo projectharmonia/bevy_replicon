@@ -155,8 +155,9 @@ mod tests {
             .add_client_event::<DummyEvent>()
             .add_plugin(TestNetworkPlugin);
 
-        let mut dummy_events = app.world.resource_mut::<Events<DummyEvent>>();
-        dummy_events.send_default();
+        app.world
+            .resource_mut::<Events<DummyEvent>>()
+            .send(DummyEvent(Entity::PLACEHOLDER));
 
         app.update();
         app.update();
@@ -166,10 +167,10 @@ mod tests {
     }
 
     #[test]
-    fn mapping() {
+    fn mapping_and_sending_receiving() {
         let mut app = App::new();
         app.add_plugins(ReplicationPlugins)
-            .add_mapped_client_event::<MappedEvent>()
+            .add_mapped_client_event::<DummyEvent>()
             .add_plugin(TestNetworkPlugin);
 
         let client_entity = Entity::from_raw(0);
@@ -178,15 +179,16 @@ mod tests {
             .resource_mut::<NetworkEntityMap>()
             .insert(server_entity, client_entity);
 
-        let mut mapped_events = app.world.resource_mut::<Events<MappedEvent>>();
-        mapped_events.send(MappedEvent(client_entity));
+        app.world
+            .resource_mut::<Events<DummyEvent>>()
+            .send(DummyEvent(client_entity));
 
         app.update();
         app.update();
 
         let mapped_entities: Vec<_> = app
             .world
-            .resource_mut::<Events<FromClient<MappedEvent>>>()
+            .resource_mut::<Events<FromClient<DummyEvent>>>()
             .drain()
             .map(|event| event.event.0)
             .collect();
@@ -199,24 +201,23 @@ mod tests {
         app.add_plugins(ReplicationPlugins)
             .add_client_event::<DummyEvent>();
 
-        let mut dummy_events = app.world.resource_mut::<Events<DummyEvent>>();
-        dummy_events.send_default();
+        app.world
+            .resource_mut::<Events<DummyEvent>>()
+            .send(DummyEvent(Entity::PLACEHOLDER));
 
         app.update();
 
-        assert!(app.world.resource::<Events<DummyEvent>>().is_empty());
+        let dummy_events = app.world.resource::<Events<DummyEvent>>();
+        assert!(dummy_events.is_empty());
 
         let client_events = app.world.resource::<Events<FromClient<DummyEvent>>>();
         assert_eq!(client_events.len(), 1);
     }
 
-    #[derive(Deserialize, Serialize, Debug, Default)]
-    struct DummyEvent;
-
     #[derive(Deserialize, Serialize, Debug)]
-    struct MappedEvent(Entity);
+    struct DummyEvent(Entity);
 
-    impl MapEntities for MappedEvent {
+    impl MapEntities for DummyEvent {
         fn map_entities(&mut self, entity_map: &EntityMap) -> Result<(), MapEntitiesError> {
             self.0 = entity_map.get(self.0)?;
             Ok(())

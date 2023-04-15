@@ -195,35 +195,37 @@ mod tests {
             .add_plugin(TestNetworkPlugin);
 
         let client_id = app.world.resource::<RenetClient>().client_id();
-        for (send_mode, events_count) in [
+        for (mode, events_count) in [
             (SendMode::Broadcast, 1),
             (SendMode::Direct(SERVER_ID), 0),
             (SendMode::Direct(client_id), 1),
             (SendMode::BroadcastExcept(SERVER_ID), 1),
             (SendMode::BroadcastExcept(client_id), 0),
         ] {
-            let mut server_events = app.world.resource_mut::<Events<ToClients<DummyEvent>>>();
-            server_events.send(ToClients {
-                mode: send_mode,
-                event: DummyEvent,
-            });
+            app.world
+                .resource_mut::<Events<ToClients<DummyEvent>>>()
+                .send(ToClients {
+                    mode,
+                    event: DummyEvent(Entity::PLACEHOLDER),
+                });
 
             app.update();
             app.update();
 
+            let dummy_events = app.world.resource::<Events<DummyEvent>>();
             assert_eq!(
-                app.world.resource::<Events<DummyEvent>>().len(),
+                dummy_events.len(),
                 events_count,
-                "event should be emited {events_count} times for {send_mode:?}"
+                "event should be emited {events_count} times for {mode:?}"
             );
         }
     }
 
     #[test]
-    fn mapping() {
+    fn sending_receiving_and_mapping() {
         let mut app = App::new();
         app.add_plugins(ReplicationPlugins)
-            .add_mapped_server_event::<MappedEvent>()
+            .add_mapped_server_event::<DummyEvent>()
             .add_plugin(TestNetworkPlugin);
 
         let client_entity = Entity::from_raw(0);
@@ -232,18 +234,19 @@ mod tests {
             .resource_mut::<NetworkEntityMap>()
             .insert(server_entity, client_entity);
 
-        let mut server_events = app.world.resource_mut::<Events<ToClients<MappedEvent>>>();
-        server_events.send(ToClients {
-            mode: SendMode::Broadcast,
-            event: MappedEvent(server_entity),
-        });
+        app.world
+            .resource_mut::<Events<ToClients<DummyEvent>>>()
+            .send(ToClients {
+                mode: SendMode::Broadcast,
+                event: DummyEvent(server_entity),
+            });
 
         app.update();
         app.update();
 
         let mapped_entities: Vec<_> = app
             .world
-            .resource_mut::<Events<MappedEvent>>()
+            .resource_mut::<Events<DummyEvent>>()
             .drain()
             .map(|event| event.0)
             .collect();
@@ -257,18 +260,19 @@ mod tests {
             .add_server_event::<DummyEvent>();
 
         const DUMMY_CLIENT_ID: u64 = 1;
-        for (send_mode, events_count) in [
+        for (mode, events_count) in [
             (SendMode::Broadcast, 1),
             (SendMode::Direct(SERVER_ID), 1),
             (SendMode::Direct(DUMMY_CLIENT_ID), 0),
             (SendMode::BroadcastExcept(SERVER_ID), 0),
             (SendMode::BroadcastExcept(DUMMY_CLIENT_ID), 1),
         ] {
-            let mut server_events = app.world.resource_mut::<Events<ToClients<DummyEvent>>>();
-            server_events.send(ToClients {
-                mode: send_mode,
-                event: DummyEvent,
-            });
+            app.world
+                .resource_mut::<Events<ToClients<DummyEvent>>>()
+                .send(ToClients {
+                    mode,
+                    event: DummyEvent(Entity::PLACEHOLDER),
+                });
 
             app.update();
 
@@ -279,18 +283,15 @@ mod tests {
             assert_eq!(
                 dummy_events.drain().count(),
                 events_count,
-                "event should be emited {events_count} times for {send_mode:?}"
+                "event should be emited {events_count} times for {mode:?}"
             );
         }
     }
 
     #[derive(Deserialize, Serialize, Debug)]
-    struct DummyEvent;
+    struct DummyEvent(Entity);
 
-    #[derive(Deserialize, Serialize, Debug)]
-    struct MappedEvent(Entity);
-
-    impl MapEntities for MappedEvent {
+    impl MapEntities for DummyEvent {
         fn map_entities(&mut self, entity_map: &EntityMap) -> Result<(), MapEntitiesError> {
             self.0 = entity_map.get(self.0)?;
             Ok(())
