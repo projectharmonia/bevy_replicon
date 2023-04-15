@@ -10,6 +10,7 @@ See the quick start guide by clicking on the docs badge.
 
 ## Bevy compatibility
 
-| bevy | bevy_replicon |
-|------|---------------|
-| 0.10 | 0.1           |
+| bevy   | bevy_replicon |
+|--------|---------------|
+| 0.10.1 | 0.2-0.3       |
+| 0.10.0 | 0.1           |
