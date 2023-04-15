@@ -24,27 +24,32 @@ pub trait ClientEventAppExt {
         &mut self,
     ) -> &mut Self;
 
-    /// Same as [`Self::add_client_event`], but uses the specified sending system.
-    fn add_client_event_with<T: Event + Serialize + DeserializeOwned + Debug, Marker>(
+    /// Same as [`Self::add_client_event`], but uses specified sending and receiving systems.
+    fn add_client_event_with<T: Event + Debug, Marker1, Marker2>(
         &mut self,
-        sending_system: impl IntoSystemConfig<Marker>,
+        sending_system: impl IntoSystemConfig<Marker1>,
+        receiving_system: impl IntoSystemConfig<Marker2>,
     ) -> &mut Self;
 }
 
 impl ClientEventAppExt for App {
     fn add_client_event<T: Event + Serialize + DeserializeOwned + Debug>(&mut self) -> &mut Self {
-        self.add_client_event_with::<T, _>(sending_system::<T>)
+        self.add_client_event_with::<T, _, _>(sending_system::<T>, receiving_system::<T>)
     }
 
     fn add_mapped_client_event<T: Event + Serialize + DeserializeOwned + Debug + MapEntities>(
         &mut self,
     ) -> &mut Self {
-        self.add_client_event_with::<T, _>(mapping_and_sending_system::<T>)
+        self.add_client_event_with::<T, _, _>(
+            mapping_and_sending_system::<T>,
+            receiving_system::<T>,
+        )
     }
 
-    fn add_client_event_with<T: Event + Serialize + DeserializeOwned + Debug, Marker>(
+    fn add_client_event_with<T: Event + Debug, Marker1, Marker2>(
         &mut self,
-        sending_system: impl IntoSystemConfig<Marker>,
+        sending_system: impl IntoSystemConfig<Marker1>,
+        receiving_system: impl IntoSystemConfig<Marker2>,
     ) -> &mut Self {
         let channel_id = self
             .world
@@ -56,7 +61,7 @@ impl ClientEventAppExt for App {
             .insert_resource(EventChannel::<T>::new(channel_id))
             .add_system(sending_system.in_set(OnUpdate(ClientState::Connected)))
             .add_system(local_resending_system::<T>.in_set(ServerSet::Authority))
-            .add_system(receiving_system::<T>.in_set(OnUpdate(ServerState::Hosting)));
+            .add_system(receiving_system.in_set(OnUpdate(ServerState::Hosting)));
 
         self
     }

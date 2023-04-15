@@ -7,8 +7,8 @@ use bevy::prelude::*;
 
 /// Holds a channel ID for `T`.
 #[derive(Resource)]
-struct EventChannel<T> {
-    id: u8,
+pub struct EventChannel<T> {
+    pub id: u8,
     marker: PhantomData<T>,
 }
 

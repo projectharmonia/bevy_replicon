@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Accept receiving system in `add_client_event_with` and sending system in `add_server_event_with`.
+- Make `EventChannel<T>` public.
+
 ## [0.2.3] - 2023-04-09
 
 ### Fixed
