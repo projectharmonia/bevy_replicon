@@ -42,7 +42,8 @@ impl WorldDiff {
 }
 
 /// Fields of [`WorldDiff`] for manual deserialization.
-#[derive(Deserialize, IntoStaticStr, EnumVariantNames)]
+#[derive(IntoStaticStr, EnumVariantNames)]
+#[strum(serialize_all = "snake_case")]
 enum WorldDiffField {
     Tick,
     Entities,
@@ -53,7 +54,8 @@ enum WorldDiffField {
 #[derive(EnumDiscriminants)]
 #[strum_discriminants(
     name(ComponentDiffField),
-    derive(Deserialize, EnumVariantNames, IntoStaticStr)
+    derive(Deserialize, EnumVariantNames, IntoStaticStr),
+    strum(serialize_all = "snake_case")
 )]
 pub(super) enum ComponentDiff {
     /// Indicates that a component was added or changed, contains serialized [`Reflect`].

@@ -45,7 +45,8 @@ impl MapEntities for ReflectEvent {
     }
 }
 
-#[derive(Deserialize, IntoStaticStr, EnumVariantNames)]
+#[derive(IntoStaticStr, EnumVariantNames)]
+#[strum(serialize_all = "snake_case")]
 enum ReflectEventField {
     Entity,
     Component,
@@ -69,8 +70,10 @@ impl BuildEventSerializer<ReflectEvent> for ReflectEventSerializer<'_> {
 
 impl Serialize for ReflectEventSerializer<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut state = serializer
-            .serialize_struct(any::type_name::<Self>(), ReflectEventField::VARIANTS.len())?;
+        let mut state = serializer.serialize_struct(
+            any::type_name::<ReflectEvent>(),
+            ReflectEventField::VARIANTS.len(),
+        )?;
         state.serialize_field(ReflectEventField::Entity.into(), &self.event.entity)?;
         state.serialize_field(
             ReflectEventField::Entity.into(),
@@ -96,7 +99,11 @@ impl<'de> DeserializeSeed<'de> for ReflectEventDeserializer<'_> {
     type Value = ReflectEvent;
 
     fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Self::Value, D::Error> {
-        deserializer.deserialize_struct(any::type_name::<Self>(), ReflectEventField::VARIANTS, self)
+        deserializer.deserialize_struct(
+            any::type_name::<Self::Value>(),
+            ReflectEventField::VARIANTS,
+            self,
+        )
     }
 }
 
