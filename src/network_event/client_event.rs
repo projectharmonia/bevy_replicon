@@ -161,7 +161,7 @@ fn sending_reflect_system<T, S>(
 {
     let registry = registry.read();
     for event in &mut events {
-        let serializer = S::new(&registry, event);
+        let serializer = S::new(event, &registry);
         let message =
             bincode::serialize(&serializer).expect("client reflect event should be serializable");
         client.send_message(channel.id, message);
@@ -187,7 +187,7 @@ fn mapping_and_sending_reflect_system<T, S>(
             .unwrap_or_else(|e| {
                 panic!("client reflect event {event:?} should map its entities: {e}")
             });
-        let serializer = S::new(&registry, &event);
+        let serializer = S::new(&event, &registry);
         let message = bincode::serialize(&serializer)
             .expect("mapped client reflect event should be serializable");
         client.send_message(channel.id, message);

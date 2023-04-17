@@ -29,7 +29,7 @@ pub trait BuildEventSerializer<T> {
     where
         T: 'a;
 
-    fn new<'a>(registry: &'a TypeRegistryInternal, event: &'a T) -> Self::EventSerializer<'a>;
+    fn new<'a>(event: &'a T, registry: &'a TypeRegistryInternal) -> Self::EventSerializer<'a>;
 }
 
 /// Creates a struct implements deserialization for the event using [`TypeRegistryInternal`].

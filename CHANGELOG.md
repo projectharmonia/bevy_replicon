@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Swap `registry` and `event` arguments in `BuildEventSerializer` for consistency with `ReflectSerializer`.
+
 ## [0.3.0] - 2023-04-15
 
 ### Added

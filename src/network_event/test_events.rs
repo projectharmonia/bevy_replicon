@@ -64,10 +64,10 @@ impl BuildEventSerializer<ReflectEvent> for ReflectEventSerializer<'_> {
     type EventSerializer<'a> = ReflectEventSerializer<'a>;
 
     fn new<'a>(
-        registry: &'a TypeRegistryInternal,
         event: &'a ReflectEvent,
+        registry: &'a TypeRegistryInternal,
     ) -> Self::EventSerializer<'a> {
-        Self::EventSerializer { registry, event }
+        Self::EventSerializer { event, registry }
     }
 }
 

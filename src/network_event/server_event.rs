@@ -169,7 +169,7 @@ fn sending_reflect_system<T, S>(
 {
     let registry = registry.read();
     for ToClients { event, mode } in &mut server_events {
-        let serializer = S::new(&registry, event);
+        let serializer = S::new(event, &registry);
         let message = bincode::serialize(&serializer).expect("server event should be serializable");
 
         match *mode {
