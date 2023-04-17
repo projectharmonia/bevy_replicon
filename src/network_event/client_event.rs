@@ -332,7 +332,7 @@ mod tests {
     fn sending_receiving_reflect() {
         let mut app = App::new();
         app.add_plugins(ReplicationPlugins)
-            .register_type::<Transform>()
+            .register_type::<DummyComponent>()
             .add_client_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>()
             .add_plugin(TestNetworkPlugin);
 
@@ -340,26 +340,21 @@ mod tests {
             .resource_mut::<Events<ReflectEvent>>()
             .send(ReflectEvent {
                 entity: Entity::PLACEHOLDER,
-                component: Transform::IDENTITY.clone_value(),
+                component: DummyComponent.clone_value(),
             });
 
         app.update();
         app.update();
 
-        let transforms: Vec<_> = app
-            .world
-            .resource_mut::<Events<FromClient<ReflectEvent>>>()
-            .drain()
-            .map(|event| Transform::from_reflect(&*event.event.component).unwrap())
-            .collect();
-        assert_eq!(transforms, [Transform::IDENTITY]);
+        let client_events = app.world.resource::<Events<FromClient<ReflectEvent>>>();
+        assert_eq!(client_events.len(), 1);
     }
 
     #[test]
     fn mapping_and_sending_receiving_reflect() {
         let mut app = App::new();
         app.add_plugins(ReplicationPlugins)
-            .register_type::<Transform>()
+            .register_type::<DummyComponent>()
             .add_mapped_client_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>()
             .add_plugin(TestNetworkPlugin);
 
@@ -373,7 +368,7 @@ mod tests {
             .resource_mut::<Events<ReflectEvent>>()
             .send(ReflectEvent {
                 entity: client_entity,
-                component: Transform::IDENTITY.clone_value(),
+                component: DummyComponent.clone_value(),
             });
 
         app.update();

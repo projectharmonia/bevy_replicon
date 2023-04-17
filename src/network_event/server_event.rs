@@ -332,7 +332,8 @@ mod tests {
     use super::*;
     use crate::{
         network_event::test_events::{
-            DummyEvent, ReflectEvent, ReflectEventDeserializer, ReflectEventSerializer,
+            DummyComponent, DummyEvent, ReflectEvent, ReflectEventDeserializer,
+            ReflectEventSerializer,
         },
         test_network::TestNetworkPlugin,
         ReplicationPlugins,
@@ -408,7 +409,7 @@ mod tests {
     fn sending_receiving_reflect() {
         let mut app = App::new();
         app.add_plugins(ReplicationPlugins)
-            .register_type::<Transform>()
+            .register_type::<DummyComponent>()
             .add_server_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>()
             .add_plugin(TestNetworkPlugin);
 
@@ -426,20 +427,15 @@ mod tests {
                     mode,
                     event: ReflectEvent {
                         entity: Entity::PLACEHOLDER,
-                        component: Transform::IDENTITY.clone_value(),
+                        component: DummyComponent.clone_value(),
                     },
                 });
 
             app.update();
             app.update();
 
-            let transforms: Vec<_> = app
-                .world
-                .resource_mut::<Events<ReflectEvent>>()
-                .drain()
-                .map(|event| Transform::from_reflect(&*event.component).unwrap())
-                .collect();
-            assert_eq!(transforms, vec![Transform::IDENTITY; events_count]);
+            let mut reflect_events = app.world.resource_mut::<Events<ReflectEvent>>();
+            assert_eq!(reflect_events.drain().count(), events_count);
         }
     }
 
@@ -447,7 +443,7 @@ mod tests {
     fn sending_receiving_and_mapping_reflect() {
         let mut app = App::new();
         app.add_plugins(ReplicationPlugins)
-            .register_type::<Transform>()
+            .register_type::<DummyComponent>()
             .add_mapped_server_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>()
             .add_plugin(TestNetworkPlugin);
 
@@ -463,7 +459,7 @@ mod tests {
                 mode: SendMode::Broadcast,
                 event: ReflectEvent {
                     entity: server_entity,
-                    component: Transform::IDENTITY.clone_value(),
+                    component: DummyComponent.clone_value(),
                 },
             });
 

@@ -22,6 +22,9 @@ use strum::{EnumVariantNames, IntoStaticStr, VariantNames};
 
 use super::{BuildEventDeserializer, BuildEventSerializer};
 
+#[derive(Reflect, FromReflect, Debug)]
+pub(super) struct DummyComponent;
+
 #[derive(Deserialize, Serialize, Debug)]
 pub(super) struct DummyEvent(pub(super) Entity);
 
