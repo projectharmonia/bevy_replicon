@@ -356,10 +356,9 @@ mod tests {
 
     #[test]
     fn world_diff_ser() {
-        const TICK: Tick = Tick::new(0);
         let registry = TypeRegistryInternal::default();
         let world_diff = WorldDiff {
-            tick: TICK,
+            tick: Tick::new(0),
             entities: HashMap::from([(
                 Entity::PLACEHOLDER,
                 Vec::from([ComponentDiff::Removed(COMPONENT_NAME.to_string())]),
@@ -381,7 +380,7 @@ mod tests {
                     len: 1,
                 },
                 Token::Str("tick"),
-                Token::U32(TICK.get()),
+                Token::U32(world_diff.tick.get()),
                 Token::StructEnd,
                 Token::Str(WorldDiffField::Entities.into()),
                 Token::Map { len: Some(1) },
