@@ -406,4 +406,7 @@ mod tests {
         let client_events = app.world.resource::<Events<FromClient<DummyEvent>>>();
         assert_eq!(client_events.len(), 1);
     }
+
+    #[derive(Reflect)]
+    struct DummyComponent;
 }

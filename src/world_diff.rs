@@ -356,16 +356,15 @@ mod tests {
 
     #[test]
     fn world_diff_ser() {
-        const ENTITY_INDEX: u32 = 0;
         const TICK: Tick = Tick::new(0);
         let registry = TypeRegistryInternal::default();
         let world_diff = WorldDiff {
             tick: TICK,
             entities: HashMap::from([(
-                Entity::from_raw(ENTITY_INDEX),
+                Entity::PLACEHOLDER,
                 Vec::from([ComponentDiff::Removed(COMPONENT_NAME.to_string())]),
             )]),
-            despawns: Vec::from([Entity::from_raw(ENTITY_INDEX)]),
+            despawns: Vec::from([Entity::PLACEHOLDER]),
         };
         let serializer = WorldDiffSerializer::new(&world_diff, &registry);
 
@@ -391,9 +390,9 @@ mod tests {
                     len: 2,
                 },
                 Token::Str("generation"),
-                Token::U32(0),
+                Token::U32(Entity::PLACEHOLDER.generation()),
                 Token::Str("index"),
-                Token::U32(ENTITY_INDEX),
+                Token::U32(Entity::PLACEHOLDER.index()),
                 Token::StructEnd,
                 Token::Seq { len: Some(1) },
                 Token::NewtypeVariant {
@@ -410,9 +409,9 @@ mod tests {
                     len: 2,
                 },
                 Token::Str("generation"),
-                Token::U32(0),
+                Token::U32(Entity::PLACEHOLDER.generation()),
                 Token::Str("index"),
-                Token::U32(ENTITY_INDEX),
+                Token::U32(Entity::PLACEHOLDER.index()),
                 Token::StructEnd,
                 Token::SeqEnd,
                 Token::StructEnd,

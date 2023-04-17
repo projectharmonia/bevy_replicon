@@ -40,7 +40,7 @@ pub struct ParentSync(pub Entity);
 // Same technicue is used in Bevy for [`Parent`]
 impl FromWorld for ParentSync {
     fn from_world(_world: &mut World) -> Self {
-        Self(Entity::from_raw(u32::MAX))
+        Self(Entity::PLACEHOLDER)
     }
 }
 

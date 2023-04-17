@@ -102,7 +102,7 @@ impl MapEntities for MappedComponent {
 // Bevy uses the same pattern to reflect components with `Entity`.
 impl FromWorld for MappedComponent {
     fn from_world(_world: &mut World) -> Self {
-        Self(Entity::from_raw(u32::MAX))
+        Self(Entity::PLACEHOLDER)
     }
 }
 ```
@@ -638,7 +638,7 @@ mod tests {
 
     impl FromWorld for MappedComponent {
         fn from_world(_world: &mut World) -> Self {
-            Self(Entity::from_raw(u32::MAX))
+            Self(Entity::PLACEHOLDER)
         }
     }
 
