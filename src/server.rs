@@ -190,14 +190,18 @@ fn collect_changes(
                 .get_storage_type(component_id)
                 .expect("component should be a part of the archetype");
 
-            // SAFETY: `component_id` was obtained from the `world.components()`.
+            // SAFETY: `component_id` obtained from the world.
             let component_info = unsafe { world.components().get_info_unchecked(component_id) };
             let type_name = component_info.name();
-            let reflect_component = component_info
+            let type_id = component_info
                 .type_id()
-                .and_then(|type_id| registry.get(type_id))
-                .and_then(|registration| registration.data::<ReflectComponent>())
-                .unwrap_or_else(|| panic!("non-ignored component {type_name} should be registered and have reflect(Component)"));
+                .unwrap_or_else(|| panic!("{type_name} should have registered TypeId"));
+            let registration = registry
+                .get(type_id)
+                .unwrap_or_else(|| panic!("{type_name} should be registered"));
+            let reflect_component = registration
+                .data::<ReflectComponent>()
+                .unwrap_or_else(|| panic!("{type_name} should have reflect(Component)"));
 
             match storage_type {
                 StorageType::Table => {
@@ -206,7 +210,7 @@ fn collect_changes(
                         .unwrap_or_else(|| panic!("{type_name} should have a valid column"));
 
                     for archetype_entity in archetype.entities() {
-                        // SAFETY: the table row obtained from the world state
+                        // SAFETY: the table row obtained from the world state.
                         let ticks =
                             unsafe { column.get_ticks_unchecked(archetype_entity.table_row()) };
                         collect_if_changed(
@@ -278,7 +282,7 @@ fn collect_removals(
         for world_diff in client_diffs.values_mut() {
             for (&component_id, &tick) in removal_tracker.iter() {
                 if tick.is_newer_than(world_diff.tick, Tick::new(change_tick.change_tick())) {
-                    // SAFETY: `component_id` was obtained from `RemovalTracker` that always contains valid components.
+                    // SAFETY: `component_id` obtained from `RemovalTracker` that always contains valid components.
                     let component_info =
                         unsafe { world.components().get_info_unchecked(component_id) };
                     world_diff
