@@ -67,13 +67,13 @@ fn channel_configs(events_count: u8) -> Vec<ChannelConfig> {
 pub trait AppReplicationExt {
     /// Marks component for replication.
     ///
+    /// Also registers the type in [`AppTypeRegistry`].
     /// The component should implement [`Reflect`] and have `#[reflect(Component)]`.
     fn replicate<T: Component + GetTypeRegistration>(&mut self) -> &mut Self;
 
     /// Ignores component `T` replication if component `U` is present on the same entity.
     ///
     /// Component `T` should be marked for replication.
-    /// Component `U` should be registered.
     /// Could be called multiple times for the same component to disable replication
     /// for different presented components.
     fn not_replicate_if_present<T: Component, U: Component>(&mut self) -> &mut Self;
