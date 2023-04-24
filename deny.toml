@@ -12,18 +12,18 @@ allow-osi-fsf-free = "either"
 multiple-versions = "deny"
 wildcards = "deny"
 skip = [
-  { name = "syn", version = "1.0" },                      # from bevy_derive v0.10.0
-  { name = "ahash", version = "0.7.6" },                  # from bevy_utils v0.10.0
-  { name = "redox_syscall", version = "0.2" },            # from notify v5.1.0
-  { name = "windows_x86_64_msvc", version = "0.42" },     # from bevy_winit v0.10.1
-  { name = "windows_x86_64_gnullvm", version = "0.42" },  # from bevy_winit v0.10.1
-  { name = "windows_x86_64_gnu", version = "0.42" },      # from bevy_winit v0.10.1
-  { name = "windows_i686_msvc", version = "0.42" },       # from bevy_winit v0.10.1
-  { name = "windows_i686_gnu", version = "0.42" },        # from bevy_winit v0.10.1
-  { name = "windows_aarch64_msvc", version = "0.42" },    # from bevy_winit v0.10.1
-  { name = "windows_aarch64_gnullvm", version = "0.42" }, # from bevy_winit v0.10.1
-  { name = "windows-targets", version = "0.42" },         # from bevy_winit v0.10.1
-  { name = "windows-sys", version = "0.45" },             # from bevy_winit v0.10.1
+  { name = "syn", version = "1.0" },
+  { name = "ahash", version = "0.7.6" },
+  { name = "redox_syscall", version = "0.2" },
+  { name = "windows_x86_64_msvc", version = "0.42" },
+  { name = "windows_x86_64_gnullvm", version = "0.42" },
+  { name = "windows_x86_64_gnu", version = "0.42" },
+  { name = "windows_i686_msvc", version = "0.42" },
+  { name = "windows_i686_gnu", version = "0.42" },
+  { name = "windows_aarch64_msvc", version = "0.42" },
+  { name = "windows_aarch64_gnullvm", version = "0.42" },
+  { name = "windows-targets", version = "0.42" },
+  { name = "windows-sys", version = "0.45" },
 ]
 
 [sources]
