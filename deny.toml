@@ -15,6 +15,7 @@ skip = [
   { name = "syn", version = "1.0" },
   { name = "ahash", version = "0.7.6" },
   { name = "redox_syscall", version = "0.2" },
+  { name = "regex-syntax", version = "0.6" },
   { name = "windows_x86_64_msvc", version = "0.42" },
   { name = "windows_x86_64_gnullvm", version = "0.42" },
   { name = "windows_x86_64_gnu", version = "0.42" },
