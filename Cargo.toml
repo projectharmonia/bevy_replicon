@@ -43,3 +43,6 @@ bevy = { version = "0.10", default-features = false, features = [
   "bevy_ui",
   "x11",
 ] }
+
+[workspace]
+members = ["xtask"]

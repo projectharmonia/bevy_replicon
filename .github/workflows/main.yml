@@ -69,11 +69,8 @@ jobs:
       - name: Install Grcov
         run: cargo install --version 0.8.13 grcov
 
-      - name: Install Just
-        run: cargo install just
-
       - name: Test
-        run: just coverage -o lcov.info
+        run: cargo xtask coverage -- -o lcov.info
 
       - name: Upload code coverage results
         if: github.actor != 'dependabot[bot]'
