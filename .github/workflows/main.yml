@@ -38,7 +38,7 @@ jobs:
       - name: Clone repo
         uses: actions/checkout@v3
 
-      - name: Instal latest stable toolchain
+      - name: Instal stable toolchain
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache crates
@@ -57,7 +57,7 @@ jobs:
       - name: Clone repo
         uses: actions/checkout@v3
 
-      - name: Instal latest stable toolchain
+      - name: Instal stable toolchain
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache crates
