@@ -17,10 +17,10 @@ fn main() -> Result<()> {
 
     match Cli::parse() {
         Cli::Coverage { args } => {
-            sh.set_var("LLVM_PROFILE_FILE", "target/coverage/profile-%p.profraw");
-            sh.set_var("RUSTFLAGS", "-C instrument-coverage");
-
-            cmd!(sh, "cargo test").run()?;
+            cmd!(sh, "cargo test")
+                .env("LLVM_PROFILE_FILE", "target/coverage/profile-%p.profraw")
+                .env("RUSTFLAGS", "-C instrument-coverage")
+                .run()?;
 
             let grcov_args = [
                 "target/coverage",
