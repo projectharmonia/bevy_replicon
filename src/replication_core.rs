@@ -71,7 +71,7 @@ fn channel_configs(events_count: u8, is_client: bool) -> Vec<ChannelConfig> {
             channel_configs.push(ChannelConfig {
                 channel_id: REPLICATION_CHANNEL_ID + channel_id,
                 max_memory_usage_bytes: 5 * 1024 * 1024,
-                send_type: SendType::ReliableOrdered { resend_time: Duration::ZERO },
+                send_type: SendType::ReliableOrdered { resend_time: Duration::from_millis(300) },
             });
             // channel_configs.push(ChannelConfig::Reliable(ReliableChannelConfig {
             //     channel_id: REPLICATION_CHANNEL_ID + channel_id,
@@ -89,7 +89,7 @@ fn channel_configs(events_count: u8, is_client: bool) -> Vec<ChannelConfig> {
             channel_configs.push(ChannelConfig {
                 channel_id: REPLICATION_CHANNEL_ID + channel_id,
                 max_memory_usage_bytes: 10 * 1024 * 1024,
-                send_type: SendType::ReliableOrdered { resend_time: Duration::ZERO },
+                send_type: SendType::ReliableOrdered { resend_time: Duration::from_millis(300) },
             });
         }
         channel_configs
