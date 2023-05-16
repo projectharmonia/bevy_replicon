@@ -215,7 +215,7 @@ fn receiving_system<T: Event + DeserializeOwned + Debug>(
     mut server: ResMut<RenetServer>,
     channel: Res<EventChannel<T>>,
 ) {
-    for client_id in server.clients_id() {
+    for client_id in server.connections_id() {
         while let Some(message) = server.receive_message(client_id, channel.id) {
             match bincode::deserialize(&message) {
                 Ok(event) => {
@@ -239,7 +239,7 @@ fn receiving_reflect_system<T, D>(
     for<'a, 'de> D::EventDeserializer<'a>: DeserializeSeed<'de, Value = T>,
 {
     let registry = registry.read();
-    for client_id in server.clients_id() {
+    for client_id in server.connections_id() {
         while let Some(message) = server.receive_message(client_id, channel.id) {
             // Set options to match `bincode::serialize`.
             // https://docs.rs/bincode/latest/bincode/config/index.html#options-struct-vs-bincode-functions

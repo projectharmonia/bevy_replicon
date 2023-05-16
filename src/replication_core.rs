@@ -1,10 +1,12 @@
+use std::time::Duration;
+
 use bevy::{
     ecs::{archetype::Archetype, component::ComponentId},
     prelude::*,
     reflect::GetTypeRegistration,
     utils::{HashMap, HashSet},
 };
-use bevy_renet::renet::{ChannelConfig, ReliableChannelConfig, UnreliableChannelConfig};
+use bevy_renet::renet::{ChannelConfig, SendType};
 
 use crate::REPLICATION_CHANNEL_ID;
 
@@ -30,11 +32,11 @@ pub struct NetworkChannels {
 
 impl NetworkChannels {
     pub fn server_channels(&self) -> Vec<ChannelConfig> {
-        channel_configs(self.server)
+        channel_configs(self.server, false)
     }
 
     pub fn client_channels(&self) -> Vec<ChannelConfig> {
-        channel_configs(self.client)
+        channel_configs(self.client, true)
     }
 
     pub(super) fn create_client_channel(&mut self) -> u8 {
@@ -48,20 +50,50 @@ impl NetworkChannels {
     }
 }
 
-fn channel_configs(events_count: u8) -> Vec<ChannelConfig> {
+
+
+fn channel_configs(events_count: u8, is_client: bool) -> Vec<ChannelConfig> {
     let mut channel_configs = Vec::with_capacity((events_count + 1).into());
-    channel_configs.push(ChannelConfig::Unreliable(UnreliableChannelConfig {
-        channel_id: REPLICATION_CHANNEL_ID,
-        sequenced: true,
-        ..Default::default()
-    }));
-    for channel_id in 1..=events_count {
-        channel_configs.push(ChannelConfig::Reliable(ReliableChannelConfig {
-            channel_id: REPLICATION_CHANNEL_ID + channel_id,
-            ..Default::default()
-        }));
+    if is_client {
+        channel_configs.push(
+            ChannelConfig {
+                channel_id: REPLICATION_CHANNEL_ID,
+                max_memory_usage_bytes: 5 * 1024 * 1024,
+                send_type: SendType::Unreliable
+            }
+        );
+        // channel_configs.push(ChannelConfig::Unreliable(UnreliableChannelConfig {
+        //     channel_id: REPLICATION_CHANNEL_ID,
+        //     sequenced: true,
+        //     ..Default::default()
+        // }));
+        for channel_id in 1..=events_count {
+            channel_configs.push(ChannelConfig {
+                channel_id: REPLICATION_CHANNEL_ID + channel_id,
+                max_memory_usage_bytes: 5 * 1024 * 1024,
+                send_type: SendType::ReliableOrdered { resend_time: Duration::ZERO },
+            });
+            // channel_configs.push(ChannelConfig::Reliable(ReliableChannelConfig {
+            //     channel_id: REPLICATION_CHANNEL_ID + channel_id,
+            //     ..Default::default()
+            // }));
+        }
+        channel_configs
     }
-    channel_configs
+    else {
+        channel_configs.push(
+            ChannelConfig { channel_id: REPLICATION_CHANNEL_ID, max_memory_usage_bytes: 10 * 1024 * 1024, send_type: SendType::Unreliable }
+        );
+
+        for channel_id in 1..=events_count {
+            channel_configs.push(ChannelConfig {
+                channel_id: REPLICATION_CHANNEL_ID + channel_id,
+                max_memory_usage_bytes: 10 * 1024 * 1024,
+                send_type: SendType::ReliableOrdered { resend_time: Duration::ZERO },
+            });
+        }
+        channel_configs
+    }
 }
 
 pub trait AppReplicationExt {

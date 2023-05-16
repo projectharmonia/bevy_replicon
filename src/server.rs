@@ -48,7 +48,7 @@ impl Default for ServerPlugin {
 
 impl Plugin for ServerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugin(RenetServerPlugin::default())
+        app.add_plugin(RenetServerPlugin {})
             .add_plugin(RemovalTrackerPlugin)
             .add_plugin(DespawnTrackerPlugin)
             .configure_set(ServerSet::Authority.run_if(not(resource_exists::<RenetClient>())))
@@ -135,7 +135,7 @@ impl ServerPlugin {
         mut acked_ticks: ResMut<AckedTicks>,
         mut server: ResMut<RenetServer>,
     ) {
-        for client_id in server.clients_id() {
+        for client_id in server.connections_id() {
             let mut last_message = None;
             while let Some(message) = server.receive_message(client_id, REPLICATION_CHANNEL_ID) {
                 last_message = Some(message);
@@ -157,7 +157,7 @@ impl ServerPlugin {
         mut acked_ticks: ResMut<AckedTicks>,
     ) {
         for event in &mut server_events {
-            if let ServerEvent::ClientDisconnected(id) = event {
+            if let ServerEvent::ClientDisconnected { client_id: id, reason: _ } = event {
                 acked_ticks.remove(id);
             }
         }
