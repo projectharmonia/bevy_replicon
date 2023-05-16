@@ -16,6 +16,13 @@ use crate::{
     Replication, REPLICATION_CHANNEL_ID,
 };
 
+pub fn client_connecting(client: Option<Res<RenetClient>>) -> bool {
+    match client {
+        Some(client) => client.is_connected(),
+        None => false,
+    }
+}
+
 pub struct ClientPlugin;
 
 impl Plugin for ClientPlugin {
@@ -28,7 +35,7 @@ impl Plugin for ClientPlugin {
                 (
                     Self::no_connection_state_system.run_if(resource_removed::<RenetClient>()),
                     Self::connecting_state_system
-                        .run_if(bevy_renet)
+                        .run_if(client_connected)
                         .run_if(state_exists_and_equals(ClientState::NoConnection)),
                     Self::connected_state_system
                         .run_if(client_connected)
