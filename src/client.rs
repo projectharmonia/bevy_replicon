@@ -5,7 +5,7 @@ use bevy::{
     reflect::TypeRegistryInternal,
     utils::HashMap,
 };
-use bevy_renet::transport::client_connected;
+use bevy_renet::transport::{client_connected, client_connecting};
 use bevy_renet::{renet::RenetClient, RenetClientPlugin};
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeSeed, Deserialize, Serialize};
@@ -16,12 +16,12 @@ use crate::{
     Replication, REPLICATION_CHANNEL_ID,
 };
 
-pub fn client_connecting(client: Option<Res<RenetClient>>) -> bool {
-    match client {
-        Some(client) => client.is_connected(),
-        None => false,
-    }
-}
+// pub fn client_connecting(client: Option<Res<RenetClient>>) -> bool {
+//     match client {
+//         Some(client) => client.,
+//         None => false,
+//     }
+// }
 
 pub struct ClientPlugin;
 
@@ -35,7 +35,7 @@ impl Plugin for ClientPlugin {
                 (
                     Self::no_connection_state_system.run_if(resource_removed::<RenetClient>()),
                     Self::connecting_state_system
-                        .run_if(client_connected)
+                        .run_if(client_connecting)
                         .run_if(state_exists_and_equals(ClientState::NoConnection)),
                     Self::connected_state_system
                         .run_if(client_connected)
