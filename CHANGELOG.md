@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Swap `registry` and `event` arguments in `BuildEventSerializer` for consistency with `ReflectSerializer`.
+- Migrate to bevy_renet `0.0.12`.
 
 ## [0.3.0] - 2023-04-15
 

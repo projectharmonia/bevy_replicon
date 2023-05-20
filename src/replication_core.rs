@@ -1,10 +1,12 @@
+use std::time::Duration;
+
 use bevy::{
     ecs::{archetype::Archetype, component::ComponentId},
     prelude::*,
     reflect::GetTypeRegistration,
     utils::{HashMap, HashSet},
 };
-use bevy_renet::renet::{ChannelConfig, ReliableChannelConfig, UnreliableChannelConfig};
+use bevy_renet::renet::{ChannelConfig, SendType};
 
 use crate::REPLICATION_CHANNEL_ID;
 
@@ -18,7 +20,7 @@ impl Plugin for ReplicationCorePlugin {
     }
 }
 
-/// A resource to create channels for [`bevy_renet::renet::RenetConnectionConfig`]
+/// A resource to create channels for [`bevy_renet::renet::ConnectionConfig`]
 /// based on number of added server and client events.
 #[derive(Clone, Copy, Default, Resource)]
 pub struct NetworkChannels {
@@ -50,16 +52,21 @@ impl NetworkChannels {
 
 fn channel_configs(events_count: u8) -> Vec<ChannelConfig> {
     let mut channel_configs = Vec::with_capacity((events_count + 1).into());
-    channel_configs.push(ChannelConfig::Unreliable(UnreliableChannelConfig {
+    // TODO: Make it configurable.
+    // Values from `DefaultChannel::config()`.
+    channel_configs.push(ChannelConfig {
         channel_id: REPLICATION_CHANNEL_ID,
-        sequenced: true,
-        ..Default::default()
-    }));
+        max_memory_usage_bytes: 5 * 1024 * 1024,
+        send_type: SendType::Unreliable,
+    });
     for channel_id in 1..=events_count {
-        channel_configs.push(ChannelConfig::Reliable(ReliableChannelConfig {
+        channel_configs.push(ChannelConfig {
             channel_id: REPLICATION_CHANNEL_ID + channel_id,
-            ..Default::default()
-        }));
+            max_memory_usage_bytes: 5 * 1024 * 1024,
+            send_type: SendType::ReliableOrdered {
+                resend_time: Duration::from_millis(300),
+            },
+        });
     }
     channel_configs
 }

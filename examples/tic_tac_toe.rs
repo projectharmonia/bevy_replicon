@@ -11,8 +11,11 @@ use bevy::prelude::*;
 use bevy_replicon::{
     prelude::*,
     renet::{
-        ClientAuthentication, RenetConnectionConfig, ServerAuthentication, ServerConfig,
-        ServerEvent,
+        transport::{
+            ClientAuthentication, NetcodeClientTransport, NetcodeServerTransport,
+            ServerAuthentication, ServerConfig,
+        },
+        ConnectionConfig, ServerEvent,
     },
 };
 use clap::{Parser, ValueEnum};
@@ -237,10 +240,10 @@ impl TicTacToePlugin {
     fn cli_system(
         mut commands: Commands,
         mut game_state: ResMut<NextState<GameState>>,
-        settings: Res<Cli>,
+        cli: Res<Cli>,
         network_channels: Res<NetworkChannels>,
     ) -> Result<()> {
-        match *settings {
+        match *cli {
             Cli::Hotseat => {
                 // Set all players to server to play from a single machine and start the game right away.
                 commands.spawn(PlayerBundle::server(Symbol::Cross));
@@ -248,54 +251,54 @@ impl TicTacToePlugin {
                 game_state.set(GameState::InGame);
             }
             Cli::Server { port, symbol } => {
-                let send_channels_config = network_channels.server_channels();
-                let receive_channels_config = network_channels.client_channels();
-                const MAX_CLIENTS: usize = 1;
-                let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?;
-                let server_addr = SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port);
-                let socket = UdpSocket::bind(server_addr)?;
-                let server_config = ServerConfig::new(
-                    MAX_CLIENTS,
-                    PROTOCOL_ID,
-                    server_addr,
-                    ServerAuthentication::Unsecure,
-                );
+                let server_channels_config = network_channels.server_channels();
+                let client_channels_config = network_channels.client_channels();
 
-                let connection_config = RenetConnectionConfig {
-                    send_channels_config,
-                    receive_channels_config,
+                let server = RenetServer::new(ConnectionConfig {
+                    server_channels_config,
+                    client_channels_config,
                     ..Default::default()
-                };
+                });
 
-                let server =
-                    RenetServer::new(current_time, server_config, connection_config, socket)?;
+                let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?;
+                let public_addr = SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port);
+                let socket = UdpSocket::bind(public_addr)?;
+                let server_config = ServerConfig {
+                    max_clients: 1,
+                    protocol_id: PROTOCOL_ID,
+                    public_addr,
+                    authentication: ServerAuthentication::Unsecure,
+                };
+                let transport = NetcodeServerTransport::new(current_time, server_config, socket)?;
 
                 commands.insert_resource(server);
+                commands.insert_resource(transport);
                 commands.spawn(PlayerBundle::server(symbol));
             }
             Cli::Client { port, ip } => {
-                let receive_channels_config = network_channels.server_channels();
-                let send_channels_config = network_channels.client_channels();
+                let server_channels_config = network_channels.server_channels();
+                let client_channels_config = network_channels.client_channels();
+
+                let client = RenetClient::new(ConnectionConfig {
+                    server_channels_config,
+                    client_channels_config,
+                    ..Default::default()
+                });
+
                 let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?;
                 let client_id = current_time.as_millis() as u64;
                 let server_addr = SocketAddr::new(ip, port);
-                let socket = UdpSocket::bind((ip, 0)).expect("localhost should be bindable");
+                let socket = UdpSocket::bind((ip, 0))?;
                 let authentication = ClientAuthentication::Unsecure {
                     client_id,
                     protocol_id: PROTOCOL_ID,
                     server_addr,
                     user_data: None,
                 };
+                let transport = NetcodeClientTransport::new(current_time, authentication, socket)?;
 
-                let connection_config = RenetConnectionConfig {
-                    send_channels_config,
-                    receive_channels_config,
-                    ..Default::default()
-                };
-
-                let client =
-                    RenetClient::new(current_time, socket, connection_config, authentication)?;
                 commands.insert_resource(client);
+                commands.insert_resource(transport);
             }
         }
 
@@ -313,12 +316,12 @@ impl TicTacToePlugin {
     ) {
         for event in &mut server_event {
             match event {
-                ServerEvent::ClientConnected(client_id, _) => {
+                ServerEvent::ClientConnected { client_id } => {
                     let server_symbol = players.single();
                     commands.spawn(PlayerBundle::new(*client_id, server_symbol.next()));
                     game_state.set(GameState::InGame);
                 }
-                ServerEvent::ClientDisconnected(_) => {
+                ServerEvent::ClientDisconnected { .. } => {
                     game_state.set(GameState::Disconnected);
                 }
             }
@@ -522,10 +525,12 @@ impl TicTacToePlugin {
     /// Returns `true` if the local player can select cells.
     fn local_player_turn(
         current_turn: Res<CurrentTurn>,
-        client: Option<Res<RenetClient>>,
+        client_transport: Option<Res<NetcodeClientTransport>>,
         players: Query<(&Player, &Symbol)>,
     ) -> bool {
-        let client_id = client.map(|client| client.client_id()).unwrap_or(SERVER_ID);
+        let client_id = client_transport
+            .map(|client| client.client_id())
+            .unwrap_or(SERVER_ID);
         players
             .iter()
             .any(|(player, &symbol)| player.0 == client_id && symbol == current_turn.0)
@@ -537,7 +542,7 @@ fn any_component_added<T: Component>(components: Query<(), Added<T>>) -> bool {
     !components.is_empty()
 }
 
-const PORT: u16 = 4761;
+const PORT: u16 = 5000;
 
 #[derive(Debug, Parser, PartialEq, Resource)]
 enum Cli {

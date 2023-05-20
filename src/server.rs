@@ -17,7 +17,11 @@ use bevy::{
     utils::HashMap,
 };
 use bevy_renet::{
-    renet::{RenetClient, RenetServer, ServerEvent},
+    renet::{
+        transport::{NetcodeClientTransport, NetcodeServerTransport},
+        RenetServer, ServerEvent,
+    },
+    transport::NetcodeServerPlugin,
     RenetServerPlugin,
 };
 
@@ -48,20 +52,23 @@ impl Default for ServerPlugin {
 
 impl Plugin for ServerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugin(RenetServerPlugin::default())
+        app.add_plugin(RenetServerPlugin)
+            .add_plugin(NetcodeServerPlugin)
             .add_plugin(RemovalTrackerPlugin)
             .add_plugin(DespawnTrackerPlugin)
-            .configure_set(ServerSet::Authority.run_if(not(resource_exists::<RenetClient>())))
+            .configure_set(
+                ServerSet::Authority.run_if(not(resource_exists::<NetcodeClientTransport>())),
+            )
             .init_resource::<AckedTicks>()
             .add_state::<ServerState>()
             .add_systems(
                 (
                     Self::no_server_state_system
                         .run_if(state_exists_and_equals(ServerState::Hosting))
-                        .run_if(resource_removed::<RenetServer>()),
+                        .run_if(resource_removed::<NetcodeServerTransport>()),
                     Self::hosting_state_system
-                        .run_if(state_exists_and_equals(ServerState::NoServer))
-                        .run_if(resource_added::<RenetServer>()),
+                        .run_if(resource_added::<NetcodeServerTransport>())
+                        .run_if(state_exists_and_equals(ServerState::NoServer)),
                 )
                     .before(run_enter_schedule::<ServerState>)
                     .in_base_set(CoreSet::StateTransitions),
@@ -157,7 +164,11 @@ impl ServerPlugin {
         mut acked_ticks: ResMut<AckedTicks>,
     ) {
         for event in &mut server_events {
-            if let ServerEvent::ClientDisconnected(id) = event {
+            if let ServerEvent::ClientDisconnected {
+                client_id: id,
+                reason: _,
+            } = event
+            {
                 acked_ticks.remove(id);
             }
         }

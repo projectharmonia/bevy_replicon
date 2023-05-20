@@ -277,7 +277,7 @@ from the send list):
 
 ```rust
 # use bevy::prelude::*;
-# use bevy_replicon::{prelude::*, renet::RenetConnectionConfig};
+# use bevy_replicon::prelude::*;
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
@@ -309,29 +309,27 @@ And for events with `Box<dyn Reflect>` you can use [`ServerEventAppExt::add_serv
 ## Server and client creation
 
 To connect to the server or create it, you need to initialize the
-[`renet::RenetClient`] or [`renet::RenetServer`] resource from Renet.
+[`renet::RenetClient`] and [`renet::transport::NetcodeClientTransport`] or
+[`renet::RenetServer`] and [`renet::transport::NetcodeServerTransport`] resources from Renet.
 All Renet API is re-exported from this plugin.
 
 The only part of it that handled by this plugin is channels that used for
 events and component replication. These channels should be obtained from the
 [`NetworkChannels`] resource. So when creating server you need to initialize
-[`renet::RenetConnectionConfig`] like this:
+[`renet::ConnectionConfig`] like this:
 
 ```rust
 # use bevy::prelude::*;
-# use bevy_replicon::{prelude::*, renet::RenetConnectionConfig};
+# use bevy_replicon::{prelude::*, renet::ConnectionConfig};
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
 let network_channels = app.world.resource::<NetworkChannels>();
-let connection_config = RenetConnectionConfig {
-    send_channels_config: network_channels.server_channels(),
-    receive_channels_config: network_channels.client_channels(),
+let connection_config = ConnectionConfig {
+    server_channels_config: network_channels.server_channels(),
+    client_channels_config: network_channels.client_channels(),
     ..Default::default()
 };
 ```
-
-For client you need to swap [`NetworkChannels::server_channels()`] and
-[`NetworkChannels::client_channels()`].
 
 For full example of how to initialize server or client see the example in the
 repository.
@@ -406,7 +404,7 @@ mod tests {
         },
         utils::HashMap,
     };
-    use bevy_renet::renet::RenetClient;
+    use bevy_renet::renet::transport::NetcodeClientTransport;
 
     use super::*;
     use crate::{
@@ -423,13 +421,14 @@ mod tests {
         app.add_plugins(ReplicationPlugins)
             .add_plugin(TestNetworkPlugin);
 
-        let mut client = app.world.resource_mut::<RenetClient>();
-        client.disconnect();
-        let client_id = client.client_id();
+        let mut client_transport = app.world.resource_mut::<NetcodeClientTransport>();
+        client_transport.disconnect();
+        let client_id = client_transport.client_id();
 
         let mut acked_ticks = app.world.resource_mut::<AckedTicks>();
         acked_ticks.insert(client_id, Tick::new(0));
 
+        app.update();
         app.update();
 
         let acked_ticks = app.world.resource::<AckedTicks>();
@@ -447,9 +446,9 @@ mod tests {
         }
 
         let acked_ticks = app.world.resource::<AckedTicks>();
-        let client = app.world.resource::<RenetClient>();
+        let client_transport = app.world.resource::<NetcodeClientTransport>();
         assert!(
-            matches!(acked_ticks.get(&client.client_id()), Some(&last_tick) if last_tick.get() > 0)
+            matches!(acked_ticks.get(&client_transport.client_id()), Some(&last_tick) if last_tick.get() > 0)
         );
     }
 

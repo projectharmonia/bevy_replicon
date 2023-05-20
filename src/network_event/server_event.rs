@@ -328,6 +328,7 @@ pub enum SendMode {
 #[cfg(test)]
 mod tests {
     use bevy::ecs::event::Events;
+    use bevy_renet::renet::transport::NetcodeClientTransport;
 
     use super::*;
     use crate::{
@@ -346,7 +347,7 @@ mod tests {
             .add_server_event::<DummyEvent>()
             .add_plugin(TestNetworkPlugin);
 
-        let client_id = app.world.resource::<RenetClient>().client_id();
+        let client_id = app.world.resource::<NetcodeClientTransport>().client_id();
         for (mode, events_count) in [
             (SendMode::Broadcast, 1),
             (SendMode::Direct(SERVER_ID), 0),
@@ -413,7 +414,7 @@ mod tests {
             .add_server_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>()
             .add_plugin(TestNetworkPlugin);
 
-        let client_id = app.world.resource::<RenetClient>().client_id();
+        let client_id = app.world.resource::<NetcodeClientTransport>().client_id();
         for (mode, events_count) in [
             (SendMode::Broadcast, 1),
             (SendMode::Direct(SERVER_ID), 0),

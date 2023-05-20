@@ -5,7 +5,11 @@ use bevy::{
     reflect::TypeRegistryInternal,
     utils::HashMap,
 };
-use bevy_renet::{renet::RenetClient, RenetClientPlugin};
+use bevy_renet::{
+    renet::{transport::NetcodeClientTransport, RenetClient},
+    transport::NetcodeClientPlugin,
+    RenetClientPlugin,
+};
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeSeed, Deserialize, Serialize};
 
@@ -19,18 +23,20 @@ pub struct ClientPlugin;
 
 impl Plugin for ClientPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugin(RenetClientPlugin::default())
+        app.add_plugin(RenetClientPlugin)
+            .add_plugin(NetcodeClientPlugin)
             .add_state::<ClientState>()
             .init_resource::<LastTick>()
             .init_resource::<NetworkEntityMap>()
             .add_systems(
                 (
-                    Self::no_connection_state_system.run_if(resource_removed::<RenetClient>()),
+                    Self::no_connection_state_system
+                        .run_if(resource_removed::<NetcodeClientTransport>()),
                     Self::connecting_state_system
-                        .run_if(bevy_renet::client_connecting)
+                        .run_if(bevy_renet::transport::client_connecting)
                         .run_if(state_exists_and_equals(ClientState::NoConnection)),
                     Self::connected_state_system
-                        .run_if(bevy_renet::client_connected)
+                        .run_if(bevy_renet::transport::client_connected)
                         .run_if(state_exists_and_equals(ClientState::Connecting)),
                 )
                     .before(run_enter_schedule::<ClientState>)
