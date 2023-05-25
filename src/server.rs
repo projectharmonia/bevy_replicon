@@ -37,16 +37,24 @@ use removal_tracker::{RemovalTracker, RemovalTrackerPlugin};
 
 pub const SERVER_ID: u64 = 0;
 
-pub struct ServerPlugin {
-    /// Number of updates sent from server per second.
+pub enum TickPolicy {
+    /// Max number of updates sent from server per second. May be lower if update cycle duration is too long.
     ///
     /// By default it's 30 updates per second.
-    pub tick_rate: u64,
+    MaxTickRate(u16),
+    /// [`ServerSet::Tick`] must be manually configured.
+    Manual,
+}
+
+pub struct ServerPlugin {
+    pub tick_policy: TickPolicy,
 }
 
 impl Default for ServerPlugin {
     fn default() -> Self {
-        Self { tick_rate: 30 }
+        Self {
+            tick_policy: TickPolicy::MaxTickRate(30),
+        }
     }
 }
 
@@ -89,8 +97,10 @@ impl Plugin for ServerPlugin {
 
         // Remove delay for tests.
         if cfg!(not(test)) {
-            let tick_time = Duration::from_millis(1000 / self.tick_rate);
-            app.configure_set(ServerSet::Tick.run_if(on_timer(tick_time)));
+            if let TickPolicy::MaxTickRate(max_tick_rate) = self.tick_policy {
+                let tick_time = Duration::from_millis(1000 / max_tick_rate as u64);
+                app.configure_set(ServerSet::Tick.run_if(on_timer(tick_time)));
+            }
         }
     }
 }
