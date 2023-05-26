@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update server to use `TickPolicy` instead of requiring a tick rate.
 - Add `ServerSet::ReceiveEvent` and `ServerSet::SendEvent` for more fine-grained control of scheduling for event handling.
 
+### Fixed
+
+- Unspecified system ordering could cause tick acks to be ordered on the wrong side of world diff handling.
+
 ## [0.4.0] - 2023-05-26
 
 ### Changed

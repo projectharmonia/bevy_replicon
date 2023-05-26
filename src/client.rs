@@ -45,9 +45,10 @@ impl Plugin for ClientPlugin {
             .add_system(Self::client_reset_system.in_schedule(OnExit(ClientState::Connected)))
             .add_systems(
                 (
-                    Self::tick_ack_sending_system,
                     Self::world_diff_receiving_system,
+                    Self::tick_ack_sending_system,
                 )
+                    .chain()
                     .in_set(OnUpdate(ClientState::Connected)),
             );
     }
