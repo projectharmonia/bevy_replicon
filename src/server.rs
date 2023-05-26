@@ -81,19 +81,16 @@ impl Plugin for ServerPlugin {
                     .before(run_enter_schedule::<ServerState>)
                     .in_base_set(CoreSet::StateTransitions),
             )
+            .add_system(Self::server_reset_system.in_schedule(OnExit(ServerState::Hosting)))
             .add_systems(
                 (
                     Self::tick_acks_receiving_system,
                     Self::acked_ticks_cleanup_system,
+                    Self::world_diffs_sending_system.in_set(ServerSet::Tick),
                 )
+                    .chain()
                     .in_set(OnUpdate(ServerState::Hosting)),
-            )
-            .add_systems((
-                Self::world_diffs_sending_system
-                    .in_set(OnUpdate(ServerState::Hosting))
-                    .in_set(ServerSet::Tick),
-                Self::server_reset_system.in_schedule(OnExit(ServerState::Hosting)),
-            ));
+            );
 
         // Remove delay for tests.
         if cfg!(not(test)) {
