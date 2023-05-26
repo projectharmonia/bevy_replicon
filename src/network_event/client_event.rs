@@ -112,9 +112,17 @@ impl ClientEventAppExt for App {
         self.add_event::<T>()
             .add_event::<FromClient<T>>()
             .insert_resource(EventChannel::<T>::new(channel_id))
-            .add_system(sending_system.in_set(OnUpdate(ClientState::Connected)))
+            .add_system(
+                sending_system
+                    .in_set(ServerSet::SendEvents)
+                    .run_if(in_state(ClientState::Connected)),
+            )
             .add_system(local_resending_system::<T>.in_set(ServerSet::Authority))
-            .add_system(receiving_system.in_set(OnUpdate(ServerState::Hosting)));
+            .add_system(
+                receiving_system
+                    .in_set(ServerSet::ReceiveEvents)
+                    .run_if(in_state(ServerState::Hosting)),
+            );
 
         self
     }

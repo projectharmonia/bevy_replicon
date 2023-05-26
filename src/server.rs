@@ -337,6 +337,10 @@ pub enum ServerSet {
     Authority,
     /// Runs on server tick.
     Tick,
+    /// Runs when events can be received.
+    ReceiveEvents,
+    /// Runs when events can be sent.
+    SendEvents,
 }
 
 #[derive(States, Clone, Copy, Debug, Eq, Hash, PartialEq, Default)]
