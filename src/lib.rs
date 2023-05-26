@@ -24,7 +24,7 @@ plugins to let you host and join games from the same application. If you
 planning to separate client and server you can use
 [`PluginGroupBuilder::disable()`] to disable [`ClientPlugin`] or
 [`ServerPlugin`]. You can also configure how often updates are sent from
-server to clients:
+server to clients with [`ServerPlugin`]'s [`TickPolicy`].:
 
 ```rust
 # use bevy::prelude::*;
@@ -34,7 +34,7 @@ app.add_plugins(MinimalPlugins).add_plugins(
     ReplicationPlugins
         .build()
         .disable::<ClientPlugin>()
-        .set(ServerPlugin { tick_rate: 60 }),
+        .set(ServerPlugin { tick_policy: TickPolicy::MaxTickRate(60) }),
 );
 ```
 
@@ -371,7 +371,7 @@ pub mod prelude {
         parent_sync::{ParentSync, ParentSyncPlugin},
         renet::{RenetClient, RenetServer},
         replication_core::{AppReplicationExt, NetworkChannels, Replication, ReplicationRules},
-        server::{ServerPlugin, ServerSet, ServerState, SERVER_ID},
+        server::{ServerPlugin, ServerSet, ServerState, TickPolicy, SERVER_ID},
         ReplicationPlugins,
     };
 }
