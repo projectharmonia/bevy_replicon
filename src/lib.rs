@@ -370,7 +370,10 @@ pub mod prelude {
         },
         parent_sync::{ParentSync, ParentSyncPlugin},
         renet::{RenetClient, RenetServer},
-        replication_core::{AppReplicationExt, NetworkChannels, Replication, ReplicationRules},
+        replication_core::{
+            AppReplicationExt, NetworkChannels, Replication, ReplicationCorePlugin,
+            ReplicationRules,
+        },
         server::{ServerPlugin, ServerSet, ServerState, TickPolicy, SERVER_ID},
         ReplicationPlugins,
     };
@@ -379,7 +382,6 @@ pub mod prelude {
 use bevy::{app::PluginGroupBuilder, prelude::*};
 pub use bevy_renet::renet;
 use prelude::*;
-use replication_core::ReplicationCorePlugin;
 
 const REPLICATION_CHANNEL_ID: u8 = 0;
 
