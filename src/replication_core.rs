@@ -10,7 +10,7 @@ use bevy_renet::renet::{ChannelConfig, SendType};
 
 use crate::REPLICATION_CHANNEL_ID;
 
-pub(super) struct ReplicationCorePlugin;
+pub struct ReplicationCorePlugin;
 
 impl Plugin for ReplicationCorePlugin {
     fn build(&self, app: &mut App) {
