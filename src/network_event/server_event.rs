@@ -346,6 +346,24 @@ mod tests {
     };
 
     #[test]
+    fn without_server_plugin() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_plugins(ReplicationPlugins.build().disable::<ServerPlugin>())
+            .add_server_event_with::<DummyEvent, _, _>(|| {}, || {})
+            .update();
+    }
+
+    #[test]
+    fn without_client_plugin() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_plugins(ReplicationPlugins.build().disable::<ClientPlugin>())
+            .add_server_event_with::<DummyEvent, _, _>(|| {}, || {})
+            .update();
+    }
+
+    #[test]
     fn sending_receiving() {
         let mut app = App::new();
         app.add_plugins(ReplicationPlugins)
@@ -514,23 +532,5 @@ mod tests {
                 "event should be emited {events_count} times for {mode:?}"
             );
         }
-    }
-
-    #[test]
-    fn disable_server_plugin() {
-        let mut app = App::new();
-        app.add_plugins(MinimalPlugins)
-            .add_plugins(ReplicationPlugins.build().disable::<ServerPlugin>())
-            .add_server_event_with::<DummyEvent, _, _>(|| {}, || {})
-            .update();
-    }
-
-    #[test]
-    fn disable_client_plugin() {
-        let mut app = App::new();
-        app.add_plugins(MinimalPlugins)
-            .add_plugins(ReplicationPlugins.build().disable::<ClientPlugin>())
-            .add_server_event_with::<DummyEvent, _, _>(|| {}, || {})
-            .update();
     }
 }
