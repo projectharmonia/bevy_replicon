@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Unspecified system ordering could cause tick acks to be ordered on the wrong side of world diff handling.
+- Crash after adding events without `ServerPlugin` or `ClientPlugin`.
 
 ## [0.4.0] - 2023-05-26
 
@@ -38,7 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fix panic that could occur when deleting `RenetServer` or `RenetClient` resources.
+- Panic that could occur when deleting `RenetServer` or `RenetClient` resources.
 
 ## [0.2.2] - 2023-04-05
 
@@ -50,7 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fix incorrect last tick detection.
+- Incorrect last tick detection.
 
 ## [0.2.0] - 2023-04-01
 
@@ -60,7 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fix tick checks after overflow.
+- Tick checks after overflow.
 
 ## [0.1.0] - 2023-03-28
 
