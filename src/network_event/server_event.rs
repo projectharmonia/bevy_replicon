@@ -112,16 +112,15 @@ impl ServerEventAppExt for App {
         self.add_event::<T>()
             .init_resource::<Events<ToClients<T>>>()
             .insert_resource(EventChannel::<T>::new(channel_id))
-            .add_system(
-                receiving_system
-                    .in_set(ServerSet::ReceiveEvents)
-                    .run_if(in_state(ClientState::Connected)),
-            )
+            .add_system(receiving_system.in_set(ServerSet::ReceiveEvents).run_if(
+                resource_exists::<State<ClientState>>().and_then(in_state(ClientState::Connected)),
+            ))
             .add_systems(
                 (
-                    sending_system
-                        .in_set(ServerSet::SendEvents)
-                        .run_if(in_state(ServerState::Hosting)),
+                    sending_system.in_set(ServerSet::SendEvents).run_if(
+                        resource_exists::<State<ServerState>>()
+                            .and_then(in_state(ServerState::Hosting)),
+                    ),
                     local_resending_system::<T>.in_set(ServerSet::Authority),
                 )
                     .chain()
@@ -343,8 +342,26 @@ mod tests {
             ReflectEventSerializer,
         },
         test_network::TestNetworkPlugin,
-        ReplicationPlugins,
+        ClientPlugin, ReplicationPlugins, ServerPlugin,
     };
+
+    #[test]
+    fn without_server_plugin() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_plugins(ReplicationPlugins.build().disable::<ServerPlugin>())
+            .add_server_event_with::<DummyEvent, _, _>(|| {}, || {})
+            .update();
+    }
+
+    #[test]
+    fn without_client_plugin() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_plugins(ReplicationPlugins.build().disable::<ClientPlugin>())
+            .add_server_event_with::<DummyEvent, _, _>(|| {}, || {})
+            .update();
+    }
 
     #[test]
     fn sending_receiving() {
