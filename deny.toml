@@ -3,7 +3,6 @@ unmaintained = "deny"
 yanked = "deny"
 notice = "deny"
 unsound = "deny"
-ignore = ["RUSTSEC-2022-0048"]
 
 [licenses]
 allow-osi-fsf-free = "either"
