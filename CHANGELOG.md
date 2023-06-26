@@ -7,10 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2023-06-26
+
+### Added
+
+- `ServerSet::ReceiveEvent` and `ServerSet::SendEvent` for more fine-grained control of scheduling for event handling.
+
 ### Changed
 
 - Update server to use `TickPolicy` instead of requiring a tick rate.
-- Add `ServerSet::ReceiveEvent` and `ServerSet::SendEvent` for more fine-grained control of scheduling for event handling.
 
 ### Fixed
 
@@ -67,7 +72,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release after separation from [lifescape](https://github.com/lifescapegame/lifescape).
 
-[unreleased]: https://github.com/lifescapegame/bevy_replicon/compare/v0.4.0...HEAD
+[unreleased]: https://github.com/lifescapegame/bevy_replicon/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/lifescapegame/bevy_replicon/compare/v0.2.2...v0.2.3
