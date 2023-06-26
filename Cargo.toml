@@ -19,7 +19,7 @@ license = "MIT OR Apache-2.0"
 include = ["/src", "/LICENSE*"]
 
 [dependencies]
-bevy_renet = "=0.0.8"
+bevy_renet = "0.0.8"
 bevy = { version = "0.10.1", default-features = false, features = [
   "bevy_scene",
 ] }
