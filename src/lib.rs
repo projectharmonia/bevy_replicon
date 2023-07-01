@@ -201,11 +201,15 @@ server.
 To send specific events from server to client, you need to register the event
 with [`ClientEventAppExt::add_client_event()`] instead of [`App::add_event()`].
 These events will appear on server as [`FromClient`] wrapper event that
-contains sender ID and the sent event. We consider authority machine
-(a single-player session or you are server) and as a client with ID
-[`SERVER_ID`], so in this case the [`FromClient`] will will be emitted too.
+contains sender ID and the sent event. We consider the authority machine
+(a single-player session or you are server) to be a client with ID
+[`SERVER_ID`], so in this case the [`FromClient`] will be emitted too.
 This way your game logic will work the same on client, server and in
 single-player session.
+
+Events include `[SendPolicy]` to configure delivery guarantees (reliability and
+ordering). You can alternatively pass in `[bevy_renet::SendType]` directly if you
+need custom configuration for a reliable policy's `resend_time`.
 
 ```rust
 # use bevy::prelude::*;
@@ -213,7 +217,7 @@ single-player session.
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
-app.add_client_event::<DummyEvent>()
+app.add_client_event::<DummyEvent>(SendPolicy::Ordered)
     .add_system(event_sending_system);
 
 fn event_sending_system(mut dummy_events: EventWriter<DummyEvent>) {
@@ -246,7 +250,7 @@ To do this, use [`ClientEventAppExt::add_mapped_client_event()`]:
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
-app.add_mapped_client_event::<MappedEvent>();
+app.add_mapped_client_event::<MappedEvent>(SendPolicy::Ordered);
 
 #[derive(Deserialize, Serialize, Debug)]
 struct MappedEvent(Entity);
@@ -281,7 +285,7 @@ from the send list):
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
-app.add_server_event::<DummyEvent>()
+app.add_server_event::<DummyEvent>(SendPolicy::Ordered)
     .add_system(event_sending_system);
 
 fn event_sending_system(mut dummy_events: EventWriter<ToClients<DummyEvent>>) {
@@ -366,7 +370,7 @@ pub mod prelude {
         network_event::{
             client_event::{ClientEventAppExt, FromClient},
             server_event::{SendMode, ServerEventAppExt, ToClients},
-            BuildEventDeserializer, BuildEventSerializer,
+            BuildEventDeserializer, BuildEventSerializer, SendPolicy,
         },
         parent_sync::{ParentSync, ParentSyncPlugin},
         renet::{RenetClient, RenetServer},

@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use bevy::{
     ecs::{archetype::Archetype, component::ComponentId},
     prelude::*,
@@ -22,36 +20,42 @@ impl Plugin for ReplicationCorePlugin {
 
 /// A resource to create channels for [`bevy_renet::renet::ConnectionConfig`]
 /// based on number of added server and client events.
-#[derive(Clone, Copy, Default, Resource)]
+#[derive(Clone, Resource, Default)]
 pub struct NetworkChannels {
-    /// Increments with each server event registration.
-    server: u8,
-    /// Increments with each client event registration.
-    client: u8,
+    /// Grows with each server event registration.
+    server: Vec<SendType>,
+    /// Grows with each client event registration.
+    client: Vec<SendType>,
 }
 
 impl NetworkChannels {
     pub fn server_channels(&self) -> Vec<ChannelConfig> {
-        channel_configs(self.server)
+        channel_configs(&self.server)
     }
 
     pub fn client_channels(&self) -> Vec<ChannelConfig> {
-        channel_configs(self.client)
+        channel_configs(&self.client)
     }
 
-    pub(super) fn create_client_channel(&mut self) -> u8 {
-        self.client += 1;
-        self.client + REPLICATION_CHANNEL_ID
+    pub(super) fn create_client_channel(&mut self, send_type: SendType) -> u8 {
+        if self.client.len() == REPLICATION_CHANNEL_ID as usize + u8::MAX as usize {
+            panic!("max client channels exceeded u8::MAX");
+        }
+        self.client.push(send_type);
+        self.client.len() as u8 + REPLICATION_CHANNEL_ID
     }
 
-    pub(super) fn create_server_channel(&mut self) -> u8 {
-        self.server += 1;
-        self.server + REPLICATION_CHANNEL_ID
+    pub(super) fn create_server_channel(&mut self, send_type: SendType) -> u8 {
+        if self.server.len() == REPLICATION_CHANNEL_ID as usize + u8::MAX as usize {
+            panic!("max server channels exceeded u8::MAX");
+        }
+        self.server.push(send_type);
+        self.server.len() as u8 + REPLICATION_CHANNEL_ID
     }
 }
 
-fn channel_configs(events_count: u8) -> Vec<ChannelConfig> {
-    let mut channel_configs = Vec::with_capacity((events_count + 1).into());
+fn channel_configs(channels: &[SendType]) -> Vec<ChannelConfig> {
+    let mut channel_configs = Vec::with_capacity(channels.len() + 1);
     // TODO: Make it configurable.
     // Values from `DefaultChannel::config()`.
     channel_configs.push(ChannelConfig {
@@ -59,13 +63,11 @@ fn channel_configs(events_count: u8) -> Vec<ChannelConfig> {
         max_memory_usage_bytes: 5 * 1024 * 1024,
         send_type: SendType::Unreliable,
     });
-    for channel_id in 1..=events_count {
+    for (idx, send_type) in channels.iter().enumerate() {
         channel_configs.push(ChannelConfig {
-            channel_id: REPLICATION_CHANNEL_ID + channel_id,
+            channel_id: REPLICATION_CHANNEL_ID + 1 + idx as u8,
             max_memory_usage_bytes: 5 * 1024 * 1024,
-            send_type: SendType::ReliableOrdered {
-                resend_time: Duration::from_millis(300),
-            },
+            send_type: send_type.clone(),
         });
     }
     channel_configs

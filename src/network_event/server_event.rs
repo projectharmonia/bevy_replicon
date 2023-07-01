@@ -4,7 +4,7 @@ use bevy::{
     ecs::{entity::MapEntities, event::Event},
     prelude::*,
 };
-use bevy_renet::renet::{RenetClient, RenetServer};
+use bevy_renet::renet::{RenetClient, RenetServer, SendType};
 use bincode::{DefaultOptions, Options};
 use serde::{
     de::{DeserializeOwned, DeserializeSeed},
@@ -21,18 +21,22 @@ use crate::{
 /// An extension trait for [`App`] for creating server events.
 pub trait ServerEventAppExt {
     /// Registers event `T` that will be emitted on client after sending [`ToClients<T>`] on server.
-    fn add_server_event<T: Event + Serialize + DeserializeOwned + Debug>(&mut self) -> &mut Self;
+    fn add_server_event<T: Event + Serialize + DeserializeOwned + Debug>(
+        &mut self,
+        policy: impl Into<SendType>,
+    ) -> &mut Self;
 
     /// Same as [`Self::add_server_event`], but additionally maps server entities to client after receiving.
     fn add_mapped_server_event<T: Event + Serialize + DeserializeOwned + Debug + MapEntities>(
         &mut self,
+        policy: impl Into<SendType>,
     ) -> &mut Self;
 
     /// Same as [`Self::add_server_event`], but the event will be serialized/deserialized using `S`/`D`
     /// with access to [`AppTypeRegistry`].
     ///
     /// Needed to send events that contain things like `Box<dyn Reflect>`.
-    fn add_server_reflect_event<T, S, D>(&mut self) -> &mut Self
+    fn add_server_reflect_event<T, S, D>(&mut self, policy: impl Into<SendType>) -> &mut Self
     where
         T: Event + Debug,
         S: BuildEventSerializer<T> + 'static,
@@ -41,7 +45,10 @@ pub trait ServerEventAppExt {
         for<'a, 'de> D::EventDeserializer<'a>: DeserializeSeed<'de, Value = T>;
 
     /// Same as [`Self::add_server_reflect_event`], but additionally maps client entities to client after receiving.
-    fn add_mapped_server_reflect_event<T, S, D>(&mut self) -> &mut Self
+    fn add_mapped_server_reflect_event<T, S, D>(
+        &mut self,
+        policy: impl Into<SendType>,
+    ) -> &mut Self
     where
         T: Event + Debug + MapEntities,
         S: BuildEventSerializer<T> + 'static,
@@ -52,26 +59,32 @@ pub trait ServerEventAppExt {
     /// Same as [`Self::add_server_event`], but uses specified sending and receiving systems.
     fn add_server_event_with<T: Event + Debug, Marker1, Marker2>(
         &mut self,
+        policy: impl Into<SendType>,
         sending_system: impl IntoSystemConfig<Marker1>,
         receiving_system: impl IntoSystemConfig<Marker2>,
     ) -> &mut Self;
 }
 
 impl ServerEventAppExt for App {
-    fn add_server_event<T: Event + Serialize + DeserializeOwned + Debug>(&mut self) -> &mut Self {
-        self.add_server_event_with::<T, _, _>(sending_system::<T>, receiving_system::<T>)
+    fn add_server_event<T: Event + Serialize + DeserializeOwned + Debug>(
+        &mut self,
+        policy: impl Into<SendType>,
+    ) -> &mut Self {
+        self.add_server_event_with::<T, _, _>(policy, sending_system::<T>, receiving_system::<T>)
     }
 
     fn add_mapped_server_event<T: Event + Serialize + DeserializeOwned + Debug + MapEntities>(
         &mut self,
+        policy: impl Into<SendType>,
     ) -> &mut Self {
         self.add_server_event_with::<T, _, _>(
+            policy,
             sending_system::<T>,
             receiving_and_mapping_system::<T>,
         )
     }
 
-    fn add_server_reflect_event<T, S, D>(&mut self) -> &mut Self
+    fn add_server_reflect_event<T, S, D>(&mut self, policy: impl Into<SendType>) -> &mut Self
     where
         T: Event + Debug,
         S: BuildEventSerializer<T> + 'static,
@@ -80,12 +93,13 @@ impl ServerEventAppExt for App {
         for<'a, 'de> D::EventDeserializer<'a>: DeserializeSeed<'de, Value = T>,
     {
         self.add_server_event_with::<T, _, _>(
+            policy,
             sending_reflect_system::<T, S>,
             receiving_reflect_system::<T, D>,
         )
     }
 
-    fn add_mapped_server_reflect_event<T, S, D>(&mut self) -> &mut Self
+    fn add_mapped_server_reflect_event<T, S, D>(&mut self, policy: impl Into<SendType>) -> &mut Self
     where
         T: Event + Debug + MapEntities,
         S: BuildEventSerializer<T> + 'static,
@@ -94,6 +108,7 @@ impl ServerEventAppExt for App {
         for<'a, 'de> D::EventDeserializer<'a>: DeserializeSeed<'de, Value = T>,
     {
         self.add_server_event_with::<T, _, _>(
+            policy,
             sending_reflect_system::<T, S>,
             receiving_and_mapping_reflect_system::<T, D>,
         )
@@ -101,13 +116,14 @@ impl ServerEventAppExt for App {
 
     fn add_server_event_with<T: Event + Debug, Marker1, Marker2>(
         &mut self,
+        policy: impl Into<SendType>,
         sending_system: impl IntoSystemConfig<Marker1>,
         receiving_system: impl IntoSystemConfig<Marker2>,
     ) -> &mut Self {
         let channel_id = self
             .world
             .resource_mut::<NetworkChannels>()
-            .create_server_channel();
+            .create_server_channel(policy.into());
 
         self.add_event::<T>()
             .init_resource::<Events<ToClients<T>>>()
@@ -341,6 +357,7 @@ mod tests {
             DummyComponent, DummyEvent, ReflectEvent, ReflectEventDeserializer,
             ReflectEventSerializer,
         },
+        network_event::SendPolicy,
         test_network::TestNetworkPlugin,
         ClientPlugin, ReplicationPlugins, ServerPlugin,
     };
@@ -350,7 +367,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins)
             .add_plugins(ReplicationPlugins.build().disable::<ServerPlugin>())
-            .add_server_event_with::<DummyEvent, _, _>(|| {}, || {})
+            .add_server_event_with::<DummyEvent, _, _>(SendPolicy::Ordered, || {}, || {})
             .update();
     }
 
@@ -359,7 +376,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins)
             .add_plugins(ReplicationPlugins.build().disable::<ClientPlugin>())
-            .add_server_event_with::<DummyEvent, _, _>(|| {}, || {})
+            .add_server_event_with::<DummyEvent, _, _>(SendPolicy::Ordered, || {}, || {})
             .update();
     }
 
@@ -367,7 +384,7 @@ mod tests {
     fn sending_receiving() {
         let mut app = App::new();
         app.add_plugins(ReplicationPlugins)
-            .add_server_event::<DummyEvent>()
+            .add_server_event::<DummyEvent>(SendPolicy::Ordered)
             .add_plugin(TestNetworkPlugin);
 
         let client_id = app.world.resource::<NetcodeClientTransport>().client_id();
@@ -401,7 +418,7 @@ mod tests {
     fn sending_receiving_and_mapping() {
         let mut app = App::new();
         app.add_plugins(ReplicationPlugins)
-            .add_mapped_server_event::<DummyEvent>()
+            .add_mapped_server_event::<DummyEvent>(SendPolicy::Ordered)
             .add_plugin(TestNetworkPlugin);
 
         let client_entity = Entity::from_raw(0);
@@ -434,7 +451,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(ReplicationPlugins)
             .register_type::<DummyComponent>()
-            .add_server_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>()
+            .add_server_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>(SendPolicy::Ordered)
             .add_plugin(TestNetworkPlugin);
 
         let client_id = app.world.resource::<NetcodeClientTransport>().client_id();
@@ -468,7 +485,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(ReplicationPlugins)
             .register_type::<DummyComponent>()
-            .add_mapped_server_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>()
+            .add_mapped_server_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>(SendPolicy::Ordered)
             .add_plugin(TestNetworkPlugin);
 
         let client_entity = Entity::from_raw(0);
@@ -503,7 +520,7 @@ mod tests {
     fn local_resending() {
         let mut app = App::new();
         app.add_plugins(ReplicationPlugins)
-            .add_server_event::<DummyEvent>();
+            .add_server_event::<DummyEvent>(SendPolicy::Ordered);
 
         const DUMMY_CLIENT_ID: u64 = 1;
         for (mode, events_count) in [
