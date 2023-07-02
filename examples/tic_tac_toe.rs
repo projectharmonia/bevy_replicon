@@ -49,7 +49,7 @@ impl Plugin for TicTacToePlugin {
             .replicate::<Symbol>()
             .replicate::<BoardCell>()
             .replicate::<Player>()
-            .add_client_event::<CellPick>()
+            .add_client_event::<CellPick>(SendPolicy::Ordered)
             .insert_resource(ClearColor(BACKGROUND_COLOR))
             .add_startup_systems((
                 Self::ui_setup_system,
