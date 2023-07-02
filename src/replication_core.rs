@@ -20,7 +20,7 @@ impl Plugin for ReplicationCorePlugin {
 
 /// A resource to create channels for [`bevy_renet::renet::ConnectionConfig`]
 /// based on number of added server and client events.
-#[derive(Clone, Resource, Default)]
+#[derive(Clone, Default, Resource)]
 pub struct NetworkChannels {
     /// Grows with each server event registration.
     server: Vec<SendType>,

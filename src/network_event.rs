@@ -3,8 +3,7 @@ pub mod server_event;
 #[cfg(test)]
 mod test_events;
 
-use std::marker::PhantomData;
-use std::time::Duration;
+use std::{marker::PhantomData, time::Duration};
 
 use bevy::{prelude::*, reflect::TypeRegistryInternal};
 use bevy_renet::renet::SendType;
@@ -46,11 +45,11 @@ pub trait BuildEventDeserializer {
 /// Event delivery guarantee.
 #[derive(Clone, Copy)]
 pub enum SendPolicy {
-    /// Unreliable and Unordered
+    /// Unreliable and unordered
     Unreliable,
-    /// Reliable and Unordered
+    /// Reliable and unordered
     Unordered,
-    /// Reliable and Ordered
+    /// Reliable and ordered
     Ordered,
 }
 
