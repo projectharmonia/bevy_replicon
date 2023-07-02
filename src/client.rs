@@ -122,7 +122,8 @@ pub(super) struct LastTick(pub(super) Tick);
 
 impl Default for LastTick {
     fn default() -> Self {
-        Self(Tick::new(0))
+        // Start at -1 so we can get entities spawned in Tick 0.
+        Self(Tick::new(u32::MAX))
     }
 }
 
