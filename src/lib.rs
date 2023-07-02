@@ -494,7 +494,7 @@ mod tests {
     }
 
     #[test]
-    fn insert_replicaiton() {
+    fn insert_replication() {
         let mut app = App::new();
         app.add_plugins(ReplicationPlugins)
             .replicate::<TableComponent>()
