@@ -8,8 +8,6 @@ use std::{marker::PhantomData, time::Duration};
 use bevy::{prelude::*, reflect::TypeRegistryInternal};
 use bevy_renet::renet::SendType;
 
-const DEFAULT_RESEND_TIME: Duration = Duration::from_millis(300);
-
 /// Holds a channel ID for `T`.
 #[derive(Resource)]
 pub struct EventChannel<T> {
@@ -55,13 +53,14 @@ pub enum SendPolicy {
 
 impl From<SendPolicy> for SendType {
     fn from(policy: SendPolicy) -> Self {
+        const RESEND_TIME: Duration = Duration::from_millis(300);
         match policy {
             SendPolicy::Unreliable => SendType::Unreliable,
             SendPolicy::Unordered => SendType::ReliableUnordered {
-                resend_time: DEFAULT_RESEND_TIME,
+                resend_time: RESEND_TIME,
             },
             SendPolicy::Ordered => SendType::ReliableOrdered {
-                resend_time: DEFAULT_RESEND_TIME,
+                resend_time: RESEND_TIME,
             },
         }
     }
