@@ -66,11 +66,11 @@ jobs:
       - name: Install LLVM tools
         run: rustup component add llvm-tools-preview
 
-      - name: Install Grcov
-        run: cargo install grcov
+      - name: Install Tarpaulin
+        run: cargo install cargo-tarpaulin
 
       - name: Test
-        run: cargo xtask coverage -- -o lcov.info
+        run: cargo tarpaulin --engine llvm --out Lcov
 
       - name: Upload code coverage results
         if: github.actor != 'dependabot[bot]'
