@@ -41,7 +41,7 @@ pub trait BuildEventDeserializer {
 }
 
 /// Event delivery guarantee.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum SendPolicy {
     /// Unreliable and unordered
     Unreliable,
