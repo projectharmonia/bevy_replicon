@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `SendPolicy` added to API of event-creation for user control of delivery guarantee (reliability and ordering).
 
+### Changed
+
+- `ParentSync` no longer accepts parent entity and just synchronizes hierarchy automatically if present.
+
 ## [0.5.0] - 2023-06-26
 
 ### Added

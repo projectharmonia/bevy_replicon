@@ -186,9 +186,9 @@ Sometimes components depend on each other. For example, [`Parent`] and
 not only need to add it to the [`Children`] of the parent, but also remove it
 from the [`Children`] of the old one. In this case, you need to create a third
 component that correctly updates the other two when it changes, and only
-replicate that one. This crate provides [`ParentSync`] component that does just
-that for Bevy hierarchy. For your custom components with relations you need to
-write your own with a similar pattern.
+replicate that one. This crate provides [`ParentSync`] component that replicates
+Bevy hierarchy. For your custom components with relations you need to write your
+own with a similar pattern.
 
 ## Network events
 
