@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2023-07-08
+
 ### Added
 
 - `SendPolicy` added to API of event-creation for user control of delivery guarantee (reliability and ordering).
@@ -80,7 +82,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release after separation from [lifescape](https://github.com/lifescapegame/lifescape).
 
-[unreleased]: https://github.com/lifescapegame/bevy_replicon/compare/v0.5.0...HEAD
+[unreleased]: https://github.com/lifescapegame/bevy_replicon/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.2.3...v0.3.0
