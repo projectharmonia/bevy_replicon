@@ -111,25 +111,44 @@ mod tests {
     }
 
     #[test]
-    fn set_hierarchy() {
+    fn removal() {
         let mut app = App::new();
         app.add_plugin(ReplicationCorePlugin)
             .add_plugin(ParentSyncPlugin);
 
         let parent_entity = app.world.spawn_empty().id();
-        app.world.spawn(ParentSync(Some(parent_entity)));
+        let child_entity = app
+            .world
+            .spawn(ParentSync(Some(parent_entity)))
+            .set_parent(parent_entity)
+            .remove_parent()
+            .id();
 
         app.update();
 
-        let (parent, parent_sync) = app
-            .world
-            .query::<(&Parent, &ParentSync)>()
-            .single(&app.world);
+        let parent_sync = app.world.get::<ParentSync>(child_entity).unwrap();
+        assert!(parent_sync.0.is_none());
+    }
+
+    #[test]
+    fn hierarchy_set() {
+        let mut app = App::new();
+        app.add_plugin(ReplicationCorePlugin)
+            .add_plugin(ParentSyncPlugin);
+
+        let parent_entity = app.world.spawn_empty().id();
+        let child_entity = app.world.spawn(ParentSync(Some(parent_entity))).id();
+
+        app.update();
+
+        let child_entity = app.world.entity(child_entity);
+        let parent = child_entity.get::<Parent>().unwrap();
+        let parent_sync = child_entity.get::<ParentSync>().unwrap();
         assert!(parent_sync.0.is_some_and(|entity| entity == **parent));
     }
 
     #[test]
-    fn unset_hierarchy() {
+    fn hierarchy_unset() {
         let mut app = App::new();
         app.add_plugin(ReplicationCorePlugin)
             .add_plugin(ParentSyncPlugin);
@@ -151,7 +170,7 @@ mod tests {
     }
 
     #[test]
-    fn set_scene_hierarchy() {
+    fn scene_hierarchy_set() {
         let mut app = App::new();
         app.add_plugin(AssetPlugin::default())
             .add_plugin(ScenePlugin)
