@@ -4,7 +4,6 @@ use bevy::{
         reflect::ReflectMapEntities,
     },
     prelude::*,
-    scene,
 };
 
 use crate::{prelude::ServerSet, AppReplicationExt};
@@ -28,7 +27,7 @@ impl Plugin for ParentSyncPlugin {
                         .in_set(ServerSet::Authority),
                     Self::sync_system,
                 )
-                    .after(scene::scene_spawner_system),
+                    .in_base_set(CoreSet::PostUpdate),
             );
     }
 }

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Update `ParentSync` in `CoreSet::PostUpdate` to avoid one frame delay.
+
 ## [0.6.0] - 2023-07-08
 
 ### Added
