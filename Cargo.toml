@@ -20,7 +20,7 @@ include = ["/src", "/LICENSE*"]
 
 [dependencies]
 bevy_renet = "0.0.8"
-bevy = { version = "0.10.1", default-features = false, features = [
+bevy = { version = "0.11.0", default-features = false, features = [
   "bevy_scene",
 ] }
 bincode = "1.3"
@@ -34,7 +34,7 @@ derive_more = { version = "0.99", default-features = false, features = [
 serde_test = "1.0"
 anyhow = "1.0"
 clap = { version = "4.1", features = ["derive"] }
-bevy = { version = "0.10", default-features = false, features = [
+bevy = { version = "0.11", default-features = false, features = [
   "bevy_asset",
   "bevy_core_pipeline",
   "bevy_render",
