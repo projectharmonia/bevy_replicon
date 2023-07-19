@@ -1,15 +1,15 @@
 use bevy::{
-    ecs::{component::ComponentId, system::SystemChangeTick},
+    ecs::{
+        component::{ComponentId, Tick},
+        system::SystemChangeTick,
+    },
     prelude::*,
     utils::HashMap,
 };
+use bevy_renet::renet::RenetServer;
 
 use super::AckedTicks;
-use crate::{
-    replication_core::{Replication, ReplicationRules},
-    server::ServerState,
-    tick::Tick,
-};
+use crate::replication_core::{Replication, ReplicationRules};
 
 /// Stores component removals in [`RemovalTracker`] component to make them persistent across ticks.
 ///
@@ -19,12 +19,12 @@ pub(super) struct RemovalTrackerPlugin;
 impl Plugin for RemovalTrackerPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
-            (Self::insertion_system, Self::cleanup_system).in_set(OnUpdate(ServerState::Hosting)),
+            Update,
+            (Self::insertion_system, Self::cleanup_system).run_if(resource_exists::<RenetServer>()),
         )
-        .add_system(
-            Self::detection_system
-                .in_base_set(CoreSet::PostUpdate)
-                .run_if(in_state(ServerState::Hosting)),
+        .add_systems(
+            PostUpdate,
+            Self::detection_system.run_if(resource_exists::<RenetServer>()),
         );
     }
 }
@@ -47,9 +47,9 @@ impl RemovalTrackerPlugin {
     ) {
         for mut removal_tracker in &mut removal_trackers {
             removal_tracker.retain(|_, tick| {
-                client_acks.values().any(|last_tick| {
-                    tick.is_newer_than(*last_tick, Tick::new(change_tick.change_tick()))
-                })
+                client_acks
+                    .values()
+                    .any(|last_tick| tick.is_newer_than(*last_tick, change_tick.this_run()))
             });
         }
     }
@@ -63,7 +63,7 @@ impl RemovalTrackerPlugin {
             let entities: Vec<_> = set.p0().removed_with_id(component_id).collect();
             for entity in entities {
                 if let Ok(mut removal_tracker) = set.p1().get_mut(entity) {
-                    removal_tracker.insert(component_id, Tick::new(current_tick));
+                    removal_tracker.insert(component_id, current_tick);
                 }
             }
         }
@@ -82,15 +82,11 @@ mod tests {
     #[test]
     fn detection() {
         let mut app = App::new();
-        app.add_plugin(RemovalTrackerPlugin)
-            .add_state::<ServerState>()
+        app.add_plugins(RemovalTrackerPlugin)
+            .insert_resource(RenetServer::new(Default::default()))
             .init_resource::<AckedTicks>()
             .init_resource::<ReplicationRules>()
             .replicate::<Transform>();
-
-        app.world
-            .resource_mut::<NextState<ServerState>>()
-            .set(ServerState::Hosting);
 
         app.update();
 

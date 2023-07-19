@@ -4,6 +4,7 @@ use std::{
 };
 
 use bevy::{
+    ecs::component::Tick,
     prelude::*,
     reflect::{
         serde::{ReflectSerializer, UntypedReflectDeserializer},
@@ -18,8 +19,6 @@ use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
 };
 use strum::{EnumDiscriminants, EnumVariantNames, IntoStaticStr, VariantNames};
-
-use crate::tick::Tick;
 
 /// Changed world data and current tick from server.
 ///
@@ -86,7 +85,7 @@ impl Serialize for WorldDiffSerializer<'_> {
             any::type_name::<WorldDiff>(),
             WorldDiffField::VARIANTS.len(),
         )?;
-        state.serialize_field(WorldDiffField::Tick.into(), &self.world_diff.tick)?;
+        state.serialize_field(WorldDiffField::Tick.into(), &self.world_diff.tick.get())?;
         state.serialize_field(
             WorldDiffField::Entities.into(),
             &EntitiesSerializer::new(&self.world_diff.entities, self.registry),
@@ -191,7 +190,7 @@ impl<'de> Visitor<'de> for WorldDiffDeserializer<'_> {
             .next_element()?
             .ok_or_else(|| de::Error::invalid_length(WorldDiffField::Despawned as usize, &self))?;
         Ok(WorldDiff {
-            tick,
+            tick: Tick::new(tick),
             entities,
             despawns,
         })
@@ -375,24 +374,10 @@ mod tests {
                     len: WorldDiffField::VARIANTS.len(),
                 },
                 Token::Str(WorldDiffField::Tick.into()),
-                Token::Struct {
-                    name: "Tick",
-                    len: 1,
-                },
-                Token::Str("tick"),
                 Token::U32(world_diff.tick.get()),
-                Token::StructEnd,
                 Token::Str(WorldDiffField::Entities.into()),
                 Token::Map { len: Some(1) },
-                Token::Struct {
-                    name: "Entity",
-                    len: 2,
-                },
-                Token::Str("generation"),
-                Token::U32(Entity::PLACEHOLDER.generation()),
-                Token::Str("index"),
-                Token::U32(Entity::PLACEHOLDER.index()),
-                Token::StructEnd,
+                Token::U64(Entity::PLACEHOLDER.to_bits()),
                 Token::Seq { len: Some(1) },
                 Token::NewtypeVariant {
                     name: any::type_name::<ComponentDiff>(),
@@ -403,15 +388,7 @@ mod tests {
                 Token::MapEnd,
                 Token::Str(WorldDiffField::Despawned.into()),
                 Token::Seq { len: Some(1) },
-                Token::Struct {
-                    name: "Entity",
-                    len: 2,
-                },
-                Token::Str("generation"),
-                Token::U32(Entity::PLACEHOLDER.generation()),
-                Token::Str("index"),
-                Token::U32(Entity::PLACEHOLDER.index()),
-                Token::StructEnd,
+                Token::U64(Entity::PLACEHOLDER.to_bits()),
                 Token::SeqEnd,
                 Token::StructEnd,
             ],

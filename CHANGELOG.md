@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Update to `bevy` 0.11.
+- Mappable network events now need to implement `MapEventEntities` instead of `MapEntities`.
+
+### Removed
+
+- `ClientState` and `ServerState`, use conditions from `bevy_renet` and `resource_added()` / `resource_exists()` / `resource_removed()`.
+- `ServerSet::Authority`, use `has_authority()` instead.
+
 ## [0.6.1] - 2023-07-09
 
 ### Changed
@@ -43,7 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Swap `registry` and `event` arguments in `BuildEventSerializer` for consistency with `ReflectSerializer`.
-- Migrate to bevy_renet `0.0.12`.
+- Update to `bevy_renet` 0.0.12.
 
 ## [0.3.0] - 2023-04-15
 

@@ -6,7 +6,7 @@ use std::{
 };
 
 use bevy::{
-    ecs::entity::{EntityMap, MapEntities, MapEntitiesError},
+    ecs::entity::EntityMap,
     prelude::*,
     reflect::{
         serde::{ReflectSerializer, UntypedReflectDeserializer},
@@ -20,30 +20,30 @@ use serde::{
 };
 use strum::{EnumVariantNames, IntoStaticStr, VariantNames};
 
-use super::{BuildEventDeserializer, BuildEventSerializer};
+use super::{BuildEventDeserializer, BuildEventSerializer, MapError, MapEventEntities};
 
-#[derive(Reflect, FromReflect, Debug)]
+#[derive(Reflect, Debug)]
 pub(super) struct DummyComponent;
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Debug, Deserialize, Event, Serialize)]
 pub(super) struct DummyEvent(pub(super) Entity);
 
-impl MapEntities for DummyEvent {
-    fn map_entities(&mut self, entity_map: &EntityMap) -> Result<(), MapEntitiesError> {
-        self.0 = entity_map.get(self.0)?;
+impl MapEventEntities for DummyEvent {
+    fn map_entities(&mut self, entity_map: &EntityMap) -> Result<(), MapError> {
+        self.0 = entity_map.get(self.0).ok_or(MapError(self.0))?;
         Ok(())
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Event)]
 pub(super) struct ReflectEvent {
     pub(super) entity: Entity,
     pub(super) component: Box<dyn Reflect>,
 }
 
-impl MapEntities for ReflectEvent {
-    fn map_entities(&mut self, entity_map: &EntityMap) -> Result<(), MapEntitiesError> {
-        self.entity = entity_map.get(self.entity)?;
+impl MapEventEntities for ReflectEvent {
+    fn map_entities(&mut self, entity_map: &EntityMap) -> Result<(), MapError> {
+        self.entity = entity_map.get(self.entity).ok_or(MapError(self.entity))?;
         Ok(())
     }
 }

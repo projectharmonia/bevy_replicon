@@ -88,9 +88,8 @@ mapping. Therefore, to replicate such components properly, they need implement
 struct MappedComponent(Entity);
 
 impl MapEntities for MappedComponent {
-    fn map_entities(&mut self, entity_map: &EntityMap) -> Result<(), MapEntitiesError> {
-        self.0 = entity_map.get(self.0)?;
-        Ok(())
+    fn map_entities(&mut self, entity_mapper: &mut EntityMapper) {
+        self.0 = entity_map.get_or_reserve(self.0);
     }
 }
 
@@ -230,13 +229,13 @@ fn event_receiving_system(mut dummy_events: EventReader<FromClient<DummyEvent>>)
     }
 }
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Event, Serialize)]
 struct DummyEvent;
 ```
 
 Just like components, if an event contains [`Entity`], then the client should
 map it before sending it to the server.
-To do this, use [`ClientEventAppExt::add_mapped_client_event()`]:
+To do this, use [`ClientEventAppExt::add_mapped_client_event()`] and implement [`MapEventEntities`]:
 
 ```rust
 # use bevy::{
@@ -255,9 +254,9 @@ app.add_mapped_client_event::<MappedEvent>(SendPolicy::Ordered);
 #[derive(Deserialize, Serialize, Debug)]
 struct MappedEvent(Entity);
 
-impl MapEntities for MappedEvent {
-    fn map_entities(&mut self, entity_map: &EntityMap) -> Result<(), MapEntitiesError> {
-        self.0 = entity_map.get(self.0)?;
+impl MapEventEntities for MappedEvent {
+    fn map_entities(&mut self, entity_map: &EntityMap) -> Result<(), MapError> {
+        self.0 = entity_map.get(self.0).ok_or(MapError(self.entity))?;
         Ok(())
     }
 }
@@ -341,16 +340,17 @@ let connection_config = ConnectionConfig {
 For full example of how to initialize server or client see the example in the
 repository.
 
-## System sets and states
+## System sets and conditions
 
 When configuring systems for multiplayer game, you often want to run some
 systems only on when you have authority over the world simulation
 (on server or in single-player session). For example, damage registration or
-procedural level generation systems. For this just add your systems to the
-[`ServerSet::Authority`] system set. If you want your systems to run only on
+procedural level generation systems. For this just add [`has_authority()`]
+condition on such system. If you want your systems to run only on
 frames when server send updates to clients use [`ServerSet::Tick`].
 
-We also have states for server and client: [`ServerState`] or [`ClientState`].
+To check if you running server or client, you can use conditions based on
+[`RenetClient`] and [`RenetServer`] resources.
 They rarely used for gameplay systems (since you write the same logic for
 multiplayer and single-player!), but could be used for server
 creation / connection systems and corresponding UI.
@@ -364,16 +364,16 @@ pub mod replication_core;
 pub mod server;
 #[cfg(test)]
 mod test_network;
-mod tick;
 mod world_diff;
 
 pub mod prelude {
     pub use super::{
-        client::{ClientPlugin, ClientState},
+        client::ClientPlugin,
+        has_authority,
         network_event::{
             client_event::{ClientEventAppExt, FromClient},
             server_event::{SendMode, ServerEventAppExt, ToClients},
-            BuildEventDeserializer, BuildEventSerializer, SendPolicy,
+            BuildEventDeserializer, BuildEventSerializer, MapError, MapEventEntities, SendPolicy,
         },
         parent_sync::{ParentSync, ParentSyncPlugin},
         renet::{RenetClient, RenetServer},
@@ -381,7 +381,7 @@ pub mod prelude {
             AppReplicationExt, NetworkChannels, Replication, ReplicationCorePlugin,
             ReplicationRules,
         },
-        server::{ServerPlugin, ServerSet, ServerState, TickPolicy, SERVER_ID},
+        server::{ServerPlugin, ServerSet, TickPolicy, SERVER_ID},
         ReplicationPlugins,
     };
 }
@@ -404,11 +404,17 @@ impl PluginGroup for ReplicationPlugins {
     }
 }
 
+/// Condition that returns `true` if server is present or in singleplayer.
+pub fn has_authority() -> impl FnMut(Option<Res<RenetClient>>) -> bool + Clone {
+    move |client| client.is_none()
+}
+
 #[cfg(test)]
 mod tests {
     use bevy::{
         ecs::{
-            entity::{EntityMap, MapEntities, MapEntitiesError},
+            component::Tick,
+            entity::{EntityMapper, MapEntities},
             reflect::ReflectMapEntities,
         },
         utils::HashMap,
@@ -421,14 +427,12 @@ mod tests {
         replication_core::{AppReplicationExt, Replication},
         server::{despawn_tracker::DespawnTracker, removal_tracker::RemovalTracker, AckedTicks},
         test_network::TestNetworkPlugin,
-        tick::Tick,
     };
 
     #[test]
     fn acked_ticks_cleanup() {
         let mut app = App::new();
-        app.add_plugins(ReplicationPlugins)
-            .add_plugin(TestNetworkPlugin);
+        app.add_plugins((ReplicationPlugins, TestNetworkPlugin));
 
         let mut client_transport = app.world.resource_mut::<NetcodeClientTransport>();
         client_transport.disconnect();
@@ -447,8 +451,7 @@ mod tests {
     #[test]
     fn tick_acks_receiving() {
         let mut app = App::new();
-        app.add_plugins(ReplicationPlugins)
-            .add_plugin(TestNetworkPlugin);
+        app.add_plugins((ReplicationPlugins, TestNetworkPlugin));
 
         for _ in 0..10 {
             app.update();
@@ -466,7 +469,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(ReplicationPlugins)
             .replicate::<TableComponent>()
-            .add_plugin(TestNetworkPlugin);
+            .add_plugins(TestNetworkPlugin);
 
         app.update();
 
@@ -504,7 +507,7 @@ mod tests {
             .replicate::<SparseSetComponent>()
             .replicate::<IgnoredComponent>()
             .not_replicate_if_present::<IgnoredComponent, ExclusionComponent>()
-            .add_plugin(TestNetworkPlugin);
+            .add_plugins(TestNetworkPlugin);
 
         app.update();
 
@@ -546,7 +549,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(ReplicationPlugins)
             .replicate::<MappedComponent>()
-            .add_plugin(TestNetworkPlugin);
+            .add_plugins(TestNetworkPlugin);
 
         app.update();
 
@@ -573,7 +576,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(ReplicationPlugins)
             .register_type::<NonReflectedComponent>()
-            .add_plugin(TestNetworkPlugin);
+            .add_plugins(TestNetworkPlugin);
 
         app.update();
 
@@ -601,8 +604,7 @@ mod tests {
     #[test]
     fn despawn_replication() {
         let mut app = App::new();
-        app.add_plugins(ReplicationPlugins)
-            .add_plugin(TestNetworkPlugin);
+        app.add_plugins((ReplicationPlugins, TestNetworkPlugin));
 
         app.update();
 
@@ -612,7 +614,7 @@ mod tests {
             .spawn_empty()
             .push_children(&[children_entity])
             .id();
-        let current_tick = Tick::new(app.world.read_change_tick());
+        let current_tick = app.world.read_change_tick();
         let mut despawn_tracker = app.world.resource_mut::<DespawnTracker>();
         despawn_tracker
             .despawns
@@ -639,9 +641,8 @@ mod tests {
     struct MappedComponent(Entity);
 
     impl MapEntities for MappedComponent {
-        fn map_entities(&mut self, entity_map: &EntityMap) -> Result<(), MapEntitiesError> {
-            self.0 = entity_map.get(self.0)?;
-            Ok(())
+        fn map_entities(&mut self, entity_map: &mut EntityMapper) {
+            self.0 = entity_map.get_or_reserve(self.0);
         }
     }
 

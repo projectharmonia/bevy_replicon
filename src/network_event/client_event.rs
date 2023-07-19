@@ -1,21 +1,22 @@
 use std::fmt::Debug;
 
-use bevy::{
-    ecs::{entity::MapEntities, event::Event},
-    prelude::*,
+use bevy::{ecs::event::Event, prelude::*};
+use bevy_renet::{
+    renet::{RenetClient, RenetServer, SendType},
+    transport::client_connected,
 };
-use bevy_renet::renet::{RenetClient, RenetServer, SendType};
 use bincode::{DefaultOptions, Options};
 use serde::{
     de::{DeserializeOwned, DeserializeSeed},
     Serialize,
 };
 
-use super::{BuildEventDeserializer, BuildEventSerializer, EventChannel};
+use super::{BuildEventDeserializer, BuildEventSerializer, EventChannel, MapEventEntities};
 use crate::{
-    client::{ClientState, NetworkEntityMap},
+    client::NetworkEntityMap,
+    has_authority,
     prelude::NetworkChannels,
-    server::{ServerSet, ServerState, SERVER_ID},
+    server::{ServerSet, SERVER_ID},
 };
 
 /// An extension trait for [`App`] for creating client events.
@@ -27,7 +28,7 @@ pub trait ClientEventAppExt {
     ) -> &mut Self;
 
     /// Same as [`Self::add_client_event`], but additionally maps client entities to server before sending.
-    fn add_mapped_client_event<T: Event + Serialize + DeserializeOwned + Debug + MapEntities>(
+    fn add_mapped_client_event<T: Event + Serialize + DeserializeOwned + Debug + MapEventEntities>(
         &mut self,
         policy: impl Into<SendType>,
     ) -> &mut Self;
@@ -50,7 +51,7 @@ pub trait ClientEventAppExt {
         policy: impl Into<SendType>,
     ) -> &mut Self
     where
-        T: Event + Debug + MapEntities,
+        T: Event + Debug + MapEventEntities,
         S: BuildEventSerializer<T> + 'static,
         D: BuildEventDeserializer + 'static,
         for<'a> S::EventSerializer<'a>: Serialize,
@@ -60,8 +61,8 @@ pub trait ClientEventAppExt {
     fn add_client_event_with<T: Event + Debug, Marker1, Marker2>(
         &mut self,
         policy: impl Into<SendType>,
-        sending_system: impl IntoSystemConfig<Marker1>,
-        receiving_system: impl IntoSystemConfig<Marker2>,
+        sending_system: impl IntoSystemConfigs<Marker1>,
+        receiving_system: impl IntoSystemConfigs<Marker2>,
     ) -> &mut Self;
 }
 
@@ -73,7 +74,9 @@ impl ClientEventAppExt for App {
         self.add_client_event_with::<T, _, _>(policy, sending_system::<T>, receiving_system::<T>)
     }
 
-    fn add_mapped_client_event<T: Event + Serialize + DeserializeOwned + Debug + MapEntities>(
+    fn add_mapped_client_event<
+        T: Event + Serialize + DeserializeOwned + Debug + MapEventEntities,
+    >(
         &mut self,
         policy: impl Into<SendType>,
     ) -> &mut Self {
@@ -101,7 +104,7 @@ impl ClientEventAppExt for App {
 
     fn add_mapped_client_reflect_event<T, S, D>(&mut self, policy: impl Into<SendType>) -> &mut Self
     where
-        T: Event + Debug + MapEntities,
+        T: Event + Debug + MapEventEntities,
         S: BuildEventSerializer<T> + 'static,
         D: BuildEventDeserializer + 'static,
         for<'a> S::EventSerializer<'a>: Serialize,
@@ -117,8 +120,8 @@ impl ClientEventAppExt for App {
     fn add_client_event_with<T: Event + Debug, Marker1, Marker2>(
         &mut self,
         policy: impl Into<SendType>,
-        sending_system: impl IntoSystemConfig<Marker1>,
-        receiving_system: impl IntoSystemConfig<Marker2>,
+        sending_system: impl IntoSystemConfigs<Marker1>,
+        receiving_system: impl IntoSystemConfigs<Marker2>,
     ) -> &mut Self {
         let channel_id = self
             .world
@@ -128,13 +131,18 @@ impl ClientEventAppExt for App {
         self.add_event::<T>()
             .add_event::<FromClient<T>>()
             .insert_resource(EventChannel::<T>::new(channel_id))
-            .add_system(sending_system.in_set(ServerSet::SendEvents).run_if(
-                resource_exists::<State<ClientState>>().and_then(in_state(ClientState::Connected)),
-            ))
-            .add_system(local_resending_system::<T>.in_set(ServerSet::Authority))
-            .add_system(receiving_system.in_set(ServerSet::ReceiveEvents).run_if(
-                resource_exists::<State<ServerState>>().and_then(in_state(ServerState::Hosting)),
-            ));
+            .add_systems(
+                Update,
+                (
+                    sending_system
+                        .in_set(ServerSet::SendEvents)
+                        .run_if(client_connected),
+                    local_resending_system::<T>.run_if(has_authority()),
+                    receiving_system
+                        .in_set(ServerSet::ReceiveEvents)
+                        .run_if(resource_exists::<RenetServer>()),
+                ),
+            );
 
         self
     }
@@ -152,7 +160,7 @@ fn sending_system<T: Event + Serialize + Debug>(
     }
 }
 
-fn mapping_and_sending_system<T: Event + MapEntities + Serialize + Debug>(
+fn mapping_and_sending_system<T: Event + MapEventEntities + Serialize + Debug>(
     mut events: ResMut<Events<T>>,
     mut client: ResMut<RenetClient>,
     entity_map: Res<NetworkEntityMap>,
@@ -161,7 +169,7 @@ fn mapping_and_sending_system<T: Event + MapEntities + Serialize + Debug>(
     for mut event in events.drain() {
         event
             .map_entities(entity_map.to_server())
-            .unwrap_or_else(|e| panic!("client event {event:?} should map its entities: {e}"));
+            .unwrap_or_else(|e| panic!("client event {event:?} should be mappable: {e}"));
         let message =
             bincode::serialize(&event).expect("mapped client event should be serializable");
         client.send_message(channel.id, message);
@@ -196,7 +204,7 @@ fn mapping_and_sending_reflect_system<T, S>(
     channel: Res<EventChannel<T>>,
     registry: Res<AppTypeRegistry>,
 ) where
-    T: Event + MapEntities + Debug,
+    T: Event + MapEventEntities + Debug,
     S: BuildEventSerializer<T>,
     for<'a> S::EventSerializer<'a>: Serialize,
 {
@@ -204,9 +212,7 @@ fn mapping_and_sending_reflect_system<T, S>(
     for mut event in events.drain() {
         event
             .map_entities(entity_map.to_server())
-            .unwrap_or_else(|e| {
-                panic!("client reflect event {event:?} should map its entities: {e}")
-            });
+            .unwrap_or_else(|e| panic!("client reflect event {event:?} should be mappable: {e}"));
         let serializer = S::new(&event, &registry);
         let message = bincode::serialize(&serializer)
             .expect("mapped client reflect event should be serializable");
@@ -282,7 +288,7 @@ fn receiving_reflect_system<T, D>(
 
 /// An event indicating that a message from client was received.
 /// Emited only on server.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Event)]
 pub struct FromClient<T> {
     pub client_id: u64,
     pub event: T,
@@ -325,7 +331,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(ReplicationPlugins)
             .add_client_event::<DummyEvent>(SendPolicy::Ordered)
-            .add_plugin(TestNetworkPlugin);
+            .add_plugins(TestNetworkPlugin);
 
         app.world
             .resource_mut::<Events<DummyEvent>>()
@@ -343,7 +349,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(ReplicationPlugins)
             .add_mapped_client_event::<DummyEvent>(SendPolicy::Ordered)
-            .add_plugin(TestNetworkPlugin);
+            .add_plugins(TestNetworkPlugin);
 
         let client_entity = Entity::from_raw(0);
         let server_entity = Entity::from_raw(client_entity.index() + 1);
@@ -373,7 +379,7 @@ mod tests {
         app.add_plugins(ReplicationPlugins)
             .register_type::<DummyComponent>()
             .add_client_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>(SendPolicy::Ordered)
-            .add_plugin(TestNetworkPlugin);
+            .add_plugins(TestNetworkPlugin);
 
         app.world
             .resource_mut::<Events<ReflectEvent>>()
@@ -395,7 +401,7 @@ mod tests {
         app.add_plugins(ReplicationPlugins)
             .register_type::<DummyComponent>()
             .add_mapped_client_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>(SendPolicy::Ordered)
-            .add_plugin(TestNetworkPlugin);
+            .add_plugins(TestNetworkPlugin);
 
         let client_entity = Entity::from_raw(0);
         let server_entity = Entity::from_raw(client_entity.index() + 1);

@@ -3,11 +3,10 @@ pub(super) mod removal_tracker;
 
 use std::time::Duration;
 
-use bevy::ecs::schedule::run_enter_schedule;
 use bevy::{
     ecs::{
         archetype::ArchetypeId,
-        component::{ComponentTicks, StorageType},
+        component::{ComponentTicks, StorageType, Tick},
         system::SystemChangeTick,
         world::EntityRef,
     },
@@ -17,10 +16,7 @@ use bevy::{
     utils::HashMap,
 };
 use bevy_renet::{
-    renet::{
-        transport::{NetcodeClientTransport, NetcodeServerTransport},
-        RenetServer, ServerEvent,
-    },
+    renet::{RenetServer, ServerEvent},
     transport::NetcodeServerPlugin,
     RenetServerPlugin,
 };
@@ -28,7 +24,6 @@ use bevy_renet::{
 use crate::{
     client::LastTick,
     replication_core::ReplicationRules,
-    tick::Tick,
     world_diff::{ComponentDiff, WorldDiff, WorldDiffSerializer},
     REPLICATION_CHANNEL_ID,
 };
@@ -36,15 +31,6 @@ use despawn_tracker::{DespawnTracker, DespawnTrackerPlugin};
 use removal_tracker::{RemovalTracker, RemovalTrackerPlugin};
 
 pub const SERVER_ID: u64 = 0;
-
-pub enum TickPolicy {
-    /// Max number of updates sent from server per second. May be lower if update cycle duration is too long.
-    ///
-    /// By default it's 30 updates per second.
-    MaxTickRate(u16),
-    /// [`ServerSet::Tick`] must be manually configured.
-    Manual,
-}
 
 pub struct ServerPlugin {
     pub tick_policy: TickPolicy,
@@ -60,58 +46,39 @@ impl Default for ServerPlugin {
 
 impl Plugin for ServerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugin(RenetServerPlugin)
-            .add_plugin(NetcodeServerPlugin)
-            .add_plugin(RemovalTrackerPlugin)
-            .add_plugin(DespawnTrackerPlugin)
-            .configure_set(
-                ServerSet::Authority.run_if(not(resource_exists::<NetcodeClientTransport>())),
+        app.add_plugins((
+            RenetServerPlugin,
+            NetcodeServerPlugin,
+            RemovalTrackerPlugin,
+            DespawnTrackerPlugin,
+        ))
+        .add_systems(
+            PreUpdate,
+            Self::init_system.run_if(resource_added::<RenetServer>()),
+        )
+        .add_systems(
+            Update,
+            (
+                Self::tick_acks_receiving_system,
+                Self::acked_ticks_cleanup_system,
+                Self::world_diffs_sending_system.in_set(ServerSet::Tick),
             )
-            .init_resource::<AckedTicks>()
-            .add_state::<ServerState>()
-            .add_systems(
-                (
-                    Self::no_server_state_system
-                        .run_if(state_exists_and_equals(ServerState::Hosting))
-                        .run_if(resource_removed::<NetcodeServerTransport>()),
-                    Self::hosting_state_system
-                        .run_if(resource_added::<NetcodeServerTransport>())
-                        .run_if(state_exists_and_equals(ServerState::NoServer)),
-                )
-                    .before(run_enter_schedule::<ServerState>)
-                    .in_base_set(CoreSet::StateTransitions),
-            )
-            .add_system(Self::server_reset_system.in_schedule(OnExit(ServerState::Hosting)))
-            .add_systems(
-                (
-                    Self::tick_acks_receiving_system,
-                    Self::acked_ticks_cleanup_system,
-                    Self::world_diffs_sending_system.in_set(ServerSet::Tick),
-                )
-                    .chain()
-                    .in_set(OnUpdate(ServerState::Hosting)),
-            );
+                .chain()
+                .run_if(resource_exists::<RenetServer>()),
+        );
 
         // Remove delay for tests.
         if cfg!(not(test)) {
             if let TickPolicy::MaxTickRate(max_tick_rate) = self.tick_policy {
                 let tick_time = Duration::from_millis(1000 / max_tick_rate as u64);
-                app.configure_set(ServerSet::Tick.run_if(on_timer(tick_time)));
+                app.configure_set(Update, ServerSet::Tick.run_if(on_timer(tick_time)));
             }
         }
     }
 }
 
 impl ServerPlugin {
-    fn no_server_state_system(mut server_state: ResMut<NextState<ServerState>>) {
-        server_state.set(ServerState::NoServer);
-    }
-
-    fn hosting_state_system(mut server_state: ResMut<NextState<ServerState>>) {
-        server_state.set(ServerState::Hosting);
-    }
-
-    fn server_reset_system(mut commands: Commands) {
+    fn init_system(mut commands: Commands) {
         commands.insert_resource(AckedTicks::default());
     }
 
@@ -136,7 +103,7 @@ impl ServerPlugin {
 
         let current_tick = set.p0().read_change_tick();
         for (client_id, mut world_diff) in client_diffs {
-            world_diff.tick.set(current_tick); // Replace last acknowledged tick with the current.
+            world_diff.tick = current_tick; // Replace last acknowledged tick with the current.
             let serializer = WorldDiffSerializer::new(&world_diff, &registry);
             let message =
                 bincode::serialize(&serializer).expect("world diff should be serializable");
@@ -158,7 +125,7 @@ impl ServerPlugin {
             if let Some(last_message) = last_message {
                 match bincode::deserialize::<LastTick>(&last_message) {
                     Ok(tick) => {
-                        acked_ticks.insert(client_id, tick.0);
+                        acked_ticks.insert(client_id, tick.into());
                     }
                     Err(e) => error!("unable to deserialize tick from client {client_id}: {e}"),
                 }
@@ -276,7 +243,7 @@ fn collect_if_changed(
     type_name: &str,
 ) {
     for world_diff in client_diffs.values_mut() {
-        if ticks.is_changed(world_diff.tick.get(), world.read_change_tick()) {
+        if ticks.is_changed(world_diff.tick, world.read_change_tick()) {
             let component = reflect_component
                 .reflect(entity)
                 .unwrap_or_else(|| panic!("entity should have {type_name}"))
@@ -299,7 +266,7 @@ fn collect_removals(
     for (entity, removal_tracker) in removal_trackers {
         for world_diff in client_diffs.values_mut() {
             for (&component_id, &tick) in removal_tracker.iter() {
-                if tick.is_newer_than(world_diff.tick, Tick::new(change_tick.change_tick())) {
+                if tick.is_newer_than(world_diff.tick, change_tick.this_run()) {
                     // SAFETY: `component_id` obtained from `RemovalTracker` that always contains valid components.
                     let component_info =
                         unsafe { world.components().get_info_unchecked(component_id) };
@@ -321,30 +288,30 @@ fn collect_despawns(
 ) {
     for (entity, tick) in despawn_tracker.despawns.iter().copied() {
         for world_diff in client_diffs.values_mut() {
-            if tick.is_newer_than(world_diff.tick, Tick::new(change_tick.change_tick())) {
+            if tick.is_newer_than(world_diff.tick, change_tick.this_run()) {
                 world_diff.despawns.push(entity);
             }
         }
     }
 }
 
+pub enum TickPolicy {
+    /// Max number of updates sent from server per second. May be lower if update cycle duration is too long.
+    ///
+    /// By default it's 30 updates per second.
+    MaxTickRate(u16),
+    /// [`ServerSet::Tick`] must be manually configured.
+    Manual,
+}
+
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum ServerSet {
-    /// Runs with server or in singleplayer.
-    Authority,
     /// Runs on server tick.
     Tick,
     /// Runs when events can be received.
     ReceiveEvents,
     /// Runs when events can be sent.
     SendEvents,
-}
-
-#[derive(States, Clone, Copy, Debug, Eq, Hash, PartialEq, Default)]
-pub enum ServerState {
-    #[default]
-    NoServer,
-    Hosting,
 }
 
 /// Last acknowledged server ticks from all clients.
