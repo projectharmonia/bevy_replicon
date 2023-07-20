@@ -8,7 +8,6 @@ use std::{
 
 use anyhow::Result;
 use bevy::prelude::*;
-use bevy_renet::transport::client_connected;
 use bevy_replicon::{
     prelude::*,
     renet::{
@@ -18,6 +17,7 @@ use bevy_replicon::{
         },
         ConnectionConfig, ServerEvent,
     },
+    transport::client_connected,
 };
 use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
