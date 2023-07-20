@@ -136,7 +136,7 @@ impl ClientEventAppExt for App {
                 (
                     sending_system
                         .in_set(ServerSet::SendEvents)
-                        .run_if(client_connected),
+                        .run_if(client_connected()),
                     local_resending_system::<T>.run_if(has_authority()),
                     receiving_system
                         .in_set(ServerSet::ReceiveEvents)

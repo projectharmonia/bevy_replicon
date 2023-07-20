@@ -30,7 +30,7 @@ impl Plugin for ClientPlugin {
                     Self::tick_ack_sending_system,
                 )
                     .chain()
-                    .run_if(client_connected),
+                    .run_if(client_connected()),
             );
     }
 }

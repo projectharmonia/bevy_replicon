@@ -144,7 +144,7 @@ impl ServerEventAppExt for App {
                         .in_set(ServerSet::Tick),
                     receiving_system
                         .in_set(ServerSet::ReceiveEvents)
-                        .run_if(client_connected),
+                        .run_if(client_connected()),
                 ),
             );
 
