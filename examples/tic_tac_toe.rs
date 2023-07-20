@@ -46,7 +46,7 @@ impl Plugin for TicTacToePlugin {
             .init_resource::<SymbolFont>()
             .init_resource::<CurrentTurn>()
             .replicate::<Symbol>()
-            .replicate::<BoardCell>()
+            .replicate::<CellIndex>()
             .replicate::<Player>()
             .add_client_event::<CellPick>(SendPolicy::Ordered)
             .insert_resource(ClearColor(BACKGROUND_COLOR))
@@ -80,7 +80,7 @@ impl Plugin for TicTacToePlugin {
                         Self::cell_interatction_system.run_if(local_player_turn()),
                         Self::picking_system.run_if(has_authority()),
                         Self::symbol_init_system,
-                        Self::turn_advance_system.run_if(any_component_added::<BoardCell>()),
+                        Self::turn_advance_system.run_if(any_component_added::<CellIndex>()),
                         Self::symbol_turn_text_system.run_if(resource_changed::<CurrentTurn>()),
                     )
                         .run_if(in_state(GameState::InGame)),
@@ -164,44 +164,49 @@ impl TicTacToePlugin {
             })
             .with_children(|parent| {
                 parent
-                    .spawn((
-                        NodeBundle {
-                            style: Style {
-                                flex_direction: FlexDirection::Column,
-                                width: Val::Px(BOARD_SIZE - LINE_THICKNESS),
-                                height: Val::Px(BOARD_SIZE - LINE_THICKNESS),
-                                ..Default::default()
-                            },
+                    .spawn(NodeBundle {
+                        style: Style {
+                            flex_direction: FlexDirection::Column,
+                            width: Val::Px(BOARD_SIZE - LINE_THICKNESS),
+                            height: Val::Px(BOARD_SIZE - LINE_THICKNESS),
                             ..Default::default()
                         },
-                        GridNode,
-                    ))
+                        ..Default::default()
+                    })
                     .with_children(|parent| {
-                        for _ in 0..GRID_SIZE {
-                            parent
-                                .spawn(NodeBundle {
+                        parent
+                            .spawn((
+                                GridNode,
+                                NodeBundle {
                                     style: Style {
-                                        width: Val::Px(BOARD_SIZE - LINE_THICKNESS),
-                                        height: Val::Px(CELL_SIZE + LINE_THICKNESS),
+                                        display: Display::Grid,
+                                        grid_template_columns: vec![
+                                            GridTrack::min_content();
+                                            GRID_SIZE
+                                        ],
+                                        grid_template_rows: vec![
+                                            GridTrack::min_content();
+                                            GRID_SIZE
+                                        ],
                                         ..Default::default()
                                     },
                                     ..Default::default()
-                                })
-                                .with_children(|parent| {
-                                    for _ in 0..GRID_SIZE {
-                                        parent.spawn(ButtonBundle {
-                                            style: Style {
-                                                width: Val::Px(BUTTON_SIZE),
-                                                height: Val::Px(BUTTON_SIZE),
-                                                margin: UiRect::all(Val::Px(BUTTON_MARGIN)),
-                                                ..Default::default()
-                                            },
-                                            background_color: BACKGROUND_COLOR.into(),
+                                },
+                            ))
+                            .with_children(|parent| {
+                                for _ in 0..GRID_SIZE * GRID_SIZE {
+                                    parent.spawn(ButtonBundle {
+                                        style: Style {
+                                            width: Val::Px(BUTTON_SIZE),
+                                            height: Val::Px(BUTTON_SIZE),
+                                            margin: UiRect::all(Val::Px(BUTTON_MARGIN)),
                                             ..Default::default()
-                                        });
-                                    }
-                                });
-                        }
+                                        },
+                                        background_color: BACKGROUND_COLOR.into(),
+                                        ..Default::default()
+                                    });
+                                }
+                            });
 
                         parent
                             .spawn(NodeBundle {
@@ -372,36 +377,27 @@ impl TicTacToePlugin {
     }
 
     fn cell_interatction_system(
-        mut cells: Query<
+        mut buttons: Query<
             (Entity, &Parent, &Interaction, &mut BackgroundColor),
             Changed<Interaction>,
         >,
         children: Query<&Children>,
-        parent: Query<&Parent>,
         mut pick_events: EventWriter<CellPick>,
     ) {
         const HOVER_COLOR: Color = Color::rgb(0.85, 0.85, 0.85);
 
-        for (button_entity, button_parent, interaction, mut background) in &mut cells {
+        for (button_entity, button_parent, interaction, mut background) in &mut buttons {
             match interaction {
                 Interaction::Pressed => {
                     let buttons = children.get(**button_parent).unwrap();
-                    let column = buttons
+                    let index = buttons
                         .iter()
                         .position(|&entity| entity == button_entity)
                         .unwrap();
 
-                    let row_parent = parent
-                        .get(**button_parent)
-                        .expect("column node should be a parent of row node");
-                    let rows = children.get(**row_parent).unwrap();
-                    let row = rows
-                        .iter()
-                        .position(|&entity| entity == **button_parent)
-                        .unwrap();
                     // We send a pick event and wait for the pick to be replicated back to the client.
                     // In case of server or single-player the event will re-translated into [`FromClient`] event to re-use the logic.
-                    pick_events.send(CellPick(BoardCell { row, column }));
+                    pick_events.send(CellPick(index));
                 }
                 Interaction::Hovered => *background = HOVER_COLOR.into(),
                 Interaction::None => *background = BACKGROUND_COLOR.into(),
@@ -415,14 +411,14 @@ impl TicTacToePlugin {
     fn picking_system(
         mut commands: Commands,
         mut pick_events: EventReader<FromClient<CellPick>>,
-        cells: Query<&BoardCell>,
+        symbols: Query<&CellIndex>,
         current_turn: Res<CurrentTurn>,
         players: Query<(&Player, &Symbol)>,
     ) {
         for FromClient { client_id, event } in pick_events.iter().copied() {
             // It's good to check the received data, client could be cheating.
-            if event.column > GRID_SIZE || event.row > GRID_SIZE {
-                error!("received invalid cell {:?}", event.0);
+            if event.0 > GRID_SIZE * GRID_SIZE {
+                error!("received invalid cell index {:?}", event.0);
                 continue;
             }
 
@@ -434,7 +430,7 @@ impl TicTacToePlugin {
                 continue;
             }
 
-            if cells.iter().any(|&cell| cell == event.0) {
+            if symbols.iter().any(|cell_index| cell_index.0 == event.0) {
                 error!(
                     "player {client_id} has chosen an already occupied cell {:?}",
                     event.0
@@ -443,7 +439,7 @@ impl TicTacToePlugin {
             }
 
             // Spawn "blueprint" of the cell that client will replicate.
-            commands.spawn(BoardCellBundle::new(event.0, current_turn.0));
+            commands.spawn(SymbolBundle::new(current_turn.0, event.0));
         }
     }
 
@@ -451,18 +447,15 @@ impl TicTacToePlugin {
     fn symbol_init_system(
         mut commands: Commands,
         symbol_font: Res<SymbolFont>,
-        cells: Query<(Entity, &Symbol, &BoardCell), Added<Symbol>>,
+        symbols: Query<(Entity, &CellIndex, &Symbol), Added<Symbol>>,
         grid_nodes: Query<&Children, With<GridNode>>,
-        children: Query<&Children>,
         mut background_colors: Query<&mut BackgroundColor>,
     ) {
-        for (cell_entity, symbol, cell) in &cells {
-            let rows = grid_nodes.single();
-            let row_entity = rows[cell.row];
-            let buttons = children
-                .get(row_entity)
-                .expect("rows should have buttons as children");
-            let button_entity = buttons[cell.column];
+        for (symbol_entity, cell_index, symbol) in &symbols {
+            let children = grid_nodes.single();
+            let button_entity = *children
+                .get(cell_index.0)
+                .expect("symbols should point to valid buttons");
 
             let mut background = background_colors
                 .get_mut(button_entity)
@@ -472,10 +465,10 @@ impl TicTacToePlugin {
             commands
                 .entity(button_entity)
                 .remove::<Interaction>()
-                .add_child(cell_entity);
+                .add_child(symbol_entity);
 
             commands
-                .entity(cell_entity)
+                .entity(symbol_entity)
                 .insert(TextBundle::from_section(
                     symbol.glyph(),
                     TextStyle {
@@ -491,11 +484,11 @@ impl TicTacToePlugin {
     fn turn_advance_system(
         mut current_turn: ResMut<CurrentTurn>,
         mut game_state: ResMut<NextState<GameState>>,
-        cells: Query<(&BoardCell, &Symbol)>,
+        symbols: Query<(&CellIndex, &Symbol)>,
     ) {
         let mut board = [None; GRID_SIZE * GRID_SIZE];
-        for (cell, &symbol) in &cells {
-            board[cell.row * GRID_SIZE + cell.column] = Some(symbol);
+        for (cell_index, &symbol) in &symbols {
+            board[cell_index.0] = Some(symbol);
         }
 
         const WIN_CONDITIONS: [[usize; GRID_SIZE]; 8] = [
@@ -607,7 +600,6 @@ struct CurrentTurn(Symbol);
     Deserialize,
     Display,
     Eq,
-    Hash,
     PartialEq,
     Serialize,
     ValueEnum,
@@ -653,16 +645,16 @@ struct BottomText;
 struct GridNode;
 
 #[derive(Bundle)]
-struct BoardCellBundle {
-    cell: BoardCell,
+struct SymbolBundle {
     symbol: Symbol,
+    cell_index: CellIndex,
     replication: Replication,
 }
 
-impl BoardCellBundle {
-    fn new(cell: BoardCell, symbol: Symbol) -> Self {
+impl SymbolBundle {
+    fn new(symbol: Symbol, index: usize) -> Self {
         Self {
-            cell,
+            cell_index: CellIndex(index),
             symbol,
             replication: Replication,
         }
@@ -670,12 +662,9 @@ impl BoardCellBundle {
 }
 
 /// Marks that the entity is a cell and contains its location in grid.
-#[derive(Clone, Component, Copy, Debug, Default, Deserialize, PartialEq, Reflect, Serialize)]
+#[derive(Component, Default, Deserialize, Reflect, Serialize)]
 #[reflect(Component)]
-struct BoardCell {
-    row: usize,
-    column: usize,
-}
+struct CellIndex(usize);
 
 /// Contains player ID and it's playing symbol.
 #[derive(Bundle)]
@@ -708,5 +697,5 @@ struct Player(u64);
 ///
 /// We don't replicate the whole UI, so we can't just send the picked entity because on server it may be different.
 /// So we send the cell location in grid and calculate the entity on server based on this.
-#[derive(Clone, Copy, Debug, Deref, Deserialize, Event, Serialize)]
-struct CellPick(BoardCell);
+#[derive(Clone, Copy, Debug, Deserialize, Event, Serialize)]
+struct CellPick(usize);
