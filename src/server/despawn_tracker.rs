@@ -1,7 +1,12 @@
-use bevy::{ecs::system::SystemChangeTick, prelude::*, utils::HashSet};
+use bevy::{
+    ecs::{component::Tick, system::SystemChangeTick},
+    prelude::*,
+    utils::HashSet,
+};
+use bevy_renet::renet::RenetServer;
 
 use super::AckedTicks;
-use crate::{replication_core::Replication, server::ServerState, tick::Tick};
+use crate::replication_core::Replication;
 
 /// Tracks entity despawns of entities with [`Replication`] component in [`DespawnTracker`] resource.
 ///
@@ -11,12 +16,13 @@ pub(super) struct DespawnTrackerPlugin;
 impl Plugin for DespawnTrackerPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DespawnTracker>().add_systems(
+            Update,
             (
                 Self::entity_tracking_system,
                 Self::cleanup_system,
                 Self::detection_system,
             )
-                .in_set(OnUpdate(ServerState::Hosting)),
+                .run_if(resource_exists::<RenetServer>()),
         );
     }
 }
@@ -40,9 +46,9 @@ impl DespawnTrackerPlugin {
         client_acks: Res<AckedTicks>,
     ) {
         despawn_tracker.despawns.retain(|(_, tick)| {
-            client_acks.values().any(|last_tick| {
-                tick.is_newer_than(*last_tick, Tick::new(change_tick.change_tick()))
-            })
+            client_acks
+                .values()
+                .any(|last_tick| tick.is_newer_than(*last_tick, change_tick.this_run()))
         });
     }
 
@@ -58,7 +64,7 @@ impl DespawnTrackerPlugin {
 
         tracked_entities.retain(|&entity| {
             if entities.get(entity).is_err() {
-                despawns.push((entity, Tick::new(change_tick.change_tick())));
+                despawns.push((entity, change_tick.this_run()));
                 false
             } else {
                 true
@@ -81,13 +87,9 @@ mod tests {
     #[test]
     fn detection() {
         let mut app = App::new();
-        app.add_plugin(DespawnTrackerPlugin)
-            .add_state::<ServerState>()
+        app.add_plugins(DespawnTrackerPlugin)
+            .insert_resource(RenetServer::new(Default::default()))
             .init_resource::<AckedTicks>();
-
-        app.world
-            .resource_mut::<NextState<ServerState>>()
-            .set(ServerState::Hosting);
 
         app.update();
 

@@ -1,20 +1,15 @@
-use bevy::ecs::schedule::run_enter_schedule;
 use bevy::{
-    ecs::{entity::EntityMap, reflect::ReflectMapEntities, system::Command},
+    ecs::{component::Tick, entity::EntityMap, reflect::ReflectMapEntities, system::Command},
     prelude::*,
     reflect::TypeRegistryInternal,
     utils::HashMap,
 };
-use bevy_renet::{
-    renet::{transport::NetcodeClientTransport, RenetClient},
-    transport::NetcodeClientPlugin,
-    RenetClientPlugin,
-};
+use bevy_renet::transport::client_connected;
+use bevy_renet::{renet::RenetClient, transport::NetcodeClientPlugin, RenetClientPlugin};
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeSeed, Deserialize, Serialize};
 
 use crate::{
-    tick::Tick,
     world_diff::{ComponentDiff, WorldDiff, WorldDiffDeserializer},
     Replication, REPLICATION_CHANNEL_ID,
 };
@@ -23,48 +18,27 @@ pub struct ClientPlugin;
 
 impl Plugin for ClientPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugin(RenetClientPlugin)
-            .add_plugin(NetcodeClientPlugin)
-            .add_state::<ClientState>()
-            .init_resource::<LastTick>()
-            .init_resource::<NetworkEntityMap>()
+        app.add_plugins((RenetClientPlugin, NetcodeClientPlugin))
             .add_systems(
-                (
-                    Self::no_connection_state_system
-                        .run_if(resource_removed::<NetcodeClientTransport>()),
-                    Self::connecting_state_system
-                        .run_if(bevy_renet::transport::client_connecting)
-                        .run_if(state_exists_and_equals(ClientState::NoConnection)),
-                    Self::connected_state_system
-                        .run_if(bevy_renet::transport::client_connected)
-                        .run_if(state_exists_and_equals(ClientState::Connecting)),
-                )
-                    .before(run_enter_schedule::<ClientState>)
-                    .in_base_set(CoreSet::StateTransitions),
+                PreUpdate,
+                Self::init_system.run_if(resource_added::<RenetClient>()),
             )
-            .add_system(Self::client_reset_system.in_schedule(OnExit(ClientState::Connected)))
             .add_systems(
+                Update,
                 (
                     Self::world_diff_receiving_system,
                     Self::tick_ack_sending_system,
                 )
                     .chain()
-                    .in_set(OnUpdate(ClientState::Connected)),
+                    .run_if(client_connected()),
             );
     }
 }
 
 impl ClientPlugin {
-    fn no_connection_state_system(mut client_state: ResMut<NextState<ClientState>>) {
-        client_state.set(ClientState::NoConnection);
-    }
-
-    fn connecting_state_system(mut client_state: ResMut<NextState<ClientState>>) {
-        client_state.set(ClientState::Connecting);
-    }
-
-    fn connected_state_system(mut client_state: ResMut<NextState<ClientState>>) {
-        client_state.set(ClientState::Connected);
+    fn init_system(mut commands: Commands) {
+        commands.insert_resource(LastTick::default());
+        commands.insert_resource(NetworkEntityMap::default());
     }
 
     fn tick_ack_sending_system(last_tick: Res<LastTick>, mut client: ResMut<RenetClient>) {
@@ -95,34 +69,27 @@ impl ClientPlugin {
             let world_diff = WorldDiffDeserializer::new(&registry)
                 .deserialize(&mut deserializer)
                 .expect("server should send only world diffs over replication channel");
-            last_tick.0 = world_diff.tick;
+            *last_tick = world_diff.tick.into();
             commands.apply_world_diff(world_diff);
         }
     }
-
-    fn client_reset_system(mut commands: Commands) {
-        commands.insert_resource(LastTick::default());
-        commands.insert_resource(NetworkEntityMap::default());
-    }
-}
-
-#[derive(States, Clone, Copy, Debug, Eq, Hash, PartialEq, Default)]
-pub enum ClientState {
-    #[default]
-    NoConnection,
-    Connecting,
-    Connected,
 }
 
 /// Last received tick from server.
 ///
 /// Exists only on clients, sent to the server.
-#[derive(Resource, Serialize, Deserialize, Deref, DerefMut)]
-pub(super) struct LastTick(pub(super) Tick);
+#[derive(Default, Deserialize, Resource, Serialize)]
+pub(super) struct LastTick(u32);
 
-impl Default for LastTick {
-    fn default() -> Self {
-        Self(Tick::new(0))
+impl From<Tick> for LastTick {
+    fn from(value: Tick) -> Self {
+        Self(value.get())
+    }
+}
+
+impl From<LastTick> for Tick {
+    fn from(value: LastTick) -> Self {
+        Self::new(value.0)
     }
 }
 
@@ -139,14 +106,20 @@ impl ApplyWorldDiffExt for Commands<'_, '_> {
 struct ApplyWorldDiff(WorldDiff);
 
 impl Command for ApplyWorldDiff {
-    fn write(self, world: &mut World) {
+    fn apply(self, world: &mut World) {
         let registry = world.resource::<AppTypeRegistry>().clone();
         let registry = registry.read();
         world.resource_scope(|world, mut entity_map: Mut<NetworkEntityMap>| {
             // Map entities non-lazily in order to correctly map components that reference server entities.
             for (entity, components) in map_entities(world, &mut entity_map, self.0.entities) {
                 for component_diff in components {
-                    apply_component_diff(world, &entity_map, &registry, entity, &component_diff);
+                    apply_component_diff(
+                        world,
+                        &mut entity_map,
+                        &registry,
+                        entity,
+                        &component_diff,
+                    );
                 }
             }
 
@@ -178,7 +151,7 @@ fn map_entities(
 
 fn apply_component_diff(
     world: &mut World,
-    entity_map: &NetworkEntityMap,
+    entity_map: &mut NetworkEntityMap,
     registry: &TypeRegistryInternal,
     client_entity: Entity,
     component_diff: &ComponentDiff,
@@ -196,9 +169,12 @@ fn apply_component_diff(
         ComponentDiff::Changed(component) => {
             reflect_component.apply_or_insert(&mut world.entity_mut(client_entity), &**component);
             if let Some(reflect_map_entities) = registration.data::<ReflectMapEntities>() {
-                reflect_map_entities
-                    .map_specific_entities(world, entity_map.to_client(), &[client_entity])
-                    .unwrap_or_else(|e| panic!("entities in {type_name} should be mappable: {e}"));
+                // TODO 0.12: Remove mutable access.
+                reflect_map_entities.map_entities(
+                    world,
+                    &mut entity_map.server_to_client,
+                    &[client_entity],
+                );
             }
         }
         ComponentDiff::Removed(_) => reflect_component.remove(&mut world.entity_mut(client_entity)),

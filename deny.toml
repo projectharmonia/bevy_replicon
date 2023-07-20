@@ -9,7 +9,7 @@ allow-osi-fsf-free = "either"
 
 [bans]
 multiple-versions = "deny"
-wildcards = "deny"
+wildcards = "allow"
 skip = [
   { name = "syn", version = "1.0" },
   { name = "ahash", version = "0.7.6" },
@@ -20,6 +20,7 @@ skip = [
   { name = "num_enum_derive", version = "0.5" },
   { name = "hashbrown", version = "0.12" },
   { name = "indexmap", version = "1.0" },
+  { name = "libloading", version = "0.7" },
   { name = "windows_x86_64_msvc", version = "0.42" },
   { name = "windows_x86_64_gnullvm", version = "0.42" },
   { name = "windows_x86_64_gnu", version = "0.42" },
@@ -33,4 +34,4 @@ skip = [
 
 [sources]
 unknown-registry = "deny"
-unknown-git = "deny"
+unknown-git = "allow"

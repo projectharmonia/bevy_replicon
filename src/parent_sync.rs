@@ -1,12 +1,12 @@
 use bevy::{
     ecs::{
-        entity::{EntityMap, MapEntities, MapEntitiesError},
+        entity::{EntityMapper, MapEntities},
         reflect::ReflectMapEntities,
     },
     prelude::*,
 };
 
-use crate::{prelude::ServerSet, AppReplicationExt};
+use crate::{has_authority, AppReplicationExt};
 
 pub struct ParentSyncPlugin;
 
@@ -18,16 +18,12 @@ impl Plugin for ParentSyncPlugin {
         app.register_type::<Option<Entity>>()
             .replicate::<ParentSync>()
             .add_systems(
+                PostUpdate,
                 (
-                    Self::update_system
-                        .before(Self::sync_system)
-                        .in_set(ServerSet::Authority),
-                    Self::removal_system
-                        .before(Self::sync_system)
-                        .in_set(ServerSet::Authority),
+                    (Self::update_system, Self::removal_system).run_if(has_authority()),
                     Self::sync_system,
                 )
-                    .in_base_set(CoreSet::PostUpdate),
+                    .chain(),
             );
     }
 }
@@ -77,11 +73,10 @@ impl ParentSyncPlugin {
 pub struct ParentSync(Option<Entity>);
 
 impl MapEntities for ParentSync {
-    fn map_entities(&mut self, entity_map: &EntityMap) -> Result<(), MapEntitiesError> {
+    fn map_entities(&mut self, entity_mapper: &mut EntityMapper) {
         if let Some(ref mut entity) = self.0 {
-            *entity = entity_map.get(*entity)?;
+            *entity = entity_mapper.get_or_reserve(*entity);
         }
-        Ok(())
     }
 }
 
@@ -95,8 +90,7 @@ mod tests {
     #[test]
     fn update() {
         let mut app = App::new();
-        app.add_plugin(ReplicationCorePlugin)
-            .add_plugin(ParentSyncPlugin);
+        app.add_plugins((ReplicationCorePlugin, ParentSyncPlugin));
 
         let child_entity = app.world.spawn(ParentSync::default()).id();
         app.world.spawn_empty().add_child(child_entity);
@@ -112,8 +106,7 @@ mod tests {
     #[test]
     fn removal() {
         let mut app = App::new();
-        app.add_plugin(ReplicationCorePlugin)
-            .add_plugin(ParentSyncPlugin);
+        app.add_plugins((ReplicationCorePlugin, ParentSyncPlugin));
 
         let parent_entity = app.world.spawn_empty().id();
         let child_entity = app
@@ -132,8 +125,7 @@ mod tests {
     #[test]
     fn hierarchy_set() {
         let mut app = App::new();
-        app.add_plugin(ReplicationCorePlugin)
-            .add_plugin(ParentSyncPlugin);
+        app.add_plugins((ReplicationCorePlugin, ParentSyncPlugin));
 
         let parent_entity = app.world.spawn_empty().id();
         let child_entity = app.world.spawn(ParentSync(Some(parent_entity))).id();
@@ -149,8 +141,7 @@ mod tests {
     #[test]
     fn hierarchy_unset() {
         let mut app = App::new();
-        app.add_plugin(ReplicationCorePlugin)
-            .add_plugin(ParentSyncPlugin);
+        app.add_plugins((ReplicationCorePlugin, ParentSyncPlugin));
 
         let child_entity = app.world.spawn_empty().id();
         app.world.spawn_empty().add_child(child_entity);
@@ -171,16 +162,18 @@ mod tests {
     #[test]
     fn scene_hierarchy_set() {
         let mut app = App::new();
-        app.add_plugin(AssetPlugin::default())
-            .add_plugin(ScenePlugin)
-            .add_plugin(ReplicationCorePlugin)
-            .add_plugin(ParentSyncPlugin);
+        app.add_plugins((
+            AssetPlugin::default(),
+            ScenePlugin,
+            ReplicationCorePlugin,
+            ParentSyncPlugin,
+        ));
 
         let mut scene_world = World::new();
+        scene_world.insert_resource(app.world.resource::<AppTypeRegistry>().clone());
         let parent_entity = scene_world.spawn_empty().id();
         scene_world.spawn(ParentSync(Some(parent_entity)));
-        let dynamic_scene =
-            DynamicScene::from_world(&scene_world, app.world.resource::<AppTypeRegistry>());
+        let dynamic_scene = DynamicScene::from_world(&scene_world);
 
         let mut scenes = app.world.resource_mut::<Assets<DynamicScene>>();
         let scene_handle = scenes.add(dynamic_scene);

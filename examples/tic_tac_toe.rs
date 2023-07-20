@@ -8,6 +8,7 @@ use std::{
 
 use anyhow::Result;
 use bevy::prelude::*;
+use bevy_renet::transport::client_connected;
 use bevy_replicon::{
     prelude::*,
     renet::{
@@ -33,8 +34,7 @@ fn main() {
             }),
             ..Default::default()
         }))
-        .add_plugins(ReplicationPlugins)
-        .add_plugin(TicTacToePlugin)
+        .add_plugins((ReplicationPlugins, TicTacToePlugin))
         .run();
 }
 
@@ -43,7 +43,6 @@ struct TicTacToePlugin;
 impl Plugin for TicTacToePlugin {
     fn build(&self, app: &mut App) {
         app.add_state::<GameState>()
-            .init_resource::<GameFont>()
             .init_resource::<SymbolFont>()
             .init_resource::<CurrentTurn>()
             .replicate::<Symbol>()
@@ -51,35 +50,41 @@ impl Plugin for TicTacToePlugin {
             .replicate::<Player>()
             .add_client_event::<CellPick>(SendPolicy::Ordered)
             .insert_resource(ClearColor(BACKGROUND_COLOR))
-            .add_startup_systems((
-                Self::ui_setup_system,
-                Self::cli_system.pipe(system_adapter::unwrap),
-            ))
-            .add_systems((
-                Self::connecting_text_system.in_schedule(OnEnter(ClientState::Connecting)),
-                Self::server_waiting_text_system.in_schedule(OnEnter(ServerState::Hosting)),
-                Self::client_disconnected_text_system.in_schedule(OnEnter(GameState::Disconnected)),
-                Self::winner_text_system.in_schedule(OnEnter(GameState::Winner)),
-                Self::tie_text_system.in_schedule(OnEnter(GameState::Tie)),
-                Self::server_event_system.in_set(OnUpdate(ServerState::Hosting)),
-                Self::start_game_system
-                    .in_set(OnUpdate(ClientState::Connected))
-                    .in_set(OnUpdate(GameState::WaitingForPlayer))
-                    .run_if(any_component_added::<Player>), // Wait until client replicates players before starting the game.
-            ))
             .add_systems(
-                (Self::turn_text_system, Self::symbol_turn_text_system)
-                    .in_schedule(OnEnter(GameState::InGame)),
+                Startup,
+                (
+                    Self::ui_setup_system,
+                    Self::cli_system.pipe(system_adapter::unwrap),
+                ),
             )
             .add_systems(
+                OnEnter(GameState::InGame),
+                (Self::turn_text_system, Self::symbol_turn_text_system),
+            )
+            .add_systems(
+                OnEnter(GameState::Disconnected),
+                Self::client_disconnected_text_system,
+            )
+            .add_systems(OnEnter(GameState::Winner), Self::winner_text_system)
+            .add_systems(OnEnter(GameState::Tie), Self::tie_text_system)
+            .add_systems(
+                Update,
                 (
-                    Self::picking_system.in_set(ServerSet::Authority),
-                    Self::symbol_init_system,
-                    Self::turn_advance_system.run_if(any_component_added::<BoardCell>),
-                    Self::cell_interatction_system.run_if(Self::local_player_turn),
-                    Self::symbol_turn_text_system.run_if(resource_changed::<CurrentTurn>()),
-                )
-                    .in_set(OnUpdate(GameState::InGame)),
+                    Self::connecting_text_system.run_if(resource_added::<RenetClient>()),
+                    Self::server_waiting_text_system.run_if(resource_added::<RenetServer>()),
+                    Self::server_event_system.run_if(resource_exists::<RenetServer>()),
+                    Self::start_game_system
+                        .run_if(client_connected())
+                        .run_if(any_component_added::<Player>()), // Wait until client replicates players before starting the game.
+                    (
+                        Self::cell_interatction_system.run_if(local_player_turn()),
+                        Self::picking_system.run_if(has_authority()),
+                        Self::symbol_init_system,
+                        Self::turn_advance_system.run_if(any_component_added::<BoardCell>()),
+                        Self::symbol_turn_text_system.run_if(resource_changed::<CurrentTurn>()),
+                    )
+                        .run_if(in_state(GameState::InGame)),
+                ),
             );
     }
 }
@@ -95,11 +100,7 @@ const TEXT_SECTION: usize = 0;
 const SYMBOL_SECTION: usize = 1;
 
 impl TicTacToePlugin {
-    fn ui_setup_system(
-        mut commands: Commands,
-        game_font: Res<GameFont>,
-        symbol_font: Res<SymbolFont>,
-    ) {
+    fn ui_setup_system(mut commands: Commands, symbol_font: Res<SymbolFont>) {
         commands.spawn(Camera2dBundle::default());
 
         const LINES_COUNT: usize = GRID_SIZE + 1;
@@ -148,12 +149,13 @@ impl TicTacToePlugin {
         const BUTTON_MARGIN: f32 = (CELL_SIZE + LINE_THICKNESS - BUTTON_SIZE) / 2.0;
 
         const TEXT_COLOR: Color = Color::rgb(0.5, 0.5, 1.0);
-        const FONT_SIZE: f32 = 50.0;
+        const FONT_SIZE: f32 = 40.0;
 
         commands
             .spawn(NodeBundle {
                 style: Style {
-                    size: Size::all(Val::Percent(100.0)),
+                    width: Val::Percent(100.0),
+                    height: Val::Percent(100.0),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
                     ..Default::default()
@@ -166,7 +168,8 @@ impl TicTacToePlugin {
                         NodeBundle {
                             style: Style {
                                 flex_direction: FlexDirection::Column,
-                                size: Size::all(Val::Px(BOARD_SIZE - LINE_THICKNESS)),
+                                width: Val::Px(BOARD_SIZE - LINE_THICKNESS),
+                                height: Val::Px(BOARD_SIZE - LINE_THICKNESS),
                                 ..Default::default()
                             },
                             ..Default::default()
@@ -178,10 +181,8 @@ impl TicTacToePlugin {
                             parent
                                 .spawn(NodeBundle {
                                     style: Style {
-                                        size: Size::new(
-                                            Val::Px(BOARD_SIZE - LINE_THICKNESS),
-                                            Val::Px(CELL_SIZE + LINE_THICKNESS),
-                                        ),
+                                        width: Val::Px(BOARD_SIZE - LINE_THICKNESS),
+                                        height: Val::Px(CELL_SIZE + LINE_THICKNESS),
                                         ..Default::default()
                                     },
                                     ..Default::default()
@@ -190,7 +191,8 @@ impl TicTacToePlugin {
                                     for _ in 0..GRID_SIZE {
                                         parent.spawn(ButtonBundle {
                                             style: Style {
-                                                size: Size::all(Val::Px(BUTTON_SIZE)),
+                                                width: Val::Px(BUTTON_SIZE),
+                                                height: Val::Px(BUTTON_SIZE),
                                                 margin: UiRect::all(Val::Px(BUTTON_MARGIN)),
                                                 ..Default::default()
                                             },
@@ -216,9 +218,9 @@ impl TicTacToePlugin {
                                         TextSection::new(
                                             String::new(),
                                             TextStyle {
-                                                font: game_font.0.clone(),
                                                 font_size: FONT_SIZE,
                                                 color: TEXT_COLOR,
+                                                ..Default::default()
                                             },
                                         ),
                                         TextSection::new(
@@ -305,6 +307,43 @@ impl TicTacToePlugin {
         Ok(())
     }
 
+    fn turn_text_system(mut bottom_text: Query<&mut Text, With<BottomText>>) {
+        bottom_text.single_mut().sections[0].value = "Current turn: ".into();
+    }
+
+    fn symbol_turn_text_system(
+        mut bottom_text: Query<&mut Text, With<BottomText>>,
+        current_turn: Res<CurrentTurn>,
+    ) {
+        let symbol_section = &mut bottom_text.single_mut().sections[SYMBOL_SECTION];
+        symbol_section.value = current_turn.glyph().into();
+        symbol_section.style.color = current_turn.color();
+    }
+
+    fn client_disconnected_text_system(mut bottom_text: Query<&mut Text, With<BottomText>>) {
+        let sections = &mut bottom_text.single_mut().sections;
+        sections[TEXT_SECTION].value = "Client disconnected".into();
+        sections[SYMBOL_SECTION].value.clear();
+    }
+
+    fn winner_text_system(mut bottom_text: Query<&mut Text, With<BottomText>>) {
+        bottom_text.single_mut().sections[TEXT_SECTION].value = "Winner: ".into();
+    }
+
+    fn tie_text_system(mut bottom_text: Query<&mut Text, With<BottomText>>) {
+        let sections = &mut bottom_text.single_mut().sections;
+        sections[TEXT_SECTION].value = "Tie".into();
+        sections[SYMBOL_SECTION].value.clear();
+    }
+
+    fn connecting_text_system(mut bottom_text: Query<&mut Text, With<BottomText>>) {
+        bottom_text.single_mut().sections[TEXT_SECTION].value = "Connecting".into();
+    }
+
+    fn server_waiting_text_system(mut bottom_text: Query<&mut Text, With<BottomText>>) {
+        bottom_text.single_mut().sections[TEXT_SECTION].value = "Waiting player".into();
+    }
+
     /// Waits for client to connect to start the game or disconnect to finish it.
     ///
     /// Only for server.
@@ -345,7 +384,7 @@ impl TicTacToePlugin {
 
         for (button_entity, button_parent, interaction, mut background) in &mut cells {
             match interaction {
-                Interaction::Clicked => {
+                Interaction::Pressed => {
                     let buttons = children.get(**button_parent).unwrap();
                     let column = buttons
                         .iter()
@@ -484,53 +523,17 @@ impl TicTacToePlugin {
             current_turn.0 = current_turn.next();
         }
     }
+}
 
-    fn connecting_text_system(mut bottom_text: Query<&mut Text, With<BottomText>>) {
-        bottom_text.single_mut().sections[TEXT_SECTION].value = "Connecting".into();
-    }
-
-    fn server_waiting_text_system(mut bottom_text: Query<&mut Text, With<BottomText>>) {
-        bottom_text.single_mut().sections[TEXT_SECTION].value = "Waiting for player".into();
-    }
-
-    fn client_disconnected_text_system(mut bottom_text: Query<&mut Text, With<BottomText>>) {
-        let sections = &mut bottom_text.single_mut().sections;
-        sections[TEXT_SECTION].value = "Client disconnected".into();
-        sections[SYMBOL_SECTION].value.clear();
-    }
-
-    fn turn_text_system(mut bottom_text: Query<&mut Text, With<BottomText>>) {
-        bottom_text.single_mut().sections[0].value = "Current turn: ".into();
-    }
-
-    fn symbol_turn_text_system(
-        mut bottom_text: Query<&mut Text, With<BottomText>>,
-        current_turn: Res<CurrentTurn>,
-    ) {
-        let mut symbol_section = &mut bottom_text.single_mut().sections[SYMBOL_SECTION];
-        symbol_section.value = current_turn.glyph().into();
-        symbol_section.style.color = current_turn.color();
-    }
-
-    fn winner_text_system(mut bottom_text: Query<&mut Text, With<BottomText>>) {
-        bottom_text.single_mut().sections[TEXT_SECTION].value = "Winner: ".into();
-    }
-
-    fn tie_text_system(mut bottom_text: Query<&mut Text, With<BottomText>>) {
-        let sections = &mut bottom_text.single_mut().sections;
-        sections[TEXT_SECTION].value = "Tie".into();
-        sections[SYMBOL_SECTION].value.clear();
-    }
-
-    /// Returns `true` if the local player can select cells.
-    fn local_player_turn(
-        current_turn: Res<CurrentTurn>,
-        client_transport: Option<Res<NetcodeClientTransport>>,
-        players: Query<(&Player, &Symbol)>,
-    ) -> bool {
+/// Returns `true` if the local player can select cells.
+fn local_player_turn(
+) -> impl FnMut(Res<CurrentTurn>, Option<Res<NetcodeClientTransport>>, Query<(&Player, &Symbol)>) -> bool
+{
+    |current_turn, client_transport, players| {
         let client_id = client_transport
             .map(|client| client.client_id())
             .unwrap_or(SERVER_ID);
+
         players
             .iter()
             .any(|(player, &symbol)| player.0 == client_id && symbol == current_turn.0)
@@ -538,8 +541,8 @@ impl TicTacToePlugin {
 }
 
 /// A condition for systems to check if any component of type `T` was added to the world.
-fn any_component_added<T: Component>(components: Query<(), Added<T>>) -> bool {
-    !components.is_empty()
+fn any_component_added<T: Component>() -> impl FnMut(Query<(), Added<T>>) -> bool {
+    |components| !components.is_empty()
 }
 
 const PORT: u16 = 5000;
@@ -569,17 +572,6 @@ impl Default for Cli {
     }
 }
 
-/// Font for in-game text.
-#[derive(Resource)]
-struct GameFont(Handle<Font>);
-
-impl FromWorld for GameFont {
-    fn from_world(world: &mut World) -> Self {
-        let asset_server = world.resource::<AssetServer>();
-        Self(asset_server.load("FiraSans-Bold.ttf"))
-    }
-}
-
 /// Font to display unicode characters for [`Symbol`].
 #[derive(Resource)]
 struct SymbolFont(Handle<Font>);
@@ -594,7 +586,7 @@ impl FromWorld for SymbolFont {
 #[derive(States, Clone, Copy, Debug, Eq, Hash, PartialEq, Default)]
 enum GameState {
     #[default]
-    WaitingForPlayer,
+    WaitingPlayer,
     InGame,
     Winner,
     Tie,
@@ -716,5 +708,5 @@ struct Player(u64);
 ///
 /// We don't replicate the whole UI, so we can't just send the picked entity because on server it may be different.
 /// So we send the cell location in grid and calculate the entity on server based on this.
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, Deref)]
+#[derive(Clone, Copy, Debug, Deref, Deserialize, Event, Serialize)]
 struct CellPick(BoardCell);
