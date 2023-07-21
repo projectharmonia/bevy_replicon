@@ -355,7 +355,6 @@ They rarely used for gameplay systems (since you write the same logic for
 multiplayer and single-player!), but could be used for server
 creation / connection systems and corresponding UI.
 */
-#![doc = include_str!("../README.md")]
 
 pub mod client;
 pub mod network_event;
