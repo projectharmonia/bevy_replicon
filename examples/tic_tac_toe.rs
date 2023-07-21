@@ -180,14 +180,7 @@ impl TicTacToePlugin {
                                 NodeBundle {
                                     style: Style {
                                         display: Display::Grid,
-                                        grid_template_columns: vec![
-                                            GridTrack::min_content();
-                                            GRID_SIZE
-                                        ],
-                                        grid_template_rows: vec![
-                                            GridTrack::min_content();
-                                            GRID_SIZE
-                                        ],
+                                        grid_template_columns: vec![GridTrack::auto(); GRID_SIZE],
                                         ..Default::default()
                                     },
                                     ..Default::default()
