@@ -19,10 +19,8 @@ pub struct ClientPlugin;
 impl Plugin for ClientPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((RenetClientPlugin, NetcodeClientPlugin))
-            .add_systems(
-                PreUpdate,
-                Self::init_system.run_if(resource_added::<RenetClient>()),
-            )
+            .init_resource::<LastTick>()
+            .init_resource::<NetworkEntityMap>()
             .add_systems(
                 Update,
                 (
@@ -31,16 +29,15 @@ impl Plugin for ClientPlugin {
                 )
                     .chain()
                     .run_if(client_connected()),
+            )
+            .add_systems(
+                PostUpdate,
+                Self::reset_system.run_if(resource_removed::<RenetClient>()),
             );
     }
 }
 
 impl ClientPlugin {
-    fn init_system(mut commands: Commands) {
-        commands.insert_resource(LastTick::default());
-        commands.insert_resource(NetworkEntityMap::default());
-    }
-
     fn tick_ack_sending_system(last_tick: Res<LastTick>, mut client: ResMut<RenetClient>) {
         let message = bincode::serialize(&*last_tick)
             .unwrap_or_else(|e| panic!("client ack should be serialized: {e}"));
@@ -72,6 +69,13 @@ impl ClientPlugin {
             *last_tick = world_diff.tick.into();
             commands.apply_world_diff(world_diff);
         }
+    }
+
+    fn reset_system(mut last_tick: ResMut<LastTick>, mut entity_map: ResMut<NetworkEntityMap>) {
+        last_tick.0 = 0;
+        // TODO 0.12: Possibly use built-in method.
+        entity_map.client_to_server = Default::default();
+        entity_map.server_to_client = Default::default();
     }
 }
 

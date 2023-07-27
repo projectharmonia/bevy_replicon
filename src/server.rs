@@ -57,10 +57,7 @@ impl Plugin for ServerPlugin {
             RemovalTrackerPlugin,
             DespawnTrackerPlugin,
         ))
-        .add_systems(
-            PreUpdate,
-            Self::init_system.run_if(resource_added::<RenetServer>()),
-        )
+        .init_resource::<AckedTicks>()
         .add_systems(
             Update,
             (
@@ -70,6 +67,10 @@ impl Plugin for ServerPlugin {
             )
                 .chain()
                 .run_if(resource_exists::<RenetServer>()),
+        )
+        .add_systems(
+            PostUpdate,
+            Self::reset_system.run_if(resource_removed::<RenetServer>()),
         );
 
         if let TickPolicy::MaxTickRate(max_tick_rate) = self.tick_policy {
@@ -80,10 +81,6 @@ impl Plugin for ServerPlugin {
 }
 
 impl ServerPlugin {
-    fn init_system(mut commands: Commands) {
-        commands.insert_resource(AckedTicks::default());
-    }
-
     fn world_diffs_sending_system(
         change_tick: SystemChangeTick,
         mut set: ParamSet<(&World, ResMut<RenetServer>)>,
@@ -148,6 +145,10 @@ impl ServerPlugin {
                 acked_ticks.remove(id);
             }
         }
+    }
+
+    fn reset_system(mut acked_ticks: ResMut<AckedTicks>) {
+        acked_ticks.clear();
     }
 }
 
