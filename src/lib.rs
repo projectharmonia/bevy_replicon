@@ -77,7 +77,7 @@ mapping. Therefore, to replicate such components properly, they need implement
 ```rust
 # use bevy::{
 #     ecs::{
-#         entity::{EntityMap, MapEntities, MapEntitiesError},
+#         entity::{EntityMapper, MapEntities},
 #         reflect::ReflectMapEntities,
 #     },
 #     prelude::*,
@@ -89,7 +89,7 @@ struct MappedComponent(Entity);
 
 impl MapEntities for MappedComponent {
     fn map_entities(&mut self, entity_mapper: &mut EntityMapper) {
-        self.0 = entity_map.get_or_reserve(self.0);
+        self.0 = entity_mapper.get_or_reserve(self.0);
     }
 }
 
@@ -151,7 +151,7 @@ necessary components after replication:
 app.replicate::<Transform>()
     .replicate::<Visibility>()
     .replicate::<Player>()
-    .add_system(player_init_system);
+    .add_systems(Update, player_init_system);
 
 fn player_init_system(
     mut commands: Commands,
@@ -217,7 +217,7 @@ need custom configuration for a reliable policy's `resend_time`.
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
 app.add_client_event::<DummyEvent>(SendPolicy::Ordered)
-    .add_system(event_sending_system);
+    .add_systems(Update, event_sending_system);
 
 fn event_sending_system(mut dummy_events: EventWriter<DummyEvent>) {
     dummy_events.send_default()
@@ -240,7 +240,7 @@ To do this, use [`ClientEventAppExt::add_mapped_client_event()`] and implement [
 ```rust
 # use bevy::{
 #     ecs::{
-#         entity::{EntityMap, MapEntities, MapEntitiesError},
+#         entity::{EntityMap, MapEntities},
 #         reflect::ReflectMapEntities,
 #     },
 #     prelude::*,
@@ -251,12 +251,12 @@ To do this, use [`ClientEventAppExt::add_mapped_client_event()`] and implement [
 # app.add_plugins(ReplicationPlugins);
 app.add_mapped_client_event::<MappedEvent>(SendPolicy::Ordered);
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Debug, Deserialize, Event, Serialize)]
 struct MappedEvent(Entity);
 
 impl MapEventEntities for MappedEvent {
     fn map_entities(&mut self, entity_map: &EntityMap) -> Result<(), MapError> {
-        self.0 = entity_map.get(self.0).ok_or(MapError(self.entity))?;
+        self.0 = entity_map.get(self.0).ok_or(MapError(self.0))?;
         Ok(())
     }
 }
@@ -285,7 +285,7 @@ from the send list):
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
 app.add_server_event::<DummyEvent>(SendPolicy::Ordered)
-    .add_system(event_sending_system);
+    .add_systems(Update, event_sending_system);
 
 fn event_sending_system(mut dummy_events: EventWriter<ToClients<DummyEvent>>) {
     dummy_events.send(ToClients {
@@ -300,7 +300,7 @@ fn event_receiving_system(mut dummy_events: EventReader<DummyEvent>) {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Event, Serialize)]
 struct DummyEvent;
 ```
 

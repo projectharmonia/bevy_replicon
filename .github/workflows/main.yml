@@ -69,6 +69,9 @@ jobs:
       - name: Install Tarpaulin
         run: cargo install cargo-tarpaulin
 
+      - name: Test doc
+        run: cargo test --doc
+
       - name: Test
         run: cargo tarpaulin --engine llvm --out Lcov
 
