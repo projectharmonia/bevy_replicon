@@ -39,7 +39,12 @@ pub struct ServerPlugin {
 impl Default for ServerPlugin {
     fn default() -> Self {
         Self {
-            tick_policy: TickPolicy::MaxTickRate(30),
+            tick_policy: if cfg!(test) {
+                // Remove delay for tests.
+                TickPolicy::Manual
+            } else {
+                TickPolicy::MaxTickRate(30)
+            },
         }
     }
 }
@@ -67,12 +72,9 @@ impl Plugin for ServerPlugin {
                 .run_if(resource_exists::<RenetServer>()),
         );
 
-        // Remove delay for tests.
-        if cfg!(not(test)) {
-            if let TickPolicy::MaxTickRate(max_tick_rate) = self.tick_policy {
-                let tick_time = Duration::from_millis(1000 / max_tick_rate as u64);
-                app.configure_set(Update, ServerSet::Tick.run_if(on_timer(tick_time)));
-            }
+        if let TickPolicy::MaxTickRate(max_tick_rate) = self.tick_policy {
+            let tick_time = Duration::from_millis(1000 / max_tick_rate as u64);
+            app.configure_set(Update, ServerSet::Tick.run_if(on_timer(tick_time)));
         }
     }
 }
