@@ -81,36 +81,6 @@ impl Plugin for ServerPlugin {
 }
 
 impl ServerPlugin {
-    fn diffs_sending_system(
-        change_tick: SystemChangeTick,
-        mut set: ParamSet<(&World, ResMut<RenetServer>)>,
-        acked_ticks: Res<AckedTicks>,
-        registry: Res<AppTypeRegistry>,
-        replication_rules: Res<ReplicationRules>,
-        despawn_tracker: Res<DespawnTracker>,
-        removal_trackers: Query<(Entity, &RemovalTracker)>,
-    ) {
-        // Initialize [`WorldDiff`]s with latest acknowledged tick for each client.
-        let registry = registry.read();
-        let mut client_diffs: HashMap<_, _> = acked_ticks
-            .iter()
-            .map(|(&client_id, &last_tick)| (client_id, WorldDiff::new(last_tick)))
-            .collect();
-        collect_changes(&mut client_diffs, set.p0(), &registry, &replication_rules);
-        collect_removals(&mut client_diffs, set.p0(), &change_tick, &removal_trackers);
-        collect_despawns(&mut client_diffs, &change_tick, &despawn_tracker);
-
-        let current_tick = set.p0().read_change_tick();
-        for (client_id, mut world_diff) in client_diffs {
-            world_diff.tick = current_tick; // Replace last acknowledged tick with the current.
-            let serializer = WorldDiffSerializer::new(&world_diff, &registry);
-            let message =
-                bincode::serialize(&serializer).expect("world diff should be serializable");
-            set.p1()
-                .send_message(client_id, REPLICATION_CHANNEL_ID, message);
-        }
-    }
-
     fn acks_receiving_system(mut acked_ticks: ResMut<AckedTicks>, mut server: ResMut<RenetServer>) {
         for client_id in server.clients_id() {
             let mut last_message = None;
@@ -141,6 +111,36 @@ impl ServerPlugin {
             {
                 acked_ticks.remove(id);
             }
+        }
+    }
+
+    fn diffs_sending_system(
+        change_tick: SystemChangeTick,
+        mut set: ParamSet<(&World, ResMut<RenetServer>)>,
+        acked_ticks: Res<AckedTicks>,
+        registry: Res<AppTypeRegistry>,
+        replication_rules: Res<ReplicationRules>,
+        despawn_tracker: Res<DespawnTracker>,
+        removal_trackers: Query<(Entity, &RemovalTracker)>,
+    ) {
+        // Initialize [`WorldDiff`]s with latest acknowledged tick for each client.
+        let registry = registry.read();
+        let mut client_diffs: HashMap<_, _> = acked_ticks
+            .iter()
+            .map(|(&client_id, &last_tick)| (client_id, WorldDiff::new(last_tick)))
+            .collect();
+        collect_changes(&mut client_diffs, set.p0(), &registry, &replication_rules);
+        collect_removals(&mut client_diffs, set.p0(), &change_tick, &removal_trackers);
+        collect_despawns(&mut client_diffs, &change_tick, &despawn_tracker);
+
+        let current_tick = set.p0().read_change_tick();
+        for (client_id, mut world_diff) in client_diffs {
+            world_diff.tick = current_tick; // Replace last acknowledged tick with the current.
+            let serializer = WorldDiffSerializer::new(&world_diff, &registry);
+            let message =
+                bincode::serialize(&serializer).expect("world diff should be serializable");
+            set.p1()
+                .send_message(client_id, REPLICATION_CHANNEL_ID, message);
         }
     }
 

@@ -35,12 +35,6 @@ impl Plugin for ClientPlugin {
 }
 
 impl ClientPlugin {
-    fn ack_sending_system(last_tick: Res<LastTick>, mut client: ResMut<RenetClient>) {
-        let message = bincode::serialize(&*last_tick)
-            .unwrap_or_else(|e| panic!("client ack should be serialized: {e}"));
-        client.send_message(REPLICATION_CHANNEL_ID, message);
-    }
-
     fn diff_receiving_system(
         mut commands: Commands,
         mut last_tick: ResMut<LastTick>,
@@ -66,6 +60,12 @@ impl ClientPlugin {
             *last_tick = world_diff.tick.into();
             commands.apply_world_diff(world_diff);
         }
+    }
+
+    fn ack_sending_system(last_tick: Res<LastTick>, mut client: ResMut<RenetClient>) {
+        let message = bincode::serialize(&*last_tick)
+            .unwrap_or_else(|e| panic!("client ack should be serialized: {e}"));
+        client.send_message(REPLICATION_CHANNEL_ID, message);
     }
 
     fn reset_system(mut last_tick: ResMut<LastTick>, mut entity_map: ResMut<NetworkEntityMap>) {
