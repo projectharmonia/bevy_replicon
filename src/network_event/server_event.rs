@@ -361,8 +361,7 @@ mod tests {
             ReflectEventSerializer,
         },
         network_event::SendPolicy,
-        test_network::TestNetworkPlugin,
-        ClientPlugin, ReplicationPlugins, ServerPlugin,
+        test_network, ClientPlugin, ReplicationPlugins, ServerPlugin,
     };
 
     #[test]
@@ -386,9 +385,10 @@ mod tests {
     #[test]
     fn sending_receiving() {
         let mut app = App::new();
-        app.add_plugins(ReplicationPlugins)
-            .add_server_event::<DummyEvent>(SendPolicy::Ordered)
-            .add_plugins(TestNetworkPlugin);
+        app.add_plugins((MinimalPlugins, ReplicationPlugins))
+            .add_server_event::<DummyEvent>(SendPolicy::Ordered);
+
+        test_network::setup(&mut app);
 
         let client_id = app.world.resource::<NetcodeClientTransport>().client_id();
         for (mode, events_count) in [
@@ -420,9 +420,10 @@ mod tests {
     #[test]
     fn sending_receiving_and_mapping() {
         let mut app = App::new();
-        app.add_plugins(ReplicationPlugins)
-            .add_mapped_server_event::<DummyEvent>(SendPolicy::Ordered)
-            .add_plugins(TestNetworkPlugin);
+        app.add_plugins((MinimalPlugins, ReplicationPlugins))
+            .add_mapped_server_event::<DummyEvent>(SendPolicy::Ordered);
+
+        test_network::setup(&mut app);
 
         let client_entity = Entity::from_raw(0);
         let server_entity = Entity::from_raw(client_entity.index() + 1);
@@ -452,10 +453,11 @@ mod tests {
     #[test]
     fn sending_receiving_reflect() {
         let mut app = App::new();
-        app.add_plugins(ReplicationPlugins)
+        app.add_plugins((MinimalPlugins, ReplicationPlugins))
             .register_type::<DummyComponent>()
-            .add_server_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>(SendPolicy::Ordered)
-            .add_plugins(TestNetworkPlugin);
+            .add_server_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>(SendPolicy::Ordered);
+
+        test_network::setup(&mut app);
 
         let client_id = app.world.resource::<NetcodeClientTransport>().client_id();
         for (mode, events_count) in [
@@ -486,10 +488,11 @@ mod tests {
     #[test]
     fn sending_receiving_and_mapping_reflect() {
         let mut app = App::new();
-        app.add_plugins(ReplicationPlugins)
+        app.add_plugins((MinimalPlugins, ReplicationPlugins))
             .register_type::<DummyComponent>()
-            .add_mapped_server_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>(SendPolicy::Ordered)
-            .add_plugins(TestNetworkPlugin);
+            .add_mapped_server_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>(SendPolicy::Ordered);
+
+        test_network::setup(&mut app);
 
         let client_entity = Entity::from_raw(0);
         let server_entity = Entity::from_raw(client_entity.index() + 1);

@@ -425,13 +425,14 @@ mod tests {
         client::NetworkEntityMap,
         replication_core::{AppReplicationExt, Replication},
         server::{despawn_tracker::DespawnTracker, removal_tracker::RemovalTracker, AckedTicks},
-        test_network::TestNetworkPlugin,
     };
 
     #[test]
     fn acked_ticks_cleanup() {
         let mut app = App::new();
-        app.add_plugins((ReplicationPlugins, TestNetworkPlugin));
+        app.add_plugins((MinimalPlugins, ReplicationPlugins));
+
+        test_network::setup(&mut app);
 
         let mut client_transport = app.world.resource_mut::<NetcodeClientTransport>();
         client_transport.disconnect();
@@ -450,7 +451,9 @@ mod tests {
     #[test]
     fn tick_acks_receiving() {
         let mut app = App::new();
-        app.add_plugins((ReplicationPlugins, TestNetworkPlugin));
+        app.add_plugins((MinimalPlugins, ReplicationPlugins));
+
+        test_network::setup(&mut app);
 
         for _ in 0..10 {
             app.update();
@@ -466,9 +469,10 @@ mod tests {
     #[test]
     fn spawn_replication() {
         let mut app = App::new();
-        app.add_plugins(ReplicationPlugins)
-            .replicate::<TableComponent>()
-            .add_plugins(TestNetworkPlugin);
+        app.add_plugins((MinimalPlugins, ReplicationPlugins))
+            .replicate::<TableComponent>();
+
+        test_network::setup(&mut app);
 
         app.update();
 
@@ -501,12 +505,13 @@ mod tests {
     #[test]
     fn insert_replication() {
         let mut app = App::new();
-        app.add_plugins(ReplicationPlugins)
+        app.add_plugins((MinimalPlugins, ReplicationPlugins))
             .replicate::<TableComponent>()
             .replicate::<SparseSetComponent>()
             .replicate::<IgnoredComponent>()
-            .not_replicate_if_present::<IgnoredComponent, ExclusionComponent>()
-            .add_plugins(TestNetworkPlugin);
+            .not_replicate_if_present::<IgnoredComponent, ExclusionComponent>();
+
+        test_network::setup(&mut app);
 
         app.update();
 
@@ -546,9 +551,10 @@ mod tests {
     #[test]
     fn entity_mapping() {
         let mut app = App::new();
-        app.add_plugins(ReplicationPlugins)
-            .replicate::<MappedComponent>()
-            .add_plugins(TestNetworkPlugin);
+        app.add_plugins((MinimalPlugins, ReplicationPlugins))
+            .replicate::<MappedComponent>();
+
+        test_network::setup(&mut app);
 
         app.update();
 
@@ -573,9 +579,10 @@ mod tests {
     #[test]
     fn removal_replication() {
         let mut app = App::new();
-        app.add_plugins(ReplicationPlugins)
-            .register_type::<NonReflectedComponent>()
-            .add_plugins(TestNetworkPlugin);
+        app.add_plugins((MinimalPlugins, ReplicationPlugins))
+            .register_type::<NonReflectedComponent>();
+
+        test_network::setup(&mut app);
 
         app.update();
 
@@ -603,7 +610,9 @@ mod tests {
     #[test]
     fn despawn_replication() {
         let mut app = App::new();
-        app.add_plugins((ReplicationPlugins, TestNetworkPlugin));
+        app.add_plugins((MinimalPlugins, ReplicationPlugins));
+
+        test_network::setup(&mut app);
 
         app.update();
 

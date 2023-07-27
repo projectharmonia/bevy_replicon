@@ -14,38 +14,31 @@ use bevy_renet::renet::{
 
 use super::replication_core::NetworkChannels;
 
-/// Automates server and client creation for unit tests.
-pub(super) struct TestNetworkPlugin;
+pub(super) fn setup(app: &mut App) {
+    let network_channels = app.world.resource_mut::<NetworkChannels>();
+    let server_channels = network_channels.server_channels();
+    let client_channels = network_channels.client_channels();
+    let (server, server_transport) =
+        create_server(server_channels.clone(), client_channels.clone());
+    let (client, client_transport) = create_client(
+        server_transport.addr().port(),
+        server_channels,
+        client_channels,
+    );
 
-impl Plugin for TestNetworkPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_plugins(MinimalPlugins);
+    app.insert_resource(server)
+        .insert_resource(server_transport)
+        .insert_resource(client)
+        .insert_resource(client_transport);
 
-        let network_channels = app.world.resource_mut::<NetworkChannels>();
-        let server_channels = network_channels.server_channels();
-        let client_channels = network_channels.client_channels();
-        let (server, server_transport) =
-            create_server(server_channels.clone(), client_channels.clone());
-        let (client, client_transport) = create_client(
-            server_transport.addr().port(),
-            server_channels,
-            client_channels,
-        );
-
-        app.insert_resource(server)
-            .insert_resource(server_transport)
-            .insert_resource(client)
-            .insert_resource(client_transport);
-
-        loop {
-            app.update();
-            if app
-                .world
-                .resource::<NetcodeClientTransport>()
-                .is_connected()
-            {
-                break;
-            }
+    loop {
+        app.update();
+        if app
+            .world
+            .resource::<NetcodeClientTransport>()
+            .is_connected()
+        {
+            break;
         }
     }
 }
