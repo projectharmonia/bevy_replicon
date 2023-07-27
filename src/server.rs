@@ -61,9 +61,9 @@ impl Plugin for ServerPlugin {
         .add_systems(
             Update,
             (
-                Self::tick_acks_receiving_system,
-                Self::acked_ticks_cleanup_system,
-                Self::world_diffs_sending_system.in_set(ServerSet::Tick),
+                Self::acks_receiving_system,
+                Self::acks_cleanup_system,
+                Self::diffs_sending_system.in_set(ServerSet::Tick),
             )
                 .chain()
                 .run_if(resource_exists::<RenetServer>()),
@@ -81,7 +81,7 @@ impl Plugin for ServerPlugin {
 }
 
 impl ServerPlugin {
-    fn world_diffs_sending_system(
+    fn diffs_sending_system(
         change_tick: SystemChangeTick,
         mut set: ParamSet<(&World, ResMut<RenetServer>)>,
         acked_ticks: Res<AckedTicks>,
@@ -111,10 +111,7 @@ impl ServerPlugin {
         }
     }
 
-    fn tick_acks_receiving_system(
-        mut acked_ticks: ResMut<AckedTicks>,
-        mut server: ResMut<RenetServer>,
-    ) {
+    fn acks_receiving_system(mut acked_ticks: ResMut<AckedTicks>, mut server: ResMut<RenetServer>) {
         for client_id in server.clients_id() {
             let mut last_message = None;
             while let Some(message) = server.receive_message(client_id, REPLICATION_CHANNEL_ID) {
@@ -132,7 +129,7 @@ impl ServerPlugin {
         }
     }
 
-    fn acked_ticks_cleanup_system(
+    fn acks_cleanup_system(
         mut server_events: EventReader<ServerEvent>,
         mut acked_ticks: ResMut<AckedTicks>,
     ) {

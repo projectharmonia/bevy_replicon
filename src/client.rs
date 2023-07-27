@@ -23,10 +23,7 @@ impl Plugin for ClientPlugin {
             .init_resource::<NetworkEntityMap>()
             .add_systems(
                 Update,
-                (
-                    Self::world_diff_receiving_system,
-                    Self::tick_ack_sending_system,
-                )
+                (Self::diff_receiving_system, Self::ack_sending_system)
                     .chain()
                     .run_if(client_connected()),
             )
@@ -38,13 +35,13 @@ impl Plugin for ClientPlugin {
 }
 
 impl ClientPlugin {
-    fn tick_ack_sending_system(last_tick: Res<LastTick>, mut client: ResMut<RenetClient>) {
+    fn ack_sending_system(last_tick: Res<LastTick>, mut client: ResMut<RenetClient>) {
         let message = bincode::serialize(&*last_tick)
             .unwrap_or_else(|e| panic!("client ack should be serialized: {e}"));
         client.send_message(REPLICATION_CHANNEL_ID, message);
     }
 
-    fn world_diff_receiving_system(
+    fn diff_receiving_system(
         mut commands: Commands,
         mut last_tick: ResMut<LastTick>,
         mut client: ResMut<RenetClient>,
