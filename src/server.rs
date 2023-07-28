@@ -304,15 +304,6 @@ fn collect_despawns(
     }
 }
 
-pub enum TickPolicy {
-    /// Max number of updates sent from server per second. May be lower if update cycle duration is too long.
-    ///
-    /// By default it's 30 updates per second.
-    MaxTickRate(u16),
-    /// [`ServerSet::Tick`] must be manually configured.
-    Manual,
-}
-
 /// Set with replication and event systems related to server.
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum ServerSet {
@@ -324,6 +315,15 @@ pub enum ServerSet {
     ///
     /// Runs in `PostUpdate` on server tick, see [`TickPolicy`].
     Send,
+}
+
+pub enum TickPolicy {
+    /// Max number of updates sent from server per second. May be lower if update cycle duration is too long.
+    ///
+    /// By default it's 30 updates per second.
+    MaxTickRate(u16),
+    /// [`ServerSet::Tick`] must be manually configured.
+    Manual,
 }
 
 /// Last acknowledged server ticks from all clients.
