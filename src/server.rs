@@ -322,7 +322,7 @@ pub enum TickPolicy {
     ///
     /// By default it's 30 updates per second.
     MaxTickRate(u16),
-    /// [`ServerSet::Tick`] must be manually configured.
+    /// [`ServerSet::Send`] should be manually configured.
     Manual,
 }
 

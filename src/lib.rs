@@ -347,7 +347,7 @@ systems only on when you have authority over the world simulation
 (on server or in single-player session). For example, damage registration or
 procedural level generation systems. For this just add [`has_authority()`]
 condition on such system. If you want your systems to run only on
-frames when server send updates to clients use [`ServerSet::Tick`].
+frames when server send updates to clients use [`ServerSet::Send`].
 
 To check if you running server or client, you can use conditions based on
 [`RenetClient`] and [`RenetServer`] resources.
