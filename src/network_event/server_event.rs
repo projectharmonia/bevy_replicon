@@ -152,6 +152,91 @@ impl ServerEventAppExt for App {
     }
 }
 
+fn receiving_system<T: Event + DeserializeOwned + Debug>(
+    mut server_events: EventWriter<T>,
+    mut client: ResMut<RenetClient>,
+    channel: Res<EventChannel<T>>,
+) {
+    while let Some(message) = client.receive_message(channel.id) {
+        let event = bincode::deserialize(&message).expect("server should send valid events");
+        debug!("received event {event:?} from server");
+        server_events.send(event);
+    }
+}
+
+fn receiving_and_mapping_system<T: Event + MapEventEntities + DeserializeOwned + Debug>(
+    mut server_events: EventWriter<T>,
+    mut client: ResMut<RenetClient>,
+    entity_map: Res<NetworkEntityMap>,
+    channel: Res<EventChannel<T>>,
+) {
+    while let Some(message) = client.receive_message(channel.id) {
+        let mut event: T =
+            bincode::deserialize(&message).expect("server should send valid mapped events");
+        debug!("received mapped event {event:?} from server");
+        event
+            .map_entities(entity_map.to_client())
+            .unwrap_or_else(|e| panic!("server event {event:?} should be mappable: {e}"));
+        server_events.send(event);
+    }
+}
+
+fn receiving_reflect_system<T, D>(
+    mut server_events: EventWriter<T>,
+    mut client: ResMut<RenetClient>,
+    channel: Res<EventChannel<T>>,
+    registry: Res<AppTypeRegistry>,
+) where
+    T: Event + Debug,
+    D: BuildEventDeserializer,
+    for<'a, 'de> D::EventDeserializer<'a>: DeserializeSeed<'de, Value = T>,
+{
+    let registry = registry.read();
+    while let Some(message) = client.receive_message(channel.id) {
+        // Set options to match `bincode::serialize`.
+        // https://docs.rs/bincode/latest/bincode/config/index.html#options-struct-vs-bincode-functions
+        let options = DefaultOptions::new()
+            .with_fixint_encoding()
+            .allow_trailing_bytes();
+        let mut deserializer = bincode::Deserializer::from_slice(&message, options);
+        let event = D::new(&registry)
+            .deserialize(&mut deserializer)
+            .expect("server should send valid reflect events");
+        debug!("received reflect event {event:?} from server");
+        server_events.send(event);
+    }
+}
+
+fn receiving_and_mapping_reflect_system<T, D>(
+    mut server_events: EventWriter<T>,
+    mut client: ResMut<RenetClient>,
+    entity_map: Res<NetworkEntityMap>,
+    channel: Res<EventChannel<T>>,
+    registry: Res<AppTypeRegistry>,
+) where
+    T: Event + MapEventEntities + Debug,
+    D: BuildEventDeserializer,
+    for<'a, 'de> D::EventDeserializer<'a>: DeserializeSeed<'de, Value = T>,
+{
+    let registry = registry.read();
+    while let Some(message) = client.receive_message(channel.id) {
+        // Set options to match `bincode::serialize`.
+        // https://docs.rs/bincode/latest/bincode/config/index.html#options-struct-vs-bincode-functions
+        let options = DefaultOptions::new()
+            .with_fixint_encoding()
+            .allow_trailing_bytes();
+        let mut deserializer = bincode::Deserializer::from_slice(&message, options);
+        let mut event = D::new(&registry)
+            .deserialize(&mut deserializer)
+            .expect("server should send valid mapped reflect events");
+        debug!("received mapped reflect event {event:?} from server");
+        event
+            .map_entities(entity_map.to_client())
+            .unwrap_or_else(|e| panic!("server reflect event {event:?} should be mappable: {e}"));
+        server_events.send(event);
+    }
+}
+
 fn sending_system<T: Event + Serialize + Debug>(
     mut server: ResMut<RenetServer>,
     mut server_events: EventReader<ToClients<T>>,
@@ -246,91 +331,6 @@ fn local_resending_system<T: Event + Debug>(
                 }
             }
         }
-    }
-}
-
-fn receiving_system<T: Event + DeserializeOwned + Debug>(
-    mut server_events: EventWriter<T>,
-    mut client: ResMut<RenetClient>,
-    channel: Res<EventChannel<T>>,
-) {
-    while let Some(message) = client.receive_message(channel.id) {
-        let event = bincode::deserialize(&message).expect("server should send valid events");
-        debug!("received event {event:?} from server");
-        server_events.send(event);
-    }
-}
-
-fn receiving_and_mapping_system<T: Event + MapEventEntities + DeserializeOwned + Debug>(
-    mut server_events: EventWriter<T>,
-    mut client: ResMut<RenetClient>,
-    entity_map: Res<NetworkEntityMap>,
-    channel: Res<EventChannel<T>>,
-) {
-    while let Some(message) = client.receive_message(channel.id) {
-        let mut event: T =
-            bincode::deserialize(&message).expect("server should send valid mapped events");
-        debug!("received mapped event {event:?} from server");
-        event
-            .map_entities(entity_map.to_client())
-            .unwrap_or_else(|e| panic!("server event {event:?} should be mappable: {e}"));
-        server_events.send(event);
-    }
-}
-
-fn receiving_reflect_system<T, D>(
-    mut server_events: EventWriter<T>,
-    mut client: ResMut<RenetClient>,
-    channel: Res<EventChannel<T>>,
-    registry: Res<AppTypeRegistry>,
-) where
-    T: Event + Debug,
-    D: BuildEventDeserializer,
-    for<'a, 'de> D::EventDeserializer<'a>: DeserializeSeed<'de, Value = T>,
-{
-    let registry = registry.read();
-    while let Some(message) = client.receive_message(channel.id) {
-        // Set options to match `bincode::serialize`.
-        // https://docs.rs/bincode/latest/bincode/config/index.html#options-struct-vs-bincode-functions
-        let options = DefaultOptions::new()
-            .with_fixint_encoding()
-            .allow_trailing_bytes();
-        let mut deserializer = bincode::Deserializer::from_slice(&message, options);
-        let event = D::new(&registry)
-            .deserialize(&mut deserializer)
-            .expect("server should send valid reflect events");
-        debug!("received reflect event {event:?} from server");
-        server_events.send(event);
-    }
-}
-
-fn receiving_and_mapping_reflect_system<T, D>(
-    mut server_events: EventWriter<T>,
-    mut client: ResMut<RenetClient>,
-    entity_map: Res<NetworkEntityMap>,
-    channel: Res<EventChannel<T>>,
-    registry: Res<AppTypeRegistry>,
-) where
-    T: Event + MapEventEntities + Debug,
-    D: BuildEventDeserializer,
-    for<'a, 'de> D::EventDeserializer<'a>: DeserializeSeed<'de, Value = T>,
-{
-    let registry = registry.read();
-    while let Some(message) = client.receive_message(channel.id) {
-        // Set options to match `bincode::serialize`.
-        // https://docs.rs/bincode/latest/bincode/config/index.html#options-struct-vs-bincode-functions
-        let options = DefaultOptions::new()
-            .with_fixint_encoding()
-            .allow_trailing_bytes();
-        let mut deserializer = bincode::Deserializer::from_slice(&message, options);
-        let mut event = D::new(&registry)
-            .deserialize(&mut deserializer)
-            .expect("server should send valid mapped reflect events");
-        debug!("received mapped reflect event {event:?} from server");
-        event
-            .map_entities(entity_map.to_client())
-            .unwrap_or_else(|e| panic!("server reflect event {event:?} should be mappable: {e}"));
-        server_events.send(event);
     }
 }
 

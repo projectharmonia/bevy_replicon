@@ -28,23 +28,6 @@ impl Plugin for ParentSyncPlugin {
 }
 
 impl ParentSyncPlugin {
-    fn update_system(mut hierarchy: Query<(&Parent, &mut ParentSync), Changed<Parent>>) {
-        for (parent, mut parent_sync) in &mut hierarchy {
-            parent_sync.0 = Some(**parent);
-        }
-    }
-
-    fn removal_system(
-        mut removed_parents: RemovedComponents<Parent>,
-        mut hierarchy: Query<&mut ParentSync>,
-    ) {
-        for entity in &mut removed_parents {
-            if let Ok(mut parent_sync) = hierarchy.get_mut(entity) {
-                parent_sync.0 = None;
-            }
-        }
-    }
-
     /// Synchronizes hierarchy if [`ParentSync`] changes.
     ///
     /// Runs not only on clients, but also on server in order to update the hierarchy when the server state is deserialized.
@@ -59,6 +42,23 @@ impl ParentSyncPlugin {
                 }
             } else if parent.is_some() {
                 commands.entity(entity).remove_parent();
+            }
+        }
+    }
+
+    fn update_system(mut hierarchy: Query<(&Parent, &mut ParentSync), Changed<Parent>>) {
+        for (parent, mut parent_sync) in &mut hierarchy {
+            parent_sync.0 = Some(**parent);
+        }
+    }
+
+    fn removal_system(
+        mut removed_parents: RemovedComponents<Parent>,
+        mut hierarchy: Query<&mut ParentSync>,
+    ) {
+        for entity in &mut removed_parents {
+            if let Ok(mut parent_sync) = hierarchy.get_mut(entity) {
+                parent_sync.0 = None;
             }
         }
     }

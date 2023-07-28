@@ -152,6 +152,56 @@ impl ClientEventAppExt for App {
     }
 }
 
+fn receiving_system<T: Event + DeserializeOwned + Debug>(
+    mut client_events: EventWriter<FromClient<T>>,
+    mut server: ResMut<RenetServer>,
+    channel: Res<EventChannel<T>>,
+) {
+    for client_id in server.clients_id() {
+        while let Some(message) = server.receive_message(client_id, channel.id) {
+            match bincode::deserialize(&message) {
+                Ok(event) => {
+                    debug!("received event {event:?} from client {client_id}");
+                    client_events.send(FromClient { client_id, event });
+                }
+                Err(e) => error!("unable to deserialize event from client {client_id}: {e}"),
+            }
+        }
+    }
+}
+
+fn receiving_reflect_system<T, D>(
+    mut client_events: EventWriter<FromClient<T>>,
+    mut server: ResMut<RenetServer>,
+    channel: Res<EventChannel<T>>,
+    registry: Res<AppTypeRegistry>,
+) where
+    T: Event + Debug,
+    D: BuildEventDeserializer,
+    for<'a, 'de> D::EventDeserializer<'a>: DeserializeSeed<'de, Value = T>,
+{
+    let registry = registry.read();
+    for client_id in server.clients_id() {
+        while let Some(message) = server.receive_message(client_id, channel.id) {
+            // Set options to match `bincode::serialize`.
+            // https://docs.rs/bincode/latest/bincode/config/index.html#options-struct-vs-bincode-functions
+            let options = DefaultOptions::new()
+                .with_fixint_encoding()
+                .allow_trailing_bytes();
+            let mut deserializer = bincode::Deserializer::from_slice(&message, options);
+            match D::new(&registry).deserialize(&mut deserializer) {
+                Ok(event) => {
+                    debug!("received reflect event {event:?} from client {client_id}");
+                    client_events.send(FromClient { client_id, event });
+                }
+                Err(e) => {
+                    error!("unable to deserialize reflect event from client {client_id}: {e}")
+                }
+            }
+        }
+    }
+}
+
 fn sending_system<T: Event + Serialize + Debug>(
     mut events: EventReader<T>,
     mut client: ResMut<RenetClient>,
@@ -237,56 +287,6 @@ fn local_resending_system<T: Event + Debug>(
             client_id: SERVER_ID,
             event,
         })
-    }
-}
-
-fn receiving_system<T: Event + DeserializeOwned + Debug>(
-    mut client_events: EventWriter<FromClient<T>>,
-    mut server: ResMut<RenetServer>,
-    channel: Res<EventChannel<T>>,
-) {
-    for client_id in server.clients_id() {
-        while let Some(message) = server.receive_message(client_id, channel.id) {
-            match bincode::deserialize(&message) {
-                Ok(event) => {
-                    debug!("received event {event:?} from client {client_id}");
-                    client_events.send(FromClient { client_id, event });
-                }
-                Err(e) => error!("unable to deserialize event from client {client_id}: {e}"),
-            }
-        }
-    }
-}
-
-fn receiving_reflect_system<T, D>(
-    mut client_events: EventWriter<FromClient<T>>,
-    mut server: ResMut<RenetServer>,
-    channel: Res<EventChannel<T>>,
-    registry: Res<AppTypeRegistry>,
-) where
-    T: Event + Debug,
-    D: BuildEventDeserializer,
-    for<'a, 'de> D::EventDeserializer<'a>: DeserializeSeed<'de, Value = T>,
-{
-    let registry = registry.read();
-    for client_id in server.clients_id() {
-        while let Some(message) = server.receive_message(client_id, channel.id) {
-            // Set options to match `bincode::serialize`.
-            // https://docs.rs/bincode/latest/bincode/config/index.html#options-struct-vs-bincode-functions
-            let options = DefaultOptions::new()
-                .with_fixint_encoding()
-                .allow_trailing_bytes();
-            let mut deserializer = bincode::Deserializer::from_slice(&message, options);
-            match D::new(&registry).deserialize(&mut deserializer) {
-                Ok(event) => {
-                    debug!("received reflect event {event:?} from client {client_id}");
-                    client_events.send(FromClient { client_id, event });
-                }
-                Err(e) => {
-                    error!("unable to deserialize reflect event from client {client_id}: {e}")
-                }
-            }
-        }
     }
 }
 
