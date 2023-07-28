@@ -622,7 +622,7 @@ mod tests {
             .spawn_empty()
             .push_children(&[children_entity])
             .id();
-        let current_tick = app.world.read_change_tick();
+        let current_tick = app.world.change_tick();
         let mut despawn_tracker = app.world.resource_mut::<DespawnTracker>();
         despawn_tracker
             .despawns
