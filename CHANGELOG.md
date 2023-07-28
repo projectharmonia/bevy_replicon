@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Put systems in `PreUpdate` and `PostUpdate` to avoid one frame delay.
+- Reorganize `ServerSet` and move client-related systems to `ClientSet`.
+
 ## [0.7.1] - 2023-07-20
 
 ### Changed

@@ -13,7 +13,7 @@ use serde::{
 
 use super::{BuildEventDeserializer, BuildEventSerializer, EventChannel, MapEventEntities};
 use crate::{
-    client::NetworkEntityMap,
+    client::{ClientSet, NetworkEntityMap},
     has_authority,
     prelude::NetworkChannels,
     server::{ServerSet, SERVER_ID},
@@ -132,16 +132,20 @@ impl ClientEventAppExt for App {
             .add_event::<FromClient<T>>()
             .insert_resource(EventChannel::<T>::new(channel_id))
             .add_systems(
-                Update,
+                PreUpdate,
+                receiving_system
+                    .in_set(ServerSet::Receive)
+                    .run_if(resource_exists::<RenetServer>()),
+            )
+            .add_systems(
+                PostUpdate,
                 (
                     sending_system
-                        .in_set(ServerSet::SendEvents)
+                        .in_set(ClientSet::Send)
                         .run_if(client_connected()),
                     local_resending_system::<T>.run_if(has_authority()),
-                    receiving_system
-                        .in_set(ServerSet::ReceiveEvents)
-                        .run_if(resource_exists::<RenetServer>()),
-                ),
+                )
+                    .chain(),
             );
 
         self

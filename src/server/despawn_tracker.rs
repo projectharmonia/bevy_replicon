@@ -5,7 +5,7 @@ use bevy::{
 };
 use bevy_renet::renet::RenetServer;
 
-use super::AckedTicks;
+use super::{AckedTicks, ServerSet};
 use crate::replication_core::Replication;
 
 /// Tracks entity despawns of entities with [`Replication`] component in [`DespawnTracker`] resource.
@@ -16,12 +16,13 @@ pub(super) struct DespawnTrackerPlugin;
 impl Plugin for DespawnTrackerPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DespawnTracker>().add_systems(
-            Update,
+            PostUpdate,
             (
                 Self::entity_tracking_system,
                 Self::cleanup_system,
                 Self::detection_system,
             )
+                .before(ServerSet::Send)
                 .run_if(resource_exists::<RenetServer>()),
         );
     }

@@ -58,24 +58,33 @@ impl Plugin for ServerPlugin {
             DespawnTrackerPlugin,
         ))
         .init_resource::<AckedTicks>()
+        .configure_set(
+            PreUpdate,
+            ServerSet::Receive.after(NetcodeServerPlugin::update_system),
+        )
+        .configure_set(
+            PostUpdate,
+            ServerSet::Send.before(NetcodeServerPlugin::send_packets),
+        )
         .add_systems(
-            Update,
-            (
-                Self::acks_receiving_system,
-                Self::acks_cleanup_system,
-                Self::diffs_sending_system.in_set(ServerSet::Tick),
-            )
-                .chain()
+            PreUpdate,
+            (Self::acks_receiving_system, Self::acks_cleanup_system)
+                .in_set(ServerSet::Receive)
                 .run_if(resource_exists::<RenetServer>()),
         )
         .add_systems(
             PostUpdate,
-            Self::reset_system.run_if(resource_removed::<RenetServer>()),
+            (
+                Self::diffs_sending_system
+                    .in_set(ServerSet::Send)
+                    .run_if(resource_exists::<RenetServer>()),
+                Self::reset_system.run_if(resource_removed::<RenetServer>()),
+            ),
         );
 
         if let TickPolicy::MaxTickRate(max_tick_rate) = self.tick_policy {
             let tick_time = Duration::from_millis(1000 / max_tick_rate as u64);
-            app.configure_set(Update, ServerSet::Tick.run_if(on_timer(tick_time)));
+            app.configure_set(PostUpdate, ServerSet::Send.run_if(on_timer(tick_time)));
         }
     }
 }
@@ -304,14 +313,17 @@ pub enum TickPolicy {
     Manual,
 }
 
+/// Set with replication and event systems related to server.
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum ServerSet {
-    /// Runs on server tick.
-    Tick,
-    /// Runs when events can be received.
-    ReceiveEvents,
-    /// Runs when events can be sent.
-    SendEvents,
+    /// Systems that receive data.
+    ///
+    /// Runs in `PreUpdate`.
+    Receive,
+    /// Systems that send data.
+    ///
+    /// Runs in `PostUpdate` on server tick, see [`TickPolicy`].
+    Send,
 }
 
 /// Last acknowledged server ticks from all clients.

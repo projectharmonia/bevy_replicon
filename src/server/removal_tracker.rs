@@ -8,7 +8,7 @@ use bevy::{
 };
 use bevy_renet::renet::RenetServer;
 
-use super::AckedTicks;
+use super::{AckedTicks, ServerSet};
 use crate::replication_core::{Replication, ReplicationRules};
 
 /// Stores component removals in [`RemovalTracker`] component to make them persistent across ticks.
@@ -19,12 +19,14 @@ pub(super) struct RemovalTrackerPlugin;
 impl Plugin for RemovalTrackerPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
-            Update,
-            (Self::insertion_system, Self::cleanup_system).run_if(resource_exists::<RenetServer>()),
-        )
-        .add_systems(
             PostUpdate,
-            Self::detection_system.run_if(resource_exists::<RenetServer>()),
+            (
+                Self::insertion_system,
+                Self::cleanup_system,
+                Self::detection_system.run_if(resource_exists::<RenetServer>()),
+            )
+                .before(ServerSet::Send)
+                .run_if(resource_exists::<RenetServer>()),
         );
     }
 }
@@ -97,6 +99,8 @@ mod tests {
             .insert(DUMMY_CLIENT_ID, Tick::new(0));
 
         let replicated_entity = app.world.spawn((Transform::default(), Replication)).id();
+
+        app.update();
 
         app.world
             .entity_mut(replicated_entity)

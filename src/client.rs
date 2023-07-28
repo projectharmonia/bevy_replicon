@@ -21,15 +21,28 @@ impl Plugin for ClientPlugin {
         app.add_plugins((RenetClientPlugin, NetcodeClientPlugin))
             .init_resource::<LastTick>()
             .init_resource::<NetworkEntityMap>()
+            .configure_set(
+                PreUpdate,
+                ClientSet::Receive.after(NetcodeClientPlugin::update_system),
+            )
+            .configure_set(
+                PostUpdate,
+                ClientSet::Send.before(NetcodeClientPlugin::send_packets),
+            )
             .add_systems(
-                Update,
-                (Self::diff_receiving_system, Self::ack_sending_system)
-                    .chain()
+                PreUpdate,
+                Self::diff_receiving_system
+                    .in_set(ClientSet::Receive)
                     .run_if(client_connected()),
             )
             .add_systems(
                 PostUpdate,
-                Self::reset_system.run_if(resource_removed::<RenetClient>()),
+                (
+                    Self::ack_sending_system
+                        .in_set(ClientSet::Send)
+                        .run_if(client_connected()),
+                    Self::reset_system.run_if(resource_removed::<RenetClient>()),
+                ),
             );
     }
 }
@@ -180,6 +193,19 @@ fn apply_component_diff(
         }
         ComponentDiff::Removed(_) => reflect_component.remove(&mut world.entity_mut(client_entity)),
     }
+}
+
+/// Set with replication and event systems related to client.
+#[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone, Copy)]
+pub enum ClientSet {
+    /// Systems that receive data.
+    ///
+    /// Runs in `PreUpdate`.
+    Receive,
+    /// Systems that send data.
+    ///
+    /// Runs in `PostUpdate`.
+    Send,
 }
 
 /// Maps server entities to client entities and vice versa.
