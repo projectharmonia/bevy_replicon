@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `Blueprint` set to add systems that initialize complement components without one frame delay.
+
 ### Changed
 
 - Move `has_authority()` to `server` module.

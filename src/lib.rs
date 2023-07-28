@@ -141,7 +141,7 @@ This is easily done using a system with an [`Added`] query filter.
 This way, you detect when such entities are spawned into the world, and you can
 do any additional setup on them using code. For example, if you have a
 character with mesh, you can replicate only your `Player` component and insert
-necessary components after replication:
+necessary components after replication. Use [`BlueprintSet`] inside [`PreUpdate`] for it:
 
 ```rust
 # use bevy::prelude::*;
@@ -151,7 +151,7 @@ necessary components after replication:
 app.replicate::<Transform>()
     .replicate::<Visibility>()
     .replicate::<Player>()
-    .add_systems(Update, player_init_system);
+    .add_systems(PreUpdate, player_init_system.in_set(BlueprintSet));
 
 fn player_init_system(
     mut commands: Commands,
@@ -376,7 +376,7 @@ pub mod prelude {
         parent_sync::{ParentSync, ParentSyncPlugin},
         renet::{RenetClient, RenetServer},
         replication_core::{
-            AppReplicationExt, NetworkChannels, Replication, ReplicationCorePlugin,
+            AppReplicationExt, BlueprintSet, NetworkChannels, Replication, ReplicationCorePlugin,
             ReplicationRules,
         },
         server::{has_authority, ServerPlugin, ServerSet, TickPolicy, SERVER_ID},

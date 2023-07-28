@@ -2,9 +2,12 @@ use bevy::{
     ecs::{archetype::Archetype, component::ComponentId},
     prelude::*,
     reflect::GetTypeRegistration,
+    scene,
     utils::{HashMap, HashSet},
 };
 use bevy_renet::renet::{ChannelConfig, SendType};
+
+use crate::client::ClientSet;
 
 pub struct ReplicationCorePlugin;
 
@@ -12,9 +15,21 @@ impl Plugin for ReplicationCorePlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<Replication>()
             .init_resource::<NetworkChannels>()
-            .init_resource::<ReplicationRules>();
+            .init_resource::<ReplicationRules>()
+            .configure_set(
+                PreUpdate,
+                BlueprintSet
+                    .after(ClientSet::Receive)
+                    .after(scene::scene_spawner_system),
+            );
     }
 }
+
+/// Systems that runs in `PreUpdate` right after receiving state from server or after scene deserialization.
+///
+/// Systems that initialize entities with complementary components (such as [`GlobalTransform`]) should be added here to avoid a 1-frame delay.
+#[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone, Copy)]
+pub struct BlueprintSet;
 
 pub(super) const REPLICATION_CHANNEL_ID: u8 = 0;
 

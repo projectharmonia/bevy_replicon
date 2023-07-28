@@ -4,6 +4,7 @@ use bevy::{
         reflect::ReflectMapEntities,
     },
     prelude::*,
+    scene,
 };
 
 use crate::{
@@ -21,7 +22,12 @@ impl Plugin for ParentSyncPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<Option<Entity>>()
             .replicate::<ParentSync>()
-            .add_systems(PreUpdate, Self::sync_system.after(ClientSet::Receive))
+            .add_systems(
+                PreUpdate,
+                Self::sync_system
+                    .after(scene::scene_spawner_system)
+                    .after(ClientSet::Receive),
+            )
             .add_systems(
                 PostUpdate,
                 (Self::update_system, Self::removal_system)
@@ -177,7 +183,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "will work if Bevy move scene spawning to `PreUpdate`"]
+    #[ignore = "will work when Bevy move scene spawning to `PreUpdate`"] // TODO 0.12: remove ignore.
     fn scene_update_sync() {
         let mut app = App::new();
         app.add_plugins((
