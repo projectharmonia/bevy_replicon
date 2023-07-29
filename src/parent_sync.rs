@@ -6,7 +6,11 @@ use bevy::{
     prelude::*,
 };
 
-use crate::{client::ClientSet, has_authority, prelude::ServerSet, AppReplicationExt};
+use crate::{
+    client::ClientSet,
+    replication_core::AppReplicationExt,
+    server::{has_authority, ServerSet},
+};
 
 pub struct ParentSyncPlugin;
 

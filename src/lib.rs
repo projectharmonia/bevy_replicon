@@ -368,7 +368,6 @@ mod world_diff;
 pub mod prelude {
     pub use super::{
         client::ClientPlugin,
-        has_authority,
         network_event::{
             client_event::{ClientEventAppExt, FromClient},
             server_event::{SendMode, ServerEventAppExt, ToClients},
@@ -380,7 +379,7 @@ pub mod prelude {
             AppReplicationExt, NetworkChannels, Replication, ReplicationCorePlugin,
             ReplicationRules,
         },
-        server::{ServerPlugin, ServerSet, TickPolicy, SERVER_ID},
+        server::{has_authority, ServerPlugin, ServerSet, TickPolicy, SERVER_ID},
         ReplicationPlugins,
     };
 }
@@ -399,11 +398,6 @@ impl PluginGroup for ReplicationPlugins {
             .add(ClientPlugin)
             .add(ServerPlugin::default())
     }
-}
-
-/// Condition that returns `true` if server is present or in singleplayer.
-pub fn has_authority() -> impl FnMut(Option<Res<RenetClient>>) -> bool + Clone {
-    move |client| client.is_none()
 }
 
 #[cfg(test)]

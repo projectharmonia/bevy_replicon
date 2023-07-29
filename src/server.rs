@@ -16,7 +16,7 @@ use bevy::{
     utils::HashMap,
 };
 use bevy_renet::{
-    renet::{RenetServer, ServerEvent},
+    renet::{RenetClient, RenetServer, ServerEvent},
     transport::NetcodeServerPlugin,
     RenetServerPlugin,
 };
@@ -301,6 +301,11 @@ fn collect_despawns(
             }
         }
     }
+}
+
+/// Condition that returns `true` if server is present or in singleplayer.
+pub fn has_authority() -> impl FnMut(Option<Res<RenetClient>>) -> bool + Clone {
+    move |client| client.is_none()
 }
 
 /// Set with replication and event systems related to server.

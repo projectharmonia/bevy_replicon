@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Move `has_authority()` to `server` module.
+
 ## [0.8.0] - 2023-07-28
 
 ### Changed

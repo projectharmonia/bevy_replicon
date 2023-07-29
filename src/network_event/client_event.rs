@@ -14,9 +14,8 @@ use serde::{
 use super::{BuildEventDeserializer, BuildEventSerializer, EventChannel, MapEventEntities};
 use crate::{
     client::{ClientSet, NetworkEntityMap},
-    has_authority,
-    prelude::NetworkChannels,
-    server::{ServerSet, SERVER_ID},
+    replication_core::NetworkChannels,
+    server::{has_authority, ServerSet, SERVER_ID},
 };
 
 /// An extension trait for [`App`] for creating client events.
