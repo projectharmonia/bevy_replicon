@@ -303,7 +303,7 @@ fn collect_despawns(
     }
 }
 
-/// Condition that returns `true` if server is present or in singleplayer.
+/// Condition that returns `true` for server or in singleplayer and `false` for client.
 pub fn has_authority() -> impl FnMut(Option<Res<RenetClient>>) -> bool + Clone {
     move |client| client.is_none()
 }
