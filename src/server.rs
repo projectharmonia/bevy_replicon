@@ -23,9 +23,8 @@ use bevy_renet::{
 
 use crate::{
     client::LastTick,
-    replication_core::ReplicationRules,
+    replication_core::{ReplicationRules, REPLICATION_CHANNEL_ID},
     world_diff::{ComponentDiff, WorldDiff, WorldDiffSerializer},
-    REPLICATION_CHANNEL_ID,
 };
 use despawn_tracker::{DespawnTracker, DespawnTrackerPlugin};
 use removal_tracker::{RemovalTracker, RemovalTrackerPlugin};

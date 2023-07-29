@@ -10,8 +10,9 @@ use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeSeed, Deserialize, Serialize};
 
 use crate::{
+    replication_core::REPLICATION_CHANNEL_ID,
     world_diff::{ComponentDiff, WorldDiff, WorldDiffDeserializer},
-    Replication, REPLICATION_CHANNEL_ID,
+    Replication,
 };
 
 pub struct ClientPlugin;

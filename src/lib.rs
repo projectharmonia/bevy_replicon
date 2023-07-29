@@ -389,8 +389,6 @@ use bevy::{app::PluginGroupBuilder, prelude::*};
 pub use bevy_renet::*;
 use prelude::*;
 
-const REPLICATION_CHANNEL_ID: u8 = 0;
-
 pub struct ReplicationPlugins;
 
 impl PluginGroup for ReplicationPlugins {

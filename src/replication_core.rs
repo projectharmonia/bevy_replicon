@@ -6,8 +6,6 @@ use bevy::{
 };
 use bevy_renet::renet::{ChannelConfig, SendType};
 
-use crate::REPLICATION_CHANNEL_ID;
-
 pub struct ReplicationCorePlugin;
 
 impl Plugin for ReplicationCorePlugin {
@@ -17,6 +15,8 @@ impl Plugin for ReplicationCorePlugin {
             .init_resource::<ReplicationRules>();
     }
 }
+
+pub(super) const REPLICATION_CHANNEL_ID: u8 = 0;
 
 /// A resource to create channels for [`bevy_renet::renet::ConnectionConfig`]
 /// based on number of added server and client events.
