@@ -141,7 +141,8 @@ This is easily done using a system with an [`Added`] query filter.
 This way, you detect when such entities are spawned into the world, and you can
 do any additional setup on them using code. For example, if you have a
 character with mesh, you can replicate only your `Player` component and insert
-necessary components after replication:
+necessary components after replication. If you want to avoid one frame delay, put
+your initialization systems to [`ClientSet::Receive`]:
 
 ```rust
 # use bevy::prelude::*;
@@ -151,7 +152,7 @@ necessary components after replication:
 app.replicate::<Transform>()
     .replicate::<Visibility>()
     .replicate::<Player>()
-    .add_systems(Update, player_init_system);
+    .add_systems(PreUpdate, player_init_system.after(ClientSet::Receive));
 
 fn player_init_system(
     mut commands: Commands,

@@ -274,7 +274,7 @@ fn mapping_and_sending_reflect_system<T, S>(
     }
 }
 
-/// Transforms [`T`] events into [`FromClient<T>`] events to "emulate"
+/// Transforms `T` events into [`FromClient<T>`] events to "emulate"
 /// message sending for offline mode or when server is also a player
 fn local_resending_system<T: Event + Debug>(
     mut events: ResMut<Events<T>>,

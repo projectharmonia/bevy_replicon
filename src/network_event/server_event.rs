@@ -305,7 +305,7 @@ fn sending_reflect_system<T, S>(
     }
 }
 
-/// Transforms [`ToClients<T>`] events into [`T`] events to "emulate"
+/// Transforms [`ToClients<T>`] events into `T` events to "emulate"
 /// message sending for offline mode or when server is also a player
 fn local_resending_system<T: Event + Debug>(
     mut server_events: ResMut<Events<ToClients<T>>>,
