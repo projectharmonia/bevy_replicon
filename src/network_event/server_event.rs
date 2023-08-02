@@ -139,12 +139,11 @@ impl ServerEventAppExt for App {
             .add_systems(
                 PostUpdate,
                 (
-                    sending_system
-                        .in_set(ServerSet::Send)
-                        .run_if(resource_exists::<RenetServer>()),
+                    sending_system.run_if(resource_exists::<RenetServer>()),
                     local_resending_system::<T>.run_if(has_authority()),
                 )
-                    .chain(),
+                    .chain()
+                    .in_set(ServerSet::Send),
             );
 
         self

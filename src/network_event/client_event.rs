@@ -128,7 +128,7 @@ impl ClientEventAppExt for App {
             .create_client_channel(policy.into());
 
         self.add_event::<T>()
-            .add_event::<FromClient<T>>()
+            .init_resource::<Events<FromClient<T>>>()
             .insert_resource(EventChannel::<T>::new(channel_id))
             .add_systems(
                 PreUpdate,
@@ -139,12 +139,11 @@ impl ClientEventAppExt for App {
             .add_systems(
                 PostUpdate,
                 (
-                    sending_system
-                        .in_set(ClientSet::Send)
-                        .run_if(client_connected()),
+                    sending_system.run_if(client_connected()),
                     local_resending_system::<T>.run_if(has_authority()),
                 )
-                    .chain(),
+                    .chain()
+                    .in_set(ClientSet::Send),
             );
 
         self
