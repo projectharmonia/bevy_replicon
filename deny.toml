@@ -21,6 +21,7 @@ skip = [
   { name = "hashbrown", version = "0.12" },
   { name = "indexmap", version = "1.0" },
   { name = "libloading", version = "0.7" },
+  { name = "windows", version = "0.44" },
   { name = "windows_x86_64_msvc", version = "0.42" },
   { name = "windows_x86_64_gnullvm", version = "0.42" },
   { name = "windows_x86_64_gnu", version = "0.42" },
