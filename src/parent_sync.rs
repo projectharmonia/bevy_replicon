@@ -177,7 +177,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "will work if Bevy move scene spawning to `PreUpdate`"]
     fn scene_update_sync() {
         let mut app = App::new();
         app.add_plugins((
@@ -198,6 +197,7 @@ mod tests {
         let mut scene_spawner = app.world.resource_mut::<SceneSpawner>();
         scene_spawner.spawn_dynamic(scene_handle);
 
+        app.update();
         app.update();
 
         let (parent, parent_sync) = app
