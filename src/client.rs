@@ -213,14 +213,13 @@ pub enum ClientSet {
 ///
 /// Used only on client.
 #[derive(Default, Resource)]
-pub(crate) struct NetworkEntityMap {
+pub struct NetworkEntityMap {
     server_to_client: EntityMap,
     client_to_server: EntityMap,
 }
 
 impl NetworkEntityMap {
-    #[cfg(test)]
-    pub(crate) fn insert(&mut self, server_entity: Entity, client_entity: Entity) {
+    pub fn insert(&mut self, server_entity: Entity, client_entity: Entity) {
         self.server_to_client.insert(server_entity, client_entity);
         self.client_to_server.insert(client_entity, server_entity);
     }
@@ -244,11 +243,11 @@ impl NetworkEntityMap {
         client_entity
     }
 
-    pub(crate) fn to_client(&self) -> &EntityMap {
+    pub fn to_client(&self) -> &EntityMap {
         &self.server_to_client
     }
 
-    pub(crate) fn to_server(&self) -> &EntityMap {
+    pub fn to_server(&self) -> &EntityMap {
         &self.client_to_server
     }
 }

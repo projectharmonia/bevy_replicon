@@ -368,7 +368,7 @@ mod world_diff;
 
 pub mod prelude {
     pub use super::{
-        client::{ClientPlugin, ClientSet},
+        client::{ClientPlugin, ClientSet, NetworkEntityMap},
         network_event::{
             client_event::{ClientEventAppExt, FromClient},
             server_event::{SendMode, ServerEventAppExt, ToClients},
