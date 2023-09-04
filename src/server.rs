@@ -20,6 +20,7 @@ use bevy_renet::{
     transport::NetcodeServerPlugin,
     RenetServerPlugin,
 };
+use derive_more::Constructor;
 
 use crate::{
     client::LastTick,
@@ -31,8 +32,9 @@ use removal_tracker::{RemovalTracker, RemovalTrackerPlugin};
 
 pub const SERVER_ID: u64 = 0;
 
+#[derive(Constructor)]
 pub struct ServerPlugin {
-    pub tick_policy: TickPolicy,
+    tick_policy: TickPolicy,
 }
 
 impl Default for ServerPlugin {

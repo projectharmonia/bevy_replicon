@@ -34,7 +34,7 @@ app.add_plugins(MinimalPlugins).add_plugins(
     ReplicationPlugins
         .build()
         .disable::<ClientPlugin>()
-        .set(ServerPlugin { tick_policy: TickPolicy::MaxTickRate(60) }),
+        .set(ServerPlugin::new(TickPolicy::MaxTickRate(60))),
 );
 ```
 
