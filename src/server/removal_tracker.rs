@@ -96,6 +96,7 @@ mod tests {
         const DUMMY_CLIENT_ID: u64 = 0;
         app.world
             .resource_mut::<AckedTicks>()
+            .0
             .insert(DUMMY_CLIENT_ID, Tick::new(0));
 
         let replicated_entity = app.world.spawn((Transform::default(), Replication)).id();

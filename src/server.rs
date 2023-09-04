@@ -99,7 +99,7 @@ impl ServerPlugin {
             if let Some(last_message) = last_message {
                 match bincode::deserialize::<LastTick>(&last_message) {
                     Ok(tick) => {
-                        acked_ticks.insert(client_id, tick.into());
+                        acked_ticks.0.insert(client_id, tick.into());
                     }
                     Err(e) => error!("unable to deserialize tick from client {client_id}: {e}"),
                 }
@@ -117,7 +117,7 @@ impl ServerPlugin {
                 reason: _,
             } = event
             {
-                acked_ticks.remove(id);
+                acked_ticks.0.remove(id);
             }
         }
     }
@@ -153,7 +153,7 @@ impl ServerPlugin {
     }
 
     fn reset_system(mut acked_ticks: ResMut<AckedTicks>) {
-        acked_ticks.clear();
+        acked_ticks.0.clear();
     }
 }
 
@@ -333,5 +333,5 @@ pub enum TickPolicy {
 /// Last acknowledged server ticks from all clients.
 ///
 /// Used only on server.
-#[derive(Default, Deref, DerefMut, Resource)]
-pub(super) struct AckedTicks(HashMap<u64, Tick>);
+#[derive(Default, Deref, Resource)]
+pub struct AckedTicks(pub(super) HashMap<u64, Tick>);

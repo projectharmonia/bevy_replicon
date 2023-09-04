@@ -380,7 +380,7 @@ pub mod prelude {
             AppReplicationExt, NetworkChannels, Replication, ReplicationCorePlugin,
             ReplicationRules,
         },
-        server::{has_authority, ServerPlugin, ServerSet, TickPolicy, SERVER_ID},
+        server::{has_authority, AckedTicks, ServerPlugin, ServerSet, TickPolicy, SERVER_ID},
         ReplicationPlugins,
     };
 }
