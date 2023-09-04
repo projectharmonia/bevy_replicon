@@ -1,7 +1,5 @@
 pub mod client_event;
 pub mod server_event;
-#[cfg(test)]
-mod test_events;
 
 use std::{
     fmt::{self, Display, Formatter},

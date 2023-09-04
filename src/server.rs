@@ -40,12 +40,7 @@ pub struct ServerPlugin {
 impl Default for ServerPlugin {
     fn default() -> Self {
         Self {
-            tick_policy: if cfg!(test) {
-                // Remove delay for tests.
-                TickPolicy::Manual
-            } else {
-                TickPolicy::MaxTickRate(30)
-            },
+            tick_policy: TickPolicy::MaxTickRate(30),
         }
     }
 }
