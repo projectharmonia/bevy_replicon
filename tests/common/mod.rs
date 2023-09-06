@@ -28,7 +28,7 @@ use serde::{
 };
 use strum::{EnumVariantNames, IntoStaticStr, VariantNames};
 
-pub(super) fn setup(server_app: &mut App, client_app: &mut App) {
+pub(super) fn connect(server_app: &mut App, client_app: &mut App) {
     let server_channels = server_app
         .world
         .resource_mut::<NetworkChannels>()

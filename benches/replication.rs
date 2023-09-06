@@ -27,7 +27,7 @@ fn replication(c: &mut Criterion) {
                     ))
                     .replicate::<DummyComponent>();
                 }
-                common::setup(&mut server_app, &mut client_app);
+                common::connect(&mut server_app, &mut client_app);
 
                 server_app
                     .world
@@ -58,7 +58,7 @@ fn replication(c: &mut Criterion) {
                     ))
                     .replicate::<DummyComponent>();
                 }
-                common::setup(&mut server_app, &mut client_app);
+                common::connect(&mut server_app, &mut client_app);
 
                 server_app
                     .world

@@ -35,7 +35,7 @@ fn sending_receiving() {
             .add_client_event::<DummyEvent>(SendPolicy::Ordered);
     }
 
-    common::setup(&mut server_app, &mut client_app);
+    common::connect(&mut server_app, &mut client_app);
 
     client_app
         .world
@@ -60,7 +60,7 @@ fn mapping_and_sending_receiving() {
             .add_mapped_client_event::<DummyEvent>(SendPolicy::Ordered);
     }
 
-    common::setup(&mut server_app, &mut client_app);
+    common::connect(&mut server_app, &mut client_app);
 
     let client_entity = Entity::from_raw(0);
     let server_entity = Entity::from_raw(client_entity.index() + 1);
@@ -98,7 +98,7 @@ fn sending_receiving_reflect() {
                 );
     }
 
-    common::setup(&mut server_app, &mut client_app);
+    common::connect(&mut server_app, &mut client_app);
 
     client_app
         .world
@@ -127,7 +127,7 @@ fn mapping_and_sending_receiving_reflect() {
             .add_mapped_client_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>(SendPolicy::Ordered);
     }
 
-    common::setup(&mut server_app, &mut client_app);
+    common::connect(&mut server_app, &mut client_app);
 
     let client_entity = Entity::from_raw(0);
     let server_entity = Entity::from_raw(client_entity.index() + 1);

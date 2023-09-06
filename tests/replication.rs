@@ -20,7 +20,7 @@ fn acked_ticks_cleanup() {
         ));
     }
 
-    common::setup(&mut server_app, &mut client_app);
+    common::connect(&mut server_app, &mut client_app);
 
     let mut client_transport = client_app.world.resource_mut::<NetcodeClientTransport>();
     client_transport.disconnect();
@@ -45,7 +45,7 @@ fn tick_acks_receiving() {
         ));
     }
 
-    common::setup(&mut server_app, &mut client_app);
+    common::connect(&mut server_app, &mut client_app);
 
     client_app.update();
     server_app.update();
@@ -69,7 +69,7 @@ fn spawn_replication() {
         .replicate::<TableComponent>();
     }
 
-    common::setup(&mut server_app, &mut client_app);
+    common::connect(&mut server_app, &mut client_app);
 
     let server_entity = server_app.world.spawn((TableComponent, Replication)).id();
 
@@ -109,7 +109,7 @@ fn insert_replication() {
         .not_replicate_if_present::<IgnoredComponent, ExclusionComponent>();
     }
 
-    common::setup(&mut server_app, &mut client_app);
+    common::connect(&mut server_app, &mut client_app);
 
     let server_map_entity = server_app.world.spawn_empty().id();
     let client_map_entity = client_app.world.spawn_empty().id();
@@ -159,7 +159,7 @@ fn removal_replication() {
         .replicate::<TableComponent>();
     }
 
-    common::setup(&mut server_app, &mut client_app);
+    common::connect(&mut server_app, &mut client_app);
 
     let server_entity = server_app
         .world
@@ -202,7 +202,7 @@ fn despawn_replication() {
         ));
     }
 
-    common::setup(&mut server_app, &mut client_app);
+    common::connect(&mut server_app, &mut client_app);
 
     let server_entity = server_app.world.spawn(Replication).id();
 
