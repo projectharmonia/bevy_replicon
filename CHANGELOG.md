@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Derive `Clone, Copy` for `Replication`.
+- Derive `Clone` and `Copy` for `Replication`.
 - Make `ServerPlugin` fields private and add `ServerPlugin::new`.
 - Make `AckedTicks` public.
 - Make `NetworkEntityMap` public.
