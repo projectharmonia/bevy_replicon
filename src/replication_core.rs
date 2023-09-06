@@ -162,6 +162,6 @@ impl FromWorld for ReplicationRules {
 }
 
 /// Marks entity for replication.
-#[derive(Component, Default, Reflect)]
+#[derive(Component, Default, Reflect, Clone, Copy)]
 #[reflect(Component)]
 pub struct Replication;
