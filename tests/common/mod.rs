@@ -128,9 +128,6 @@ fn create_client(
     (client, transport)
 }
 
-#[derive(Reflect, Debug)]
-pub(super) struct ReflectEventComponent;
-
 #[derive(Debug, Deserialize, Event, Serialize)]
 pub(super) struct DummyEvent(pub(super) Entity);
 
@@ -141,10 +138,13 @@ impl MapEventEntities for DummyEvent {
     }
 }
 
+#[derive(Reflect, Debug)]
+pub(super) struct ReflectedValue;
+
 #[derive(Debug, Event)]
 pub(super) struct ReflectEvent {
     pub(super) entity: Entity,
-    pub(super) component: Box<dyn Reflect>,
+    pub(super) reflect: Box<dyn Reflect>,
 }
 
 impl MapEventEntities for ReflectEvent {
@@ -158,7 +158,7 @@ impl MapEventEntities for ReflectEvent {
 #[strum(serialize_all = "snake_case")]
 enum ReflectEventField {
     Entity,
-    Component,
+    Reflect,
 }
 
 pub(super) struct ReflectEventSerializer<'a> {
@@ -186,7 +186,7 @@ impl Serialize for ReflectEventSerializer<'_> {
         state.serialize_field(ReflectEventField::Entity.into(), &self.event.entity)?;
         state.serialize_field(
             ReflectEventField::Entity.into(),
-            &ReflectSerializer::new(&*self.event.component, self.registry),
+            &ReflectSerializer::new(&*self.event.reflect, self.registry),
         )?;
         state.end()
     }
@@ -227,11 +227,9 @@ impl<'de> Visitor<'de> for ReflectEventDeserializer<'_> {
         let entity = seq
             .next_element()?
             .ok_or_else(|| de::Error::invalid_length(ReflectEventField::Entity as usize, &self))?;
-        let component = seq
+        let reflect = seq
             .next_element_seed(UntypedReflectDeserializer::new(self.registry))?
-            .ok_or_else(|| {
-                de::Error::invalid_length(ReflectEventField::Component as usize, &self)
-            })?;
-        Ok(ReflectEvent { entity, component })
+            .ok_or_else(|| de::Error::invalid_length(ReflectEventField::Reflect as usize, &self))?;
+        Ok(ReflectEvent { entity, reflect })
     }
 }

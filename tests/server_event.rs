@@ -7,7 +7,7 @@ use bevy_replicon::prelude::*;
 
 use common::{DummyEvent, ReflectEvent, ReflectEventDeserializer, ReflectEventSerializer};
 
-use crate::common::ReflectEventComponent;
+use crate::common::ReflectedValue;
 
 #[test]
 fn without_server_plugin() {
@@ -122,7 +122,7 @@ fn sending_receiving_reflect() {
             MinimalPlugins,
             ReplicationPlugins.set(ServerPlugin::new(TickPolicy::Manual)),
         ))
-        .register_type::<ReflectEventComponent>()
+        .register_type::<ReflectedValue>()
         .add_server_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>(
             SendPolicy::Ordered,
         );
@@ -148,7 +148,7 @@ fn sending_receiving_reflect() {
                 mode,
                 event: ReflectEvent {
                     entity: Entity::PLACEHOLDER,
-                    component: ReflectEventComponent.clone_value(),
+                    reflect: ReflectedValue.clone_value(),
                 },
             });
 
@@ -173,7 +173,7 @@ fn sending_receiving_and_mapping_reflect() {
             MinimalPlugins,
             ReplicationPlugins.set(ServerPlugin::new(TickPolicy::Manual)),
         ))
-        .register_type::<ReflectEventComponent>()
+        .register_type::<ReflectedValue>()
         .add_mapped_server_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>(SendPolicy::Ordered);
     }
 
@@ -193,7 +193,7 @@ fn sending_receiving_and_mapping_reflect() {
             mode: SendMode::Broadcast,
             event: ReflectEvent {
                 entity: server_entity,
-                component: ReflectEventComponent.clone_value(),
+                reflect: ReflectedValue.clone_value(),
             },
         });
 

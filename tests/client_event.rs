@@ -6,7 +6,7 @@ use bevy_replicon::prelude::*;
 
 use common::{DummyEvent, ReflectEvent, ReflectEventDeserializer, ReflectEventSerializer};
 
-use crate::common::ReflectEventComponent;
+use crate::common::ReflectedValue;
 
 #[test]
 fn without_server_plugin() {
@@ -92,7 +92,7 @@ fn sending_receiving_reflect() {
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((MinimalPlugins, ReplicationPlugins))
-            .register_type::<ReflectEventComponent>()
+            .register_type::<ReflectedValue>()
             .add_client_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>(
                 SendPolicy::Ordered,
                 );
@@ -105,7 +105,7 @@ fn sending_receiving_reflect() {
         .resource_mut::<Events<ReflectEvent>>()
         .send(ReflectEvent {
             entity: Entity::PLACEHOLDER,
-            component: ReflectEventComponent.clone_value(),
+            reflect: ReflectedValue.clone_value(),
         });
 
     client_app.update();
@@ -123,7 +123,7 @@ fn mapping_and_sending_receiving_reflect() {
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((MinimalPlugins, ReplicationPlugins))
-            .register_type::<ReflectEventComponent>()
+            .register_type::<ReflectedValue>()
             .add_mapped_client_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>(SendPolicy::Ordered);
     }
 
@@ -141,7 +141,7 @@ fn mapping_and_sending_receiving_reflect() {
         .resource_mut::<Events<ReflectEvent>>()
         .send(ReflectEvent {
             entity: client_entity,
-            component: ReflectEventComponent.clone_value(),
+            reflect: ReflectedValue.clone_value(),
         });
 
     client_app.update();
