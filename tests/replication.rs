@@ -1,13 +1,10 @@
 mod common;
 
-use bevy::prelude::*;
+use bevy::{prelude::*, utils::HashMap};
 use bevy_replicon::prelude::*;
 
-use bevy::ecs::{
-    entity::{EntityMapper, MapEntities},
-    reflect::ReflectMapEntities,
-};
 use bevy_renet::renet::transport::NetcodeClientTransport;
+use serde::{Deserialize, Serialize};
 
 #[test]
 fn acked_ticks_cleanup() {
@@ -81,9 +78,9 @@ fn spawn_replication() {
         .query_filtered::<Entity, (With<TableComponent>, With<Replication>)>()
         .single(&client_app.world);
     let entity_map = client_app.world.resource::<NetworkEntityMap>();
-    let mapped_entity = entity_map
+    let mapped_entity = *entity_map
         .to_client()
-        .get(server_entity)
+        .get(&server_entity)
         .expect("server entity should be mapped on client");
     assert_eq!(
         mapped_entity, client_entity,
@@ -100,13 +97,10 @@ fn insert_replication() {
             MinimalPlugins,
             ReplicationPlugins.set(ServerPlugin::new(TickPolicy::Manual)),
         ))
-        .register_type::<NonReflectedComponent>()
-        .register_type::<ExclusionComponent>()
         .replicate::<TableComponent>()
         .replicate::<SparseSetComponent>()
         .replicate::<IgnoredComponent>()
-        .replicate::<MappedComponent>()
-        .not_replicate_if_present::<IgnoredComponent, ExclusionComponent>();
+        .replicate_mapped::<MappedComponent>();
     }
 
     common::connect(&mut server_app, &mut client_app);
@@ -124,10 +118,10 @@ fn insert_replication() {
             Replication,
             TableComponent,
             SparseSetComponent,
-            NonReflectedComponent,
+            NonReplicatingComponent,
             MappedComponent(server_map_entity),
             IgnoredComponent,
-            ExclusionComponent,
+            Ignored::<IgnoredComponent>::default(),
         ))
         .id();
 
@@ -141,8 +135,7 @@ fn insert_replication() {
     let client_entity = client_app.world.entity(client_entity);
     assert!(client_entity.contains::<SparseSetComponent>());
     assert!(client_entity.contains::<TableComponent>());
-    assert!(!client_entity.contains::<NonReflectedComponent>());
-    assert!(!client_entity.contains::<ExclusionComponent>());
+    assert!(!client_entity.contains::<NonReplicatingComponent>());
     assert_eq!(
         client_entity.get::<MappedComponent>().unwrap().0,
         client_map_entity
@@ -158,7 +151,6 @@ fn removal_replication() {
             MinimalPlugins,
             ReplicationPlugins.set(ServerPlugin::new(TickPolicy::Manual)),
         ))
-        .register_type::<NonReflectedComponent>()
         .replicate::<TableComponent>();
     }
 
@@ -166,7 +158,7 @@ fn removal_replication() {
 
     let server_entity = server_app
         .world
-        .spawn((Replication, TableComponent, NonReflectedComponent))
+        .spawn((Replication, TableComponent, NonReplicatingComponent))
         .id();
 
     server_app.update();
@@ -178,7 +170,7 @@ fn removal_replication() {
 
     let client_entity = client_app
         .world
-        .spawn((Replication, TableComponent, NonReflectedComponent))
+        .spawn((Replication, TableComponent, NonReplicatingComponent))
         .id();
 
     client_app
@@ -191,7 +183,7 @@ fn removal_replication() {
 
     let client_entity = client_app.world.entity(client_entity);
     assert!(!client_entity.contains::<TableComponent>());
-    assert!(client_entity.contains::<NonReflectedComponent>());
+    assert!(client_entity.contains::<NonReplicatingComponent>());
 }
 
 #[test]
@@ -235,37 +227,25 @@ fn despawn_replication() {
     assert!(entity_map.to_client().is_empty());
 }
 
-#[derive(Component, Reflect)]
-#[reflect(Component, MapEntities)]
+#[derive(Component, Deserialize, Serialize)]
 struct MappedComponent(Entity);
 
-impl MapEntities for MappedComponent {
-    fn map_entities(&mut self, entity_map: &mut EntityMapper) {
-        self.0 = entity_map.get_or_reserve(self.0);
+impl MapNetworkEntities for MappedComponent {
+    fn map_entities(&mut self, entity_map: &HashMap<Entity, Entity>) -> Result<(), MapError> {
+        self.0 = *entity_map.get(&self.0).ok_or(MapError(self.0))?;
+        Ok(())
     }
 }
 
-impl FromWorld for MappedComponent {
-    fn from_world(_world: &mut World) -> Self {
-        Self(Entity::PLACEHOLDER)
-    }
-}
-
-#[derive(Component, Default, Reflect)]
-#[reflect(Component)]
+#[derive(Component, Deserialize, Serialize)]
 struct TableComponent;
 
-#[derive(Component, Default, Reflect)]
+#[derive(Component, Deserialize, Serialize)]
 #[component(storage = "SparseSet")]
-#[reflect(Component)]
 struct SparseSetComponent;
 
-#[derive(Component, Reflect)]
-struct NonReflectedComponent;
+#[derive(Component)]
+struct NonReplicatingComponent;
 
-#[derive(Component, Default, Reflect)]
-#[reflect(Component)]
+#[derive(Component, Deserialize, Serialize)]
 struct IgnoredComponent;
-
-#[derive(Component, Reflect)]
-struct ExclusionComponent;

@@ -1,17 +1,26 @@
+use std::{
+    any,
+    fmt::{self, Display, Formatter},
+    marker::PhantomData,
+};
+
 use bevy::{
-    ecs::{archetype::Archetype, component::ComponentId},
+    ecs::{
+        component::{ComponentId, Tick},
+        world::EntityMut,
+    },
     prelude::*,
-    reflect::GetTypeRegistration,
-    utils::{HashMap, HashSet},
+    ptr::Ptr,
+    utils::HashMap,
 };
 use bevy_renet::renet::{ChannelConfig, SendType};
+use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize, Serializer};
 
 pub struct ReplicationCorePlugin;
 
 impl Plugin for ReplicationCorePlugin {
     fn build(&self, app: &mut App) {
-        app.register_type::<Replication>()
-            .init_resource::<NetworkChannels>()
+        app.init_resource::<NetworkChannels>()
             .init_resource::<ReplicationRules>();
     }
 }
@@ -76,92 +85,246 @@ fn channel_configs(channels: &[SendType]) -> Vec<ChannelConfig> {
 pub trait AppReplicationExt {
     /// Marks component for replication.
     ///
-    /// Also registers the type in [`AppTypeRegistry`].
-    /// The component should implement [`Reflect`] and have `#[reflect(Component)]`.
-    fn replicate<T: Component + GetTypeRegistration>(&mut self) -> &mut Self;
+    /// Component will be serialized as is using bincode.
+    /// It also registers [`Ignored<T>`] that can be used to exclude the component from replication.
+    fn replicate<C>(&mut self) -> &mut Self
+    where
+        C: Component + Serialize + DeserializeOwned;
 
-    /// Ignores component `T` replication if component `U` is present on the same entity.
+    /// Same as [`Self::replicate`], but maps component entities using [`MapNetworkEntities`] trait.
     ///
-    /// Component `T` should be marked for replication.
-    /// Could be called multiple times for the same component to disable replication
-    /// for different presented components.
-    fn not_replicate_if_present<T: Component, U: Component>(&mut self) -> &mut Self;
+    /// Always use it for components that contains entities.
+    fn replicate_mapped<C>(&mut self) -> &mut Self
+    where
+        C: Component + Serialize + DeserializeOwned + MapNetworkEntities;
+
+    /// Same as [`Self::replicate`], but uses the specified functions for serialization and deserialization.
+    fn replicate_with<C>(
+        &mut self,
+        serialize: fn(Ptr) -> Vec<u8>,
+        deserialize: fn(&mut EntityMut, &HashMap<Entity, Entity>, &[u8]),
+    ) -> &mut Self
+    where
+        C: Component;
 }
 
 impl AppReplicationExt for App {
-    fn replicate<T: Component + GetTypeRegistration>(&mut self) -> &mut Self {
-        self.register_type::<T>();
-        let component_id = self.world.init_component::<T>();
-        let mut replication_rules = self.world.resource_mut::<ReplicationRules>();
-        replication_rules.replicated.insert(component_id);
-        self
+    fn replicate<C>(&mut self) -> &mut Self
+    where
+        C: Component + Serialize + DeserializeOwned,
+    {
+        self.replicate_with::<C>(serialize_component::<C>, deserialize_component::<C>)
     }
 
-    fn not_replicate_if_present<T: Component, U: Component>(&mut self) -> &mut Self {
-        let ignore_id = self.world.init_component::<T>();
-        let present_id = self.world.init_component::<U>();
+    fn replicate_mapped<C>(&mut self) -> &mut Self
+    where
+        C: Component + Serialize + DeserializeOwned + MapNetworkEntities,
+    {
+        self.replicate_with::<C>(serialize_component::<C>, deserialize_mapped_component::<C>)
+    }
+
+    fn replicate_with<C>(
+        &mut self,
+        serialize: fn(Ptr) -> Vec<u8>,
+        deserialize: fn(&mut EntityMut, &HashMap<Entity, Entity>, &[u8]),
+    ) -> &mut Self
+    where
+        C: Component,
+    {
+        let component_id = self.world.init_component::<C>();
+        let ignored_id = self.world.init_component::<Ignored<C>>();
+        let replicated_component = ReplicationInfo {
+            ignored_id,
+            serialize,
+            deserialize,
+            remove: remove_component::<C>,
+        };
+
         let mut replication_rules = self.world.resource_mut::<ReplicationRules>();
+        replication_rules.info.push(replicated_component);
+
+        let replication_id = ReplicationId(replication_rules.info.len() - 1);
         replication_rules
-            .ignored_if_present
-            .entry(ignore_id)
-            .or_default()
-            .push(present_id);
+            .components
+            .insert(component_id, replication_id);
+
         self
     }
 }
 
-/// Contains [`ComponentId`]'s that used to decide
-/// if a component should be replicated.
+/// Stores information about which components will be serialized and how.
 #[derive(Resource)]
 pub struct ReplicationRules {
-    /// Components that should be replicated.
-    pub(super) replicated: HashSet<ComponentId>,
+    /// Maps component IDs to their replication IDs.
+    components: HashMap<ComponentId, ReplicationId>,
 
-    /// Ignore a key component if any of its value components are present in an archetype.
-    ignored_if_present: HashMap<ComponentId, Vec<ComponentId>>,
+    /// Meta information about components that should be replicated.
+    info: Vec<ReplicationInfo>,
 
-    /// ID of [`Replication`] component, only entities with this components should be replicated.
+    /// ID of [`Replication`] component.
     replication_id: ComponentId,
 }
 
 impl ReplicationRules {
-    /// Returns `true` if an entity of an archetype should be replicated.
-    pub fn is_replicated_archetype(&self, archetype: &Archetype) -> bool {
-        archetype.contains(self.replication_id)
+    /// ID of [`Replication`] component, only entities with this components will be replicated.
+    pub fn replication_id(&self) -> ComponentId {
+        self.replication_id
     }
 
-    /// Returns `true` if a component of an archetype should be replicated.
-    pub fn is_replicated_component(
-        &self,
-        archetype: &Archetype,
-        component_id: ComponentId,
-    ) -> bool {
-        if self.replicated.contains(&component_id) {
-            if let Some(ignore_ids) = self.ignored_if_present.get(&component_id) {
-                for &ignore_id in ignore_ids {
-                    if archetype.contains(ignore_id) {
-                        return false;
-                    }
-                }
-            }
-            return true;
-        }
+    /// Returns mapping of replicated components to their replication IDs.
+    pub fn components(&self) -> &HashMap<ComponentId, ReplicationId> {
+        &self.components
+    }
 
-        false
+    /// Returns meta information about replicated component.
+    pub fn get_info(&self, replication_id: ReplicationId) -> &ReplicationInfo {
+        // SAFETY: `ReplicationId` always corresponds to a valid index.
+        unsafe { self.info.get_unchecked(replication_id.0) }
+    }
+
+    /// Returns ID for component that will be consistent between clients and server.
+    pub fn get_id(&self, component_id: ComponentId) -> Option<ReplicationId> {
+        self.components.get(&component_id).copied()
     }
 }
 
 impl FromWorld for ReplicationRules {
     fn from_world(world: &mut World) -> Self {
         Self {
-            replicated: Default::default(),
-            ignored_if_present: Default::default(),
+            info: Default::default(),
+            components: Default::default(),
             replication_id: world.init_component::<Replication>(),
         }
     }
 }
 
+pub struct ReplicationInfo {
+    /// ID of [`Ignored<T>`] component.
+    pub ignored_id: ComponentId,
+
+    /// Function that serializes component into bytes.
+    pub serialize: fn(Ptr) -> Vec<u8>,
+
+    /// Function that deserializes component from bytes and inserts it to [`EntityMut`].
+    pub deserialize: fn(&mut EntityMut, &HashMap<Entity, Entity>, &[u8]),
+
+    /// Function that removes specific component from [`EntityMut`].
+    pub remove: fn(&mut EntityMut),
+}
+
+/// Replication will be ignored for `T` if this component is present on the same entity.
+#[derive(Component)]
+pub struct Ignored<T>(PhantomData<T>);
+
+impl<T> Default for Ignored<T> {
+    fn default() -> Self {
+        Self(PhantomData)
+    }
+}
+
+/// Same as [`ComponentId`], but consistent between server and clients.
+///
+/// Internally represents index of [`ReplicationInfo`].
+#[derive(Clone, Copy, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub struct ReplicationId(usize);
+
+/// Default serialization function.
+fn serialize_component<C: Component + Serialize>(component: Ptr) -> Vec<u8> {
+    // SAFETY: Function called for registered `ComponentId`.
+    let component: &C = unsafe { component.deref() };
+    bincode::serialize(component)
+        .unwrap_or_else(|e| panic!("{} should be serialzable: {e}", any::type_name::<C>()))
+}
+
+/// Default deserialization function.
+fn deserialize_component<C: Component + DeserializeOwned>(
+    entity: &mut EntityMut,
+    _entity_map: &HashMap<Entity, Entity>,
+    component: &[u8],
+) {
+    let component: C = bincode::deserialize(component)
+        .unwrap_or_else(|e| panic!("bytes from server should be {}: {e}", any::type_name::<C>()));
+    entity.insert(component);
+}
+
+/// Default deserialization function that also maps entities before insertion.
+fn deserialize_mapped_component<C: Component + DeserializeOwned + MapNetworkEntities>(
+    entity: &mut EntityMut,
+    entity_map: &HashMap<Entity, Entity>,
+    component: &[u8],
+) {
+    let mut component: C = bincode::deserialize(component)
+        .unwrap_or_else(|e| panic!("bytes from server should be {}: {e}", any::type_name::<C>()));
+    component
+        .map_entities(entity_map)
+        .unwrap_or_else(|e| panic!("component should be mappable: {e}"));
+    entity.insert(component);
+}
+
+/// Removes specified component from entity.
+fn remove_component<C: Component>(entity: &mut EntityMut) {
+    entity.remove::<C>();
+}
+
+/// Maps entities inside component.
+///
+/// The same as [`bevy::ecs::entity::MapEntities`], but never creates new entities on mapping error.
+pub trait MapNetworkEntities {
+    /// Maps stored entities using specified map.
+    fn map_entities(&mut self, entity_map: &HashMap<Entity, Entity>) -> Result<(), MapError>;
+}
+
+pub struct MapError(pub Entity);
+
+impl Display for MapError {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "unable to map entity {:?}", self.0)
+    }
+}
+
 /// Marks entity for replication.
-#[derive(Component, Default, Reflect, Clone, Copy)]
-#[reflect(Component)]
+#[derive(Component, Clone, Copy)]
 pub struct Replication;
+
+/// Changed world data and current tick from server.
+///
+/// Sent from server to clients.
+#[derive(Serialize, Deserialize)]
+pub(super) struct WorldDiff {
+    #[serde(
+        serialize_with = "serialize_tick",
+        deserialize_with = "deserialize_tick"
+    )]
+    pub(super) tick: Tick,
+    pub(super) entities: HashMap<Entity, Vec<ComponentDiff>>,
+    pub(super) despawns: Vec<Entity>,
+}
+
+impl WorldDiff {
+    /// Creates a new [`WorldDiff`] with a tick and empty entities.
+    pub(super) fn new(tick: Tick) -> Self {
+        Self {
+            tick,
+            entities: Default::default(),
+            despawns: Default::default(),
+        }
+    }
+}
+
+/// Type of component change.
+#[derive(Serialize, Deserialize)]
+pub(super) enum ComponentDiff {
+    /// Indicates that a component was added or changed, contains its ID and serialized bytes.
+    Changed((ReplicationId, Vec<u8>)),
+    /// Indicates that a component was removed, contains its ID.
+    Removed(ReplicationId),
+}
+
+fn serialize_tick<S: Serializer>(tick: &Tick, serializer: S) -> Result<S::Ok, S::Error> {
+    serializer.serialize_u32(tick.get())
+}
+
+fn deserialize_tick<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Tick, D::Error> {
+    let tick = u32::deserialize(deserializer)?;
+    Ok(Tick::new(tick))
+}

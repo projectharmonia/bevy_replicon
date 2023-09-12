@@ -596,10 +596,8 @@ struct CurrentTurn(Symbol);
     PartialEq,
     Serialize,
     ValueEnum,
-    Reflect,
 )]
 #[strum(serialize_all = "kebab-case")]
-#[reflect(Component)]
 enum Symbol {
     #[default]
     Cross,
@@ -655,8 +653,7 @@ impl SymbolBundle {
 }
 
 /// Marks that the entity is a cell and contains its location in grid.
-#[derive(Component, Default, Deserialize, Reflect, Serialize)]
-#[reflect(Component)]
+#[derive(Component, Deserialize, Serialize)]
 struct CellIndex(usize);
 
 /// Contains player ID and it's playing symbol.
@@ -682,8 +679,7 @@ impl PlayerBundle {
     }
 }
 
-#[derive(Component, Reflect, Default)]
-#[reflect(Component)]
+#[derive(Component, Serialize, Deserialize)]
 struct Player(u64);
 
 /// An event that indicates a symbol pick.

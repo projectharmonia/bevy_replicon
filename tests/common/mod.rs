@@ -6,12 +6,12 @@ use std::{
 };
 
 use bevy::{
-    ecs::entity::EntityMap,
     prelude::*,
     reflect::{
         serde::{ReflectSerializer, UntypedReflectDeserializer},
         TypeRegistryInternal,
     },
+    utils::HashMap,
 };
 use bevy_renet::renet::{
     transport::{
@@ -131,9 +131,9 @@ fn create_client(
 #[derive(Debug, Deserialize, Event, Serialize)]
 pub(super) struct DummyEvent(pub(super) Entity);
 
-impl MapEventEntities for DummyEvent {
-    fn map_entities(&mut self, entity_map: &EntityMap) -> Result<(), MapError> {
-        self.0 = entity_map.get(self.0).ok_or(MapError(self.0))?;
+impl MapNetworkEntities for DummyEvent {
+    fn map_entities(&mut self, entity_map: &HashMap<Entity, Entity>) -> Result<(), MapError> {
+        self.0 = *entity_map.get(&self.0).ok_or(MapError(self.0))?;
         Ok(())
     }
 }
@@ -147,9 +147,9 @@ pub(super) struct ReflectEvent {
     pub(super) reflect: Box<dyn Reflect>,
 }
 
-impl MapEventEntities for ReflectEvent {
-    fn map_entities(&mut self, entity_map: &EntityMap) -> Result<(), MapError> {
-        self.entity = entity_map.get(self.entity).ok_or(MapError(self.entity))?;
+impl MapNetworkEntities for ReflectEvent {
+    fn map_entities(&mut self, entity_map: &HashMap<Entity, Entity>) -> Result<(), MapError> {
+        self.entity = *entity_map.get(&self.entity).ok_or(MapError(self.entity))?;
         Ok(())
     }
 }

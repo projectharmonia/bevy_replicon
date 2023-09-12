@@ -11,10 +11,10 @@ use serde::{
     Serialize,
 };
 
-use super::{BuildEventDeserializer, BuildEventSerializer, EventChannel, MapEventEntities};
+use super::{BuildEventDeserializer, BuildEventSerializer, EventChannel};
 use crate::{
     client::{ClientSet, NetworkEntityMap},
-    replication_core::NetworkChannels,
+    replication_core::{MapNetworkEntities, NetworkChannels},
     server::{has_authority, ServerSet, SERVER_ID},
 };
 
@@ -27,7 +27,9 @@ pub trait ServerEventAppExt {
     ) -> &mut Self;
 
     /// Same as [`Self::add_server_event`], but additionally maps server entities to client after receiving.
-    fn add_mapped_server_event<T: Event + Serialize + DeserializeOwned + Debug + MapEventEntities>(
+    fn add_mapped_server_event<
+        T: Event + Serialize + DeserializeOwned + Debug + MapNetworkEntities,
+    >(
         &mut self,
         policy: impl Into<SendType>,
     ) -> &mut Self;
@@ -50,7 +52,7 @@ pub trait ServerEventAppExt {
         policy: impl Into<SendType>,
     ) -> &mut Self
     where
-        T: Event + Debug + MapEventEntities,
+        T: Event + Debug + MapNetworkEntities,
         S: BuildEventSerializer<T> + 'static,
         D: BuildEventDeserializer + 'static,
         for<'a> S::EventSerializer<'a>: Serialize,
@@ -74,7 +76,7 @@ impl ServerEventAppExt for App {
     }
 
     fn add_mapped_server_event<
-        T: Event + Serialize + DeserializeOwned + Debug + MapEventEntities,
+        T: Event + Serialize + DeserializeOwned + Debug + MapNetworkEntities,
     >(
         &mut self,
         policy: impl Into<SendType>,
@@ -103,7 +105,7 @@ impl ServerEventAppExt for App {
 
     fn add_mapped_server_reflect_event<T, S, D>(&mut self, policy: impl Into<SendType>) -> &mut Self
     where
-        T: Event + Debug + MapEventEntities,
+        T: Event + Debug + MapNetworkEntities,
         S: BuildEventSerializer<T> + 'static,
         D: BuildEventDeserializer + 'static,
         for<'a> S::EventSerializer<'a>: Serialize,
@@ -162,7 +164,7 @@ fn receiving_system<T: Event + DeserializeOwned + Debug>(
     }
 }
 
-fn receiving_and_mapping_system<T: Event + MapEventEntities + DeserializeOwned + Debug>(
+fn receiving_and_mapping_system<T: Event + MapNetworkEntities + DeserializeOwned + Debug>(
     mut server_events: EventWriter<T>,
     mut client: ResMut<RenetClient>,
     entity_map: Res<NetworkEntityMap>,
@@ -212,7 +214,7 @@ fn receiving_and_mapping_reflect_system<T, D>(
     channel: Res<EventChannel<T>>,
     registry: Res<AppTypeRegistry>,
 ) where
-    T: Event + MapEventEntities + Debug,
+    T: Event + MapNetworkEntities + Debug,
     D: BuildEventDeserializer,
     for<'a, 'de> D::EventDeserializer<'a>: DeserializeSeed<'de, Value = T>,
 {

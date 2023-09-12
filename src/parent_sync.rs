@@ -4,12 +4,15 @@ use bevy::{
         reflect::ReflectMapEntities,
     },
     prelude::*,
+    utils::HashMap,
 };
+use serde::{Deserialize, Serialize};
 
 use crate::{
     client::ClientSet,
-    replication_core::AppReplicationExt,
+    replication_core::{AppReplicationExt, MapError},
     server::{has_authority, ServerSet},
+    MapNetworkEntities,
 };
 
 pub struct ParentSyncPlugin;
@@ -20,7 +23,8 @@ pub struct ParentSyncPlugin;
 impl Plugin for ParentSyncPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<Option<Entity>>()
-            .replicate::<ParentSync>()
+            .register_type::<ParentSync>()
+            .replicate_mapped::<ParentSync>()
             .add_systems(PreUpdate, Self::sync_system.after(ClientSet::Receive))
             .add_systems(
                 PostUpdate,
@@ -73,7 +77,7 @@ impl ParentSyncPlugin {
 /// Removes the parent if `None`.
 /// The component captures changes in `PostUpdate` on server before sending
 /// and applies them on `PreUpdate` after receive on clients or scene deserialization.
-#[derive(Component, Default, Reflect, Clone, Copy)]
+#[derive(Component, Default, Reflect, Clone, Copy, Serialize, Deserialize)]
 #[reflect(Component, MapEntities)]
 pub struct ParentSync(Option<Entity>);
 
@@ -82,6 +86,16 @@ impl MapEntities for ParentSync {
         if let Some(ref mut entity) = self.0 {
             *entity = entity_mapper.get_or_reserve(*entity);
         }
+    }
+}
+
+impl MapNetworkEntities for ParentSync {
+    fn map_entities(&mut self, entity_map: &HashMap<Entity, Entity>) -> Result<(), MapError> {
+        if let Some(ref mut entity) = self.0 {
+            *entity = *entity_map.get(entity).ok_or(MapError(*entity))?;
+        }
+
+        Ok(())
     }
 }
 
