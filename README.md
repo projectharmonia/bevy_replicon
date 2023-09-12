@@ -12,6 +12,6 @@ See the quick start guide by clicking on the docs badge.
 
 | bevy   | bevy_replicon |
 |--------|---------------|
-| 0.11.0 | 0.6-0.9       |
+| 0.11.0 | 0.6-0.10      |
 | 0.10.1 | 0.2-0.6       |
 | 0.10.0 | 0.1           |
