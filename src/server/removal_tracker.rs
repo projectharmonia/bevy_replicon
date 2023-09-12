@@ -1,16 +1,12 @@
 use bevy::{
-    ecs::{
-        component::{ComponentId, Tick},
-        removal_detection::RemovedComponentEvents,
-        system::SystemChangeTick,
-    },
+    ecs::{component::Tick, removal_detection::RemovedComponentEvents, system::SystemChangeTick},
     prelude::*,
     utils::HashMap,
 };
 use bevy_renet::renet::RenetServer;
 
 use super::{AckedTicks, ServerSet};
-use crate::replication_core::{Replication, ReplicationRules};
+use crate::replication_core::{Replication, ReplicationId, ReplicationRules};
 
 /// Stores component removals in [`RemovalTracker`] component to make them persistent across ticks.
 ///
@@ -63,7 +59,7 @@ impl RemovalTrackerPlugin {
         remove_events: &RemovedComponentEvents,
     ) {
         let current_tick = set.p0().read_change_tick();
-        for &component_id in &replication_rules.replicated {
+        for (&component_id, &replication_id) in replication_rules.components() {
             for entity in remove_events
                 .get(component_id)
                 .map(|removed| removed.iter_current_update_events().cloned())
@@ -72,7 +68,7 @@ impl RemovalTrackerPlugin {
                 .map(|e| e.into())
             {
                 if let Ok(mut removal_tracker) = set.p1().get_mut(entity) {
-                    removal_tracker.insert(component_id, current_tick);
+                    removal_tracker.insert(replication_id, current_tick);
                 }
             }
         }
@@ -80,10 +76,12 @@ impl RemovalTrackerPlugin {
 }
 
 #[derive(Component, Default, Deref, DerefMut)]
-pub(crate) struct RemovalTracker(pub(crate) HashMap<ComponentId, Tick>);
+pub(crate) struct RemovalTracker(pub(crate) HashMap<ReplicationId, Tick>);
 
 #[cfg(test)]
 mod tests {
+    use serde::{Deserialize, Serialize};
+
     use crate::replication_core::AppReplicationExt;
 
     use super::*;
@@ -95,7 +93,7 @@ mod tests {
             .insert_resource(RenetServer::new(Default::default()))
             .init_resource::<AckedTicks>()
             .init_resource::<ReplicationRules>()
-            .replicate::<Transform>();
+            .replicate::<DummyComponent>();
 
         app.update();
 
@@ -106,18 +104,23 @@ mod tests {
             .0
             .insert(DUMMY_CLIENT_ID, Tick::new(0));
 
-        let replicated_entity = app.world.spawn((Transform::default(), Replication)).id();
+        let replicated_entity = app.world.spawn((DummyComponent, Replication)).id();
 
         app.update();
 
         app.world
             .entity_mut(replicated_entity)
-            .remove::<Transform>();
+            .remove::<DummyComponent>();
 
         app.update();
 
-        let transform_id = app.world.component_id::<Transform>().unwrap();
+        let component_id = app.world.init_component::<DummyComponent>();
+        let replcation_rules = app.world.resource::<ReplicationRules>();
+        let replication_id = replcation_rules.get_id(component_id).unwrap();
         let removal_tracker = app.world.get::<RemovalTracker>(replicated_entity).unwrap();
-        assert!(removal_tracker.contains_key(&transform_id));
+        assert!(removal_tracker.contains_key(&replication_id));
     }
+
+    #[derive(Serialize, Deserialize, Component)]
+    struct DummyComponent;
 }

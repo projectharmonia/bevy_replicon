@@ -50,59 +50,70 @@ keep the world in sync.
 By default, no components are replicated. To start replication, you need two
 things:
 
-1. Mark component type for replication. Component should implement [`Reflect`],
-have `#[reflect(Component)]` and all its fields should be registered. You can
-use [`AppReplicationExt::replicate()`] to mark the component for replication:
+1. Register component type for replication. Component should implement
+[`serde::Serialize`] and [`serde::Deserialize`].
+You can use [`AppReplicationExt::replicate()`] to register the component for replication:
 
 ```rust
 # use bevy::prelude::*;
 # use bevy_replicon::prelude::*;
+# use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
 app.replicate::<DummyComponent>();
 
-#[derive(Component, Default, Reflect)]
-#[reflect(Component)]
+#[derive(Component, Deserialize, Serialize)]
 struct DummyComponent;
 ```
-
-This also automatically registers the specified type, so you don't need to call
-[`App::register_type()`] if you replicating the type.
 
 If your component contains [`Entity`] then it cannot be deserialized as is
 because entity IDs are different on server and client. The client should do the
 mapping. Therefore, to replicate such components properly, they need implement
-[`bevy::ecs::entity::MapEntities`] and have `#[reflect(MapEntities)]`:
+[`MapNetworkEntities`] and registered using [`AppReplicationExt::replicate_mapped()`]:
 
 ```rust
-# use bevy::{
-#     ecs::{
-#         entity::{EntityMapper, MapEntities},
-#         reflect::ReflectMapEntities,
-#     },
-#     prelude::*,
-# };
+# use bevy::{prelude::*, utils::HashMap};
 # use bevy_replicon::prelude::*;
-#[derive(Component, Reflect)]
-#[reflect(Component, MapEntities)]
+# use serde::{Deserialize, Serialize};
+#[derive(Component, Deserialize, Serialize)]
 struct MappedComponent(Entity);
 
-impl MapEntities for MappedComponent {
-    fn map_entities(&mut self, entity_mapper: &mut EntityMapper) {
-        self.0 = entity_mapper.get_or_reserve(self.0);
+impl MapNetworkEntities for MappedComponent {
+    fn map_entities(&mut self, entity_map: &HashMap<Entity, Entity>) -> Result<(), MapError> {
+        self.0 = *entity_map.get(&self.0).ok_or(MapError(self.0))?;
+        Ok(())
     }
 }
+```
 
-// We need to impl either `FromWorld` or `Default` so `MappedComponent` can
-// be registered as `Reflect`. This is because `Reflect` deserialize by
-// creating an instance and apply a patch on top. However `MappedComponent`
-// should only ever be created with a real user-defined entity, so it's better
-// to implement `FromWorld`.
-// Bevy uses the same pattern to reflect components with `Entity`.
-impl FromWorld for MappedComponent {
-    fn from_world(_world: &mut World) -> Self {
-        Self(Entity::PLACEHOLDER)
-    }
+If your component doesn't implement serde traits or you want to serialize it partially
+you can use [`AppReplicationExt::replicate_with`]:
+
+```rust
+use bevy::{ecs::world::EntityMut, prelude::*, ptr::Ptr, utils::HashMap};
+# use bevy_replicon::prelude::*;
+# use serde::{Deserialize, Serialize};
+# let mut app = App::new();
+# app.add_plugins(ReplicationPlugins);
+app.replicate_with::<Transform>(serialize_transform, deserialize_transform);
+
+/// Serializes only translation.
+fn serialize_transform(component: Ptr) -> Vec<u8> {
+    // SAFETY: Function called for registered `ComponentId`.
+    let transform: &Transform = unsafe { component.deref() };
+    bincode::serialize(&transform.translation)
+        .unwrap_or_else(|e| panic!("Vec3 should be serialzable: {e}"))
+}
+
+/// Deserializes translation and creates [`Transform`] from it.
+fn deserialize_transform(
+    entity: &mut EntityMut,
+    _entity_map: &HashMap<Entity, Entity>,
+    component: &[u8],
+) {
+    let translation: Vec3 = bincode::deserialize(component)
+        .unwrap_or_else(|e| panic!("bytes from server should be Vec3: {e}"));
+    entity.insert(Transform::from_translation(translation));
 }
 ```
 
@@ -111,25 +122,8 @@ component. Just insert it to the entity you want to replicate. Only components
 marked for replication through [`AppReplicationExt::replicate()`]
 will be replicated.
 
-If you need more control, you add special rules. For example, if you don't want
-to replicate [`Transform`] on entities marked for replication if your special
-component is present, you can do the following:
-
-```rust
-# use bevy::prelude::*;
-# use bevy_replicon::prelude::*;
-# let mut app = App::new();
-# app.add_plugins(ReplicationPlugins);
-app.replicate::<Visibility>()
-    .replicate::<DummyComponent>()
-    .not_replicate_if_present::<Visibility, DummyComponent>();
-
-# #[derive(Component, Default, Reflect)]
-# #[reflect(Component)]
-# struct DummyComponent;
-```
-
-Could be called any number times.
+If you need to disable replication for specific component for specific entity,
+you can insert [`Ignored<T>`] component and replication will be skipped for `T`.
 
 ### "Blueprints" pattern
 
@@ -145,12 +139,12 @@ necessary components after replication. If you want to avoid one frame delay, pu
 your initialization systems to [`ClientSet::Receive`]:
 
 ```rust
-# use bevy::prelude::*;
+use bevy::{ecs::world::EntityMut, prelude::*, ptr::Ptr, utils::HashMap};
 # use bevy_replicon::prelude::*;
+# use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
-app.replicate::<Transform>()
-    .replicate::<Visibility>()
+app.replicate_with::<Transform>(serialize_transform, deserialize_transform)
     .replicate::<Player>()
     .add_systems(PreUpdate, player_init_system.after(ClientSet::Receive));
 
@@ -163,6 +157,7 @@ fn player_init_system(
     for entity in &spawned_players {
         commands.entity(entity).insert((
             GlobalTransform::default(),
+            Visibility::default(),
             ComputedVisibility::default(),
             meshes.add(Mesh::from(shape::Capsule::default())),
             materials.add(Color::AZURE.into()),
@@ -170,9 +165,10 @@ fn player_init_system(
     }
 }
 
-#[derive(Component, Default, Reflect)]
-#[reflect(Component)]
+#[derive(Component, Deserialize, Serialize)]
 struct Player;
+# fn serialize_transform(_: Ptr) -> Vec<u8> { unimplemented!() }
+# fn deserialize_transform(_: &mut EntityMut, _: &HashMap<Entity, Entity>, _: &[u8]) {}
 ```
 
 If your game have save states you probably want to re-use the same logic to
@@ -236,16 +232,10 @@ struct DummyEvent;
 
 Just like components, if an event contains [`Entity`], then the client should
 map it before sending it to the server.
-To do this, use [`ClientEventAppExt::add_mapped_client_event()`] and implement [`MapEventEntities`]:
+To do this, use [`ClientEventAppExt::add_mapped_client_event()`] and implement [`MapNetworkEntities`]:
 
 ```rust
-# use bevy::{
-#     ecs::{
-#         entity::{EntityMap, MapEntities},
-#         reflect::ReflectMapEntities,
-#     },
-#     prelude::*,
-# };
+use bevy::{prelude::*, utils::HashMap};
 # use bevy_replicon::prelude::*;
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
@@ -255,9 +245,9 @@ app.add_mapped_client_event::<MappedEvent>(SendPolicy::Ordered);
 #[derive(Debug, Deserialize, Event, Serialize)]
 struct MappedEvent(Entity);
 
-impl MapEventEntities for MappedEvent {
-    fn map_entities(&mut self, entity_map: &EntityMap) -> Result<(), MapError> {
-        self.0 = entity_map.get(self.0).ok_or(MapError(self.0))?;
+impl MapNetworkEntities for MappedEvent {
+    fn map_entities(&mut self, entity_map: &HashMap<Entity, Entity>) -> Result<(), MapError> {
+        self.0 = *entity_map.get(&self.0).ok_or(MapError(self.0))?;
         Ok(())
     }
 }
@@ -265,7 +255,7 @@ impl MapEventEntities for MappedEvent {
 
 There is also [`ClientEventAppExt::add_client_reflect_event()`] and [`ClientEventAppExt::add_mapped_client_reflect_event()`]
 for events that require reflection for serialization and deserialization (for example, events that contain `Box<dyn Reflect>`).
-To serialize such event you need to write serializer and deserializer manually because for such types you need acess to [`AppTypeRegistry`].
+To serialize such event you need to write serializer and deserializer manually because for such types you need access to [`AppTypeRegistry`].
 It's pretty straigtforward but requires some boilerplate. See [`BuildEventSerializer`], [`BuildEventDeserializer`] and module
 `common` module in integration tests as example.
 Don't forget to check what inside every `Box<dyn Reflect>` from a client, it could be anything!
@@ -362,7 +352,6 @@ pub mod network_event;
 pub mod parent_sync;
 pub mod replication_core;
 pub mod server;
-mod world_diff;
 
 pub mod prelude {
     pub use super::{
@@ -370,13 +359,13 @@ pub mod prelude {
         network_event::{
             client_event::{ClientEventAppExt, FromClient},
             server_event::{SendMode, ServerEventAppExt, ToClients},
-            BuildEventDeserializer, BuildEventSerializer, MapError, MapEventEntities, SendPolicy,
+            BuildEventDeserializer, BuildEventSerializer, SendPolicy,
         },
         parent_sync::{ParentSync, ParentSyncPlugin},
         renet::{RenetClient, RenetServer},
         replication_core::{
-            AppReplicationExt, NetworkChannels, Replication, ReplicationCorePlugin,
-            ReplicationRules,
+            AppReplicationExt, Ignored, MapError, MapNetworkEntities, NetworkChannels, Replication,
+            ReplicationCorePlugin, ReplicationRules,
         },
         server::{has_authority, AckedTicks, ServerPlugin, ServerSet, TickPolicy, SERVER_ID},
         ReplicationPlugins,
@@ -385,6 +374,7 @@ pub mod prelude {
 
 use bevy::{app::PluginGroupBuilder, prelude::*};
 pub use bevy_renet::*;
+pub use bincode;
 use prelude::*;
 
 pub struct ReplicationPlugins;

@@ -1,17 +1,15 @@
 use bevy::{
-    ecs::{component::Tick, entity::EntityMap, reflect::ReflectMapEntities, system::Command},
+    ecs::{component::Tick, system::Command},
     prelude::*,
-    reflect::TypeRegistryInternal,
     utils::HashMap,
 };
 use bevy_renet::transport::client_connected;
 use bevy_renet::{renet::RenetClient, transport::NetcodeClientPlugin, RenetClientPlugin};
-use bincode::{DefaultOptions, Options};
-use serde::{de::DeserializeSeed, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 use crate::{
-    replication_core::REPLICATION_CHANNEL_ID,
-    world_diff::{ComponentDiff, WorldDiff, WorldDiffDeserializer},
+    prelude::ReplicationRules,
+    replication_core::{ComponentDiff, WorldDiff, REPLICATION_CHANNEL_ID},
     Replication,
 };
 
@@ -53,7 +51,6 @@ impl ClientPlugin {
         mut commands: Commands,
         mut last_tick: ResMut<LastTick>,
         mut client: ResMut<RenetClient>,
-        registry: Res<AppTypeRegistry>,
     ) {
         let mut last_message = None;
         while let Some(message) = client.receive_message(REPLICATION_CHANNEL_ID) {
@@ -61,15 +58,7 @@ impl ClientPlugin {
         }
 
         if let Some(last_message) = last_message {
-            let registry = registry.read();
-            // Set options to match `bincode::serialize`.
-            // https://docs.rs/bincode/latest/bincode/config/index.html#options-struct-vs-bincode-functions
-            let options = DefaultOptions::new()
-                .with_fixint_encoding()
-                .allow_trailing_bytes();
-            let mut deserializer = bincode::Deserializer::from_slice(&last_message, options);
-            let world_diff = WorldDiffDeserializer::new(&registry)
-                .deserialize(&mut deserializer)
+            let world_diff: WorldDiff = bincode::deserialize(&last_message)
                 .expect("server should send only world diffs over replication channel");
             *last_tick = world_diff.tick.into();
             commands.apply_world_diff(world_diff);
@@ -122,21 +111,29 @@ struct ApplyWorldDiff(WorldDiff);
 
 impl Command for ApplyWorldDiff {
     fn apply(self, world: &mut World) {
-        let registry = world.resource::<AppTypeRegistry>().clone();
-        let registry = registry.read();
         world.resource_scope(|world, mut entity_map: Mut<NetworkEntityMap>| {
-            // Map entities non-lazily in order to correctly map components that reference server entities.
-            for (entity, components) in map_entities(world, &mut entity_map, self.0.entities) {
-                for component_diff in components {
-                    apply_component_diff(
-                        world,
-                        &mut entity_map,
-                        &registry,
-                        entity,
-                        &component_diff,
-                    );
+            world.resource_scope(|world, replication_rules: Mut<ReplicationRules>| {
+                // Map entities non-lazily in order to correctly map components that reference server entities.
+                for (entity, components) in map_entities(world, &mut entity_map, self.0.entities) {
+                    let mut entity = world.entity_mut(entity);
+                    for component_diff in components {
+                        match component_diff {
+                            ComponentDiff::Changed((replication_id, component)) => {
+                                let replication_info = replication_rules.get_info(replication_id);
+                                (replication_info.deserialize)(
+                                    &mut entity,
+                                    &entity_map.server_to_client,
+                                    &component,
+                                );
+                            }
+                            ComponentDiff::Removed(replication_id) => {
+                                let replication_info = replication_rules.get_info(replication_id);
+                                (replication_info.remove)(&mut entity);
+                            }
+                        }
+                    }
                 }
-            }
+            });
 
             for server_entity in self.0.despawns {
                 // The entity might have already been deleted with the last diff,
@@ -164,38 +161,6 @@ fn map_entities(
     mapped_entities
 }
 
-fn apply_component_diff(
-    world: &mut World,
-    entity_map: &mut NetworkEntityMap,
-    registry: &TypeRegistryInternal,
-    client_entity: Entity,
-    component_diff: &ComponentDiff,
-) {
-    let type_name = component_diff.type_name();
-    let registration = registry
-        .get_with_name(type_name)
-        .unwrap_or_else(|| panic!("{type_name} should be registered"));
-
-    let reflect_component = registration
-        .data::<ReflectComponent>()
-        .unwrap_or_else(|| panic!("{type_name} should have reflect(Component)"));
-
-    match component_diff {
-        ComponentDiff::Changed(component) => {
-            reflect_component.apply_or_insert(&mut world.entity_mut(client_entity), &**component);
-            if let Some(reflect_map_entities) = registration.data::<ReflectMapEntities>() {
-                // TODO 0.12: Remove mutable access.
-                reflect_map_entities.map_entities(
-                    world,
-                    &mut entity_map.server_to_client,
-                    &[client_entity],
-                );
-            }
-        }
-        ComponentDiff::Removed(_) => reflect_component.remove(&mut world.entity_mut(client_entity)),
-    }
-}
-
 /// Set with replication and event systems related to client.
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum ClientSet {
@@ -214,8 +179,8 @@ pub enum ClientSet {
 /// Used only on client.
 #[derive(Default, Resource)]
 pub struct NetworkEntityMap {
-    server_to_client: EntityMap,
-    client_to_server: EntityMap,
+    server_to_client: HashMap<Entity, Entity>,
+    client_to_server: HashMap<Entity, Entity>,
 }
 
 impl NetworkEntityMap {
@@ -236,18 +201,18 @@ impl NetworkEntityMap {
     }
 
     fn remove_by_server(&mut self, server_entity: Entity) -> Option<Entity> {
-        let client_entity = self.server_to_client.remove(server_entity);
+        let client_entity = self.server_to_client.remove(&server_entity);
         if let Some(client_entity) = client_entity {
-            self.client_to_server.remove(client_entity);
+            self.client_to_server.remove(&client_entity);
         }
         client_entity
     }
 
-    pub fn to_client(&self) -> &EntityMap {
+    pub fn to_client(&self) -> &HashMap<Entity, Entity> {
         &self.server_to_client
     }
 
-    pub fn to_server(&self) -> &EntityMap {
+    pub fn to_server(&self) -> &HashMap<Entity, Entity> {
         &self.client_to_server
     }
 }

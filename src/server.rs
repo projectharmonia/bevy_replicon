@@ -5,13 +5,12 @@ use std::time::Duration;
 
 use bevy::{
     ecs::{
-        archetype::ArchetypeId,
-        component::{ComponentTicks, StorageType, Tick},
+        archetype::{Archetype, ArchetypeId},
+        component::{ComponentId, StorageType, Tick},
+        storage::Table,
         system::SystemChangeTick,
-        world::EntityRef,
     },
     prelude::*,
-    reflect::TypeRegistryInternal,
     time::common_conditions::on_timer,
     utils::HashMap,
 };
@@ -24,8 +23,10 @@ use derive_more::Constructor;
 
 use crate::{
     client::LastTick,
-    replication_core::{ReplicationRules, REPLICATION_CHANNEL_ID},
-    world_diff::{ComponentDiff, WorldDiff, WorldDiffSerializer},
+    replication_core::{
+        ComponentDiff, ReplicationId, ReplicationInfo, ReplicationRules, WorldDiff,
+        REPLICATION_CHANNEL_ID,
+    },
 };
 use despawn_tracker::{DespawnTracker, DespawnTrackerPlugin};
 use removal_tracker::{RemovalTracker, RemovalTrackerPlugin};
@@ -123,27 +124,24 @@ impl ServerPlugin {
         change_tick: SystemChangeTick,
         mut set: ParamSet<(&World, ResMut<RenetServer>)>,
         acked_ticks: Res<AckedTicks>,
-        registry: Res<AppTypeRegistry>,
         replication_rules: Res<ReplicationRules>,
         despawn_tracker: Res<DespawnTracker>,
         removal_trackers: Query<(Entity, &RemovalTracker)>,
     ) {
         // Initialize [`WorldDiff`]s with latest acknowledged tick for each client.
-        let registry = registry.read();
         let mut client_diffs: HashMap<_, _> = acked_ticks
             .iter()
             .map(|(&client_id, &last_tick)| (client_id, WorldDiff::new(last_tick)))
             .collect();
-        collect_changes(&mut client_diffs, set.p0(), &registry, &replication_rules);
-        collect_removals(&mut client_diffs, set.p0(), &change_tick, &removal_trackers);
+        collect_changes(&mut client_diffs, set.p0(), &replication_rules);
+        collect_removals(&mut client_diffs, &change_tick, &removal_trackers);
         collect_despawns(&mut client_diffs, &change_tick, &despawn_tracker);
 
         let current_tick = set.p0().read_change_tick();
         for (client_id, mut world_diff) in client_diffs {
             world_diff.tick = current_tick; // Replace last acknowledged tick with the current.
-            let serializer = WorldDiffSerializer::new(&world_diff, &registry);
             let message =
-                bincode::serialize(&serializer).expect("world diff should be serializable");
+                bincode::serialize(&world_diff).expect("world diff should be serializable");
             set.p1()
                 .send_message(client_id, REPLICATION_CHANNEL_ID, message);
         }
@@ -157,7 +155,6 @@ impl ServerPlugin {
 fn collect_changes(
     client_diffs: &mut HashMap<u64, WorldDiff>,
     world: &World,
-    registry: &TypeRegistryInternal,
     replication_rules: &ReplicationRules,
 ) {
     for archetype in world
@@ -165,121 +162,136 @@ fn collect_changes(
         .iter()
         .filter(|archetype| archetype.id() != ArchetypeId::EMPTY)
         .filter(|archetype| archetype.id() != ArchetypeId::INVALID)
-        .filter(|archetype| replication_rules.is_replicated_archetype(archetype))
+        .filter(|archetype| archetype.contains(replication_rules.replication_id()))
     {
         let table = world
             .storages()
             .tables
             .get(archetype.table_id())
-            .expect("archetype should be in storage");
+            .expect("archetype should be valid");
 
-        for component_id in archetype.components().filter(|&component_id| {
-            replication_rules.is_replicated_component(archetype, component_id)
-        }) {
+        for component_id in archetype.components() {
+            let Some(replication_id) = replication_rules.get_id(component_id) else {
+                continue;
+            };
+            let replication_info = replication_rules.get_info(replication_id);
+            if archetype.contains(replication_info.ignored_id) {
+                continue;
+            }
+
             let storage_type = archetype
                 .get_storage_type(component_id)
-                .expect("component should be a part of the archetype");
-
-            // SAFETY: `component_id` obtained from the world.
-            let component_info = unsafe { world.components().get_info_unchecked(component_id) };
-            let type_name = component_info.name();
-            let type_id = component_info
-                .type_id()
-                .unwrap_or_else(|| panic!("{type_name} should have registered TypeId"));
-            let registration = registry
-                .get(type_id)
-                .unwrap_or_else(|| panic!("{type_name} should be registered"));
-            let reflect_component = registration
-                .data::<ReflectComponent>()
-                .unwrap_or_else(|| panic!("{type_name} should have reflect(Component)"));
+                .unwrap_or_else(|| panic!("{component_id:?} be in archetype"));
 
             match storage_type {
                 StorageType::Table => {
-                    let column = table
-                        .get_column(component_id)
-                        .unwrap_or_else(|| panic!("{type_name} should have a valid column"));
-
-                    for archetype_entity in archetype.entities() {
-                        // SAFETY: the table row obtained from the world state.
-                        let ticks =
-                            unsafe { column.get_ticks_unchecked(archetype_entity.table_row()) };
-                        collect_if_changed(
-                            client_diffs,
-                            world.entity(archetype_entity.entity()),
-                            world,
-                            ticks,
-                            reflect_component,
-                            type_name,
-                        );
-                    }
+                    collect_table_components(
+                        client_diffs,
+                        world,
+                        table,
+                        archetype,
+                        replication_info,
+                        replication_id,
+                        component_id,
+                    );
                 }
                 StorageType::SparseSet => {
-                    let sparse_set = world
-                        .storages()
-                        .sparse_sets
-                        .get(component_id)
-                        .unwrap_or_else(|| panic!("{type_name} should exists in a sparse set"));
-
-                    for archetype_entity in archetype.entities() {
-                        let ticks = sparse_set
-                            .get_ticks(archetype_entity.entity())
-                            .expect("{type_name} should have ticks");
-                        collect_if_changed(
-                            client_diffs,
-                            world.entity(archetype_entity.entity()),
-                            world,
-                            ticks,
-                            reflect_component,
-                            type_name,
-                        );
-                    }
+                    collect_sparse_set_components(
+                        client_diffs,
+                        world,
+                        archetype,
+                        replication_info,
+                        replication_id,
+                        component_id,
+                    );
                 }
             }
         }
     }
 }
 
-fn collect_if_changed(
+fn collect_table_components(
     client_diffs: &mut HashMap<u64, WorldDiff>,
-    entity: EntityRef,
     world: &World,
-    ticks: ComponentTicks,
-    reflect_component: &ReflectComponent,
-    type_name: &str,
+    table: &Table,
+    archetype: &Archetype,
+    replication_info: &ReplicationInfo,
+    replication_id: ReplicationId,
+    component_id: ComponentId,
 ) {
-    for world_diff in client_diffs.values_mut() {
-        if ticks.is_changed(world_diff.tick, world.read_change_tick()) {
-            let component = reflect_component
-                .reflect(entity)
-                .unwrap_or_else(|| panic!("entity should have {type_name}"))
-                .clone_value();
-            world_diff
-                .entities
-                .entry(entity.id())
-                .or_default()
-                .push(ComponentDiff::Changed(component));
+    let column = table
+        .get_column(component_id)
+        .unwrap_or_else(|| panic!("{component_id:?} should belong to table"));
+
+    for archetype_entity in archetype.entities() {
+        // SAFETY: the table row obtained from the world state.
+        let ticks = unsafe { column.get_ticks_unchecked(archetype_entity.table_row()) };
+        // SAFETY: component obtained from the archetype.
+        let component = unsafe { column.get_data_unchecked(archetype_entity.table_row()) };
+
+        for world_diff in client_diffs.values_mut() {
+            if ticks.is_changed(world_diff.tick, world.read_change_tick()) {
+                let component = (replication_info.serialize)(component);
+                world_diff
+                    .entities
+                    .entry(archetype_entity.entity())
+                    .or_default()
+                    .push(ComponentDiff::Changed((replication_id, component)));
+            }
+        }
+    }
+}
+
+fn collect_sparse_set_components(
+    client_diffs: &mut HashMap<u64, WorldDiff>,
+    world: &World,
+    archetype: &Archetype,
+    replication_info: &ReplicationInfo,
+    replication_id: ReplicationId,
+    component_id: ComponentId,
+) {
+    let sparse_set = world
+        .storages()
+        .sparse_sets
+        .get(component_id)
+        .unwrap_or_else(|| panic!("{component_id:?} should belong to sparse set"));
+
+    for archetype_entity in archetype.entities() {
+        let entity = archetype_entity.entity();
+        let ticks = sparse_set
+            .get_ticks(entity)
+            .unwrap_or_else(|| panic!("{entity:?} should have {component_id:?}"));
+        let component = sparse_set
+            .get(entity)
+            .unwrap_or_else(|| panic!("{entity:?} should have {component_id:?}"));
+
+        for world_diff in client_diffs.values_mut() {
+            if ticks.is_changed(world_diff.tick, world.read_change_tick()) {
+                let component = (replication_info.serialize)(component);
+                world_diff
+                    .entities
+                    .entry(entity)
+                    .or_default()
+                    .push(ComponentDiff::Changed((replication_id, component)));
+            }
         }
     }
 }
 
 fn collect_removals(
     client_diffs: &mut HashMap<u64, WorldDiff>,
-    world: &World,
     change_tick: &SystemChangeTick,
     removal_trackers: &Query<(Entity, &RemovalTracker)>,
 ) {
     for (entity, removal_tracker) in removal_trackers {
         for world_diff in client_diffs.values_mut() {
-            for (&component_id, &tick) in removal_tracker.iter() {
+            for (&replication_id, &tick) in removal_tracker.iter() {
                 if tick.is_newer_than(world_diff.tick, change_tick.this_run()) {
-                    // SAFETY: `component_id` obtained from `RemovalTracker` that always contains valid components.
-                    let component_info =
-                        unsafe { world.components().get_info_unchecked(component_id) };
                     world_diff
                         .entities
                         .entry(entity)
                         .or_default()
-                        .push(ComponentDiff::Removed(component_info.name().to_string()));
+                        .push(ComponentDiff::Removed(replication_id));
                 }
             }
         }

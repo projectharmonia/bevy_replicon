@@ -1,13 +1,9 @@
 pub mod client_event;
 pub mod server_event;
 
-use std::{
-    fmt::{self, Display, Formatter},
-    marker::PhantomData,
-    time::Duration,
-};
+use std::{marker::PhantomData, time::Duration};
 
-use bevy::{ecs::entity::EntityMap, prelude::*, reflect::TypeRegistryInternal};
+use bevy::{prelude::*, reflect::TypeRegistryInternal};
 use bevy_renet::renet::SendType;
 
 /// Holds a channel ID for `T`.
@@ -65,17 +61,5 @@ impl From<SendPolicy> for SendType {
                 resend_time: RESEND_TIME,
             },
         }
-    }
-}
-
-pub trait MapEventEntities {
-    fn map_entities(&mut self, entity_map: &EntityMap) -> Result<(), MapError>;
-}
-
-pub struct MapError(pub Entity);
-
-impl Display for MapError {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "unable to map entity {:?}", self.0)
     }
 }

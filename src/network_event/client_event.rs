@@ -11,10 +11,10 @@ use serde::{
     Serialize,
 };
 
-use super::{BuildEventDeserializer, BuildEventSerializer, EventChannel, MapEventEntities};
+use super::{BuildEventDeserializer, BuildEventSerializer, EventChannel};
 use crate::{
     client::{ClientSet, NetworkEntityMap},
-    replication_core::NetworkChannels,
+    replication_core::{MapNetworkEntities, NetworkChannels},
     server::{has_authority, ServerSet, SERVER_ID},
 };
 
@@ -27,7 +27,9 @@ pub trait ClientEventAppExt {
     ) -> &mut Self;
 
     /// Same as [`Self::add_client_event`], but additionally maps client entities to server before sending.
-    fn add_mapped_client_event<T: Event + Serialize + DeserializeOwned + Debug + MapEventEntities>(
+    fn add_mapped_client_event<
+        T: Event + Serialize + DeserializeOwned + Debug + MapNetworkEntities,
+    >(
         &mut self,
         policy: impl Into<SendType>,
     ) -> &mut Self;
@@ -50,7 +52,7 @@ pub trait ClientEventAppExt {
         policy: impl Into<SendType>,
     ) -> &mut Self
     where
-        T: Event + Debug + MapEventEntities,
+        T: Event + Debug + MapNetworkEntities,
         S: BuildEventSerializer<T> + 'static,
         D: BuildEventDeserializer + 'static,
         for<'a> S::EventSerializer<'a>: Serialize,
@@ -74,7 +76,7 @@ impl ClientEventAppExt for App {
     }
 
     fn add_mapped_client_event<
-        T: Event + Serialize + DeserializeOwned + Debug + MapEventEntities,
+        T: Event + Serialize + DeserializeOwned + Debug + MapNetworkEntities,
     >(
         &mut self,
         policy: impl Into<SendType>,
@@ -103,7 +105,7 @@ impl ClientEventAppExt for App {
 
     fn add_mapped_client_reflect_event<T, S, D>(&mut self, policy: impl Into<SendType>) -> &mut Self
     where
-        T: Event + Debug + MapEventEntities,
+        T: Event + Debug + MapNetworkEntities,
         S: BuildEventSerializer<T> + 'static,
         D: BuildEventDeserializer + 'static,
         for<'a> S::EventSerializer<'a>: Serialize,
@@ -212,7 +214,7 @@ fn sending_system<T: Event + Serialize + Debug>(
     }
 }
 
-fn mapping_and_sending_system<T: Event + MapEventEntities + Serialize + Debug>(
+fn mapping_and_sending_system<T: Event + MapNetworkEntities + Serialize + Debug>(
     mut events: ResMut<Events<T>>,
     mut client: ResMut<RenetClient>,
     entity_map: Res<NetworkEntityMap>,
@@ -256,7 +258,7 @@ fn mapping_and_sending_reflect_system<T, S>(
     channel: Res<EventChannel<T>>,
     registry: Res<AppTypeRegistry>,
 ) where
-    T: Event + MapEventEntities + Debug,
+    T: Event + MapNetworkEntities + Debug,
     S: BuildEventSerializer<T>,
     for<'a> S::EventSerializer<'a>: Serialize,
 {

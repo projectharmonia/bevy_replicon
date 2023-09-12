@@ -6,9 +6,9 @@ use std::time::{Duration, Instant};
 use bevy::{app::MainScheduleOrder, ecs::schedule::ExecutorKind, prelude::*};
 use bevy_replicon::prelude::*;
 use criterion::{criterion_group, criterion_main, Criterion};
+use serde::{Deserialize, Serialize};
 
-#[derive(Component, Reflect, Default, Clone, Copy)]
-#[reflect(Component)]
+#[derive(Component, Clone, Copy, Serialize, Deserialize)]
 struct DummyComponent;
 
 const ENTITIES: u32 = 900;

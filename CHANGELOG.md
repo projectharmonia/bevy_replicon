@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `MapEventEntities` was renamed into `MapNetworkEntities` and now used for both components and events. Built-in `MapEntities` trait from Bevy is not suited for network case for now.
+- `AppReplicationExt::not_replicate_with` was replaced with component marker `Ignored<T>`.
+- Reflection was replaced with plain serialization. Now components need implement serde traits and no longer need any reflection. This reduced reduced message sizes a lot. Because of this mapped components now need to be registered with `AppReplicationExt::replicate_mapped`.
 - Derive `Clone` and `Copy` for `Replication`.
 - Make `ServerPlugin` fields private and add `ServerPlugin::new`.
 - Make `AckedTicks` public.
