@@ -1,6 +1,7 @@
 use bevy::{
     ecs::{
         component::{ComponentId, Tick},
+        removal_detection::RemovedComponentEvents,
         system::SystemChangeTick,
     },
     prelude::*,
@@ -59,11 +60,17 @@ impl RemovalTrackerPlugin {
     fn detection_system(
         mut set: ParamSet<(&World, Query<&mut RemovalTracker>)>,
         replication_rules: Res<ReplicationRules>,
+        remove_events: &RemovedComponentEvents,
     ) {
         let current_tick = set.p0().read_change_tick();
         for &component_id in &replication_rules.replicated {
-            let entities: Vec<_> = set.p0().removed_with_id(component_id).collect();
-            for entity in entities {
+            for entity in remove_events
+                .get(component_id)
+                .map(|removed| removed.iter_current_update_events().cloned())
+                .into_iter()
+                .flatten()
+                .map(|e| e.into())
+            {
                 if let Ok(mut removal_tracker) = set.p1().get_mut(entity) {
                     removal_tracker.insert(component_id, current_tick);
                 }
