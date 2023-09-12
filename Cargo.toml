@@ -16,7 +16,7 @@ keywords = [
 ]
 categories = ["game-development", "network-programming"]
 license = "MIT OR Apache-2.0"
-include = ["/src", "/LICENSE*"]
+include = ["/benches", "/src", "/tests", "/LICENSE*"]
 
 [dependencies]
 bevy_renet = "0.0.9"
