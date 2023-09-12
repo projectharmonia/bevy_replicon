@@ -198,7 +198,7 @@ server.
 
 ### From client to server
 
-To send specific events from server to client, you need to register the event
+To send specific events from client to server, you need to register the event
 with [`ClientEventAppExt::add_client_event()`] instead of [`App::add_event()`].
 These events will appear on server as [`FromClient`] wrapper event that
 contains sender ID and the sent event. We consider the authority machine
