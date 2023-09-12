@@ -111,6 +111,9 @@ fn insert_replication() {
 
     common::connect(&mut server_app, &mut client_app);
 
+    // Make client and server have different entity IDs.
+    server_app.world.spawn_empty();
+
     let server_map_entity = server_app.world.spawn_empty().id();
     let client_map_entity = client_app.world.spawn_empty().id();
 
