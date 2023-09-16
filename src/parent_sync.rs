@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     client::ClientSet,
-    replication_core::{AppReplicationExt, Mapper},
+    replicon_core::{AppReplicationExt, Mapper},
     server::{has_authority, ServerSet},
     MapNetworkEntities,
 };
@@ -101,12 +101,12 @@ mod tests {
     use bevy::scene::ScenePlugin;
 
     use super::*;
-    use crate::replication_core::ReplicationCorePlugin;
+    use crate::replicon_core::RepliconCorePlugin;
 
     #[test]
     fn update() {
         let mut app = App::new();
-        app.add_plugins((ReplicationCorePlugin, ParentSyncPlugin));
+        app.add_plugins((RepliconCorePlugin, ParentSyncPlugin));
 
         let child_entity = app.world.spawn_empty().id();
         app.world.spawn_empty().add_child(child_entity);
@@ -127,7 +127,7 @@ mod tests {
     #[test]
     fn removal() {
         let mut app = App::new();
-        app.add_plugins((ReplicationCorePlugin, ParentSyncPlugin));
+        app.add_plugins((RepliconCorePlugin, ParentSyncPlugin));
 
         let parent_entity = app.world.spawn_empty().id();
         let child_entity = app
@@ -153,7 +153,7 @@ mod tests {
     #[test]
     fn update_sync() {
         let mut app = App::new();
-        app.add_plugins((ReplicationCorePlugin, ParentSyncPlugin));
+        app.add_plugins((RepliconCorePlugin, ParentSyncPlugin));
 
         let parent_entity = app.world.spawn_empty().id();
         let child_entity = app.world.spawn(ParentSync(Some(parent_entity))).id();
@@ -169,7 +169,7 @@ mod tests {
     #[test]
     fn removal_sync() {
         let mut app = App::new();
-        app.add_plugins((ReplicationCorePlugin, ParentSyncPlugin));
+        app.add_plugins((RepliconCorePlugin, ParentSyncPlugin));
 
         let child_entity = app.world.spawn_empty().id();
         app.world.spawn_empty().add_child(child_entity);
@@ -193,7 +193,7 @@ mod tests {
         app.add_plugins((
             AssetPlugin::default(),
             ScenePlugin,
-            ReplicationCorePlugin,
+            RepliconCorePlugin,
             ParentSyncPlugin,
         ));
 

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Rename `ReplicationCore` into `RepliconCore` with its module for clarity.
 - Store changes in `WorldDiff` in `Vec` instead of `HashMap` to increase performance.
 - `MapNetworkEntities` now accepts generic `Mapper` and doesn't have error handling and deserialiation functions now accept entity map by mutable reference. This allowed us to lazily map entities on client without extra allocation.
 

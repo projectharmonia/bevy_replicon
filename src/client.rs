@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     prelude::ReplicationRules,
-    replication_core::{ComponentDiff, Mapper, WorldDiff, REPLICATION_CHANNEL_ID},
+    replicon_core::{ComponentDiff, Mapper, WorldDiff, REPLICATION_CHANNEL_ID},
     Replication,
 };
 

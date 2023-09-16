@@ -23,7 +23,7 @@ use derive_more::Constructor;
 
 use crate::{
     client::LastTick,
-    replication_core::{
+    replicon_core::{
         ComponentDiff, ReplicationId, ReplicationInfo, ReplicationRules, WorldDiff,
         REPLICATION_CHANNEL_ID,
     },

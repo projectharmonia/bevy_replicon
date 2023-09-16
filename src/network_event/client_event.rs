@@ -15,7 +15,7 @@ use super::{BuildEventDeserializer, BuildEventSerializer, EventChannel};
 use crate::{
     client::{ClientSet, NetworkEntityMap},
     network_event::EventMapper,
-    replication_core::{MapNetworkEntities, NetworkChannels},
+    replicon_core::{MapNetworkEntities, NetworkChannels},
     server::{has_authority, ServerSet, SERVER_ID},
 };
 

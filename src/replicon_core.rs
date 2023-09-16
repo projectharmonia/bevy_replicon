@@ -14,9 +14,9 @@ use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize, Serializ
 
 use crate::client::ClientMapper;
 
-pub struct ReplicationCorePlugin;
+pub struct RepliconCorePlugin;
 
-impl Plugin for ReplicationCorePlugin {
+impl Plugin for RepliconCorePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<NetworkChannels>()
             .init_resource::<ReplicationRules>();

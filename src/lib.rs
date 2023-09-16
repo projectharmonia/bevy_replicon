@@ -348,7 +348,7 @@ creation / connection systems and corresponding UI.
 pub mod client;
 pub mod network_event;
 pub mod parent_sync;
-pub mod replication_core;
+pub mod replicon_core;
 pub mod server;
 
 pub mod prelude {
@@ -361,9 +361,9 @@ pub mod prelude {
         },
         parent_sync::{ParentSync, ParentSyncPlugin},
         renet::{RenetClient, RenetServer},
-        replication_core::{
+        replicon_core::{
             AppReplicationExt, Ignored, MapNetworkEntities, Mapper, NetworkChannels, Replication,
-            ReplicationCorePlugin, ReplicationRules,
+            ReplicationRules, RepliconCorePlugin,
         },
         server::{has_authority, AckedTicks, ServerPlugin, ServerSet, TickPolicy, SERVER_ID},
         ReplicationPlugins,
@@ -380,7 +380,7 @@ pub struct ReplicationPlugins;
 impl PluginGroup for ReplicationPlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<Self>()
-            .add(ReplicationCorePlugin)
+            .add(RepliconCorePlugin)
             .add(ParentSyncPlugin)
             .add(ClientPlugin)
             .add(ServerPlugin::default())
