@@ -1,8 +1,4 @@
-use std::{
-    any,
-    fmt::{self, Display, Formatter},
-    marker::PhantomData,
-};
+use std::{any, marker::PhantomData};
 
 use bevy::{
     ecs::{
@@ -15,6 +11,8 @@ use bevy::{
 };
 use bevy_renet::renet::{ChannelConfig, SendType};
 use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize, Serializer};
+
+use crate::client::ClientMapper;
 
 pub struct ReplicationCorePlugin;
 
@@ -102,7 +100,7 @@ pub trait AppReplicationExt {
     fn replicate_with<C>(
         &mut self,
         serialize: fn(Ptr) -> Vec<u8>,
-        deserialize: fn(&mut EntityMut, &HashMap<Entity, Entity>, &[u8]),
+        deserialize: fn(&mut EntityMut, &mut HashMap<Entity, Entity>, &[u8]),
     ) -> &mut Self
     where
         C: Component;
@@ -126,7 +124,7 @@ impl AppReplicationExt for App {
     fn replicate_with<C>(
         &mut self,
         serialize: fn(Ptr) -> Vec<u8>,
-        deserialize: fn(&mut EntityMut, &HashMap<Entity, Entity>, &[u8]),
+        deserialize: fn(&mut EntityMut, &mut HashMap<Entity, Entity>, &[u8]),
     ) -> &mut Self
     where
         C: Component,
@@ -206,7 +204,7 @@ pub struct ReplicationInfo {
     pub serialize: fn(Ptr) -> Vec<u8>,
 
     /// Function that deserializes component from bytes and inserts it to [`EntityMut`].
-    pub deserialize: fn(&mut EntityMut, &HashMap<Entity, Entity>, &[u8]),
+    pub deserialize: fn(&mut EntityMut, &mut HashMap<Entity, Entity>, &[u8]),
 
     /// Function that removes specific component from [`EntityMut`].
     pub remove: fn(&mut EntityMut),
@@ -239,7 +237,7 @@ fn serialize_component<C: Component + Serialize>(component: Ptr) -> Vec<u8> {
 /// Default deserialization function.
 fn deserialize_component<C: Component + DeserializeOwned>(
     entity: &mut EntityMut,
-    _entity_map: &HashMap<Entity, Entity>,
+    _entity_map: &mut HashMap<Entity, Entity>,
     component: &[u8],
 ) {
     let component: C = bincode::deserialize(component)
@@ -250,14 +248,16 @@ fn deserialize_component<C: Component + DeserializeOwned>(
 /// Default deserialization function that also maps entities before insertion.
 fn deserialize_mapped_component<C: Component + DeserializeOwned + MapNetworkEntities>(
     entity: &mut EntityMut,
-    entity_map: &HashMap<Entity, Entity>,
+    entity_map: &mut HashMap<Entity, Entity>,
     component: &[u8],
 ) {
     let mut component: C = bincode::deserialize(component)
         .unwrap_or_else(|e| panic!("bytes from server should be {}: {e}", any::type_name::<C>()));
-    component
-        .map_entities(entity_map)
-        .unwrap_or_else(|e| panic!("component should be mappable: {e}"));
+
+    entity.world_scope(|world| {
+        component.map_entities(&mut ClientMapper { world, entity_map });
+    });
+
     entity.insert(component);
 }
 
@@ -271,15 +271,11 @@ fn remove_component<C: Component>(entity: &mut EntityMut) {
 /// The same as [`bevy::ecs::entity::MapEntities`], but never creates new entities on mapping error.
 pub trait MapNetworkEntities {
     /// Maps stored entities using specified map.
-    fn map_entities(&mut self, entity_map: &HashMap<Entity, Entity>) -> Result<(), MapError>;
+    fn map_entities<T: Mapper>(&mut self, mapper: &mut T);
 }
 
-pub struct MapError(pub Entity);
-
-impl Display for MapError {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "unable to map entity {:?}", self.0)
-    }
+pub trait Mapper {
+    fn map(&mut self, entity: Entity) -> Entity;
 }
 
 /// Marks entity for replication.

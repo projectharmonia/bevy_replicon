@@ -1,6 +1,6 @@
 mod common;
 
-use bevy::{prelude::*, utils::HashMap};
+use bevy::prelude::*;
 use bevy_replicon::prelude::*;
 
 use bevy_renet::renet::transport::NetcodeClientTransport;
@@ -231,9 +231,8 @@ fn despawn_replication() {
 struct MappedComponent(Entity);
 
 impl MapNetworkEntities for MappedComponent {
-    fn map_entities(&mut self, entity_map: &HashMap<Entity, Entity>) -> Result<(), MapError> {
-        self.0 = *entity_map.get(&self.0).ok_or(MapError(self.0))?;
-        Ok(())
+    fn map_entities<T: Mapper>(&mut self, mapper: &mut T) {
+        self.0 = mapper.map(self.0);
     }
 }
 

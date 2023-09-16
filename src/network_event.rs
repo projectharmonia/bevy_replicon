@@ -3,8 +3,10 @@ pub mod server_event;
 
 use std::{marker::PhantomData, time::Duration};
 
-use bevy::{prelude::*, reflect::TypeRegistryInternal};
+use bevy::{prelude::*, reflect::TypeRegistryInternal, utils::HashMap};
 use bevy_renet::renet::SendType;
+
+use crate::replication_core::Mapper;
 
 /// Holds a channel ID for `T`.
 #[derive(Resource)]
@@ -61,5 +63,16 @@ impl From<SendPolicy> for SendType {
                 resend_time: RESEND_TIME,
             },
         }
+    }
+}
+
+struct EventMapper<'a>(&'a HashMap<Entity, Entity>);
+
+impl Mapper for EventMapper<'_> {
+    fn map(&mut self, entity: Entity) -> Entity {
+        *self
+            .0
+            .get(&entity)
+            .unwrap_or_else(|| panic!("entity {entity:?} should be mappable"))
     }
 }

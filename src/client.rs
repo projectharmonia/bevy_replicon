@@ -1,7 +1,7 @@
 use bevy::{
     ecs::{component::Tick, system::Command},
     prelude::*,
-    utils::HashMap,
+    utils::{Entry, HashMap},
 };
 use bevy_renet::transport::client_connected;
 use bevy_renet::{renet::RenetClient, transport::NetcodeClientPlugin, RenetClientPlugin};
@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     prelude::ReplicationRules,
-    replication_core::{ComponentDiff, WorldDiff, REPLICATION_CHANNEL_ID},
+    replication_core::{ComponentDiff, Mapper, WorldDiff, REPLICATION_CHANNEL_ID},
     Replication,
 };
 
@@ -114,15 +114,22 @@ impl Command for ApplyWorldDiff {
         world.resource_scope(|world, mut entity_map: Mut<NetworkEntityMap>| {
             world.resource_scope(|world, replication_rules: Mut<ReplicationRules>| {
                 // Map entities non-lazily in order to correctly map components that reference server entities.
-                for (entity, components) in map_entities(world, &mut entity_map, self.0.entities) {
-                    let mut entity = world.entity_mut(entity);
+                for (entity, components) in self.0.entities {
+                    let mut entity = match entity_map.server_to_client.entry(entity) {
+                        Entry::Occupied(entry) => world.entity_mut(*entry.get()),
+                        Entry::Vacant(entry) => {
+                            let entity = world.spawn(Replication);
+                            entry.insert(entity.id());
+                            entity
+                        }
+                    };
                     for component_diff in components {
                         match component_diff {
                             ComponentDiff::Changed((replication_id, component)) => {
                                 let replication_info = replication_rules.get_info(replication_id);
                                 (replication_info.deserialize)(
                                     &mut entity,
-                                    &entity_map.server_to_client,
+                                    &mut entity_map.server_to_client,
                                     &component,
                                 );
                             }
@@ -145,20 +152,6 @@ impl Command for ApplyWorldDiff {
             }
         });
     }
-}
-
-/// Maps entities received from server into client entities.
-fn map_entities(
-    world: &mut World,
-    entity_map: &mut NetworkEntityMap,
-    entities: HashMap<Entity, Vec<ComponentDiff>>,
-) -> Vec<(Entity, Vec<ComponentDiff>)> {
-    let mut mapped_entities = Vec::with_capacity(entities.len());
-    for (server_entity, components) in entities {
-        let client_entity = entity_map.get_by_server_or_spawn(world, server_entity);
-        mapped_entities.push((client_entity, components));
-    }
-    mapped_entities
 }
 
 /// Set with replication and event systems related to client.
@@ -189,17 +182,6 @@ impl NetworkEntityMap {
         self.client_to_server.insert(client_entity, server_entity);
     }
 
-    fn get_by_server_or_spawn(&mut self, world: &mut World, server_entity: Entity) -> Entity {
-        *self
-            .server_to_client
-            .entry(server_entity)
-            .or_insert_with(|| {
-                let client_entity = world.spawn(Replication).id();
-                self.client_to_server.insert(client_entity, server_entity);
-                client_entity
-            })
-    }
-
     fn remove_by_server(&mut self, server_entity: Entity) -> Option<Entity> {
         let client_entity = self.server_to_client.remove(&server_entity);
         if let Some(client_entity) = client_entity {
@@ -214,5 +196,19 @@ impl NetworkEntityMap {
 
     pub fn to_server(&self) -> &HashMap<Entity, Entity> {
         &self.client_to_server
+    }
+}
+
+pub(super) struct ClientMapper<'a> {
+    pub(super) world: &'a mut World,
+    pub(super) entity_map: &'a mut HashMap<Entity, Entity>,
+}
+
+impl Mapper for ClientMapper<'_> {
+    fn map(&mut self, entity: Entity) -> Entity {
+        *self
+            .entity_map
+            .entry(entity)
+            .or_insert_with(|| self.world.spawn(Replication).id())
     }
 }

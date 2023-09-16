@@ -4,13 +4,12 @@ use bevy::{
         reflect::ReflectMapEntities,
     },
     prelude::*,
-    utils::HashMap,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
     client::ClientSet,
-    replication_core::{AppReplicationExt, MapError},
+    replication_core::{AppReplicationExt, Mapper},
     server::{has_authority, ServerSet},
     MapNetworkEntities,
 };
@@ -90,12 +89,10 @@ impl MapEntities for ParentSync {
 }
 
 impl MapNetworkEntities for ParentSync {
-    fn map_entities(&mut self, entity_map: &HashMap<Entity, Entity>) -> Result<(), MapError> {
+    fn map_entities<T: Mapper>(&mut self, mapper: &mut T) {
         if let Some(ref mut entity) = self.0 {
-            *entity = *entity_map.get(entity).ok_or(MapError(*entity))?;
+            *entity = mapper.map(*entity);
         }
-
-        Ok(())
     }
 }
 

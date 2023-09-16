@@ -79,9 +79,8 @@ mapping. Therefore, to replicate such components properly, they need implement
 struct MappedComponent(Entity);
 
 impl MapNetworkEntities for MappedComponent {
-    fn map_entities(&mut self, entity_map: &HashMap<Entity, Entity>) -> Result<(), MapError> {
-        self.0 = *entity_map.get(&self.0).ok_or(MapError(self.0))?;
-        Ok(())
+    fn map_entities<T: Mapper>(&mut self, mapper: &mut T) {
+        self.0 = mapper.map(self.0);
     }
 }
 ```
@@ -108,7 +107,7 @@ fn serialize_transform(component: Ptr) -> Vec<u8> {
 /// Deserializes translation and creates [`Transform`] from it.
 fn deserialize_transform(
     entity: &mut EntityMut,
-    _entity_map: &HashMap<Entity, Entity>,
+    _entity_map: &mut HashMap<Entity, Entity>,
     component: &[u8],
 ) {
     let translation: Vec3 = bincode::deserialize(component)
@@ -168,7 +167,7 @@ fn player_init_system(
 #[derive(Component, Deserialize, Serialize)]
 struct Player;
 # fn serialize_transform(_: Ptr) -> Vec<u8> { unimplemented!() }
-# fn deserialize_transform(_: &mut EntityMut, _: &HashMap<Entity, Entity>, _: &[u8]) {}
+# fn deserialize_transform(_: &mut EntityMut, _: &mut HashMap<Entity, Entity>, _: &[u8]) {}
 ```
 
 If your game have save states you probably want to re-use the same logic to
@@ -246,9 +245,8 @@ app.add_mapped_client_event::<MappedEvent>(SendPolicy::Ordered);
 struct MappedEvent(Entity);
 
 impl MapNetworkEntities for MappedEvent {
-    fn map_entities(&mut self, entity_map: &HashMap<Entity, Entity>) -> Result<(), MapError> {
-        self.0 = *entity_map.get(&self.0).ok_or(MapError(self.0))?;
-        Ok(())
+    fn map_entities<T: Mapper>(&mut self, mapper: &mut T) {
+        self.0 = mapper.map(self.0);
     }
 }
 ```
@@ -364,7 +362,7 @@ pub mod prelude {
         parent_sync::{ParentSync, ParentSyncPlugin},
         renet::{RenetClient, RenetServer},
         replication_core::{
-            AppReplicationExt, Ignored, MapError, MapNetworkEntities, NetworkChannels, Replication,
+            AppReplicationExt, Ignored, MapNetworkEntities, Mapper, NetworkChannels, Replication,
             ReplicationCorePlugin, ReplicationRules,
         },
         server::{has_authority, AckedTicks, ServerPlugin, ServerSet, TickPolicy, SERVER_ID},

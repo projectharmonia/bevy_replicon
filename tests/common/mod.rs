@@ -11,7 +11,6 @@ use bevy::{
         serde::{ReflectSerializer, UntypedReflectDeserializer},
         TypeRegistryInternal,
     },
-    utils::HashMap,
 };
 use bevy_renet::renet::{
     transport::{
@@ -132,9 +131,8 @@ fn create_client(
 pub(super) struct DummyEvent(pub(super) Entity);
 
 impl MapNetworkEntities for DummyEvent {
-    fn map_entities(&mut self, entity_map: &HashMap<Entity, Entity>) -> Result<(), MapError> {
-        self.0 = *entity_map.get(&self.0).ok_or(MapError(self.0))?;
-        Ok(())
+    fn map_entities<T: Mapper>(&mut self, mapper: &mut T) {
+        self.0 = mapper.map(self.0);
     }
 }
 
@@ -148,9 +146,8 @@ pub(super) struct ReflectEvent {
 }
 
 impl MapNetworkEntities for ReflectEvent {
-    fn map_entities(&mut self, entity_map: &HashMap<Entity, Entity>) -> Result<(), MapError> {
-        self.entity = *entity_map.get(&self.entity).ok_or(MapError(self.entity))?;
-        Ok(())
+    fn map_entities<T: Mapper>(&mut self, mapper: &mut T) {
+        self.entity = mapper.map(self.entity);
     }
 }
 

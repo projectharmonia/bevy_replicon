@@ -14,6 +14,7 @@ use serde::{
 use super::{BuildEventDeserializer, BuildEventSerializer, EventChannel};
 use crate::{
     client::{ClientSet, NetworkEntityMap},
+    network_event::EventMapper,
     replication_core::{MapNetworkEntities, NetworkChannels},
     server::{has_authority, ServerSet, SERVER_ID},
 };
@@ -221,9 +222,7 @@ fn mapping_and_sending_system<T: Event + MapNetworkEntities + Serialize + Debug>
     channel: Res<EventChannel<T>>,
 ) {
     for mut event in events.drain() {
-        event
-            .map_entities(entity_map.to_server())
-            .unwrap_or_else(|e| panic!("client event {event:?} should be mappable: {e}"));
+        event.map_entities(&mut EventMapper(entity_map.to_server()));
         let message =
             bincode::serialize(&event).expect("mapped client event should be serializable");
         client.send_message(channel.id, message);
@@ -264,9 +263,7 @@ fn mapping_and_sending_reflect_system<T, S>(
 {
     let registry = registry.read();
     for mut event in events.drain() {
-        event
-            .map_entities(entity_map.to_server())
-            .unwrap_or_else(|e| panic!("client reflect event {event:?} should be mappable: {e}"));
+        event.map_entities(&mut EventMapper(entity_map.to_server()));
         let serializer = S::new(&event, &registry);
         let message = bincode::serialize(&serializer)
             .expect("mapped client reflect event should be serializable");
