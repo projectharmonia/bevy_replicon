@@ -73,9 +73,7 @@ impl ClientPlugin {
 
     fn reset_system(mut last_tick: ResMut<LastTick>, mut entity_map: ResMut<NetworkEntityMap>) {
         last_tick.0 = 0;
-        // TODO 0.12: Possibly use built-in method.
-        entity_map.client_to_server = Default::default();
-        entity_map.server_to_client = Default::default();
+        entity_map.clear();
     }
 }
 
@@ -205,6 +203,11 @@ impl NetworkEntityMap {
 
     pub fn to_server(&self) -> &HashMap<Entity, Entity> {
         &self.client_to_server
+    }
+
+    fn clear(&mut self) {
+        self.client_to_server.clear();
+        self.server_to_client.clear();
     }
 }
 
