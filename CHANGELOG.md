@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Store changes in `WorldDiff` in `Vec` instead of `HashMap` to increase performance.
 - `MapNetworkEntities` now accepts generic `Mapper` and doesn't have error handling and deserialiation functions now accept entity map by mutable reference. This allowed us to lazily map entities on client without extra allocation.
 
 ## [0.10.0] - 2023-09-13

@@ -129,7 +129,7 @@ impl ServerPlugin {
         removal_trackers: Query<(Entity, &RemovalTracker)>,
     ) {
         // Initialize [`WorldDiff`]s with latest acknowledged tick for each client.
-        let mut client_diffs: HashMap<_, _> = acked_ticks
+        let mut client_diffs: Vec<_> = acked_ticks
             .iter()
             .map(|(&client_id, &last_tick)| (client_id, WorldDiff::new(last_tick)))
             .collect();
@@ -153,7 +153,7 @@ impl ServerPlugin {
 }
 
 fn collect_changes(
-    client_diffs: &mut HashMap<u64, WorldDiff>,
+    client_diffs: &mut [(u64, WorldDiff)],
     world: &World,
     replication_rules: &ReplicationRules,
 ) {
@@ -211,7 +211,7 @@ fn collect_changes(
 }
 
 fn collect_table_components(
-    client_diffs: &mut HashMap<u64, WorldDiff>,
+    client_diffs: &mut [(u64, WorldDiff)],
     world: &World,
     table: &Table,
     archetype: &Archetype,
@@ -229,7 +229,7 @@ fn collect_table_components(
         // SAFETY: component obtained from the archetype.
         let component = unsafe { column.get_data_unchecked(archetype_entity.table_row()) };
 
-        for world_diff in client_diffs.values_mut() {
+        for (_, world_diff) in &mut *client_diffs {
             if ticks.is_changed(world_diff.tick, world.read_change_tick()) {
                 let component = (replication_info.serialize)(component);
                 world_diff
@@ -243,7 +243,7 @@ fn collect_table_components(
 }
 
 fn collect_sparse_set_components(
-    client_diffs: &mut HashMap<u64, WorldDiff>,
+    client_diffs: &mut [(u64, WorldDiff)],
     world: &World,
     archetype: &Archetype,
     replication_info: &ReplicationInfo,
@@ -265,7 +265,7 @@ fn collect_sparse_set_components(
             .get(entity)
             .unwrap_or_else(|| panic!("{entity:?} should have {component_id:?}"));
 
-        for world_diff in client_diffs.values_mut() {
+        for (_, world_diff) in &mut *client_diffs {
             if ticks.is_changed(world_diff.tick, world.read_change_tick()) {
                 let component = (replication_info.serialize)(component);
                 world_diff
@@ -279,12 +279,12 @@ fn collect_sparse_set_components(
 }
 
 fn collect_removals(
-    client_diffs: &mut HashMap<u64, WorldDiff>,
+    client_diffs: &mut [(u64, WorldDiff)],
     change_tick: &SystemChangeTick,
     removal_trackers: &Query<(Entity, &RemovalTracker)>,
 ) {
     for (entity, removal_tracker) in removal_trackers {
-        for world_diff in client_diffs.values_mut() {
+        for (_, world_diff) in &mut *client_diffs {
             for (&replication_id, &tick) in removal_tracker.iter() {
                 if tick.is_newer_than(world_diff.tick, change_tick.this_run()) {
                     world_diff
@@ -299,12 +299,12 @@ fn collect_removals(
 }
 
 fn collect_despawns(
-    client_diffs: &mut HashMap<u64, WorldDiff>,
+    client_diffs: &mut [(u64, WorldDiff)],
     change_tick: &SystemChangeTick,
     despawn_tracker: &DespawnTracker,
 ) {
     for (entity, tick) in despawn_tracker.despawns.iter().copied() {
-        for world_diff in client_diffs.values_mut() {
+        for (_, world_diff) in &mut *client_diffs {
             if tick.is_newer_than(world_diff.tick, change_tick.this_run()) {
                 world_diff.despawns.push(entity);
             }
