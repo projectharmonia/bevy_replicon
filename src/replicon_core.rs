@@ -1,16 +1,16 @@
-use std::{any, marker::PhantomData};
+pub(super) mod world_diff;
+
+use std::marker::PhantomData;
 
 use bevy::{
-    ecs::{
-        component::{ComponentId, Tick},
-        world::EntityMut,
-    },
+    ecs::{component::ComponentId, world::EntityMut},
     prelude::*,
     ptr::Ptr,
+    reflect::erased_serde,
     utils::HashMap,
 };
 use bevy_renet::renet::{ChannelConfig, SendType};
-use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::client::{ClientMapper, NetworkEntityMap};
 
@@ -80,6 +80,14 @@ fn channel_configs(channels: &[SendType]) -> Vec<ChannelConfig> {
     channel_configs
 }
 
+pub type SerializeFn = for<'a> fn(Ptr<'a>) -> &'a dyn erased_serde::Serialize;
+
+pub type DeserializeFn = for<'a> fn(
+    &'a mut EntityMut,
+    &'a mut NetworkEntityMap,
+    &'a mut dyn erased_serde::Deserializer,
+) -> Result<(), erased_serde::Error>;
+
 pub trait AppReplicationExt {
     /// Marks component for replication.
     ///
@@ -99,8 +107,8 @@ pub trait AppReplicationExt {
     /// Same as [`Self::replicate`], but uses the specified functions for serialization and deserialization.
     fn replicate_with<C>(
         &mut self,
-        serialize: fn(Ptr) -> Vec<u8>,
-        deserialize: fn(&mut EntityMut, &mut NetworkEntityMap, &[u8]),
+        serialize: SerializeFn,
+        deserialize: DeserializeFn,
     ) -> &mut Self
     where
         C: Component;
@@ -121,11 +129,7 @@ impl AppReplicationExt for App {
         self.replicate_with::<C>(serialize_component::<C>, deserialize_mapped_component::<C>)
     }
 
-    fn replicate_with<C>(
-        &mut self,
-        serialize: fn(Ptr) -> Vec<u8>,
-        deserialize: fn(&mut EntityMut, &mut NetworkEntityMap, &[u8]),
-    ) -> &mut Self
+    fn replicate_with<C>(&mut self, serialize: SerializeFn, deserialize: DeserializeFn) -> &mut Self
     where
         C: Component,
     {
@@ -201,10 +205,10 @@ pub struct ReplicationInfo {
     pub ignored_id: ComponentId,
 
     /// Function that serializes component into bytes.
-    pub serialize: fn(Ptr) -> Vec<u8>,
+    pub serialize: SerializeFn,
 
     /// Function that deserializes component from bytes and inserts it to [`EntityMut`].
-    pub deserialize: fn(&mut EntityMut, &mut NetworkEntityMap, &[u8]),
+    pub deserialize: DeserializeFn,
 
     /// Function that removes specific component from [`EntityMut`].
     pub remove: fn(&mut EntityMut),
@@ -227,38 +231,35 @@ impl<T> Default for Ignored<T> {
 pub struct ReplicationId(usize);
 
 /// Default serialization function.
-fn serialize_component<C: Component + Serialize>(component: Ptr) -> Vec<u8> {
+fn serialize_component<C: Component + Serialize>(component: Ptr) -> &dyn erased_serde::Serialize {
     // SAFETY: Function called for registered `ComponentId`.
-    let component: &C = unsafe { component.deref() };
-    bincode::serialize(component)
-        .unwrap_or_else(|e| panic!("{} should be serialzable: {e}", any::type_name::<C>()))
+    unsafe { component.deref::<C>() }
 }
 
 /// Default deserialization function.
 fn deserialize_component<C: Component + DeserializeOwned>(
     entity: &mut EntityMut,
     _entity_map: &mut NetworkEntityMap,
-    component: &[u8],
-) {
-    let component: C = bincode::deserialize(component)
-        .unwrap_or_else(|e| panic!("bytes from server should be {}: {e}", any::type_name::<C>()));
+    deserializer: &mut dyn erased_serde::Deserializer,
+) -> Result<(), erased_serde::Error> {
+    let component = C::deserialize(deserializer)?;
     entity.insert(component);
+    Ok(())
 }
 
 /// Default deserialization function that also maps entities before insertion.
 fn deserialize_mapped_component<C: Component + DeserializeOwned + MapNetworkEntities>(
     entity: &mut EntityMut,
     entity_map: &mut NetworkEntityMap,
-    component: &[u8],
-) {
-    let mut component: C = bincode::deserialize(component)
-        .unwrap_or_else(|e| panic!("bytes from server should be {}: {e}", any::type_name::<C>()));
-
+    deserializer: &mut dyn erased_serde::Deserializer,
+) -> Result<(), erased_serde::Error> {
+    let mut component: C = C::deserialize(deserializer)?;
     entity.world_scope(|world| {
         component.map_entities(&mut ClientMapper::new(world, entity_map));
     });
-
     entity.insert(component);
+
+    Ok(())
 }
 
 /// Removes specified component from entity.
@@ -281,46 +282,3 @@ pub trait Mapper {
 /// Marks entity for replication.
 #[derive(Component, Clone, Copy)]
 pub struct Replication;
-
-/// Changed world data and current tick from server.
-///
-/// Sent from server to clients.
-#[derive(Serialize, Deserialize)]
-pub(super) struct WorldDiff {
-    #[serde(
-        serialize_with = "serialize_tick",
-        deserialize_with = "deserialize_tick"
-    )]
-    pub(super) tick: Tick,
-    pub(super) entities: HashMap<Entity, Vec<ComponentDiff>>,
-    pub(super) despawns: Vec<Entity>,
-}
-
-impl WorldDiff {
-    /// Creates a new [`WorldDiff`] with a tick and empty entities.
-    pub(super) fn new(tick: Tick) -> Self {
-        Self {
-            tick,
-            entities: Default::default(),
-            despawns: Default::default(),
-        }
-    }
-}
-
-/// Type of component change.
-#[derive(Serialize, Deserialize)]
-pub(super) enum ComponentDiff {
-    /// Indicates that a component was added or changed, contains its ID and serialized bytes.
-    Changed((ReplicationId, Vec<u8>)),
-    /// Indicates that a component was removed, contains its ID.
-    Removed(ReplicationId),
-}
-
-fn serialize_tick<S: Serializer>(tick: &Tick, serializer: S) -> Result<S::Ok, S::Error> {
-    serializer.serialize_u32(tick.get())
-}
-
-fn deserialize_tick<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Tick, D::Error> {
-    let tick = u32::deserialize(deserializer)?;
-    Ok(Tick::new(tick))
-}

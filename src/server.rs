@@ -24,8 +24,8 @@ use derive_more::Constructor;
 use crate::{
     client::LastTick,
     replicon_core::{
-        ComponentDiff, ReplicationId, ReplicationInfo, ReplicationRules, WorldDiff,
-        REPLICATION_CHANNEL_ID,
+        world_diff::{ComponentDiff, WorldDiff, WorldDiffSerializer},
+        ReplicationId, ReplicationRules, REPLICATION_CHANNEL_ID,
     },
 };
 use despawn_tracker::{DespawnTracker, DespawnTrackerPlugin};
@@ -128,6 +128,8 @@ impl ServerPlugin {
         despawn_tracker: Res<DespawnTracker>,
         removal_trackers: Query<(Entity, &RemovalTracker)>,
     ) {
+        let current_tick = set.p0().read_change_tick();
+
         // Initialize [`WorldDiff`]s with latest acknowledged tick for each client.
         let mut client_diffs: Vec<_> = acked_ticks
             .iter()
@@ -137,11 +139,16 @@ impl ServerPlugin {
         collect_removals(&mut client_diffs, &change_tick, &removal_trackers);
         collect_despawns(&mut client_diffs, &change_tick, &despawn_tracker);
 
-        let current_tick = set.p0().read_change_tick();
+        let mut messages = Vec::with_capacity(client_diffs.len());
         for (client_id, mut world_diff) in client_diffs {
             world_diff.tick = current_tick; // Replace last acknowledged tick with the current.
+            let serializer = WorldDiffSerializer::new(&world_diff, &replication_rules);
             let message =
-                bincode::serialize(&world_diff).expect("world diff should be serializable");
+                bincode::serialize(&serializer).expect("world diff should be serializable");
+            messages.push((client_id, message));
+        }
+
+        for (client_id, message) in messages {
             set.p1()
                 .send_message(client_id, REPLICATION_CHANNEL_ID, message);
         }
@@ -152,9 +159,9 @@ impl ServerPlugin {
     }
 }
 
-fn collect_changes(
-    client_diffs: &mut [(u64, WorldDiff)],
-    world: &World,
+fn collect_changes<'a>(
+    client_diffs: &mut [(u64, WorldDiff<'a>)],
+    world: &'a World,
     replication_rules: &ReplicationRules,
 ) {
     for archetype in world
@@ -190,7 +197,6 @@ fn collect_changes(
                         world,
                         table,
                         archetype,
-                        replication_info,
                         replication_id,
                         component_id,
                     );
@@ -200,7 +206,6 @@ fn collect_changes(
                         client_diffs,
                         world,
                         archetype,
-                        replication_info,
                         replication_id,
                         component_id,
                     );
@@ -210,12 +215,11 @@ fn collect_changes(
     }
 }
 
-fn collect_table_components(
-    client_diffs: &mut [(u64, WorldDiff)],
+fn collect_table_components<'a>(
+    client_diffs: &mut [(u64, WorldDiff<'a>)],
     world: &World,
-    table: &Table,
+    table: &'a Table,
     archetype: &Archetype,
-    replication_info: &ReplicationInfo,
     replication_id: ReplicationId,
     component_id: ComponentId,
 ) {
@@ -231,7 +235,6 @@ fn collect_table_components(
 
         for (_, world_diff) in &mut *client_diffs {
             if ticks.is_changed(world_diff.tick, world.read_change_tick()) {
-                let component = (replication_info.serialize)(component);
                 world_diff
                     .entities
                     .entry(archetype_entity.entity())
@@ -242,11 +245,10 @@ fn collect_table_components(
     }
 }
 
-fn collect_sparse_set_components(
-    client_diffs: &mut [(u64, WorldDiff)],
-    world: &World,
+fn collect_sparse_set_components<'a>(
+    client_diffs: &mut [(u64, WorldDiff<'a>)],
+    world: &'a World,
     archetype: &Archetype,
-    replication_info: &ReplicationInfo,
     replication_id: ReplicationId,
     component_id: ComponentId,
 ) {
@@ -267,7 +269,6 @@ fn collect_sparse_set_components(
 
         for (_, world_diff) in &mut *client_diffs {
             if ticks.is_changed(world_diff.tick, world.read_change_tick()) {
-                let component = (replication_info.serialize)(component);
                 world_diff
                     .entities
                     .entry(entity)
