@@ -12,7 +12,7 @@ use bevy::{
 use bevy_renet::renet::{ChannelConfig, SendType};
 use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::client::ClientMapper;
+use crate::client::{ClientMapper, NetworkEntityMap};
 
 pub struct RepliconCorePlugin;
 
@@ -100,7 +100,7 @@ pub trait AppReplicationExt {
     fn replicate_with<C>(
         &mut self,
         serialize: fn(Ptr) -> Vec<u8>,
-        deserialize: fn(&mut EntityMut, &mut HashMap<Entity, Entity>, &[u8]),
+        deserialize: fn(&mut EntityMut, &mut NetworkEntityMap, &[u8]),
     ) -> &mut Self
     where
         C: Component;
@@ -124,7 +124,7 @@ impl AppReplicationExt for App {
     fn replicate_with<C>(
         &mut self,
         serialize: fn(Ptr) -> Vec<u8>,
-        deserialize: fn(&mut EntityMut, &mut HashMap<Entity, Entity>, &[u8]),
+        deserialize: fn(&mut EntityMut, &mut NetworkEntityMap, &[u8]),
     ) -> &mut Self
     where
         C: Component,
@@ -204,7 +204,7 @@ pub struct ReplicationInfo {
     pub serialize: fn(Ptr) -> Vec<u8>,
 
     /// Function that deserializes component from bytes and inserts it to [`EntityMut`].
-    pub deserialize: fn(&mut EntityMut, &mut HashMap<Entity, Entity>, &[u8]),
+    pub deserialize: fn(&mut EntityMut, &mut NetworkEntityMap, &[u8]),
 
     /// Function that removes specific component from [`EntityMut`].
     pub remove: fn(&mut EntityMut),
@@ -237,7 +237,7 @@ fn serialize_component<C: Component + Serialize>(component: Ptr) -> Vec<u8> {
 /// Default deserialization function.
 fn deserialize_component<C: Component + DeserializeOwned>(
     entity: &mut EntityMut,
-    _entity_map: &mut HashMap<Entity, Entity>,
+    _entity_map: &mut NetworkEntityMap,
     component: &[u8],
 ) {
     let component: C = bincode::deserialize(component)
@@ -248,14 +248,14 @@ fn deserialize_component<C: Component + DeserializeOwned>(
 /// Default deserialization function that also maps entities before insertion.
 fn deserialize_mapped_component<C: Component + DeserializeOwned + MapNetworkEntities>(
     entity: &mut EntityMut,
-    entity_map: &mut HashMap<Entity, Entity>,
+    entity_map: &mut NetworkEntityMap,
     component: &[u8],
 ) {
     let mut component: C = bincode::deserialize(component)
         .unwrap_or_else(|e| panic!("bytes from server should be {}: {e}", any::type_name::<C>()));
 
     entity.world_scope(|world| {
-        component.map_entities(&mut ClientMapper { world, entity_map });
+        component.map_entities(&mut ClientMapper::new(world, entity_map));
     });
 
     entity.insert(component);

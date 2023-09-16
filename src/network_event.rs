@@ -66,7 +66,10 @@ impl From<SendPolicy> for SendType {
     }
 }
 
-struct EventMapper<'a>(&'a HashMap<Entity, Entity>);
+/// Maps server entities into client entities inside events.
+///
+/// Panics if a mapping doesn't exists.
+pub struct EventMapper<'a>(pub &'a HashMap<Entity, Entity>);
 
 impl Mapper for EventMapper<'_> {
     fn map(&mut self, entity: Entity) -> Entity {

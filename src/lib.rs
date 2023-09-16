@@ -107,7 +107,7 @@ fn serialize_transform(component: Ptr) -> Vec<u8> {
 /// Deserializes translation and creates [`Transform`] from it.
 fn deserialize_transform(
     entity: &mut EntityMut,
-    _entity_map: &mut HashMap<Entity, Entity>,
+    _entity_map: &mut NetworkEntityMap,
     component: &[u8],
 ) {
     let translation: Vec3 = bincode::deserialize(component)
@@ -167,7 +167,7 @@ fn player_init_system(
 #[derive(Component, Deserialize, Serialize)]
 struct Player;
 # fn serialize_transform(_: Ptr) -> Vec<u8> { unimplemented!() }
-# fn deserialize_transform(_: &mut EntityMut, _: &mut HashMap<Entity, Entity>, _: &[u8]) {}
+# fn deserialize_transform(_: &mut EntityMut, _: &mut NetworkEntityMap, _: &[u8]) {}
 ```
 
 If your game have save states you probably want to re-use the same logic to
@@ -353,11 +353,11 @@ pub mod server;
 
 pub mod prelude {
     pub use super::{
-        client::{ClientPlugin, ClientSet, NetworkEntityMap},
+        client::{ClientMapper, ClientPlugin, ClientSet, NetworkEntityMap},
         network_event::{
             client_event::{ClientEventAppExt, FromClient},
             server_event::{SendMode, ServerEventAppExt, ToClients},
-            BuildEventDeserializer, BuildEventSerializer, SendPolicy,
+            BuildEventDeserializer, BuildEventSerializer, EventMapper, SendPolicy,
         },
         parent_sync::{ParentSync, ParentSyncPlugin},
         renet::{RenetClient, RenetServer},

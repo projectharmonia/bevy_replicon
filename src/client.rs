@@ -1,5 +1,5 @@
 use bevy::{
-    ecs::{component::Tick, system::Command},
+    ecs::{component::Tick, system::Command, world::EntityMut},
     prelude::*,
     utils::{Entry, HashMap},
 };
@@ -113,23 +113,15 @@ impl Command for ApplyWorldDiff {
     fn apply(self, world: &mut World) {
         world.resource_scope(|world, mut entity_map: Mut<NetworkEntityMap>| {
             world.resource_scope(|world, replication_rules: Mut<ReplicationRules>| {
-                // Map entities non-lazily in order to correctly map components that reference server entities.
                 for (entity, components) in self.0.entities {
-                    let mut entity = match entity_map.server_to_client.entry(entity) {
-                        Entry::Occupied(entry) => world.entity_mut(*entry.get()),
-                        Entry::Vacant(entry) => {
-                            let entity = world.spawn(Replication);
-                            entry.insert(entity.id());
-                            entity
-                        }
-                    };
+                    let mut entity = entity_map.get_by_server_or_spawn(world, entity);
                     for component_diff in components {
                         match component_diff {
                             ComponentDiff::Changed((replication_id, component)) => {
                                 let replication_info = replication_rules.get_info(replication_id);
                                 (replication_info.deserialize)(
                                     &mut entity,
-                                    &mut entity_map.server_to_client,
+                                    &mut entity_map,
                                     &component,
                                 );
                             }
@@ -182,6 +174,23 @@ impl NetworkEntityMap {
         self.client_to_server.insert(client_entity, server_entity);
     }
 
+    fn get_by_server_or_spawn<'a>(
+        &mut self,
+        world: &'a mut World,
+        server_entity: Entity,
+    ) -> EntityMut<'a> {
+        match self.server_to_client.entry(server_entity) {
+            Entry::Occupied(entry) => world.entity_mut(*entry.get()),
+            Entry::Vacant(entry) => {
+                let client_entity = world.spawn(Replication);
+                entry.insert(client_entity.id());
+                self.client_to_server
+                    .insert(client_entity.id(), server_entity);
+                client_entity
+            }
+        }
+    }
+
     fn remove_by_server(&mut self, server_entity: Entity) -> Option<Entity> {
         let client_entity = self.server_to_client.remove(&server_entity);
         if let Some(client_entity) = client_entity {
@@ -199,16 +208,31 @@ impl NetworkEntityMap {
     }
 }
 
-pub(super) struct ClientMapper<'a> {
-    pub(super) world: &'a mut World,
-    pub(super) entity_map: &'a mut HashMap<Entity, Entity>,
+/// Maps server entities into client entities inside components.
+///
+/// Spawns new client entity if a mapping doesn't exists.
+pub struct ClientMapper<'a> {
+    world: &'a mut World,
+    server_to_client: &'a mut HashMap<Entity, Entity>,
+    client_to_server: &'a mut HashMap<Entity, Entity>,
+}
+
+impl<'a> ClientMapper<'a> {
+    pub fn new(world: &'a mut World, entity_map: &'a mut NetworkEntityMap) -> Self {
+        Self {
+            world,
+            server_to_client: &mut entity_map.server_to_client,
+            client_to_server: &mut entity_map.client_to_server,
+        }
+    }
 }
 
 impl Mapper for ClientMapper<'_> {
     fn map(&mut self, entity: Entity) -> Entity {
-        *self
-            .entity_map
-            .entry(entity)
-            .or_insert_with(|| self.world.spawn(Replication).id())
+        *self.server_to_client.entry(entity).or_insert_with(|| {
+            let client_entity = self.world.spawn(Replication).id();
+            self.client_to_server.insert(client_entity, entity);
+            client_entity
+        })
     }
 }

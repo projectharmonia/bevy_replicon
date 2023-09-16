@@ -78,13 +78,15 @@ fn spawn_replication() {
         .query_filtered::<Entity, (With<TableComponent>, With<Replication>)>()
         .single(&client_app.world);
     let entity_map = client_app.world.resource::<NetworkEntityMap>();
-    let mapped_entity = *entity_map
-        .to_client()
-        .get(&server_entity)
-        .expect("server entity should be mapped on client");
     assert_eq!(
-        mapped_entity, client_entity,
-        "mapped entity should correspond to the replicated entity on client"
+        entity_map.to_client().get(&server_entity),
+        Some(&client_entity),
+        "server entity should be mapped to a replicated entity on client"
+    );
+    assert_eq!(
+        entity_map.to_server().get(&client_entity),
+        Some(&server_entity),
+        "replicated entity on client should be mapped to a server entity"
     );
 }
 
@@ -225,6 +227,7 @@ fn despawn_replication() {
 
     let entity_map = client_app.world.resource::<NetworkEntityMap>();
     assert!(entity_map.to_client().is_empty());
+    assert!(entity_map.to_server().is_empty());
 }
 
 #[derive(Component, Deserialize, Serialize)]
