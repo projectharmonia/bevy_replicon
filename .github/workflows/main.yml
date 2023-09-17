@@ -73,7 +73,7 @@ jobs:
         run: cargo test --doc
 
       - name: Test
-        run: cargo tarpaulin --engine llvm --out Lcov
+        run: cargo tarpaulin --engine llvm --out lcov
 
       - name: Upload code coverage results
         if: github.actor != 'dependabot[bot]'
