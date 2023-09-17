@@ -1,4 +1,4 @@
-use std::{any, marker::PhantomData};
+use std::{io::Cursor, marker::PhantomData};
 
 use bevy::{
     ecs::{
@@ -9,10 +9,11 @@ use bevy::{
     ptr::Ptr,
     utils::HashMap,
 };
-use bevy_renet::renet::{ChannelConfig, SendType};
-use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize, Serializer};
+use bevy_renet::renet::{Bytes, ChannelConfig, SendType};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use strum::EnumDiscriminants;
 
-use crate::client::{ClientMapper, NetworkEntityMap};
+use crate::client::{ClientMapper, LastTick, NetworkEntityMap};
 
 pub struct RepliconCorePlugin;
 
@@ -99,8 +100,8 @@ pub trait AppReplicationExt {
     /// Same as [`Self::replicate`], but uses the specified functions for serialization and deserialization.
     fn replicate_with<C>(
         &mut self,
-        serialize: fn(Ptr) -> Vec<u8>,
-        deserialize: fn(&mut EntityMut, &mut NetworkEntityMap, &[u8]),
+        serialize: SerializeFn,
+        deserialize: DeserializeFn,
     ) -> &mut Self
     where
         C: Component;
@@ -121,11 +122,7 @@ impl AppReplicationExt for App {
         self.replicate_with::<C>(serialize_component::<C>, deserialize_mapped_component::<C>)
     }
 
-    fn replicate_with<C>(
-        &mut self,
-        serialize: fn(Ptr) -> Vec<u8>,
-        deserialize: fn(&mut EntityMut, &mut NetworkEntityMap, &[u8]),
-    ) -> &mut Self
+    fn replicate_with<C>(&mut self, serialize: SerializeFn, deserialize: DeserializeFn) -> &mut Self
     where
         C: Component,
     {
@@ -196,15 +193,22 @@ impl FromWorld for ReplicationRules {
     }
 }
 
+/// Signature of serialization function stored in [`ReplicationInfo`].
+pub type SerializeFn = fn(Ptr, &mut Cursor<&mut Vec<u8>>) -> Result<(), bincode::Error>;
+
+/// Signature of deserialization function stored in [`ReplicationInfo`].
+pub type DeserializeFn =
+    fn(&mut EntityMut, &mut NetworkEntityMap, &mut Cursor<Bytes>) -> Result<(), bincode::Error>;
+
 pub struct ReplicationInfo {
     /// ID of [`Ignored<T>`] component.
     pub ignored_id: ComponentId,
 
     /// Function that serializes component into bytes.
-    pub serialize: fn(Ptr) -> Vec<u8>,
+    pub serialize: SerializeFn,
 
     /// Function that deserializes component from bytes and inserts it to [`EntityMut`].
-    pub deserialize: fn(&mut EntityMut, &mut NetworkEntityMap, &[u8]),
+    pub deserialize: DeserializeFn,
 
     /// Function that removes specific component from [`EntityMut`].
     pub remove: fn(&mut EntityMut),
@@ -227,38 +231,42 @@ impl<T> Default for Ignored<T> {
 pub struct ReplicationId(usize);
 
 /// Default serialization function.
-fn serialize_component<C: Component + Serialize>(component: Ptr) -> Vec<u8> {
+fn serialize_component<C: Component + Serialize>(
+    component: Ptr,
+    cursor: &mut Cursor<&mut Vec<u8>>,
+) -> Result<(), bincode::Error> {
     // SAFETY: Function called for registered `ComponentId`.
     let component: &C = unsafe { component.deref() };
-    bincode::serialize(component)
-        .unwrap_or_else(|e| panic!("{} should be serialzable: {e}", any::type_name::<C>()))
+    bincode::serialize_into(cursor, component)
 }
 
 /// Default deserialization function.
 fn deserialize_component<C: Component + DeserializeOwned>(
     entity: &mut EntityMut,
     _entity_map: &mut NetworkEntityMap,
-    component: &[u8],
-) {
-    let component: C = bincode::deserialize(component)
-        .unwrap_or_else(|e| panic!("bytes from server should be {}: {e}", any::type_name::<C>()));
+    cursor: &mut Cursor<Bytes>,
+) -> Result<(), bincode::Error> {
+    let component: C = bincode::deserialize_from(cursor)?;
     entity.insert(component);
+
+    Ok(())
 }
 
 /// Default deserialization function that also maps entities before insertion.
 fn deserialize_mapped_component<C: Component + DeserializeOwned + MapNetworkEntities>(
     entity: &mut EntityMut,
     entity_map: &mut NetworkEntityMap,
-    component: &[u8],
-) {
-    let mut component: C = bincode::deserialize(component)
-        .unwrap_or_else(|e| panic!("bytes from server should be {}: {e}", any::type_name::<C>()));
+    cursor: &mut Cursor<Bytes>,
+) -> Result<(), bincode::Error> {
+    let mut component: C = bincode::deserialize_from(cursor)?;
 
     entity.world_scope(|world| {
         component.map_entities(&mut ClientMapper::new(world, entity_map));
     });
 
     entity.insert(component);
+
+    Ok(())
 }
 
 /// Removes specified component from entity.
@@ -285,18 +293,13 @@ pub struct Replication;
 /// Changed world data and current tick from server.
 ///
 /// Sent from server to clients.
-#[derive(Serialize, Deserialize)]
-pub(super) struct WorldDiff {
-    #[serde(
-        serialize_with = "serialize_tick",
-        deserialize_with = "deserialize_tick"
-    )]
+pub(super) struct WorldDiff<'a> {
     pub(super) tick: Tick,
-    pub(super) entities: HashMap<Entity, Vec<ComponentDiff>>,
+    pub(super) entities: HashMap<Entity, Vec<ComponentDiff<'a>>>,
     pub(super) despawns: Vec<Entity>,
 }
 
-impl WorldDiff {
+impl WorldDiff<'_> {
     /// Creates a new [`WorldDiff`] with a tick and empty entities.
     pub(super) fn new(tick: Tick) -> Self {
         Self {
@@ -305,22 +308,101 @@ impl WorldDiff {
             despawns: Default::default(),
         }
     }
+
+    /// Serializes itself into a buffer.
+    ///
+    /// We use custom implementation because serde impls require to use generics that can't be stored in [`ReplicationInfo`].
+    pub(super) fn serialize(
+        &self,
+        replication_rules: &ReplicationRules,
+        message: &mut Vec<u8>,
+    ) -> Result<(), bincode::Error> {
+        let mut cursor = Cursor::new(message);
+
+        bincode::serialize_into(&mut cursor, &self.tick.get())?;
+
+        bincode::serialize_into(&mut cursor, &self.entities.len())?;
+        for (entity, components) in &self.entities {
+            bincode::serialize_into(&mut cursor, entity)?;
+            bincode::serialize_into(&mut cursor, &components.len())?;
+            for &component_diff in components {
+                bincode::serialize_into(&mut cursor, &ComponentDiffKind::from(component_diff))?;
+                match component_diff {
+                    ComponentDiff::Changed((replication_id, ptr)) => {
+                        bincode::serialize_into(&mut cursor, &replication_id)?;
+                        let replication_info = replication_rules.get_info(replication_id);
+                        (replication_info.serialize)(ptr, &mut cursor)?;
+                    }
+                    ComponentDiff::Removed(replication_id) => {
+                        bincode::serialize_into(&mut cursor, &replication_id)?;
+                    }
+                }
+            }
+        }
+
+        bincode::serialize_into(&mut cursor, &self.despawns)?;
+
+        Ok(())
+    }
+
+    /// Deserializes itself from bytes directly into the world by applying all changes.
+    pub(super) fn deserialize_to_world(
+        world: &mut World,
+        message: Bytes,
+    ) -> Result<(), bincode::Error> {
+        world.resource_scope(|world, replication_rules: Mut<ReplicationRules>| {
+            world.resource_scope(|world, mut entity_map: Mut<NetworkEntityMap>| {
+                let mut cursor = Cursor::new(message);
+
+                let tick = bincode::deserialize_from(&mut cursor)?;
+                *world.resource_mut::<LastTick>() = Tick::new(tick).into();
+
+                let entities_count: usize = bincode::deserialize_from(&mut cursor)?;
+                for _ in 0..entities_count {
+                    let entity = bincode::deserialize_from(&mut cursor)?;
+                    let mut entity = entity_map.get_by_server_or_spawn(world, entity);
+                    let components_count: usize = bincode::deserialize_from(&mut cursor)?;
+                    for _ in 0..components_count {
+                        let diff_kind = bincode::deserialize_from(&mut cursor)?;
+                        let replication_id = bincode::deserialize_from(&mut cursor)?;
+                        let replication_info = replication_rules.get_info(replication_id);
+                        match diff_kind {
+                            ComponentDiffKind::Changed => {
+                                (replication_info.deserialize)(
+                                    &mut entity,
+                                    &mut entity_map,
+                                    &mut cursor,
+                                )?;
+                            }
+                            ComponentDiffKind::Removed => {
+                                (replication_info.remove)(&mut entity);
+                            }
+                        }
+                    }
+                }
+
+                let despawns: Vec<Entity> = bincode::deserialize_from(&mut cursor)?;
+                for server_entity in despawns {
+                    // The entity might have already been deleted with the last diff,
+                    // but the server might not yet have received confirmation from the
+                    // client and could include the deletion in the latest diff.
+                    if let Some(client_entity) = entity_map.remove_by_server(server_entity) {
+                        world.entity_mut(client_entity).despawn_recursive();
+                    }
+                }
+
+                Ok(())
+            })
+        })
+    }
 }
 
 /// Type of component change.
-#[derive(Serialize, Deserialize)]
-pub(super) enum ComponentDiff {
-    /// Indicates that a component was added or changed, contains its ID and serialized bytes.
-    Changed((ReplicationId, Vec<u8>)),
+#[derive(EnumDiscriminants, Clone, Copy)]
+#[strum_discriminants(name(ComponentDiffKind), derive(Deserialize, Serialize))]
+pub(super) enum ComponentDiff<'a> {
+    /// Indicates that a component was added or changed, contains its ID and pointer.
+    Changed((ReplicationId, Ptr<'a>)),
     /// Indicates that a component was removed, contains its ID.
     Removed(ReplicationId),
-}
-
-fn serialize_tick<S: Serializer>(tick: &Tick, serializer: S) -> Result<S::Ok, S::Error> {
-    serializer.serialize_u32(tick.get())
-}
-
-fn deserialize_tick<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Tick, D::Error> {
-    let tick = u32::deserialize(deserializer)?;
-    Ok(Tick::new(tick))
 }
