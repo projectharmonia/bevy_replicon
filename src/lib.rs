@@ -89,30 +89,34 @@ If your component doesn't implement serde traits or you want to serialize it par
 you can use [`AppReplicationExt::replicate_with`]:
 
 ```rust
-use bevy::{ecs::world::EntityMut, prelude::*, ptr::Ptr, utils::HashMap};
-# use bevy_replicon::prelude::*;
+# use std::io::Cursor;
+# use bevy::{ecs::world::EntityMut, prelude::*, ptr::Ptr, utils::HashMap};
+# use bevy_replicon::{prelude::*, renet::Bytes};
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
 app.replicate_with::<Transform>(serialize_transform, deserialize_transform);
 
 /// Serializes only translation.
-fn serialize_transform(component: Ptr) -> Vec<u8> {
+fn serialize_transform(
+    component: Ptr,
+    cursor: &mut Cursor<&mut Vec<u8>>,
+) -> Result<(), bincode::Error> {
     // SAFETY: Function called for registered `ComponentId`.
     let transform: &Transform = unsafe { component.deref() };
-    bincode::serialize(&transform.translation)
-        .unwrap_or_else(|e| panic!("Vec3 should be serialzable: {e}"))
+    bincode::serialize_into(cursor, &transform.translation)
 }
 
 /// Deserializes translation and creates [`Transform`] from it.
 fn deserialize_transform(
     entity: &mut EntityMut,
     _entity_map: &mut NetworkEntityMap,
-    component: &[u8],
-) {
-    let translation: Vec3 = bincode::deserialize(component)
-        .unwrap_or_else(|e| panic!("bytes from server should be Vec3: {e}"));
+    cursor: &mut Cursor<Bytes>,
+) -> Result<(), bincode::Error> {
+    let translation: Vec3 = bincode::deserialize_from(cursor)?;
     entity.insert(Transform::from_translation(translation));
+
+    Ok(())
 }
 ```
 
@@ -138,8 +142,9 @@ necessary components after replication. If you want to avoid one frame delay, pu
 your initialization systems to [`ClientSet::Receive`]:
 
 ```rust
-use bevy::{ecs::world::EntityMut, prelude::*, ptr::Ptr, utils::HashMap};
-# use bevy_replicon::prelude::*;
+# use std::io::Cursor;
+# use bevy::{ecs::world::EntityMut, prelude::*, ptr::Ptr, utils::HashMap};
+# use bevy_replicon::{prelude::*, renet::Bytes};
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
@@ -166,8 +171,8 @@ fn player_init_system(
 
 #[derive(Component, Deserialize, Serialize)]
 struct Player;
-# fn serialize_transform(_: Ptr) -> Vec<u8> { unimplemented!() }
-# fn deserialize_transform(_: &mut EntityMut, _: &mut NetworkEntityMap, _: &[u8]) {}
+# fn serialize_transform(_: Ptr, _: &mut Cursor<&mut Vec<u8>>) -> Result<(), bincode::Error> { unimplemented!() }
+# fn deserialize_transform(_: &mut EntityMut, _: &mut NetworkEntityMap, _: &mut Cursor<Bytes>) -> Result<(), bincode::Error> { unimplemented!() }
 ```
 
 If your game have save states you probably want to re-use the same logic to
