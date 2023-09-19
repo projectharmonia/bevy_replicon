@@ -343,17 +343,24 @@ impl WorldDiff<'_> {
     }
 
     /// Deserializes itself from bytes directly into the world by applying all changes.
+    ///
+    /// Does nothing if world already received a more recent diff.
+    /// See also [`LastTick`].
     pub(super) fn deserialize_to_world(
         world: &mut World,
         message: Bytes,
     ) -> Result<(), bincode::Error> {
+        let mut cursor = Cursor::new(message);
+
+        let tick = bincode::deserialize_from(&mut cursor)?;
+        let mut last_tick = world.resource_mut::<LastTick>();
+        if last_tick.0 >= tick {
+            return Ok(());
+        }
+        last_tick.0 = tick;
+
         world.resource_scope(|world, replication_rules: Mut<ReplicationRules>| {
             world.resource_scope(|world, mut entity_map: Mut<NetworkEntityMap>| {
-                let mut cursor = Cursor::new(message);
-
-                let tick = bincode::deserialize_from(&mut cursor)?;
-                world.resource_mut::<LastTick>().0 = tick;
-
                 let entities_count: usize = bincode::deserialize_from(&mut cursor)?;
                 for _ in 0..entities_count {
                     let entity = bincode::deserialize_from(&mut cursor)?;

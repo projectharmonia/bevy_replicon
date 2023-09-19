@@ -1,5 +1,5 @@
 use bevy::{
-    ecs::{system::SystemState, world::EntityMut},
+    ecs::world::EntityMut,
     prelude::*,
     utils::{Entry, HashMap},
 };
@@ -45,17 +45,13 @@ impl Plugin for ClientPlugin {
 }
 
 impl ClientPlugin {
-    fn diff_receiving_system(world: &mut World, state: &mut SystemState<ResMut<RenetClient>>) {
-        let mut client = state.get_mut(world);
-        let mut last_message = None;
-        while let Some(message) = client.receive_message(REPLICATION_CHANNEL_ID) {
-            last_message = Some(message);
-        }
-
-        if let Some(last_message) = last_message {
-            WorldDiff::deserialize_to_world(world, last_message)
-                .expect("server should send only valid world diffs");
-        }
+    fn diff_receiving_system(world: &mut World) {
+        world.resource_scope(|world, mut client: Mut<RenetClient>| {
+            while let Some(message) = client.receive_message(REPLICATION_CHANNEL_ID) {
+                WorldDiff::deserialize_to_world(world, message)
+                    .expect("server should send only valid world diffs");
+            }
+        });
     }
 
     fn ack_sending_system(last_tick: Res<LastTick>, mut client: ResMut<RenetClient>) {
