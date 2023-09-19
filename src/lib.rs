@@ -358,7 +358,7 @@ pub mod server;
 
 pub mod prelude {
     pub use super::{
-        client::{ClientMapper, ClientPlugin, ClientSet, NetworkEntityMap},
+        client::{ClientMapper, ClientPlugin, ClientSet, LastTick, NetworkEntityMap},
         network_event::{
             client_event::{ClientEventAppExt, FromClient},
             server_event::{SendMode, ServerEventAppExt, ToClients},
@@ -367,10 +367,10 @@ pub mod prelude {
         parent_sync::{ParentSync, ParentSyncPlugin},
         renet::{RenetClient, RenetServer},
         replicon_core::{
-            AppReplicationExt, Ignored, MapNetworkEntities, Mapper, NetworkChannels, Replication,
-            ReplicationRules, RepliconCorePlugin,
+            AppReplicationExt, Ignored, MapNetworkEntities, Mapper, NetworkChannels, NetworkTick,
+            Replication, ReplicationRules, RepliconCorePlugin,
         },
-        server::{has_authority, AckedTicks, ServerPlugin, ServerSet, TickPolicy, SERVER_ID},
+        server::{has_authority, ServerPlugin, ServerSet, ServerTicks, TickPolicy, SERVER_ID},
         ReplicationPlugins,
     };
 }

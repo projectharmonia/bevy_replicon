@@ -1,10 +1,7 @@
-use std::{io::Cursor, marker::PhantomData};
+use std::{cmp::Ordering, io::Cursor, marker::PhantomData};
 
 use bevy::{
-    ecs::{
-        component::{ComponentId, Tick},
-        world::EntityMut,
-    },
+    ecs::{component::ComponentId, world::EntityMut},
     prelude::*,
     ptr::Ptr,
     utils::HashMap,
@@ -294,14 +291,14 @@ pub struct Replication;
 ///
 /// Sent from server to clients.
 pub(super) struct WorldDiff<'a> {
-    pub(super) tick: Tick,
+    pub(super) tick: NetworkTick,
     pub(super) entities: HashMap<Entity, Vec<ComponentDiff<'a>>>,
     pub(super) despawns: Vec<Entity>,
 }
 
 impl WorldDiff<'_> {
     /// Creates a new [`WorldDiff`] with a tick and empty entities.
-    pub(super) fn new(tick: Tick) -> Self {
+    pub(super) fn new(tick: NetworkTick) -> Self {
         Self {
             tick,
             entities: Default::default(),
@@ -319,7 +316,7 @@ impl WorldDiff<'_> {
     ) -> Result<(), bincode::Error> {
         let mut cursor = Cursor::new(message);
 
-        bincode::serialize_into(&mut cursor, &self.tick.get())?;
+        bincode::serialize_into(&mut cursor, &self.tick)?;
 
         bincode::serialize_into(&mut cursor, &self.entities.len())?;
         for (entity, components) in &self.entities {
@@ -355,7 +352,7 @@ impl WorldDiff<'_> {
                 let mut cursor = Cursor::new(message);
 
                 let tick = bincode::deserialize_from(&mut cursor)?;
-                *world.resource_mut::<LastTick>() = Tick::new(tick).into();
+                world.resource_mut::<LastTick>().0 = tick;
 
                 let entities_count: usize = bincode::deserialize_from(&mut cursor)?;
                 for _ in 0..entities_count {
@@ -405,4 +402,40 @@ pub(super) enum ComponentDiff<'a> {
     Changed((ReplicationId, Ptr<'a>)),
     /// Indicates that a component was removed, contains its ID.
     Removed(ReplicationId),
+}
+
+/// Corresponds to the number of server update.
+///
+/// See also [`crate::server::TickPolicy`].
+#[derive(Clone, Copy, Default, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub struct NetworkTick(u32);
+
+impl NetworkTick {
+    /// Creates a new [`NetworkTick`] wrapping the given value.
+    pub fn new(value: u32) -> Self {
+        Self(value)
+    }
+
+    /// Gets the value of this network tick.
+    pub fn get(self) -> u32 {
+        self.0
+    }
+
+    /// Increments current tick and takes wrapping into account.
+    pub(super) fn increment(&mut self) {
+        self.0 = self.0.wrapping_add(1);
+    }
+}
+
+impl PartialOrd for NetworkTick {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        let difference = self.0.wrapping_sub(other.0);
+        if difference == 0 {
+            Some(Ordering::Equal)
+        } else if difference > u32::MAX / 2 {
+            Some(Ordering::Less)
+        } else {
+            Some(Ordering::Greater)
+        }
+    }
 }

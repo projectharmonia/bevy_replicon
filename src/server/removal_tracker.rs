@@ -5,7 +5,7 @@ use bevy::{
 };
 use bevy_renet::renet::RenetServer;
 
-use super::{AckedTicks, ServerSet};
+use super::{ServerSet, ServerTicks};
 use crate::replicon_core::{Replication, ReplicationId, ReplicationRules};
 
 /// Stores component removals in [`RemovalTracker`] component to make them persistent across ticks.
@@ -41,34 +41,38 @@ impl RemovalTrackerPlugin {
     /// Cleanups all acknowledged despawns.
     fn cleanup_system(
         change_tick: SystemChangeTick,
-        client_acks: Res<AckedTicks>,
+        server_ticks: Res<ServerTicks>,
         mut removal_trackers: Query<&mut RemovalTracker>,
     ) {
         for mut removal_tracker in &mut removal_trackers {
             removal_tracker.retain(|_, tick| {
-                client_acks
-                    .values()
-                    .any(|last_tick| tick.is_newer_than(*last_tick, change_tick.this_run()))
+                server_ticks.acked_ticks.values().any(|acked_tick| {
+                    let system_tick = *server_ticks
+                        .system_ticks
+                        .get(acked_tick)
+                        .unwrap_or(&Tick::new(0));
+                    tick.is_newer_than(system_tick, change_tick.this_run())
+                })
             });
         }
     }
 
     fn detection_system(
-        mut set: ParamSet<(&World, Query<&mut RemovalTracker>)>,
-        replication_rules: Res<ReplicationRules>,
+        change_tick: SystemChangeTick,
         remove_events: &RemovedComponentEvents,
+        replication_rules: Res<ReplicationRules>,
+        mut removal_trackers: Query<&mut RemovalTracker>,
     ) {
-        let current_tick = set.p0().read_change_tick();
         for (&component_id, &replication_id) in replication_rules.components() {
             for entity in remove_events
                 .get(component_id)
                 .map(|removed| removed.iter_current_update_events().cloned())
                 .into_iter()
                 .flatten()
-                .map(|e| e.into())
+                .map(Into::into)
             {
-                if let Ok(mut removal_tracker) = set.p1().get_mut(entity) {
-                    removal_tracker.insert(replication_id, current_tick);
+                if let Ok(mut removal_tracker) = removal_trackers.get_mut(entity) {
+                    removal_tracker.insert(replication_id, change_tick.this_run());
                 }
             }
         }
@@ -76,22 +80,21 @@ impl RemovalTrackerPlugin {
 }
 
 #[derive(Component, Default, Deref, DerefMut)]
-pub(crate) struct RemovalTracker(pub(crate) HashMap<ReplicationId, Tick>);
+pub(super) struct RemovalTracker(pub(super) HashMap<ReplicationId, Tick>);
 
 #[cfg(test)]
 mod tests {
     use serde::{Deserialize, Serialize};
 
-    use crate::replicon_core::AppReplicationExt;
-
     use super::*;
+    use crate::replicon_core::{AppReplicationExt, NetworkTick};
 
     #[test]
     fn detection() {
         let mut app = App::new();
         app.add_plugins(RemovalTrackerPlugin)
             .insert_resource(RenetServer::new(Default::default()))
-            .init_resource::<AckedTicks>()
+            .init_resource::<ServerTicks>()
             .init_resource::<ReplicationRules>()
             .replicate::<DummyComponent>();
 
@@ -100,9 +103,9 @@ mod tests {
         // To avoid cleanup.
         const DUMMY_CLIENT_ID: u64 = 0;
         app.world
-            .resource_mut::<AckedTicks>()
-            .0
-            .insert(DUMMY_CLIENT_ID, Tick::new(0));
+            .resource_mut::<ServerTicks>()
+            .acked_ticks
+            .insert(DUMMY_CLIENT_ID, NetworkTick::new(0));
 
         let replicated_entity = app.world.spawn((DummyComponent, Replication)).id();
 

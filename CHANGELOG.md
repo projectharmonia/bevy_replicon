@@ -9,10 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Bevy's `Tick` was replaced with dedicated type `NetworkTick` that increments on server update to provide information to client about time. `AckedTick` was replaced with `ServerTicks` that also contains mappings from `NetworkTick` to Bevy's `Tick` and current `NetworkTick`.
 - Functions in `AppReplicationExt::replicate_with` now accept bytes cursor for memory reuse and return serialization errors.
 - Rename `ReplicationCore` into `RepliconCore` with its module for clarity.
 - Store changes in `WorldDiff` in `Vec` instead of `HashMap` to increase performance.
 - `MapNetworkEntities` now accepts generic `Mapper` and doesn't have error handling and deserialiation functions now accept `NetworkEntityMap`. This allowed us to lazily map entities on client without extra allocation.
+- Make `LastTick` public.
 
 ## [0.10.0] - 2023-09-13
 

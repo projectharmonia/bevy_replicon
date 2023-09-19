@@ -1,14 +1,13 @@
 use bevy::{
-    ecs::{component::Tick, system::SystemState, world::EntityMut},
+    ecs::{system::SystemState, world::EntityMut},
     prelude::*,
     utils::{Entry, HashMap},
 };
 use bevy_renet::transport::client_connected;
 use bevy_renet::{renet::RenetClient, transport::NetcodeClientPlugin, RenetClientPlugin};
-use serde::{Deserialize, Serialize};
 
 use crate::{
-    replicon_core::{Mapper, WorldDiff, REPLICATION_CHANNEL_ID},
+    replicon_core::{Mapper, NetworkTick, WorldDiff, REPLICATION_CHANNEL_ID},
     Replication,
 };
 
@@ -60,13 +59,13 @@ impl ClientPlugin {
     }
 
     fn ack_sending_system(last_tick: Res<LastTick>, mut client: ResMut<RenetClient>) {
-        let message = bincode::serialize(&*last_tick)
+        let message = bincode::serialize(&last_tick.0)
             .unwrap_or_else(|e| panic!("client ack should be serialized: {e}"));
         client.send_message(REPLICATION_CHANNEL_ID, message);
     }
 
     fn reset_system(mut last_tick: ResMut<LastTick>, mut entity_map: ResMut<NetworkEntityMap>) {
-        last_tick.0 = 0;
+        last_tick.0 = Default::default();
         entity_map.clear();
     }
 }
@@ -74,20 +73,8 @@ impl ClientPlugin {
 /// Last received tick from server.
 ///
 /// Exists only on clients, sent to the server.
-#[derive(Default, Deserialize, Resource, Serialize)]
-pub(super) struct LastTick(u32);
-
-impl From<Tick> for LastTick {
-    fn from(value: Tick) -> Self {
-        Self(value.get())
-    }
-}
-
-impl From<LastTick> for Tick {
-    fn from(value: LastTick) -> Self {
-        Self::new(value.0)
-    }
-}
+#[derive(Default, Resource, Deref)]
+pub struct LastTick(pub(super) NetworkTick);
 
 /// Set with replication and event systems related to client.
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone, Copy)]

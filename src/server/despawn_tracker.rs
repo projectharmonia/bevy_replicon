@@ -5,7 +5,7 @@ use bevy::{
 };
 use bevy_renet::renet::RenetServer;
 
-use super::{AckedTicks, ServerSet};
+use super::{ServerSet, ServerTicks};
 use crate::replicon_core::Replication;
 
 /// Tracks entity despawns of entities with [`Replication`] component in [`DespawnTracker`] resource.
@@ -44,12 +44,16 @@ impl DespawnTrackerPlugin {
     fn cleanup_system(
         change_tick: SystemChangeTick,
         mut despawn_tracker: ResMut<DespawnTracker>,
-        client_acks: Res<AckedTicks>,
+        server_ticks: Res<ServerTicks>,
     ) {
         despawn_tracker.despawns.retain(|(_, tick)| {
-            client_acks
-                .values()
-                .any(|last_tick| tick.is_newer_than(*last_tick, change_tick.this_run()))
+            server_ticks.acked_ticks.values().any(|acked_tick| {
+                let system_tick = *server_ticks
+                    .system_ticks
+                    .get(acked_tick)
+                    .unwrap_or(&Tick::new(0));
+                tick.is_newer_than(system_tick, change_tick.this_run())
+            })
         });
     }
 
@@ -75,31 +79,32 @@ impl DespawnTrackerPlugin {
 }
 
 #[derive(Default, Resource)]
-pub(crate) struct DespawnTracker {
+pub(super) struct DespawnTracker {
     tracked_entities: HashSet<Entity>,
     /// Entities and ticks when they were despawned.
-    pub(crate) despawns: Vec<(Entity, Tick)>,
+    pub(super) despawns: Vec<(Entity, Tick)>,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::replicon_core::NetworkTick;
 
     #[test]
     fn detection() {
         let mut app = App::new();
         app.add_plugins(DespawnTrackerPlugin)
             .insert_resource(RenetServer::new(Default::default()))
-            .init_resource::<AckedTicks>();
+            .init_resource::<ServerTicks>();
 
         app.update();
 
         // To avoid cleanup.
         const DUMMY_CLIENT_ID: u64 = 0;
         app.world
-            .resource_mut::<AckedTicks>()
-            .0
-            .insert(DUMMY_CLIENT_ID, Tick::new(0));
+            .resource_mut::<ServerTicks>()
+            .acked_ticks
+            .insert(DUMMY_CLIENT_ID, NetworkTick::new(0));
 
         let replicated_entity = app.world.spawn(Replication).id();
 

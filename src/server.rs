@@ -7,7 +7,7 @@ use bevy::{
     ecs::{
         archetype::{Archetype, ArchetypeId},
         component::{ComponentId, StorageType, Tick},
-        storage::Table,
+        storage::{SparseSets, Table},
         system::SystemChangeTick,
     },
     prelude::*,
@@ -21,11 +21,8 @@ use bevy_renet::{
 };
 use derive_more::Constructor;
 
-use crate::{
-    client::LastTick,
-    replicon_core::{
-        ComponentDiff, ReplicationId, ReplicationRules, WorldDiff, REPLICATION_CHANNEL_ID,
-    },
+use crate::replicon_core::{
+    ComponentDiff, NetworkTick, ReplicationId, ReplicationRules, WorldDiff, REPLICATION_CHANNEL_ID,
 };
 use despawn_tracker::{DespawnTracker, DespawnTrackerPlugin};
 use removal_tracker::{RemovalTracker, RemovalTrackerPlugin};
@@ -53,7 +50,7 @@ impl Plugin for ServerPlugin {
             RemovalTrackerPlugin,
             DespawnTrackerPlugin,
         ))
-        .init_resource::<AckedTicks>()
+        .init_resource::<ServerTicks>()
         .configure_set(
             PreUpdate,
             ServerSet::Receive.after(NetcodeServerPlugin::update_system),
@@ -86,66 +83,82 @@ impl Plugin for ServerPlugin {
 }
 
 impl ServerPlugin {
-    fn acks_receiving_system(mut acked_ticks: ResMut<AckedTicks>, mut server: ResMut<RenetServer>) {
+    fn acks_receiving_system(
+        mut server_ticks: ResMut<ServerTicks>,
+        mut server: ResMut<RenetServer>,
+    ) {
         for client_id in server.clients_id() {
-            let mut last_message = None;
             while let Some(message) = server.receive_message(client_id, REPLICATION_CHANNEL_ID) {
-                last_message = Some(message);
-            }
-
-            if let Some(last_message) = last_message {
-                match bincode::deserialize::<LastTick>(&last_message) {
+                match bincode::deserialize::<NetworkTick>(&message) {
                     Ok(tick) => {
-                        acked_ticks.0.insert(client_id, tick.into());
+                        let acked_tick = server_ticks.acked_ticks.entry(client_id).or_default();
+                        if *acked_tick < tick {
+                            *acked_tick = tick;
+                        }
                     }
                     Err(e) => error!("unable to deserialize tick from client {client_id}: {e}"),
                 }
             }
         }
+
+        server_ticks.cleanup_system_ticks();
     }
 
     fn acks_cleanup_system(
         mut server_events: EventReader<ServerEvent>,
-        mut acked_ticks: ResMut<AckedTicks>,
+        mut server_ticks: ResMut<ServerTicks>,
     ) {
         for event in &mut server_events {
-            if let ServerEvent::ClientDisconnected {
-                client_id: id,
-                reason: _,
-            } = event
-            {
-                acked_ticks.0.remove(id);
+            match event {
+                ServerEvent::ClientDisconnected { client_id, .. } => {
+                    server_ticks.acked_ticks.remove(client_id);
+                }
+                ServerEvent::ClientConnected { client_id } => {
+                    server_ticks.acked_ticks.entry(*client_id).or_default();
+                }
             }
         }
     }
 
     fn diffs_sending_system(
         change_tick: SystemChangeTick,
-        mut set: ParamSet<(&World, ResMut<RenetServer>)>,
-        acked_ticks: Res<AckedTicks>,
+        mut set: ParamSet<(&World, ResMut<RenetServer>, ResMut<ServerTicks>)>,
         replication_rules: Res<ReplicationRules>,
         despawn_tracker: Res<DespawnTracker>,
         removal_trackers: Query<(Entity, &RemovalTracker)>,
     ) {
-        let current_tick = set.p0().read_change_tick();
+        let mut server_ticks = set.p2();
+        server_ticks.increment(change_tick.this_run());
 
-        // Initialize [`WorldDiff`]s with latest acknowledged tick for each client.
-        let mut client_diffs: Vec<_> = acked_ticks
-            .iter()
-            .map(|(&client_id, &last_tick)| (client_id, WorldDiff::new(last_tick)))
-            .collect();
-        collect_changes(&mut client_diffs, set.p0(), &replication_rules);
-        collect_removals(&mut client_diffs, &change_tick, &removal_trackers);
-        collect_despawns(&mut client_diffs, &change_tick, &despawn_tracker);
+        let mut client_diffs = Vec::with_capacity(server_ticks.acked_ticks.len());
+        for (&client_id, &tick) in &server_ticks.acked_ticks {
+            let system_tick = *server_ticks
+                .system_ticks
+                .get(&tick)
+                .unwrap_or(&Tick::new(0));
+            client_diffs.push(ClientDiff {
+                client_id,
+                system_tick,
+                world_diff: WorldDiff::new(server_ticks.current_tick),
+            });
+        }
+        collect_changes(
+            &mut client_diffs,
+            change_tick.this_run(),
+            set.p0(),
+            &replication_rules,
+        );
+        collect_removals(&mut client_diffs, change_tick.this_run(), &removal_trackers);
+        collect_despawns(&mut client_diffs, change_tick.this_run(), &despawn_tracker);
 
         let mut messages = Vec::with_capacity(client_diffs.len());
-        for (client_id, mut world_diff) in client_diffs {
-            world_diff.tick = current_tick; // Replace last acknowledged tick with the current.
+        for client_diff in client_diffs {
             let mut message = Vec::new();
-            world_diff
+            client_diff
+                .world_diff
                 .serialize(&replication_rules, &mut message)
                 .expect("world diff should be serializable");
-            messages.push((client_id, message));
+            messages.push((client_diff.client_id, message));
         }
 
         for (client_id, message) in messages {
@@ -154,13 +167,15 @@ impl ServerPlugin {
         }
     }
 
-    fn reset_system(mut acked_ticks: ResMut<AckedTicks>) {
-        acked_ticks.0.clear();
+    fn reset_system(mut server_ticks: ResMut<ServerTicks>) {
+        server_ticks.acked_ticks.clear();
+        server_ticks.system_ticks.clear();
     }
 }
 
 fn collect_changes<'a>(
-    client_diffs: &mut [(u64, WorldDiff<'a>)],
+    client_diffs: &mut [ClientDiff<'a>],
+    system_tick: Tick,
     world: &'a World,
     replication_rules: &ReplicationRules,
 ) {
@@ -194,7 +209,7 @@ fn collect_changes<'a>(
                 StorageType::Table => {
                     collect_table_components(
                         client_diffs,
-                        world,
+                        system_tick,
                         table,
                         archetype,
                         replication_id,
@@ -204,7 +219,8 @@ fn collect_changes<'a>(
                 StorageType::SparseSet => {
                     collect_sparse_set_components(
                         client_diffs,
-                        world,
+                        system_tick,
+                        &world.storages().sparse_sets,
                         archetype,
                         replication_id,
                         component_id,
@@ -216,8 +232,8 @@ fn collect_changes<'a>(
 }
 
 fn collect_table_components<'a>(
-    client_diffs: &mut [(u64, WorldDiff<'a>)],
-    world: &World,
+    client_diffs: &mut [ClientDiff<'a>],
+    system_tick: Tick,
     table: &'a Table,
     archetype: &Archetype,
     replication_id: ReplicationId,
@@ -233,9 +249,10 @@ fn collect_table_components<'a>(
         // SAFETY: component obtained from the archetype.
         let component = unsafe { column.get_data_unchecked(archetype_entity.table_row()) };
 
-        for (_, world_diff) in &mut *client_diffs {
-            if ticks.is_changed(world_diff.tick, world.read_change_tick()) {
-                world_diff
+        for client_diff in &mut *client_diffs {
+            if ticks.is_changed(client_diff.system_tick, system_tick) {
+                client_diff
+                    .world_diff
                     .entities
                     .entry(archetype_entity.entity())
                     .or_default()
@@ -246,15 +263,14 @@ fn collect_table_components<'a>(
 }
 
 fn collect_sparse_set_components<'a>(
-    client_diffs: &mut [(u64, WorldDiff<'a>)],
-    world: &'a World,
+    client_diffs: &mut [ClientDiff<'a>],
+    system_tick: Tick,
+    sparse_sets: &'a SparseSets,
     archetype: &Archetype,
     replication_id: ReplicationId,
     component_id: ComponentId,
 ) {
-    let sparse_set = world
-        .storages()
-        .sparse_sets
+    let sparse_set = sparse_sets
         .get(component_id)
         .unwrap_or_else(|| panic!("{component_id:?} should belong to sparse set"));
 
@@ -267,9 +283,10 @@ fn collect_sparse_set_components<'a>(
             .get(entity)
             .unwrap_or_else(|| panic!("{entity:?} should have {component_id:?}"));
 
-        for (_, world_diff) in &mut *client_diffs {
-            if ticks.is_changed(world_diff.tick, world.read_change_tick()) {
-                world_diff
+        for client_diff in &mut *client_diffs {
+            if ticks.is_changed(client_diff.system_tick, system_tick) {
+                client_diff
+                    .world_diff
                     .entities
                     .entry(entity)
                     .or_default()
@@ -280,15 +297,16 @@ fn collect_sparse_set_components<'a>(
 }
 
 fn collect_removals(
-    client_diffs: &mut [(u64, WorldDiff)],
-    change_tick: &SystemChangeTick,
+    client_diffs: &mut [ClientDiff],
+    system_tick: Tick,
     removal_trackers: &Query<(Entity, &RemovalTracker)>,
 ) {
     for (entity, removal_tracker) in removal_trackers {
-        for (_, world_diff) in &mut *client_diffs {
-            for (&replication_id, &tick) in removal_tracker.iter() {
-                if tick.is_newer_than(world_diff.tick, change_tick.this_run()) {
-                    world_diff
+        for client_diff in &mut *client_diffs {
+            for (&replication_id, &tick) in &removal_tracker.0 {
+                if tick.is_newer_than(client_diff.system_tick, system_tick) {
+                    client_diff
+                        .world_diff
                         .entities
                         .entry(entity)
                         .or_default()
@@ -300,14 +318,14 @@ fn collect_removals(
 }
 
 fn collect_despawns(
-    client_diffs: &mut [(u64, WorldDiff)],
-    change_tick: &SystemChangeTick,
+    client_diffs: &mut [ClientDiff],
+    system_tick: Tick,
     despawn_tracker: &DespawnTracker,
 ) {
-    for (entity, tick) in despawn_tracker.despawns.iter().copied() {
-        for (_, world_diff) in &mut *client_diffs {
-            if tick.is_newer_than(world_diff.tick, change_tick.this_run()) {
-                world_diff.despawns.push(entity);
+    for &(entity, tick) in &despawn_tracker.despawns {
+        for client_diff in &mut *client_diffs {
+            if tick.is_newer_than(client_diff.system_tick, system_tick) {
+                client_diff.world_diff.despawns.push(entity);
             }
         }
     }
@@ -340,8 +358,51 @@ pub enum TickPolicy {
     Manual,
 }
 
-/// Last acknowledged server ticks from all clients.
+/// Stores information about ticks.
 ///
 /// Used only on server.
-#[derive(Default, Deref, Resource)]
-pub struct AckedTicks(pub(super) HashMap<u64, Tick>);
+#[derive(Resource, Default)]
+pub struct ServerTicks {
+    /// Current server tick.
+    current_tick: NetworkTick,
+
+    /// Last acknowledged server ticks for all clients.
+    acked_ticks: HashMap<u64, NetworkTick>,
+
+    /// Stores mapping from server ticks to system change ticks.
+    system_ticks: HashMap<NetworkTick, Tick>,
+}
+
+impl ServerTicks {
+    /// Increments current tick by 1 and makes corresponding system tick mapping for it.
+    fn increment(&mut self, system_tick: Tick) {
+        self.current_tick.increment();
+        self.system_ticks.insert(self.current_tick, system_tick);
+    }
+
+    /// Removes system tick mappings for acks that was acknowledged by everyone.
+    fn cleanup_system_ticks(&mut self) {
+        self.system_ticks.retain(|tick, _| {
+            self.acked_ticks
+                .values()
+                .all(|acked_tick| acked_tick > tick)
+        })
+    }
+
+    /// Returns current server tick.
+    pub fn current_tick(&self) -> NetworkTick {
+        self.current_tick
+    }
+
+    /// Returns last acknowledged server ticks for all clients.
+    pub fn acked_ticks(&self) -> &HashMap<u64, NetworkTick> {
+        &self.acked_ticks
+    }
+}
+
+/// Intermediate struct that contains necessary information to create and send [`WorldDiff`].
+struct ClientDiff<'a> {
+    client_id: u64,
+    system_tick: Tick,
+    world_diff: WorldDiff<'a>,
+}
