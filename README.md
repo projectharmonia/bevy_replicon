@@ -15,3 +15,9 @@ See the quick start guide by clicking on the docs badge.
 | 0.11.0 | 0.6-0.10      |
 | 0.10.1 | 0.2-0.6       |
 | 0.10.0 | 0.1           |
+
+## Getting Started
+
+Check out the [Quick Start](https://docs.rs/bevy_replicon/latest/bevy_replicon) explanation
+
+You can try out the [examples](https://github.com/lifescapegame/bevy_replicon/tree/master/examples) with `cargo run --example tic_tac_toe`
