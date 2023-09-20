@@ -9,7 +9,7 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use serde::{Deserialize, Serialize};
 
 #[derive(Component, Clone, Copy, Serialize, Deserialize)]
-struct DummyComponent;
+struct DummyComponent(usize);
 
 const ENTITIES: u32 = 900;
 
@@ -27,7 +27,7 @@ fn replication(c: &mut Criterion) {
 
                 server_app
                     .world
-                    .spawn_batch([(Replication, DummyComponent); ENTITIES as usize]);
+                    .spawn_batch([(Replication, DummyComponent(0)); ENTITIES as usize]);
 
                 let instant = Instant::now();
                 server_app.update();
@@ -55,8 +55,86 @@ fn replication(c: &mut Criterion) {
 
                 server_app
                     .world
-                    .spawn_batch([(Replication, DummyComponent); ENTITIES as usize]);
+                    .spawn_batch([(Replication, DummyComponent(0)); ENTITIES as usize]);
 
+                server_app.update();
+                std::thread::sleep(Duration::from_millis(5));
+
+                let instant = Instant::now();
+                client_app.update();
+                elapsed += instant.elapsed();
+                assert_eq!(client_app.world.entities().len(), ENTITIES);
+            }
+
+            elapsed
+        })
+    });
+
+    c.bench_function("entities update send", |b| {
+        b.iter_custom(|iter| {
+            let mut elapsed = Duration::ZERO;
+            let mut server_app = App::new();
+            let mut client_app = App::new();
+            for app in [&mut server_app, &mut client_app] {
+                setup_app(app);
+            }
+            common::connect(&mut server_app, &mut client_app);
+
+            server_app
+                .world
+                .spawn_batch([(Replication, DummyComponent(0)); ENTITIES as usize]);
+            let mut query = server_app.world.query::<&mut DummyComponent>();
+
+            server_app.update();
+            std::thread::sleep(Duration::from_millis(5));
+            client_app.update();
+            assert_eq!(client_app.world.entities().len(), ENTITIES);
+
+            for _ in 0..iter {
+                for mut dummy_component in query.iter_mut(&mut server_app.world) {
+                    dummy_component.0 += 1;
+                }
+
+                std::thread::sleep(Duration::from_millis(5));
+                let instant = Instant::now();
+                server_app.update();
+                elapsed += instant.elapsed();
+
+                std::thread::sleep(Duration::from_millis(5));
+                client_app.update();
+                assert_eq!(client_app.world.entities().len(), ENTITIES);
+            }
+
+            elapsed
+        })
+    });
+
+    c.bench_function("entities update receive", |b| {
+        b.iter_custom(|iter| {
+            let mut elapsed = Duration::ZERO;
+            let mut server_app = App::new();
+            let mut client_app = App::new();
+            for app in [&mut server_app, &mut client_app] {
+                setup_app(app);
+            }
+            common::connect(&mut server_app, &mut client_app);
+
+            server_app
+                .world
+                .spawn_batch([(Replication, DummyComponent(0)); ENTITIES as usize]);
+            let mut query = server_app.world.query::<&mut DummyComponent>();
+
+            server_app.update();
+            std::thread::sleep(Duration::from_millis(5));
+            client_app.update();
+            assert_eq!(client_app.world.entities().len(), ENTITIES);
+
+            for _ in 0..iter {
+                for mut dummy_component in query.iter_mut(&mut server_app.world) {
+                    dummy_component.0 += 1;
+                }
+
+                std::thread::sleep(Duration::from_millis(5));
                 server_app.update();
                 std::thread::sleep(Duration::from_millis(5));
 
