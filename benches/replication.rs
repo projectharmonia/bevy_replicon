@@ -33,6 +33,7 @@ fn replication(c: &mut Criterion) {
                 server_app.update();
                 elapsed += instant.elapsed();
 
+                std::thread::sleep(Duration::from_millis(5));
                 client_app.update();
                 assert_eq!(client_app.world.entities().len(), ENTITIES);
             }
@@ -57,6 +58,7 @@ fn replication(c: &mut Criterion) {
                     .spawn_batch([(Replication, DummyComponent); ENTITIES as usize]);
 
                 server_app.update();
+                std::thread::sleep(Duration::from_millis(5));
 
                 let instant = Instant::now();
                 client_app.update();
