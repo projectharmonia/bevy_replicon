@@ -8,7 +8,7 @@ use bevy::{
         archetype::{Archetype, ArchetypeId},
         component::{ComponentId, StorageType, Tick},
         storage::{SparseSets, Table},
-        system::SystemChangeTick,
+        system::{Local, SystemChangeTick},
     },
     prelude::*,
     time::common_conditions::on_timer,
@@ -22,7 +22,7 @@ use bevy_renet::{
 use derive_more::Constructor;
 
 use crate::replicon_core::{
-    ComponentDiff, NetworkTick, ReplicationId, ReplicationRules, WorldDiff, REPLICATION_CHANNEL_ID,
+    NetworkTick, ReplicationBuffer, ReplicationId, ReplicationRules, REPLICATION_CHANNEL_ID,
 };
 use despawn_tracker::{DespawnTracker, DespawnTrackerPlugin};
 use removal_tracker::{RemovalTracker, RemovalTrackerPlugin};
@@ -121,49 +121,55 @@ impl ServerPlugin {
     }
 
     fn diffs_sending_system(
+        mut replication_buffers: Local<HashMap<u64, ReplicationBuffer>>,
         change_tick: SystemChangeTick,
         mut set: ParamSet<(&World, ResMut<RenetServer>, ResMut<ServerTicks>)>,
         replication_rules: Res<ReplicationRules>,
         despawn_tracker: Res<DespawnTracker>,
         removal_trackers: Query<(Entity, &RemovalTracker)>,
     ) {
+        // remove disconnected clients from replication buffer cache
+        {
+            let renet_server = set.p1();
+            replication_buffers.retain(|client_id, _| renet_server.is_connected(*client_id));
+        }
+
         let mut server_ticks = set.p2();
         server_ticks.increment(change_tick.this_run());
 
-        let mut client_diffs = Vec::with_capacity(server_ticks.acked_ticks.len());
-        for (&client_id, &tick) in &server_ticks.acked_ticks {
-            let system_tick = *server_ticks
+        for (&client_id, &acked_tick) in &server_ticks.acked_ticks {
+            let acked_system_tick = *server_ticks
                 .system_ticks
-                .get(&tick)
+                .get(&acked_tick)
                 .unwrap_or(&Tick::new(0));
-            client_diffs.push(ClientDiff {
-                client_id,
-                system_tick,
-                world_diff: WorldDiff::new(server_ticks.current_tick),
-            });
+            replication_buffers
+                .entry(client_id)
+                .or_default()
+                .refresh_ticks(server_ticks.current_tick, acked_system_tick);
         }
         collect_changes(
-            &mut client_diffs,
+            &mut replication_buffers,
             change_tick.this_run(),
             set.p0(),
             &replication_rules,
         );
-        collect_removals(&mut client_diffs, change_tick.this_run(), &removal_trackers);
-        collect_despawns(&mut client_diffs, change_tick.this_run(), &despawn_tracker);
+        collect_removals(
+            &mut replication_buffers,
+            change_tick.this_run(),
+            &removal_trackers,
+        );
+        collect_despawns(
+            &mut replication_buffers,
+            change_tick.this_run(),
+            &despawn_tracker,
+        );
 
-        let mut messages = Vec::with_capacity(client_diffs.len());
-        for client_diff in client_diffs {
-            let mut message = Vec::new();
-            client_diff
-                .world_diff
-                .serialize(&replication_rules, &mut message)
-                .expect("world diff should be serializable");
-            messages.push((client_diff.client_id, message));
-        }
-
-        for (client_id, message) in messages {
+        for (client_id, replication_buffer) in replication_buffers.iter_mut() {
+            let Ok(message) = replication_buffer.consume() else {
+                continue;
+            };
             set.p1()
-                .send_message(client_id, REPLICATION_CHANNEL_ID, message);
+                .send_message(*client_id, REPLICATION_CHANNEL_ID, message);
         }
     }
 
@@ -173,10 +179,10 @@ impl ServerPlugin {
     }
 }
 
-fn collect_changes<'a>(
-    client_diffs: &mut [ClientDiff<'a>],
+fn collect_changes(
+    replication_buffers: &mut HashMap<u64, ReplicationBuffer>,
     system_tick: Tick,
-    world: &'a World,
+    world: &World,
     replication_rules: &ReplicationRules,
 ) {
     for archetype in world
@@ -208,7 +214,8 @@ fn collect_changes<'a>(
             match storage_type {
                 StorageType::Table => {
                     collect_table_components(
-                        client_diffs,
+                        replication_buffers,
+                        replication_rules,
                         system_tick,
                         table,
                         archetype,
@@ -218,7 +225,8 @@ fn collect_changes<'a>(
                 }
                 StorageType::SparseSet => {
                     collect_sparse_set_components(
-                        client_diffs,
+                        replication_buffers,
+                        replication_rules,
                         system_tick,
                         &world.storages().sparse_sets,
                         archetype,
@@ -231,10 +239,11 @@ fn collect_changes<'a>(
     }
 }
 
-fn collect_table_components<'a>(
-    client_diffs: &mut [ClientDiff<'a>],
+fn collect_table_components(
+    replication_buffers: &mut HashMap<u64, ReplicationBuffer>,
+    replication_rules: &ReplicationRules,
     system_tick: Tick,
-    table: &'a Table,
+    table: &Table,
     archetype: &Archetype,
     replication_id: ReplicationId,
     component_id: ComponentId,
@@ -249,23 +258,24 @@ fn collect_table_components<'a>(
         // SAFETY: component obtained from the archetype.
         let component = unsafe { column.get_data_unchecked(archetype_entity.table_row()) };
 
-        for client_diff in &mut *client_diffs {
-            if ticks.is_changed(client_diff.system_tick, system_tick) {
-                client_diff
-                    .world_diff
-                    .entities
-                    .entry(archetype_entity.entity())
-                    .or_default()
-                    .push(ComponentDiff::Changed((replication_id, component)));
+        for (_, replication_buffer) in replication_buffers.iter_mut() {
+            if ticks.is_changed(replication_buffer.last_acked_system_tick(), system_tick) {
+                let _ = replication_buffer.append_updated_component(
+                    replication_rules,
+                    archetype_entity.entity(),
+                    replication_id,
+                    component,
+                );
             }
         }
     }
 }
 
-fn collect_sparse_set_components<'a>(
-    client_diffs: &mut [ClientDiff<'a>],
+fn collect_sparse_set_components(
+    replication_buffers: &mut HashMap<u64, ReplicationBuffer>,
+    replication_rules: &ReplicationRules,
     system_tick: Tick,
-    sparse_sets: &'a SparseSets,
+    sparse_sets: &SparseSets,
     archetype: &Archetype,
     replication_id: ReplicationId,
     component_id: ComponentId,
@@ -283,34 +293,29 @@ fn collect_sparse_set_components<'a>(
             .get(entity)
             .unwrap_or_else(|| panic!("{entity:?} should have {component_id:?}"));
 
-        for client_diff in &mut *client_diffs {
-            if ticks.is_changed(client_diff.system_tick, system_tick) {
-                client_diff
-                    .world_diff
-                    .entities
-                    .entry(entity)
-                    .or_default()
-                    .push(ComponentDiff::Changed((replication_id, component)));
+        for (_, replication_buffer) in replication_buffers.iter_mut() {
+            if ticks.is_changed(replication_buffer.last_acked_system_tick(), system_tick) {
+                let _ = replication_buffer.append_updated_component(
+                    replication_rules,
+                    entity,
+                    replication_id,
+                    component,
+                );
             }
         }
     }
 }
 
 fn collect_removals(
-    client_diffs: &mut [ClientDiff],
+    replication_buffers: &mut HashMap<u64, ReplicationBuffer>,
     system_tick: Tick,
     removal_trackers: &Query<(Entity, &RemovalTracker)>,
 ) {
     for (entity, removal_tracker) in removal_trackers {
-        for client_diff in &mut *client_diffs {
+        for (_, replication_buffer) in replication_buffers.iter_mut() {
             for (&replication_id, &tick) in &removal_tracker.0 {
-                if tick.is_newer_than(client_diff.system_tick, system_tick) {
-                    client_diff
-                        .world_diff
-                        .entities
-                        .entry(entity)
-                        .or_default()
-                        .push(ComponentDiff::Removed(replication_id));
+                if tick.is_newer_than(replication_buffer.last_acked_system_tick(), system_tick) {
+                    let _ = replication_buffer.append_removed_component(entity, replication_id);
                 }
             }
         }
@@ -318,14 +323,14 @@ fn collect_removals(
 }
 
 fn collect_despawns(
-    client_diffs: &mut [ClientDiff],
+    replication_buffers: &mut HashMap<u64, ReplicationBuffer>,
     system_tick: Tick,
     despawn_tracker: &DespawnTracker,
 ) {
     for &(entity, tick) in &despawn_tracker.despawns {
-        for client_diff in &mut *client_diffs {
-            if tick.is_newer_than(client_diff.system_tick, system_tick) {
-                client_diff.world_diff.despawns.push(entity);
+        for (_, replication_buffer) in replication_buffers.iter_mut() {
+            if tick.is_newer_than(replication_buffer.last_acked_system_tick(), system_tick) {
+                let _ = replication_buffer.despawn_entity(entity);
             }
         }
     }
@@ -398,11 +403,4 @@ impl ServerTicks {
     pub fn acked_ticks(&self) -> &HashMap<u64, NetworkTick> {
         &self.acked_ticks
     }
-}
-
-/// Intermediate struct that contains necessary information to create and send [`WorldDiff`].
-struct ClientDiff<'a> {
-    client_id: u64,
-    system_tick: Tick,
-    world_diff: WorldDiff<'a>,
 }

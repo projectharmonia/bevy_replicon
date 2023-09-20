@@ -7,7 +7,7 @@ use bevy_renet::transport::client_connected;
 use bevy_renet::{renet::RenetClient, transport::NetcodeClientPlugin, RenetClientPlugin};
 
 use crate::{
-    replicon_core::{Mapper, NetworkTick, WorldDiff, REPLICATION_CHANNEL_ID},
+    replicon_core::{deserialize_to_world, Mapper, NetworkTick, REPLICATION_CHANNEL_ID},
     Replication,
 };
 
@@ -48,7 +48,7 @@ impl ClientPlugin {
     fn diff_receiving_system(world: &mut World) {
         world.resource_scope(|world, mut client: Mut<RenetClient>| {
             while let Some(message) = client.receive_message(REPLICATION_CHANNEL_ID) {
-                WorldDiff::deserialize_to_world(world, message)
+                deserialize_to_world(world, message)
                     .expect("server should send only valid world diffs");
             }
         });
