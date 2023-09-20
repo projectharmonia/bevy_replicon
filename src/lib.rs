@@ -47,7 +47,8 @@ keep the world in sync.
 
 ### Marking for replication
 
-By default, no components are replicated. A component will be replicated if it has been marked as replicated **and** its entity has the [`Replication`] component.
+By default, no components are replicated. A component will be replicated if it has been registered for replication
+**and** its entity has the [`Replication`] component.
 
 In other words you need two things to start replication :
 
