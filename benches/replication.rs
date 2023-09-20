@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 struct DummyComponent(usize);
 
 const ENTITIES: u32 = 900;
+const SOCKET_WAIT: Duration = Duration::from_millis(5); // Sometimes it takes time for socket to receive all data.
 
 fn replication(c: &mut Criterion) {
     c.bench_function("entities send", |b| {
@@ -33,7 +34,7 @@ fn replication(c: &mut Criterion) {
                 server_app.update();
                 elapsed += instant.elapsed();
 
-                std::thread::sleep(Duration::from_millis(5));
+                std::thread::sleep(SOCKET_WAIT);
                 client_app.update();
                 assert_eq!(client_app.world.entities().len(), ENTITIES);
             }
@@ -58,7 +59,7 @@ fn replication(c: &mut Criterion) {
                     .spawn_batch([(Replication, DummyComponent(0)); ENTITIES as usize]);
 
                 server_app.update();
-                std::thread::sleep(Duration::from_millis(5));
+                std::thread::sleep(SOCKET_WAIT);
 
                 let instant = Instant::now();
                 client_app.update();
@@ -86,7 +87,7 @@ fn replication(c: &mut Criterion) {
             let mut query = server_app.world.query::<&mut DummyComponent>();
 
             server_app.update();
-            std::thread::sleep(Duration::from_millis(5));
+            std::thread::sleep(SOCKET_WAIT);
             client_app.update();
             assert_eq!(client_app.world.entities().len(), ENTITIES);
 
@@ -95,12 +96,11 @@ fn replication(c: &mut Criterion) {
                     dummy_component.0 += 1;
                 }
 
-                std::thread::sleep(Duration::from_millis(5));
                 let instant = Instant::now();
                 server_app.update();
                 elapsed += instant.elapsed();
 
-                std::thread::sleep(Duration::from_millis(5));
+                std::thread::sleep(SOCKET_WAIT);
                 client_app.update();
                 assert_eq!(client_app.world.entities().len(), ENTITIES);
             }
@@ -125,7 +125,7 @@ fn replication(c: &mut Criterion) {
             let mut query = server_app.world.query::<&mut DummyComponent>();
 
             server_app.update();
-            std::thread::sleep(Duration::from_millis(5));
+            std::thread::sleep(SOCKET_WAIT);
             client_app.update();
             assert_eq!(client_app.world.entities().len(), ENTITIES);
 
@@ -134,9 +134,8 @@ fn replication(c: &mut Criterion) {
                     dummy_component.0 += 1;
                 }
 
-                std::thread::sleep(Duration::from_millis(5));
                 server_app.update();
-                std::thread::sleep(Duration::from_millis(5));
+                std::thread::sleep(SOCKET_WAIT);
 
                 let instant = Instant::now();
                 client_app.update();
