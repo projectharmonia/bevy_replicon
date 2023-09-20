@@ -96,6 +96,7 @@ fn replication(c: &mut Criterion) {
                     dummy_component.0 += 1;
                 }
 
+                std::thread::sleep(SOCKET_WAIT);
                 let instant = Instant::now();
                 server_app.update();
                 elapsed += instant.elapsed();
@@ -134,6 +135,7 @@ fn replication(c: &mut Criterion) {
                     dummy_component.0 += 1;
                 }
 
+                std::thread::sleep(SOCKET_WAIT);
                 server_app.update();
                 std::thread::sleep(SOCKET_WAIT);
 
