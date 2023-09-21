@@ -19,6 +19,7 @@ use bevy_renet::{
     transport::NetcodeServerPlugin,
     RenetServerPlugin,
 };
+use bincode::{DefaultOptions, Options};
 use derive_more::Constructor;
 
 use crate::replicon_core::{
@@ -451,7 +452,7 @@ impl ReplicationBuffer {
         current_tick: NetworkTick,
     ) -> Result<Self, bincode::Error> {
         let mut message = Default::default();
-        bincode::serialize_into(&mut message, &current_tick)?;
+        DefaultOptions::new().serialize_into(&mut message, &current_tick)?;
         Ok(Self {
             client_id,
             system_tick,
@@ -477,7 +478,7 @@ impl ReplicationBuffer {
         self.system_tick = system_tick;
         self.message.set_position(0);
         self.message.get_mut().clear();
-        bincode::serialize_into(&mut self.message, &current_tick)?;
+        DefaultOptions::new().serialize_into(&mut self.message, &current_tick)?;
 
         Ok(())
     }
@@ -496,6 +497,7 @@ impl ReplicationBuffer {
 
     /// Ends writing array by writing its length into the last remembered position.
     ///
+    /// Length is written without varint encoding.
     /// See also [`Self::start_array`].
     fn end_array(&mut self) -> Result<(), bincode::Error> {
         if self.array_len != 0 {
@@ -529,6 +531,7 @@ impl ReplicationBuffer {
     /// Ends writing array by writing its length and associated [`Entity`] into the last remembered position.
     ///
     /// If map is empty, only map length will be written.
+    /// [`Entity`] and length are written without varint encoding.
     /// See also [`Self::start_array`].
     fn end_entity_map(&mut self, entity: Entity) -> Result<(), bincode::Error> {
         if self.entity_map_len != 0 {
@@ -561,7 +564,7 @@ impl ReplicationBuffer {
         replication_id: ReplicationId,
         ptr: Ptr,
     ) -> Result<(), bincode::Error> {
-        bincode::serialize_into(&mut self.message, &replication_id)?;
+        DefaultOptions::new().serialize_into(&mut self.message, &replication_id)?;
         (replication_info.serialize)(ptr, &mut self.message)?;
         self.entity_map_len += 1;
 
@@ -572,7 +575,7 @@ impl ReplicationBuffer {
     ///
     /// Increases map length by 1.
     fn write_removal(&mut self, replication_id: ReplicationId) -> Result<(), bincode::Error> {
-        bincode::serialize_into(&mut self.message, &replication_id)?;
+        DefaultOptions::new().serialize_into(&mut self.message, &replication_id)?;
         self.entity_map_len += 1;
 
         Ok(())
@@ -582,7 +585,7 @@ impl ReplicationBuffer {
     ///
     /// Increases array length by 1.
     fn write_despawn(&mut self, entity: Entity) -> Result<(), bincode::Error> {
-        bincode::serialize_into(&mut self.message, &entity)?;
+        DefaultOptions::new().serialize_into(&mut self.message, &entity)?;
         self.array_len = self
             .array_len
             .checked_add(1)

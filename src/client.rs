@@ -7,6 +7,7 @@ use bevy::{
 };
 use bevy_renet::{renet::Bytes, transport::client_connected};
 use bevy_renet::{renet::RenetClient, transport::NetcodeClientPlugin, RenetClientPlugin};
+use bincode::{DefaultOptions, Options};
 
 use crate::{
     replicon_core::{Mapper, NetworkTick, ReplicationRules, REPLICATION_CHANNEL_ID},
@@ -98,7 +99,7 @@ impl ClientPlugin {
 ///
 /// Returns true if [`LastTick`] has been updated.
 fn deserialize_tick(cursor: &mut Cursor<Bytes>, world: &mut World) -> Result<bool, bincode::Error> {
-    let tick = bincode::deserialize_from(cursor)?;
+    let tick = DefaultOptions::new().deserialize_from(cursor)?;
 
     let mut last_tick = world.resource_mut::<LastTick>();
     if last_tick.0 < tick {
@@ -127,7 +128,7 @@ fn deserialize_component_diffs(
         let mut entity = entity_map.get_by_server_or_spawn(world, entity);
         let components_count: u8 = bincode::deserialize_from(&mut *cursor)?;
         for _ in 0..components_count {
-            let replication_id = bincode::deserialize_from(&mut *cursor)?;
+            let replication_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
             let replication_info = replication_rules.get_info(replication_id);
             match diff_kind {
                 DiffKind::Change => {
@@ -161,7 +162,7 @@ fn deserialize_despawns(
         // The entity might have already been deleted with the last diff,
         // but the server might not yet have received confirmation from the
         // client and could include the deletion in the latest diff.
-        let server_entity = bincode::deserialize_from(&mut *cursor)?;
+        let server_entity = DefaultOptions::new().deserialize_from(&mut *cursor)?;
         if let Some(client_entity) = entity_map.remove_by_server(server_entity) {
             world.entity_mut(client_entity).despawn_recursive();
         }
