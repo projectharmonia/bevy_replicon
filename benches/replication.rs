@@ -18,6 +18,8 @@ fn replication(c: &mut Criterion) {
     c.bench_function("entities send", |b| {
         b.iter_custom(|iter| {
             let mut elapsed = Duration::ZERO;
+            let sleeper = spin_sleep::SpinSleeper::new(1_000_000_000)
+                .with_spin_strategy(spin_sleep::SpinStrategy::SpinLoopHint);
             for _ in 0..iter {
                 let mut server_app = App::new();
                 let mut client_app = App::new();
@@ -34,7 +36,7 @@ fn replication(c: &mut Criterion) {
                 server_app.update();
                 elapsed += instant.elapsed();
 
-                std::thread::sleep(SOCKET_WAIT);
+                sleeper.sleep(SOCKET_WAIT);
                 client_app.update();
                 assert_eq!(client_app.world.entities().len(), ENTITIES);
             }
@@ -46,6 +48,8 @@ fn replication(c: &mut Criterion) {
     c.bench_function("entities receive", |b| {
         b.iter_custom(|iter| {
             let mut elapsed = Duration::ZERO;
+            let sleeper = spin_sleep::SpinSleeper::new(1_000_000_000)
+                .with_spin_strategy(spin_sleep::SpinStrategy::SpinLoopHint);
             for _ in 0..iter {
                 let mut server_app = App::new();
                 let mut client_app = App::new();
@@ -59,7 +63,7 @@ fn replication(c: &mut Criterion) {
                     .spawn_batch([(Replication, DummyComponent(0)); ENTITIES as usize]);
 
                 server_app.update();
-                std::thread::sleep(SOCKET_WAIT);
+                sleeper.sleep(SOCKET_WAIT);
 
                 let instant = Instant::now();
                 client_app.update();
@@ -74,6 +78,8 @@ fn replication(c: &mut Criterion) {
     c.bench_function("entities update send", |b| {
         b.iter_custom(|iter| {
             let mut elapsed = Duration::ZERO;
+            let sleeper = spin_sleep::SpinSleeper::new(1_000_000_000)
+                .with_spin_strategy(spin_sleep::SpinStrategy::SpinLoopHint);
             let mut server_app = App::new();
             let mut client_app = App::new();
             for app in [&mut server_app, &mut client_app] {
@@ -87,7 +93,7 @@ fn replication(c: &mut Criterion) {
             let mut query = server_app.world.query::<&mut DummyComponent>();
 
             server_app.update();
-            std::thread::sleep(SOCKET_WAIT);
+            sleeper.sleep(SOCKET_WAIT);
             client_app.update();
             assert_eq!(client_app.world.entities().len(), ENTITIES);
 
@@ -96,12 +102,12 @@ fn replication(c: &mut Criterion) {
                     dummy_component.0 += 1;
                 }
 
-                std::thread::sleep(SOCKET_WAIT);
+                sleeper.sleep(SOCKET_WAIT);
                 let instant = Instant::now();
                 server_app.update();
                 elapsed += instant.elapsed();
 
-                std::thread::sleep(SOCKET_WAIT);
+                sleeper.sleep(SOCKET_WAIT);
                 client_app.update();
                 assert_eq!(client_app.world.entities().len(), ENTITIES);
             }
@@ -113,6 +119,8 @@ fn replication(c: &mut Criterion) {
     c.bench_function("entities update receive", |b| {
         b.iter_custom(|iter| {
             let mut elapsed = Duration::ZERO;
+            let sleeper = spin_sleep::SpinSleeper::new(1_000_000_000)
+                .with_spin_strategy(spin_sleep::SpinStrategy::SpinLoopHint);
             let mut server_app = App::new();
             let mut client_app = App::new();
             for app in [&mut server_app, &mut client_app] {
@@ -126,7 +134,7 @@ fn replication(c: &mut Criterion) {
             let mut query = server_app.world.query::<&mut DummyComponent>();
 
             server_app.update();
-            std::thread::sleep(SOCKET_WAIT);
+            sleeper.sleep(SOCKET_WAIT);
             client_app.update();
             assert_eq!(client_app.world.entities().len(), ENTITIES);
 
@@ -135,9 +143,9 @@ fn replication(c: &mut Criterion) {
                     dummy_component.0 += 1;
                 }
 
-                std::thread::sleep(SOCKET_WAIT);
+                sleeper.sleep(SOCKET_WAIT);
                 server_app.update();
-                std::thread::sleep(SOCKET_WAIT);
+                sleeper.sleep(SOCKET_WAIT);
 
                 let instant = Instant::now();
                 client_app.update();
