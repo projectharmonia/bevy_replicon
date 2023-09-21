@@ -119,12 +119,8 @@ fn deserialize_component_diffs(
     diff_kind: DiffKind,
 ) -> Result<(), bincode::Error> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
-    if entities_count == 0 {
-        return Ok(());
-    }
-
     for _ in 0..entities_count {
-        let entity = bincode::deserialize_from(&mut *cursor)?;
+        let entity = DefaultOptions::new().deserialize_from(&mut *cursor)?;
         let mut entity = entity_map.get_by_server_or_spawn(world, entity);
         let components_count: u8 = bincode::deserialize_from(&mut *cursor)?;
         for _ in 0..components_count {
@@ -154,10 +150,6 @@ fn deserialize_despawns(
     entity_map: &mut NetworkEntityMap,
 ) -> Result<(), bincode::Error> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
-    if entities_count == 0 {
-        return Ok(());
-    }
-
     for _ in 0..entities_count {
         // The entity might have already been deleted with the last diff,
         // but the server might not yet have received confirmation from the

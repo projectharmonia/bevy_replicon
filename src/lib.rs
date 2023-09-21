@@ -348,6 +348,14 @@ To check if you running server or client, you can use conditions based on
 They rarely used for gameplay systems (since you write the same logic for
 multiplayer and single-player!), but could be used for server
 creation / connection systems and corresponding UI.
+
+## Limits
+
+To reduce packet size there are the following limits per replication update:
+
+- Up to [`u16::MAX`] entities that have changed/added components with up to [`u8::MAX`] such components.
+- Up to [`u16::MAX`] entities that have removed components with up to [`u8::MAX`] such components.
+- Up to [`u16::MAX`] entities that were despawned.
 */
 
 pub mod client;
