@@ -8,9 +8,8 @@ use bevy::{
 };
 use bevy_renet::renet::{Bytes, ChannelConfig, SendType};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use strum::EnumDiscriminants;
 
-use crate::client::{ClientMapper, LastTick, NetworkEntityMap};
+use crate::client::{ClientMapper, NetworkEntityMap};
 
 pub struct RepliconCorePlugin;
 
@@ -191,7 +190,7 @@ impl FromWorld for ReplicationRules {
 }
 
 /// Signature of serialization function stored in [`ReplicationInfo`].
-pub type SerializeFn = fn(Ptr, &mut Cursor<&mut Vec<u8>>) -> Result<(), bincode::Error>;
+pub type SerializeFn = fn(Ptr, &mut Cursor<Vec<u8>>) -> Result<(), bincode::Error>;
 
 /// Signature of deserialization function stored in [`ReplicationInfo`].
 pub type DeserializeFn =
@@ -230,7 +229,7 @@ pub struct ReplicationId(usize);
 /// Default serialization function.
 fn serialize_component<C: Component + Serialize>(
     component: Ptr,
-    cursor: &mut Cursor<&mut Vec<u8>>,
+    cursor: &mut Cursor<Vec<u8>>,
 ) -> Result<(), bincode::Error> {
     // SAFETY: Function called for registered `ComponentId`.
     let component: &C = unsafe { component.deref() };
@@ -286,130 +285,6 @@ pub trait Mapper {
 /// Marks entity for replication.
 #[derive(Component, Clone, Copy)]
 pub struct Replication;
-
-/// Changed world data and current tick from server.
-///
-/// Sent from server to clients.
-pub(super) struct WorldDiff<'a> {
-    pub(super) tick: NetworkTick,
-    pub(super) entities: HashMap<Entity, Vec<ComponentDiff<'a>>>,
-    pub(super) despawns: Vec<Entity>,
-}
-
-impl WorldDiff<'_> {
-    /// Creates a new [`WorldDiff`] with a tick and empty entities.
-    pub(super) fn new(tick: NetworkTick) -> Self {
-        Self {
-            tick,
-            entities: Default::default(),
-            despawns: Default::default(),
-        }
-    }
-
-    /// Serializes itself into a buffer.
-    ///
-    /// We use custom implementation because serde impls require to use generics that can't be stored in [`ReplicationInfo`].
-    pub(super) fn serialize(
-        &self,
-        replication_rules: &ReplicationRules,
-        message: &mut Vec<u8>,
-    ) -> Result<(), bincode::Error> {
-        let mut cursor = Cursor::new(message);
-
-        bincode::serialize_into(&mut cursor, &self.tick)?;
-
-        bincode::serialize_into(&mut cursor, &self.entities.len())?;
-        for (entity, components) in &self.entities {
-            bincode::serialize_into(&mut cursor, entity)?;
-            bincode::serialize_into(&mut cursor, &components.len())?;
-            for &component_diff in components {
-                bincode::serialize_into(&mut cursor, &ComponentDiffKind::from(component_diff))?;
-                match component_diff {
-                    ComponentDiff::Changed((replication_id, ptr)) => {
-                        bincode::serialize_into(&mut cursor, &replication_id)?;
-                        let replication_info = replication_rules.get_info(replication_id);
-                        (replication_info.serialize)(ptr, &mut cursor)?;
-                    }
-                    ComponentDiff::Removed(replication_id) => {
-                        bincode::serialize_into(&mut cursor, &replication_id)?;
-                    }
-                }
-            }
-        }
-
-        bincode::serialize_into(&mut cursor, &self.despawns)?;
-
-        Ok(())
-    }
-
-    /// Deserializes itself from bytes directly into the world by applying all changes.
-    ///
-    /// Does nothing if world already received a more recent diff.
-    /// See also [`LastTick`].
-    pub(super) fn deserialize_to_world(
-        world: &mut World,
-        message: Bytes,
-    ) -> Result<(), bincode::Error> {
-        let mut cursor = Cursor::new(message);
-
-        let tick = bincode::deserialize_from(&mut cursor)?;
-        let mut last_tick = world.resource_mut::<LastTick>();
-        if last_tick.0 >= tick {
-            return Ok(());
-        }
-        last_tick.0 = tick;
-
-        world.resource_scope(|world, replication_rules: Mut<ReplicationRules>| {
-            world.resource_scope(|world, mut entity_map: Mut<NetworkEntityMap>| {
-                let entities_count: usize = bincode::deserialize_from(&mut cursor)?;
-                for _ in 0..entities_count {
-                    let entity = bincode::deserialize_from(&mut cursor)?;
-                    let mut entity = entity_map.get_by_server_or_spawn(world, entity);
-                    let components_count: usize = bincode::deserialize_from(&mut cursor)?;
-                    for _ in 0..components_count {
-                        let diff_kind = bincode::deserialize_from(&mut cursor)?;
-                        let replication_id = bincode::deserialize_from(&mut cursor)?;
-                        let replication_info = replication_rules.get_info(replication_id);
-                        match diff_kind {
-                            ComponentDiffKind::Changed => {
-                                (replication_info.deserialize)(
-                                    &mut entity,
-                                    &mut entity_map,
-                                    &mut cursor,
-                                )?;
-                            }
-                            ComponentDiffKind::Removed => {
-                                (replication_info.remove)(&mut entity);
-                            }
-                        }
-                    }
-                }
-
-                let despawns: Vec<Entity> = bincode::deserialize_from(&mut cursor)?;
-                for server_entity in despawns {
-                    // The entity might have already been deleted with the last diff,
-                    // but the server might not yet have received confirmation from the
-                    // client and could include the deletion in the latest diff.
-                    if let Some(client_entity) = entity_map.remove_by_server(server_entity) {
-                        world.entity_mut(client_entity).despawn_recursive();
-                    }
-                }
-
-                Ok(())
-            })
-        })
-    }
-}
-
-/// Type of component change.
-#[derive(EnumDiscriminants, Clone, Copy)]
-#[strum_discriminants(name(ComponentDiffKind), derive(Deserialize, Serialize))]
-pub(super) enum ComponentDiff<'a> {
-    /// Indicates that a component was added or changed, contains its ID and pointer.
-    Changed((ReplicationId, Ptr<'a>)),
-    /// Indicates that a component was removed, contains its ID.
-    Removed(ReplicationId),
-}
 
 /// Corresponds to the number of server update.
 ///

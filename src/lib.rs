@@ -100,7 +100,7 @@ app.replicate_with::<Transform>(serialize_transform, deserialize_transform);
 /// Serializes only translation.
 fn serialize_transform(
     component: Ptr,
-    cursor: &mut Cursor<&mut Vec<u8>>,
+    cursor: &mut Cursor<Vec<u8>>,
 ) -> Result<(), bincode::Error> {
     // SAFETY: Function called for registered `ComponentId`.
     let transform: &Transform = unsafe { component.deref() };
@@ -171,7 +171,7 @@ fn player_init_system(
 
 #[derive(Component, Deserialize, Serialize)]
 struct Player;
-# fn serialize_transform(_: Ptr, _: &mut Cursor<&mut Vec<u8>>) -> Result<(), bincode::Error> { unimplemented!() }
+# fn serialize_transform(_: Ptr, _: &mut Cursor<Vec<u8>>) -> Result<(), bincode::Error> { unimplemented!() }
 # fn deserialize_transform(_: &mut EntityMut, _: &mut NetworkEntityMap, _: &mut Cursor<Bytes>) -> Result<(), bincode::Error> { unimplemented!() }
 ```
 
