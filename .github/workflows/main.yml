@@ -82,6 +82,22 @@ jobs:
           name: code-coverage-report
           path: lcov.info
 
+  bench:
+    name: Bench
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repo
+        uses: actions/checkout@v4
+
+      - name: Instal stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache crates
+        uses: Swatinem/rust-cache@v2
+
+      - name: Bench
+        run: cargo bench
+
   codecov:
     name: Upload to Codecov
     if: github.actor != 'dependabot[bot]'
