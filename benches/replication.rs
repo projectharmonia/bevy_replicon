@@ -12,10 +12,10 @@ use spin_sleep::{SpinSleeper, SpinStrategy};
 #[derive(Component, Clone, Copy, Serialize, Deserialize)]
 struct DummyComponent(usize);
 
-const ENTITIES: u32 = 900;
-const SOCKET_WAIT: Duration = Duration::from_millis(5); // Sometimes it takes time for socket to receive all data.
-
 fn replication(c: &mut Criterion) {
+    const ENTITIES: u32 = 900;
+    const SOCKET_WAIT: Duration = Duration::from_millis(5); // Sometimes it takes time for socket to receive all data.
+
     // Use spinner to keep CPU hot in the schedule for stable benchmark results.
     let sleeper = SpinSleeper::new(1_000_000_000).with_spin_strategy(SpinStrategy::SpinLoopHint);
 
