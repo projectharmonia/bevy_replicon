@@ -7,6 +7,7 @@ use bevy::{app::MainScheduleOrder, ecs::schedule::ExecutorKind, prelude::*};
 use bevy_replicon::prelude::*;
 use criterion::{criterion_group, criterion_main, Criterion};
 use serde::{Deserialize, Serialize};
+use spin_sleep::{SpinSleeper, SpinStrategy};
 
 #[derive(Component, Clone, Copy, Serialize, Deserialize)]
 struct DummyComponent(usize);
@@ -15,11 +16,12 @@ const ENTITIES: u32 = 900;
 const SOCKET_WAIT: Duration = Duration::from_millis(5); // Sometimes it takes time for socket to receive all data.
 
 fn replication(c: &mut Criterion) {
+    // Use spinner to keep CPU hot in the schedule for stable benchmark results.
+    let sleeper = SpinSleeper::new(1_000_000_000).with_spin_strategy(SpinStrategy::SpinLoopHint);
+
     c.bench_function("entities send", |b| {
         b.iter_custom(|iter| {
             let mut elapsed = Duration::ZERO;
-            let sleeper = spin_sleep::SpinSleeper::new(1_000_000_000)
-                .with_spin_strategy(spin_sleep::SpinStrategy::SpinLoopHint);
             for _ in 0..iter {
                 let mut server_app = App::new();
                 let mut client_app = App::new();
@@ -48,8 +50,6 @@ fn replication(c: &mut Criterion) {
     c.bench_function("entities receive", |b| {
         b.iter_custom(|iter| {
             let mut elapsed = Duration::ZERO;
-            let sleeper = spin_sleep::SpinSleeper::new(1_000_000_000)
-                .with_spin_strategy(spin_sleep::SpinStrategy::SpinLoopHint);
             for _ in 0..iter {
                 let mut server_app = App::new();
                 let mut client_app = App::new();
@@ -78,8 +78,6 @@ fn replication(c: &mut Criterion) {
     c.bench_function("entities update send", |b| {
         b.iter_custom(|iter| {
             let mut elapsed = Duration::ZERO;
-            let sleeper = spin_sleep::SpinSleeper::new(1_000_000_000)
-                .with_spin_strategy(spin_sleep::SpinStrategy::SpinLoopHint);
             let mut server_app = App::new();
             let mut client_app = App::new();
             for app in [&mut server_app, &mut client_app] {
@@ -119,8 +117,6 @@ fn replication(c: &mut Criterion) {
     c.bench_function("entities update receive", |b| {
         b.iter_custom(|iter| {
             let mut elapsed = Duration::ZERO;
-            let sleeper = spin_sleep::SpinSleeper::new(1_000_000_000)
-                .with_spin_strategy(spin_sleep::SpinStrategy::SpinLoopHint);
             let mut server_app = App::new();
             let mut client_app = App::new();
             for app in [&mut server_app, &mut client_app] {
