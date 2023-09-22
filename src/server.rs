@@ -648,10 +648,18 @@ impl ReplicationBuffer {
         Ok(())
     }
 
-    /// Serializes `entity` in optimal way by writing its index and generation as separate varints.
+    /// Serializes `entity` by writing its index and generation as separate varints. The index is first
+    /// prepended with a bit flag to indicate if the generation is serialized or not (it is not serialized if
+    /// equal to zero).
+    #[inline]
     fn write_entity(&mut self, entity: Entity) -> Result<(), bincode::Error> {
-        DefaultOptions::new().serialize_into(&mut self.message, &entity.index())?;
-        DefaultOptions::new().serialize_into(&mut self.message, &entity.generation())?;
+        let mut flagged_index = (entity.index() as u64) << 1;
+        let flag = entity.generation() > 0;
+        flagged_index |= flag as u64;
+        DefaultOptions::new().serialize_into(&mut self.message, &flagged_index)?;
+        if flag {
+            DefaultOptions::new().serialize_into(&mut self.message, &entity.generation())?;
+        }
 
         Ok(())
     }
