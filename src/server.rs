@@ -496,9 +496,9 @@ impl ReplicationBuffer {
 
     /// Starts writing array by remembering its position to write length after.
     ///
+    /// Arrays can contain entity data or despawns inside.
     /// Length will be increased automatically after writing data.
-    /// Arrays can contain entity data inside, see [`Self::start_entity_data`].
-    /// See also [`Self::end_array`].
+    /// See also [`Self::end_array`], [`Self::start_entity_data`] and [`Self::write_despawn`].
     fn start_array(&mut self) {
         debug_assert_eq!(self.array_len, 0);
 
@@ -531,18 +531,18 @@ impl ReplicationBuffer {
 
     /// Starts writing entity and its data by remembering [`Entity`].
     ///
+    /// Arrays can contain component changes or removals inside.
     /// Length will be increased automatically after writing data.
     /// Entity will be written lazily after first data write and its position will be remembered to write length later.
-    /// See also [`Self::end_entity_data`] and [`Self::write_current_entity`].
+    /// See also [`Self::end_entity_data`], [`Self::write_current_entity`], [`Self::write_change`] and [`Self::write_removal`].
     fn start_entity_data(&mut self, entity: Entity) {
         debug_assert_eq!(self.entity_data_len, 0);
 
         self.current_entity = entity;
     }
 
-    /// Writes entity for current data.
+    /// Writes entity for current data and updates remembered position for it to write length later.
     ///
-    /// Also shifts remembered entity data position to write length later.
     /// Should be called only after first data write.
     fn write_current_entity(&mut self) -> Result<(), bincode::Error> {
         DefaultOptions::new().serialize_into(&mut self.message, &self.current_entity)?;
@@ -557,7 +557,7 @@ impl ReplicationBuffer {
     ///
     /// If the entity data is empty, nothing will be written.
     /// Length is written without varint encoding.
-    /// See also [`Self::start_array`] and [`Self::write_current_entity`].
+    /// See also [`Self::start_array`], [`Self::write_current_entity`], [`Self::write_change`] and [`Self::write_removal`].
     fn end_entity_data(&mut self) -> Result<(), bincode::Error> {
         if self.entity_data_len != 0 {
             let previous_pos = self.message.position();
@@ -580,7 +580,9 @@ impl ReplicationBuffer {
 
     /// Serializes [`ReplicationId`] and component into the buffer data.
     ///
+    /// Should be called only inside entity data.
     /// Increases entity data length by 1.
+    /// See also [`Self::start_entity_data`].
     fn write_change(
         &mut self,
         replication_info: &ReplicationInfo,
@@ -600,7 +602,9 @@ impl ReplicationBuffer {
 
     /// Serializes [`ReplicationId`] of the removed component into the buffer data.
     ///
+    /// Should be called only inside entity data.
     /// Increases entity data length by 1.
+    /// See also [`Self::start_entity_data`].
     fn write_removal(&mut self, replication_id: ReplicationId) -> Result<(), bincode::Error> {
         if self.entity_data_len == 0 {
             self.write_current_entity()?;
@@ -614,7 +618,9 @@ impl ReplicationBuffer {
 
     /// Serializes despawned [`Entity`].
     ///
+    /// Should be called only inside array.
     /// Increases array length by 1.
+    /// See also [`Self::start_array`].
     fn write_despawn(&mut self, entity: Entity) -> Result<(), bincode::Error> {
         DefaultOptions::new().serialize_into(&mut self.message, &entity)?;
         self.array_len = self
