@@ -55,8 +55,12 @@ impl ClientPlugin {
                 world.resource_scope(|world, replication_rules: Mut<ReplicationRules>| {
                     while let Some(message) = client.receive_message(REPLICATION_CHANNEL_ID) {
                         let mut cursor = Cursor::new(message);
+                        let end_pos = cursor.get_ref().len().try_into().unwrap();
 
                         if !deserialize_tick(&mut cursor, world)? {
+                            continue;
+                        }
+                        if cursor.position() == end_pos {
                             continue;
                         }
 
@@ -67,6 +71,10 @@ impl ClientPlugin {
                             &replication_rules,
                             DiffKind::Change,
                         )?;
+                        if cursor.position() == end_pos {
+                            continue;
+                        }
+
                         deserialize_component_diffs(
                             &mut cursor,
                             world,
@@ -74,6 +82,10 @@ impl ClientPlugin {
                             &replication_rules,
                             DiffKind::Removal,
                         )?;
+                        if cursor.position() == end_pos {
+                            continue;
+                        }
+
                         deserialize_despawns(&mut cursor, world, &mut entity_map)?;
                     }
 
