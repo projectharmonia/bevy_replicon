@@ -460,7 +460,7 @@ impl ReplicationBuffer {
         current_tick: NetworkTick,
     ) -> Result<Self, bincode::Error> {
         let mut message = Default::default();
-        DefaultOptions::new().serialize_into(&mut message, &current_tick)?;
+        bincode::serialize_into(&mut message, &current_tick)?;
         Ok(Self {
             client_id,
             system_tick,
@@ -489,7 +489,7 @@ impl ReplicationBuffer {
         self.message.set_position(0);
         self.message.get_mut().clear();
         self.arrays_with_data = 0;
-        DefaultOptions::new().serialize_into(&mut self.message, &current_tick)?;
+        bincode::serialize_into(&mut self.message, &current_tick)?;
 
         Ok(())
     }

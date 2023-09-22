@@ -99,7 +99,7 @@ impl ClientPlugin {
 ///
 /// Returns true if [`LastTick`] has been updated.
 fn deserialize_tick(cursor: &mut Cursor<Bytes>, world: &mut World) -> Result<bool, bincode::Error> {
-    let tick = DefaultOptions::new().deserialize_from(cursor)?;
+    let tick = bincode::deserialize_from(cursor)?;
 
     let mut last_tick = world.resource_mut::<LastTick>();
     if last_tick.0 < tick {
