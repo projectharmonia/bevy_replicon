@@ -168,7 +168,7 @@ impl ReplicationRules {
     }
 
     /// Returns meta information about replicated component.
-    pub fn get_info(&self, replication_id: ReplicationId) -> &ReplicationInfo {
+    pub(super) fn get_info(&self, replication_id: ReplicationId) -> &ReplicationInfo {
         // SAFETY: `ReplicationId` always corresponds to a valid index.
         unsafe { self.info.get_unchecked(replication_id.0) }
     }
