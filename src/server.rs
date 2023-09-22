@@ -446,14 +446,14 @@ struct ReplicationBuffer {
     /// The number of empty arrays at the end. Can be removed using [`Self::trim_empty_arrays`]
     trailing_empty_arrays: usize,
 
-    /// Position of the entity map from last call of [`Self::start_entity_data`] or [`Self::write_current_entity`].
+    /// Position of entity after [`Self::start_entity_data`] or its data after [`Self::write_data_entity`].
     entity_data_pos: u64,
 
-    /// Length of the map that updated automatically after writing data.
+    /// Length of the data for entity that updated automatically after writing data.
     entity_data_len: u8,
 
     /// Entity from last call of [`Self::start_entity_data`].
-    current_entity: Entity,
+    data_entity: Entity,
 }
 
 impl ReplicationBuffer {
@@ -476,7 +476,7 @@ impl ReplicationBuffer {
             trailing_empty_arrays: Default::default(),
             entity_data_pos: Default::default(),
             entity_data_len: Default::default(),
-            current_entity: Entity::PLACEHOLDER,
+            data_entity: Entity::PLACEHOLDER,
         })
     }
 
@@ -547,7 +547,7 @@ impl ReplicationBuffer {
         self.trailing_empty_arrays = 0;
     }
 
-    /// Starts writing entity and its data by remembering [`Entity`].
+    /// Starts writing entity and its data by remembering `entity`.
     ///
     /// Arrays can contain component changes or removals inside.
     /// Length will be increased automatically after writing data.
@@ -556,14 +556,14 @@ impl ReplicationBuffer {
     fn start_entity_data(&mut self, entity: Entity) {
         debug_assert_eq!(self.entity_data_len, 0);
 
-        self.current_entity = entity;
+        self.data_entity = entity;
     }
 
     /// Writes entity for current data and updates remembered position for it to write length later.
     ///
     /// Should be called only after first data write.
-    fn write_current_entity(&mut self) -> Result<(), bincode::Error> {
-        DefaultOptions::new().serialize_into(&mut self.message, &self.current_entity)?;
+    fn write_data_entity(&mut self) -> Result<(), bincode::Error> {
+        self.write_entity(self.data_entity)?;
         self.entity_data_pos = self.message.position();
         self.message
             .set_position(self.entity_data_pos + mem::size_of_val(&self.entity_data_len) as u64);
@@ -595,7 +595,7 @@ impl ReplicationBuffer {
         Ok(())
     }
 
-    /// Serializes [`ReplicationId`] and component into the buffer data.
+    /// Serializes `replication_id` and component from `ptr` into the buffer data.
     ///
     /// Should be called only inside entity data.
     /// Increases entity data length by 1.
@@ -607,7 +607,7 @@ impl ReplicationBuffer {
         ptr: Ptr,
     ) -> Result<(), bincode::Error> {
         if self.entity_data_len == 0 {
-            self.write_current_entity()?;
+            self.write_data_entity()?;
         }
 
         DefaultOptions::new().serialize_into(&mut self.message, &replication_id)?;
@@ -617,14 +617,14 @@ impl ReplicationBuffer {
         Ok(())
     }
 
-    /// Serializes [`ReplicationId`] of the removed component into the buffer data.
+    /// Serializes `replication_id` of the removed component into the buffer data.
     ///
     /// Should be called only inside entity data.
     /// Increases entity data length by 1.
     /// See also [`Self::start_entity_data`].
     fn write_removal(&mut self, replication_id: ReplicationId) -> Result<(), bincode::Error> {
         if self.entity_data_len == 0 {
-            self.write_current_entity()?;
+            self.write_data_entity()?;
         }
 
         DefaultOptions::new().serialize_into(&mut self.message, &replication_id)?;
@@ -633,17 +633,25 @@ impl ReplicationBuffer {
         Ok(())
     }
 
-    /// Serializes despawned [`Entity`].
+    /// Serializes despawned `entity`.
     ///
     /// Should be called only inside array.
     /// Increases array length by 1.
     /// See also [`Self::start_array`].
     fn write_despawn(&mut self, entity: Entity) -> Result<(), bincode::Error> {
-        DefaultOptions::new().serialize_into(&mut self.message, &entity)?;
+        self.write_entity(entity)?;
         self.array_len = self
             .array_len
             .checked_add(1)
             .ok_or(bincode::ErrorKind::SizeLimit)?;
+
+        Ok(())
+    }
+
+    /// Serializes `entity` in optimal way by writing its index and generation as separate u32 varints.
+    fn write_entity(&mut self, entity: Entity) -> Result<(), bincode::Error> {
+        DefaultOptions::new().serialize_into(&mut self.message, &entity.index())?;
+        DefaultOptions::new().serialize_into(&mut self.message, &entity.generation())?;
 
         Ok(())
     }
