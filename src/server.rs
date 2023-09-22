@@ -509,7 +509,6 @@ impl ReplicationBuffer {
 
     /// Ends writing array by writing its length into the last remembered position.
     ///
-    /// Length is written without varint encoding.
     /// See also [`Self::start_array`].
     fn end_array(&mut self) -> Result<(), bincode::Error> {
         if self.array_len != 0 {
@@ -556,7 +555,6 @@ impl ReplicationBuffer {
     /// Ends writing entity data by writing its length into the last remembered position.
     ///
     /// If the entity data is empty, nothing will be written.
-    /// Length is written without varint encoding.
     /// See also [`Self::start_array`], [`Self::write_current_entity`], [`Self::write_change`] and [`Self::write_removal`].
     fn end_entity_data(&mut self) -> Result<(), bincode::Error> {
         if self.entity_data_len != 0 {
