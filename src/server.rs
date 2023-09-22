@@ -148,6 +148,8 @@ impl ServerPlugin {
             debug_assert_eq!(buffer.entity_data_len, 0);
 
             if buffer.arrays_with_data > 0 {
+                buffer.trim_empty_arrays();
+
                 set.p1().send_message(
                     buffer.client_id,
                     REPLICATION_CHANNEL_ID,
@@ -439,7 +441,10 @@ struct ReplicationBuffer {
     array_len: u16,
 
     /// The number of non-empty arrays stored.
-    arrays_with_data: u8,
+    arrays_with_data: usize,
+
+    /// The number of empty arrays at the end. Can be removed using [`Self::trim_empty_arrays`]
+    trailing_empty_arrays: usize,
 
     /// Position of the entity map from last call of [`Self::start_entity_data`] or [`Self::write_current_entity`].
     entity_data_pos: u64,
@@ -468,6 +473,7 @@ impl ReplicationBuffer {
             array_pos: Default::default(),
             array_len: Default::default(),
             arrays_with_data: Default::default(),
+            trailing_empty_arrays: Default::default(),
             entity_data_pos: Default::default(),
             entity_data_len: Default::default(),
             current_entity: Entity::PLACEHOLDER,
@@ -520,12 +526,25 @@ impl ReplicationBuffer {
             self.message.set_position(previous_pos);
             self.array_len = 0;
             self.arrays_with_data += 1;
+            self.trailing_empty_arrays = 0;
         } else {
+            self.trailing_empty_arrays += 1;
             self.message.set_position(self.array_pos);
             bincode::serialize_into(&mut self.message, &self.array_len)?;
         }
 
         Ok(())
+    }
+
+    /// Crops empty arrays at the end.
+    ///
+    /// Should only be called after all arrays have been written, because
+    /// removed array somewhere the middle cannot be detected during deserialization.
+    fn trim_empty_arrays(&mut self) {
+        let used_len = self.message.get_ref().len()
+            - self.trailing_empty_arrays * mem::size_of_val(&self.array_len);
+        self.message.get_mut().truncate(used_len);
+        self.trailing_empty_arrays = 0;
     }
 
     /// Starts writing entity and its data by remembering [`Entity`].
