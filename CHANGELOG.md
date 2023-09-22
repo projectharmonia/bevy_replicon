@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Hide `ReplicationId`, `ReplicationInfo` and related methods from `ReplicationRules` from public API.
 - Rename `ReplicationRules::replication_id` into `ReplicationRules::replication_marker_id`.
 - Use serialization buffer cache per client for replication.
 - Correctly handle old values on packet reordering.

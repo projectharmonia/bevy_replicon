@@ -63,7 +63,7 @@ impl RemovalTrackerPlugin {
         replication_rules: Res<ReplicationRules>,
         mut removal_trackers: Query<&mut RemovalTracker>,
     ) {
-        for (&component_id, &replication_id) in replication_rules.components() {
+        for (&component_id, &replication_id) in replication_rules.get_ids() {
             for entity in remove_events
                 .get(component_id)
                 .map(|removed| removed.iter_current_update_events().cloned())
@@ -119,7 +119,7 @@ mod tests {
 
         let component_id = app.world.init_component::<DummyComponent>();
         let replcation_rules = app.world.resource::<ReplicationRules>();
-        let replication_id = replcation_rules.get_id(component_id).unwrap();
+        let replication_id = *replcation_rules.get_ids().get(&component_id).unwrap();
         let removal_tracker = app.world.get::<RemovalTracker>(replicated_entity).unwrap();
         assert!(removal_tracker.contains_key(&replication_id));
     }
