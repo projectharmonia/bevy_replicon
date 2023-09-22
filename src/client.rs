@@ -122,7 +122,7 @@ fn deserialize_tick(cursor: &mut Cursor<Bytes>, world: &mut World) -> Result<boo
     }
 }
 
-/// Deserializes component [`DiffKind`] and applies them to the [`World`].
+/// Deserializes component diffs of `diff_kind` and applies them to the `world`.
 fn deserialize_component_diffs(
     cursor: &mut Cursor<Bytes>,
     world: &mut World,
@@ -132,7 +132,7 @@ fn deserialize_component_diffs(
 ) -> Result<(), bincode::Error> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..entities_count {
-        let entity = DefaultOptions::new().deserialize_from(&mut *cursor)?;
+        let entity = deserialize_entity(&mut *cursor)?;
         let mut entity = entity_map.get_by_server_or_spawn(world, entity);
         let components_count: u8 = bincode::deserialize_from(&mut *cursor)?;
         for _ in 0..components_count {
@@ -150,7 +150,7 @@ fn deserialize_component_diffs(
     Ok(())
 }
 
-/// Deserializes despawns and applies them to the [`World`].
+/// Deserializes despawns and applies them to the `world`.
 fn deserialize_despawns(
     cursor: &mut Cursor<Bytes>,
     world: &mut World,
@@ -161,13 +161,28 @@ fn deserialize_despawns(
         // The entity might have already been deleted with the last diff,
         // but the server might not yet have received confirmation from the
         // client and could include the deletion in the latest diff.
-        let server_entity = DefaultOptions::new().deserialize_from(&mut *cursor)?;
+        let server_entity = deserialize_entity(&mut *cursor)?;
         if let Some(client_entity) = entity_map.remove_by_server(server_entity) {
             world.entity_mut(client_entity).despawn_recursive();
         }
     }
 
     Ok(())
+}
+
+/// Deserializes `entity` from compressed index and generation, for details see [`ReplicationBuffer::write_entity()`].
+fn deserialize_entity(cursor: &mut Cursor<Bytes>) -> Result<Entity, bincode::Error> {
+    let flagged_index: u64 = DefaultOptions::new().deserialize_from(&mut *cursor)?;
+    let has_generation = (flagged_index & 1) > 0;
+    let generation = if has_generation {
+        DefaultOptions::new().deserialize_from(&mut *cursor)?
+    } else {
+        0u32
+    };
+
+    let bits = (generation as u64) << 32 | (flagged_index >> 1);
+
+    Ok(Entity::from_bits(bits))
 }
 
 /// Type of component change.
