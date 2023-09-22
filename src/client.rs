@@ -138,11 +138,6 @@ fn deserialize_component_diffs(
     Ok(())
 }
 
-enum DiffKind {
-    Change,
-    Removal,
-}
-
 /// Deserializes despawns and applies them to the [`World`].
 fn deserialize_despawns(
     cursor: &mut Cursor<Bytes>,
@@ -161,6 +156,14 @@ fn deserialize_despawns(
     }
 
     Ok(())
+}
+
+/// Type of component change.
+///
+/// Parameter for [`deserialize_component_diffs`].
+enum DiffKind {
+    Change,
+    Removal,
 }
 
 /// Last received tick from server.
