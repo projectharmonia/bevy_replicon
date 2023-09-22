@@ -1,13 +1,16 @@
+use std::io::Cursor;
+
 use bevy::{
     ecs::world::EntityMut,
     prelude::*,
     utils::{Entry, HashMap},
 };
-use bevy_renet::transport::client_connected;
+use bevy_renet::{renet::Bytes, transport::client_connected};
 use bevy_renet::{renet::RenetClient, transport::NetcodeClientPlugin, RenetClientPlugin};
+use bincode::{DefaultOptions, Options};
 
 use crate::{
-    replicon_core::{Mapper, NetworkTick, WorldDiff, REPLICATION_CHANNEL_ID},
+    replicon_core::{Mapper, NetworkTick, ReplicationRules, REPLICATION_CHANNEL_ID},
     Replication,
 };
 
@@ -29,6 +32,7 @@ impl Plugin for ClientPlugin {
             .add_systems(
                 PreUpdate,
                 Self::diff_receiving_system
+                    .pipe(unwrap)
                     .in_set(ClientSet::Receive)
                     .run_if(client_connected()),
             )
@@ -45,13 +49,38 @@ impl Plugin for ClientPlugin {
 }
 
 impl ClientPlugin {
-    fn diff_receiving_system(world: &mut World) {
+    fn diff_receiving_system(world: &mut World) -> Result<(), bincode::Error> {
         world.resource_scope(|world, mut client: Mut<RenetClient>| {
-            while let Some(message) = client.receive_message(REPLICATION_CHANNEL_ID) {
-                WorldDiff::deserialize_to_world(world, message)
-                    .expect("server should send only valid world diffs");
-            }
-        });
+            world.resource_scope(|world, mut entity_map: Mut<NetworkEntityMap>| {
+                world.resource_scope(|world, replication_rules: Mut<ReplicationRules>| {
+                    while let Some(message) = client.receive_message(REPLICATION_CHANNEL_ID) {
+                        let mut cursor = Cursor::new(message);
+
+                        if !deserialize_tick(&mut cursor, world)? {
+                            continue;
+                        }
+
+                        deserialize_component_diffs(
+                            &mut cursor,
+                            world,
+                            &mut entity_map,
+                            &replication_rules,
+                            DiffKind::Change,
+                        )?;
+                        deserialize_component_diffs(
+                            &mut cursor,
+                            world,
+                            &mut entity_map,
+                            &replication_rules,
+                            DiffKind::Removal,
+                        )?;
+                        deserialize_despawns(&mut cursor, world, &mut entity_map)?;
+                    }
+
+                    Ok(())
+                })
+            })
+        })
     }
 
     fn ack_sending_system(last_tick: Res<LastTick>, mut client: ResMut<RenetClient>) {
@@ -64,6 +93,77 @@ impl ClientPlugin {
         last_tick.0 = Default::default();
         entity_map.clear();
     }
+}
+
+/// Deserializes server tick and applies it to [`LastTick`] if it is newer.
+///
+/// Returns true if [`LastTick`] has been updated.
+fn deserialize_tick(cursor: &mut Cursor<Bytes>, world: &mut World) -> Result<bool, bincode::Error> {
+    let tick = bincode::deserialize_from(cursor)?;
+
+    let mut last_tick = world.resource_mut::<LastTick>();
+    if last_tick.0 < tick {
+        last_tick.0 = tick;
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
+/// Deserializes component [`DiffKind`] and applies them to the [`World`].
+fn deserialize_component_diffs(
+    cursor: &mut Cursor<Bytes>,
+    world: &mut World,
+    entity_map: &mut NetworkEntityMap,
+    replication_rules: &ReplicationRules,
+    diff_kind: DiffKind,
+) -> Result<(), bincode::Error> {
+    let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
+    for _ in 0..entities_count {
+        let entity = DefaultOptions::new().deserialize_from(&mut *cursor)?;
+        let mut entity = entity_map.get_by_server_or_spawn(world, entity);
+        let components_count: u8 = bincode::deserialize_from(&mut *cursor)?;
+        for _ in 0..components_count {
+            let replication_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
+            let replication_info = replication_rules.get_info(replication_id);
+            match diff_kind {
+                DiffKind::Change => {
+                    (replication_info.deserialize)(&mut entity, entity_map, cursor)?
+                }
+                DiffKind::Removal => (replication_info.remove)(&mut entity),
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Deserializes despawns and applies them to the [`World`].
+fn deserialize_despawns(
+    cursor: &mut Cursor<Bytes>,
+    world: &mut World,
+    entity_map: &mut NetworkEntityMap,
+) -> Result<(), bincode::Error> {
+    let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
+    for _ in 0..entities_count {
+        // The entity might have already been deleted with the last diff,
+        // but the server might not yet have received confirmation from the
+        // client and could include the deletion in the latest diff.
+        let server_entity = DefaultOptions::new().deserialize_from(&mut *cursor)?;
+        if let Some(client_entity) = entity_map.remove_by_server(server_entity) {
+            world.entity_mut(client_entity).despawn_recursive();
+        }
+    }
+
+    Ok(())
+}
+
+/// Type of component change.
+///
+/// Parameter for [`deserialize_component_diffs`].
+enum DiffKind {
+    Change,
+    Removal,
 }
 
 /// Last received tick from server.

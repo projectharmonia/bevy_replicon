@@ -100,7 +100,7 @@ app.replicate_with::<Transform>(serialize_transform, deserialize_transform);
 /// Serializes only translation.
 fn serialize_transform(
     component: Ptr,
-    cursor: &mut Cursor<&mut Vec<u8>>,
+    cursor: &mut Cursor<Vec<u8>>,
 ) -> Result<(), bincode::Error> {
     // SAFETY: Function called for registered `ComponentId`.
     let transform: &Transform = unsafe { component.deref() };
@@ -171,7 +171,7 @@ fn player_init_system(
 
 #[derive(Component, Deserialize, Serialize)]
 struct Player;
-# fn serialize_transform(_: Ptr, _: &mut Cursor<&mut Vec<u8>>) -> Result<(), bincode::Error> { unimplemented!() }
+# fn serialize_transform(_: Ptr, _: &mut Cursor<Vec<u8>>) -> Result<(), bincode::Error> { unimplemented!() }
 # fn deserialize_transform(_: &mut EntityMut, _: &mut NetworkEntityMap, _: &mut Cursor<Bytes>) -> Result<(), bincode::Error> { unimplemented!() }
 ```
 
@@ -348,6 +348,14 @@ To check if you running server or client, you can use conditions based on
 They rarely used for gameplay systems (since you write the same logic for
 multiplayer and single-player!), but could be used for server
 creation / connection systems and corresponding UI.
+
+## Limits
+
+To reduce packet size there are the following limits per replication update:
+
+- Up to [`u16::MAX`] entities that have changed/added components with up to [`u8::MAX`] such components.
+- Up to [`u16::MAX`] entities that have removed components with up to [`u8::MAX`] such components.
+- Up to [`u16::MAX`] entities that were despawned.
 */
 
 pub mod client;
