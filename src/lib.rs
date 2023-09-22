@@ -87,6 +87,9 @@ impl MapNetworkEntities for MappedComponent {
 }
 ```
 
+By default all components serialized with [`bincode`] using varint encoding. You can use fixint
+encoding for specific components via [`AppReplicationExt::replicate_fixint`] and [`AppReplicationExt::replicate_mapped_fixint`].
+
 If your component doesn't implement serde traits or you want to serialize it partially
 you can use [`AppReplicationExt::replicate_with`]:
 

@@ -7,6 +7,7 @@ use bevy::{
     utils::HashMap,
 };
 use bevy_renet::renet::{Bytes, ChannelConfig, SendType};
+use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::client::{ClientMapper, NetworkEntityMap};
@@ -93,6 +94,16 @@ pub trait AppReplicationExt {
     where
         C: Component + Serialize + DeserializeOwned + MapNetworkEntities;
 
+    /// Same as [`Self::replicate`], but serializes the component uses fixint encoding.
+    fn replicate_fixint<C>(&mut self) -> &mut Self
+    where
+        C: Component + Serialize + DeserializeOwned;
+
+    /// Same as [`Self::replicate_mapped`], but serializes the component uses fixint encoding.
+    fn replicate_mapped_fixint<C>(&mut self) -> &mut Self
+    where
+        C: Component + Serialize + DeserializeOwned + MapNetworkEntities;
+
     /// Same as [`Self::replicate`], but uses the specified functions for serialization and deserialization.
     fn replicate_with<C>(
         &mut self,
@@ -116,6 +127,26 @@ impl AppReplicationExt for App {
         C: Component + Serialize + DeserializeOwned + MapNetworkEntities,
     {
         self.replicate_with::<C>(serialize_component::<C>, deserialize_mapped_component::<C>)
+    }
+
+    fn replicate_fixint<C>(&mut self) -> &mut Self
+    where
+        C: Component + Serialize + DeserializeOwned,
+    {
+        self.replicate_with::<C>(
+            serialize_component_fixint::<C>,
+            deserialize_component_fixint::<C>,
+        )
+    }
+
+    fn replicate_mapped_fixint<C>(&mut self) -> &mut Self
+    where
+        C: Component + Serialize + DeserializeOwned + MapNetworkEntities,
+    {
+        self.replicate_with::<C>(
+            serialize_component_fixint::<C>,
+            deserialize_mapped_component_fixint::<C>,
+        )
     }
 
     fn replicate_with<C>(&mut self, serialize: SerializeFn, deserialize: DeserializeFn) -> &mut Self
@@ -239,11 +270,50 @@ fn serialize_component<C: Component + Serialize>(
 ) -> Result<(), bincode::Error> {
     // SAFETY: Function called for registered `ComponentId`.
     let component: &C = unsafe { component.deref() };
-    bincode::serialize_into(cursor, component)
+    DefaultOptions::new().serialize_into(cursor, component)
 }
 
 /// Default deserialization function.
 fn deserialize_component<C: Component + DeserializeOwned>(
+    entity: &mut EntityMut,
+    _entity_map: &mut NetworkEntityMap,
+    cursor: &mut Cursor<Bytes>,
+) -> Result<(), bincode::Error> {
+    let component: C = DefaultOptions::new().deserialize_from(cursor)?;
+    entity.insert(component);
+
+    Ok(())
+}
+
+/// Like [`deserialize_component`], but also maps entities before insertion.
+fn deserialize_mapped_component<C: Component + DeserializeOwned + MapNetworkEntities>(
+    entity: &mut EntityMut,
+    entity_map: &mut NetworkEntityMap,
+    cursor: &mut Cursor<Bytes>,
+) -> Result<(), bincode::Error> {
+    let mut component: C = DefaultOptions::new().deserialize_from(cursor)?;
+
+    entity.world_scope(|world| {
+        component.map_entities(&mut ClientMapper::new(world, entity_map));
+    });
+
+    entity.insert(component);
+
+    Ok(())
+}
+
+/// Like [`serialize_component`], but serializes using fixint encoding.
+fn serialize_component_fixint<C: Component + Serialize>(
+    component: Ptr,
+    cursor: &mut Cursor<Vec<u8>>,
+) -> Result<(), bincode::Error> {
+    // SAFETY: Function called for registered `ComponentId`.
+    let component: &C = unsafe { component.deref() };
+    bincode::serialize_into(cursor, component)
+}
+
+/// Like [`deserialize_component`], but serializes using fixint encoding.
+fn deserialize_component_fixint<C: Component + DeserializeOwned>(
     entity: &mut EntityMut,
     _entity_map: &mut NetworkEntityMap,
     cursor: &mut Cursor<Bytes>,
@@ -254,8 +324,8 @@ fn deserialize_component<C: Component + DeserializeOwned>(
     Ok(())
 }
 
-/// Default deserialization function that also maps entities before insertion.
-fn deserialize_mapped_component<C: Component + DeserializeOwned + MapNetworkEntities>(
+/// Like [`deserialize_mapped_component`], but serializes using fixint encoding.
+fn deserialize_mapped_component_fixint<C: Component + DeserializeOwned + MapNetworkEntities>(
     entity: &mut EntityMut,
     entity_map: &mut NetworkEntityMap,
     cursor: &mut Cursor<Bytes>,
