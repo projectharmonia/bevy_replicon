@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Use serialization buffer cache per client for replication.
 - Correctly handle old values on packet reordering.
-- Bevy's `Tick` was replaced with dedicated type `NetworkTick` that increments on server update to provide information to client about time. `AckedTick` was replaced with `ServerTicks` that also contains mappings from `NetworkTick` to Bevy's `Tick` and current `NetworkTick`.
+- Bevy's `Tick` was replaced with dedicated type `NetworkTick` that increments on server update, so it can be used to provide information about time. `AckedTick` was replaced with `ServerTicks` that also contains mappings from `NetworkTick` to Bevy's `Tick` and current `NetworkTick`.
 - Functions in `AppReplicationExt::replicate_with` now accept bytes cursor for memory reuse and return serialization errors.
 - Rename `ReplicationCore` into `RepliconCore` with its module for clarity.
 - Store changes in `WorldDiff` in `Vec` instead of `HashMap` to increase performance.
