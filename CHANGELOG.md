@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Hide `ReplicationId`, `ReplicationInfo` and related methods from `ReplicationRules` from public API.
+- Rename `ReplicationRules::replication_id` into `ReplicationRules::replication_marker_id`.
 - Use serialization buffer cache per client for replication.
 - Correctly handle old values on packet reordering.
 - Bevy's `Tick` was replaced with dedicated type `NetworkTick` that increments on server update, so it can be used to provide information about time. `AckedTick` was replaced with `ServerTicks` that also contains mappings from `NetworkTick` to Bevy's `Tick` and current `NetworkTick`.

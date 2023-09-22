@@ -135,9 +135,7 @@ impl AppReplicationExt for App {
         replication_rules.info.push(replicated_component);
 
         let replication_id = ReplicationId(replication_rules.info.len() - 1);
-        replication_rules
-            .components
-            .insert(component_id, replication_id);
+        replication_rules.ids.insert(component_id, replication_id);
 
         self
     }
@@ -147,35 +145,43 @@ impl AppReplicationExt for App {
 #[derive(Resource)]
 pub struct ReplicationRules {
     /// Maps component IDs to their replication IDs.
-    components: HashMap<ComponentId, ReplicationId>,
+    ids: HashMap<ComponentId, ReplicationId>,
 
     /// Meta information about components that should be replicated.
     info: Vec<ReplicationInfo>,
 
     /// ID of [`Replication`] component.
-    replication_id: ComponentId,
+    marker_id: ComponentId,
 }
 
 impl ReplicationRules {
     /// ID of [`Replication`] component, only entities with this components will be replicated.
-    pub fn replication_id(&self) -> ComponentId {
-        self.replication_id
+    #[inline]
+    pub fn get_marker_id(&self) -> ComponentId {
+        self.marker_id
+    }
+
+    /// Returns ID of the corresponding [`Ignored<T>`] for replicated component.
+    ///
+    /// Returns [`None`] if the component is not registered for replication.
+    #[inline]
+    pub fn ignored_id(&self, component_id: ComponentId) -> Option<ComponentId> {
+        self.ids
+            .get(&component_id)
+            .map(|&replication_id| self.get_info(replication_id).ignored_id)
     }
 
     /// Returns mapping of replicated components to their replication IDs.
-    pub fn components(&self) -> &HashMap<ComponentId, ReplicationId> {
-        &self.components
+    #[inline]
+    pub(super) fn get_ids(&self) -> &HashMap<ComponentId, ReplicationId> {
+        &self.ids
     }
 
     /// Returns meta information about replicated component.
-    pub fn get_info(&self, replication_id: ReplicationId) -> &ReplicationInfo {
+    #[inline]
+    pub(super) fn get_info(&self, replication_id: ReplicationId) -> &ReplicationInfo {
         // SAFETY: `ReplicationId` always corresponds to a valid index.
         unsafe { self.info.get_unchecked(replication_id.0) }
-    }
-
-    /// Returns ID for component that will be consistent between clients and server.
-    pub fn get_id(&self, component_id: ComponentId) -> Option<ReplicationId> {
-        self.components.get(&component_id).copied()
     }
 }
 
@@ -183,31 +189,31 @@ impl FromWorld for ReplicationRules {
     fn from_world(world: &mut World) -> Self {
         Self {
             info: Default::default(),
-            components: Default::default(),
-            replication_id: world.init_component::<Replication>(),
+            ids: Default::default(),
+            marker_id: world.init_component::<Replication>(),
         }
     }
 }
 
-/// Signature of serialization function stored in [`ReplicationInfo`].
+/// Signature of component serialization functions.
 pub type SerializeFn = fn(Ptr, &mut Cursor<Vec<u8>>) -> Result<(), bincode::Error>;
 
-/// Signature of deserialization function stored in [`ReplicationInfo`].
+/// Signature of component deserialization functions.
 pub type DeserializeFn =
     fn(&mut EntityMut, &mut NetworkEntityMap, &mut Cursor<Bytes>) -> Result<(), bincode::Error>;
 
-pub struct ReplicationInfo {
+pub(super) struct ReplicationInfo {
     /// ID of [`Ignored<T>`] component.
-    pub ignored_id: ComponentId,
+    pub(super) ignored_id: ComponentId,
 
     /// Function that serializes component into bytes.
-    pub serialize: SerializeFn,
+    pub(super) serialize: SerializeFn,
 
     /// Function that deserializes component from bytes and inserts it to [`EntityMut`].
-    pub deserialize: DeserializeFn,
+    pub(super) deserialize: DeserializeFn,
 
     /// Function that removes specific component from [`EntityMut`].
-    pub remove: fn(&mut EntityMut),
+    pub(super) remove: fn(&mut EntityMut),
 }
 
 /// Replication will be ignored for `T` if this component is present on the same entity.
@@ -224,7 +230,7 @@ impl<T> Default for Ignored<T> {
 ///
 /// Internally represents index of [`ReplicationInfo`].
 #[derive(Clone, Copy, Deserialize, Eq, Hash, PartialEq, Serialize)]
-pub struct ReplicationId(usize);
+pub(super) struct ReplicationId(usize);
 
 /// Default serialization function.
 fn serialize_component<C: Component + Serialize>(
