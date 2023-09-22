@@ -648,7 +648,7 @@ impl ReplicationBuffer {
         Ok(())
     }
 
-    /// Serializes `entity` in optimal way by writing its index and generation as separate u32 varints.
+    /// Serializes `entity` in optimal way by writing its index and generation as separate varints.
     fn write_entity(&mut self, entity: Entity) -> Result<(), bincode::Error> {
         DefaultOptions::new().serialize_into(&mut self.message, &entity.index())?;
         DefaultOptions::new().serialize_into(&mut self.message, &entity.generation())?;
