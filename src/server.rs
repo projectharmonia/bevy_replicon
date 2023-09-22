@@ -212,7 +212,7 @@ fn collect_changes(
         .iter()
         .filter(|archetype| archetype.id() != ArchetypeId::EMPTY)
         .filter(|archetype| archetype.id() != ArchetypeId::INVALID)
-        .filter(|archetype| archetype.contains(replication_rules.replication_id()))
+        .filter(|archetype| archetype.contains(replication_rules.replication_marker_id()))
     {
         let table = world
             .storages()

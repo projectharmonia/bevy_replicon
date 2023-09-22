@@ -158,7 +158,7 @@ pub struct ReplicationRules {
 
 impl ReplicationRules {
     /// ID of [`Replication`] component, only entities with this components will be replicated.
-    pub fn replication_id(&self) -> ComponentId {
+    pub fn replication_marker_id(&self) -> ComponentId {
         self.replication_id
     }
 
