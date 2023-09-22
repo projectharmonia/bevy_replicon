@@ -47,8 +47,10 @@ keep the world in sync.
 
 ### Marking for replication
 
-By default, no components are replicated. To start replication, you need two
-things:
+By default, no components are replicated. A component will be replicated if it has been registered for replication
+**and** its entity has the [`Replication`] component.
+
+In other words you need two things to start replication :
 
 1. Register component type for replication. Component should implement
 [`serde::Serialize`] and [`serde::Deserialize`].
