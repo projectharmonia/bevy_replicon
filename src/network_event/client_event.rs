@@ -160,7 +160,7 @@ fn receiving_system<T: Event + DeserializeOwned + Debug>(
 ) {
     for client_id in server.clients_id() {
         while let Some(message) = server.receive_message(client_id, channel.id) {
-            match bincode::deserialize(&message) {
+            match DefaultOptions::new().deserialize(&message) {
                 Ok(event) => {
                     debug!("received event {event:?} from client {client_id}");
                     client_events.send(FromClient { client_id, event });
@@ -184,12 +184,8 @@ fn receiving_reflect_system<T, D>(
     let registry = registry.read();
     for client_id in server.clients_id() {
         while let Some(message) = server.receive_message(client_id, channel.id) {
-            // Set options to match `bincode::serialize`.
-            // https://docs.rs/bincode/latest/bincode/config/index.html#options-struct-vs-bincode-functions
-            let options = DefaultOptions::new()
-                .with_fixint_encoding()
-                .allow_trailing_bytes();
-            let mut deserializer = bincode::Deserializer::from_slice(&message, options);
+            let mut deserializer =
+                bincode::Deserializer::from_slice(&message, DefaultOptions::new());
             match D::new(&registry).deserialize(&mut deserializer) {
                 Ok(event) => {
                     debug!("received reflect event {event:?} from client {client_id}");
@@ -209,7 +205,9 @@ fn sending_system<T: Event + Serialize + Debug>(
     channel: Res<EventChannel<T>>,
 ) {
     for event in &mut events {
-        let message = bincode::serialize(&event).expect("client event should be serializable");
+        let message = DefaultOptions::new()
+            .serialize(&event)
+            .expect("client event should be serializable");
         client.send_message(channel.id, message);
         debug!("sent client event {event:?}");
     }
@@ -223,8 +221,9 @@ fn mapping_and_sending_system<T: Event + MapNetworkEntities + Serialize + Debug>
 ) {
     for mut event in events.drain() {
         event.map_entities(&mut EventMapper(entity_map.to_server()));
-        let message =
-            bincode::serialize(&event).expect("mapped client event should be serializable");
+        let message = DefaultOptions::new()
+            .serialize(&event)
+            .expect("mapped client event should be serializable");
         client.send_message(channel.id, message);
         debug!("sent mapped client event {event:?}");
     }
@@ -243,8 +242,9 @@ fn sending_reflect_system<T, S>(
     let registry = registry.read();
     for event in &mut events {
         let serializer = S::new(event, &registry);
-        let message =
-            bincode::serialize(&serializer).expect("client reflect event should be serializable");
+        let message = DefaultOptions::new()
+            .serialize(&serializer)
+            .expect("client reflect event should be serializable");
         client.send_message(channel.id, message);
         debug!("sent client reflect event {event:?}");
     }
@@ -265,7 +265,8 @@ fn mapping_and_sending_reflect_system<T, S>(
     for mut event in events.drain() {
         event.map_entities(&mut EventMapper(entity_map.to_server()));
         let serializer = S::new(&event, &registry);
-        let message = bincode::serialize(&serializer)
+        let message = DefaultOptions::new()
+            .serialize(&serializer)
             .expect("mapped client reflect event should be serializable");
         client.send_message(channel.id, message);
         debug!("sent mapped client reflect event {event:?}");

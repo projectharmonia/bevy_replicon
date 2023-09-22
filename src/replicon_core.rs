@@ -7,6 +7,7 @@ use bevy::{
     utils::HashMap,
 };
 use bevy_renet::renet::{Bytes, ChannelConfig, SendType};
+use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::client::{ClientMapper, NetworkEntityMap};
@@ -239,7 +240,7 @@ fn serialize_component<C: Component + Serialize>(
 ) -> Result<(), bincode::Error> {
     // SAFETY: Function called for registered `ComponentId`.
     let component: &C = unsafe { component.deref() };
-    bincode::serialize_into(cursor, component)
+    DefaultOptions::new().serialize_into(cursor, component)
 }
 
 /// Default deserialization function.
@@ -248,19 +249,19 @@ fn deserialize_component<C: Component + DeserializeOwned>(
     _entity_map: &mut NetworkEntityMap,
     cursor: &mut Cursor<Bytes>,
 ) -> Result<(), bincode::Error> {
-    let component: C = bincode::deserialize_from(cursor)?;
+    let component: C = DefaultOptions::new().deserialize_from(cursor)?;
     entity.insert(component);
 
     Ok(())
 }
 
-/// Default deserialization function that also maps entities before insertion.
+/// Like [`deserialize_component`], but also maps entities before insertion.
 fn deserialize_mapped_component<C: Component + DeserializeOwned + MapNetworkEntities>(
     entity: &mut EntityMut,
     entity_map: &mut NetworkEntityMap,
     cursor: &mut Cursor<Bytes>,
 ) -> Result<(), bincode::Error> {
-    let mut component: C = bincode::deserialize_from(cursor)?;
+    let mut component: C = DefaultOptions::new().deserialize_from(cursor)?;
 
     entity.world_scope(|world| {
         component.map_entities(&mut ClientMapper::new(world, entity_map));
