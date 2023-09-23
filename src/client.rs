@@ -158,12 +158,15 @@ fn deserialize_despawns(
 ) -> Result<(), bincode::Error> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..entities_count {
-        // The entity might have already been deleted with the last diff,
-        // but the server might not yet have received confirmation from the
-        // client and could include the deletion in the latest diff.
+        // The entity might have already been despawned because of hierarchy or
+        // with the last diff, but the server might not yet have received confirmation
+        // from the client and could include the deletion in the latest diff.
         let server_entity = deserialize_entity(&mut *cursor)?;
-        if let Some(client_entity) = entity_map.remove_by_server(server_entity) {
-            world.entity_mut(client_entity).despawn_recursive();
+        if let Some(client_entity) = entity_map
+            .remove_by_server(server_entity)
+            .and_then(|entity| world.get_entity_mut(entity))
+        {
+            client_entity.despawn_recursive();
         }
     }
 
