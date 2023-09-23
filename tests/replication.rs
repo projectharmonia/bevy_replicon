@@ -203,29 +203,34 @@ fn despawn_replication() {
 
     common::connect(&mut server_app, &mut client_app);
 
-    let server_entity = server_app.world.spawn(Replication).id();
+    let server_child_entity = server_app.world.spawn(Replication).id();
+    let server_entity = server_app
+        .world
+        .spawn(Replication)
+        .push_children(&[server_child_entity])
+        .id();
 
     server_app.update();
 
     server_app.world.despawn(server_entity);
+    server_app.world.despawn(server_child_entity);
 
-    let child_entity = client_app.world.spawn_empty().id();
+    let client_child_entity = client_app.world.spawn_empty().id();
     let client_entity = client_app
         .world
         .spawn_empty()
-        .push_children(&[child_entity])
+        .push_children(&[client_child_entity])
         .id();
 
-    client_app
-        .world
-        .resource_mut::<NetworkEntityMap>()
-        .insert(server_entity, client_entity);
+    let mut entity_map = client_app.world.resource_mut::<NetworkEntityMap>();
+    entity_map.insert(server_entity, client_entity);
+    entity_map.insert(server_child_entity, client_child_entity);
 
     server_app.update();
     client_app.update();
 
     assert!(client_app.world.get_entity(client_entity).is_none());
-    assert!(client_app.world.get_entity(child_entity).is_none());
+    assert!(client_app.world.get_entity(client_child_entity).is_none());
 
     let entity_map = client_app.world.resource::<NetworkEntityMap>();
     assert!(entity_map.to_client().is_empty());
