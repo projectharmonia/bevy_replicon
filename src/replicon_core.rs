@@ -173,7 +173,6 @@ impl ReplicationRules {
     }
 
     /// Returns mapping of replicated components to their replication IDs.
-    #[inline]
     pub(super) fn get_ids(&self) -> &HashMap<ComponentId, ReplicationId> {
         &self.ids
     }
@@ -301,11 +300,13 @@ pub struct NetworkTick(u32);
 
 impl NetworkTick {
     /// Creates a new [`NetworkTick`] wrapping the given value.
+    #[inline]
     pub fn new(value: u32) -> Self {
         Self(value)
     }
 
     /// Gets the value of this network tick.
+    #[inline]
     pub fn get(self) -> u32 {
         self.0
     }

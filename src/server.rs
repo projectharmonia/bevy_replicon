@@ -409,11 +409,13 @@ impl ServerTicks {
     }
 
     /// Returns current server tick.
+    #[inline]
     pub fn current_tick(&self) -> NetworkTick {
         self.current_tick
     }
 
     /// Returns last acknowledged server ticks for all clients.
+    #[inline]
     pub fn acked_ticks(&self) -> &HashMap<u64, NetworkTick> {
         &self.acked_ticks
     }
@@ -652,7 +654,6 @@ impl ReplicationBuffer {
     ///
     /// The index is first prepended with a bit flag to indicate if the generation
     /// is serialized or not (it is not serialized if equal to zero).
-    #[inline]
     fn write_entity(&mut self, entity: Entity) -> Result<(), bincode::Error> {
         let mut flagged_index = (entity.index() as u64) << 1;
         let flag = entity.generation() > 0;
