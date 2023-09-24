@@ -225,6 +225,7 @@ pub struct NetworkEntityMap {
 }
 
 impl NetworkEntityMap {
+    #[inline]
     pub fn insert(&mut self, server_entity: Entity, client_entity: Entity) {
         self.server_to_client.insert(server_entity, client_entity);
         self.client_to_server.insert(client_entity, server_entity);
@@ -255,10 +256,12 @@ impl NetworkEntityMap {
         client_entity
     }
 
+    #[inline]
     pub fn to_client(&self) -> &HashMap<Entity, Entity> {
         &self.server_to_client
     }
 
+    #[inline]
     pub fn to_server(&self) -> &HashMap<Entity, Entity> {
         &self.client_to_server
     }
@@ -279,6 +282,7 @@ pub struct ClientMapper<'a> {
 }
 
 impl<'a> ClientMapper<'a> {
+    #[inline]
     pub fn new(world: &'a mut World, entity_map: &'a mut NetworkEntityMap) -> Self {
         Self {
             world,
