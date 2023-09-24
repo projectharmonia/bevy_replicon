@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2023-09-25
+
 ### Changed
 
 - Serialize all components by default using varint and provide functions to use fixint encoding.
