@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Serialize all components by default using varint and provide functions to use fixint encoding.
+- Serialize all components and events using varint.
 - Serialize entities in optimal way by writing its index and generation as separate varints.
 - Hide `ReplicationId`, `ReplicationInfo` and related methods from `ReplicationRules` from public API.
 - Rename `ReplicationRules::replication_id` into `ReplicationRules::replication_marker_id`.
