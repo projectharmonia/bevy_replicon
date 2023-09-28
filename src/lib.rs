@@ -22,7 +22,7 @@ app.add_plugins(MinimalPlugins)
 This group contains necessary replication stuff and setups server and client
 plugins to let you host and join games from the same application. If you
 planning to separate client and server you can use
-[`PluginGroupBuilder::disable()`] to disable [`ClientPlugin`] or
+`disable()` to disable [`ClientPlugin`] or
 [`ServerPlugin`]. You can also configure how often updates are sent from
 server to clients with [`ServerPlugin`]'s [`TickPolicy`].:
 
@@ -68,7 +68,7 @@ app.replicate::<DummyComponent>();
 struct DummyComponent;
 ```
 
-If your component contains [`Entity`] then it cannot be deserialized as is
+If your component contains an entity then it cannot be deserialized as is
 because entity IDs are different on server and client. The client should do the
 mapping. Therefore, to replicate such components properly, they need implement
 [`MapNetworkEntities`] and registered using [`AppReplicationExt::replicate_mapped()`]:
@@ -136,8 +136,8 @@ you can insert [`Ignored<T>`] component and replication will be skipped for `T`.
 The idea was borrowed from [iyes_scene_tools](https://github.com/IyesGames/iyes_scene_tools#blueprints-pattern).
 You don't want to replicate all components because not all of them are
 necessary to send over the network. Components that computed based on other
-components (like [`GlobalTransform`]) can be inserted after replication.
-This is easily done using a system with an [`Added`] query filter.
+components (like `GlobalTransform`) can be inserted after replication.
+This is easily done using a system with an `Added` query filter.
 This way, you detect when such entities are spawned into the world, and you can
 do any additional setup on them using code. For example, if you have a
 character with mesh, you can replicate only your `Player` component and insert
@@ -184,10 +184,10 @@ serialized, they won't be valid after deserialization.
 
 ### Component relations
 
-Sometimes components depend on each other. For example, [`Parent`] and
-[`Children`]. In this case, you can't just replicate the [`Parent`] because you
-not only need to add it to the [`Children`] of the parent, but also remove it
-from the [`Children`] of the old one. In this case, you need to create a third
+Sometimes components depend on each other. For example, `Parent` and
+`Children`. In this case, you can't just replicate the `Parent` because you
+not only need to add it to the `Children` of the parent, but also remove it
+from the `Children` of the old one. In this case, you need to create a third
 component that correctly updates the other two when it changes, and only
 replicate that one. This crate provides [`ParentSync`] component that replicates
 Bevy hierarchy. For your custom components with relations you need to write your
@@ -202,16 +202,16 @@ server.
 ### From client to server
 
 To send specific events from client to server, you need to register the event
-with [`ClientEventAppExt::add_client_event()`] instead of [`App::add_event()`].
+with [`ClientEventAppExt::add_client_event()`] instead of `add_event()`.
 These events will appear on server as [`FromClient`] wrapper event that
 contains sender ID and the sent event. We consider the authority machine
-(a single-player session or you are server) to be a client with ID
+(a single-player session or you are a server) to be a client with ID
 [`SERVER_ID`], so in this case the [`FromClient`] will be emitted too.
 This way your game logic will work the same on client, server and in
 single-player session.
 
-Events include `[SendPolicy]` to configure delivery guarantees (reliability and
-ordering). You can alternatively pass in `[bevy_renet::SendType]` directly if you
+Events include [`SendPolicy`] to configure delivery guarantees (reliability and
+ordering). You can alternatively pass in `SendType` from Renet directly if you
 need custom configuration for a reliable policy's `resend_time`.
 
 ```rust
@@ -237,7 +237,7 @@ fn event_receiving_system(mut dummy_events: EventReader<FromClient<DummyEvent>>)
 struct DummyEvent;
 ```
 
-Just like components, if an event contains [`Entity`], then the client should
+Just like components, if an event contains an entity, then the client should
 map it before sending it to the server.
 To do this, use [`ClientEventAppExt::add_mapped_client_event()`] and implement [`MapNetworkEntities`]:
 
@@ -261,7 +261,7 @@ impl MapNetworkEntities for MappedEvent {
 
 There is also [`ClientEventAppExt::add_client_reflect_event()`] and [`ClientEventAppExt::add_mapped_client_reflect_event()`]
 for events that require reflection for serialization and deserialization (for example, events that contain `Box<dyn Reflect>`).
-To serialize such event you need to write serializer and deserializer manually because for such types you need access to [`AppTypeRegistry`].
+To serialize such event you need to write serializer and deserializer manually because for such types you need access to `AppTypeRegistry`.
 It's pretty straigtforward but requires some boilerplate. See [`BuildEventSerializer`], [`BuildEventDeserializer`] and module
 `common` module in integration tests as example.
 Don't forget to check what inside every `Box<dyn Reflect>` from a client, it could be anything!
@@ -301,7 +301,7 @@ fn event_receiving_system(mut dummy_events: EventReader<DummyEvent>) {
 struct DummyEvent;
 ```
 
-Just like with client events, if the event contains [`Entity`], then
+Just like with client events, if the event contains an entity, then
 [`ServerEventAppExt::add_mapped_server_event()`] should be used instead.
 
 And for events with `Box<dyn Reflect>` you can use [`ServerEventAppExt::add_server_reflect_event()`] and [`ServerEventAppExt::add_mapped_server_reflect_event()`].
