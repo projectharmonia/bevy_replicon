@@ -319,7 +319,7 @@ Use the described pattern instead.
 The only part of it that handled by this plugin is channels that used for
 events and component replication. These channels should be obtained from the
 [`NetworkChannels`] resource. So when creating server you need to initialize
-[`renet::ConnectionConfig`] like this:
+[`ConnectionConfig`](renet::ConnectionConfig) like this:
 
 ```rust
 # use bevy::prelude::*;
