@@ -103,7 +103,7 @@ impl ReplicationRules {
         &self.ids
     }
 
-    /// Returns replication ID and meta information about component if its replicated.
+    /// Returns replication ID and meta information about the component if it's replicated.
     pub(crate) fn get(
         &self,
         component_id: ComponentId,
