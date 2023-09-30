@@ -137,7 +137,7 @@ The idea was borrowed from [iyes_scene_tools](https://github.com/IyesGames/iyes_
 You don't want to replicate all components because not all of them are
 necessary to send over the network. Components that computed based on other
 components (like `GlobalTransform`) can be inserted after replication.
-This is easily done using a system with an `Added` query filter.
+This can be easily done using a system with an `Added` query filter.
 This way, you detect when such entities are spawned into the world, and you can
 do any additional setup on them using code. For example, if you have a
 character with mesh, you can replicate only your `Player` component and insert
@@ -178,9 +178,8 @@ struct Player;
 # fn deserialize_transform(_: &mut EntityMut, _: &mut NetworkEntityMap, _: &mut Cursor<Bytes>) -> Result<(), bincode::Error> { unimplemented!() }
 ```
 
-If your game have save states you probably want to re-use the same logic to
-keep you saves clean. Also, although things like `Handle<T>` can technically be
-serialized, they won't be valid after deserialization.
+This pairs nicely with server state serialization and keeps saves clean.
+You can use [`ReplicationRules`] to extract replicated entities into `DynamicScene`.
 
 ### Component relations
 
