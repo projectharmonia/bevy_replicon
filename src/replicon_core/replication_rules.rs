@@ -78,6 +78,8 @@ impl AppReplicationExt for App {
 }
 
 /// Stores information about which components will be serialized and how.
+///
+/// See also [`replicate_into_scene`].
 #[derive(Resource)]
 pub struct ReplicationRules {
     /// Maps component IDs to their replication IDs.
@@ -91,68 +93,6 @@ pub struct ReplicationRules {
 }
 
 impl ReplicationRules {
-    /// Extracts all replicated entities and their components into `scene`.
-    ///
-    /// # Panics
-    ///
-    /// Panics if component is not registered using `register_type()`
-    /// or missing `#[reflect(Component)]`.
-    pub fn extract_entities(
-        &self,
-        scene: &mut DynamicScene,
-        world: &World,
-        registry: &AppTypeRegistry,
-    ) {
-        let registry = registry.read();
-        for archetype in world
-            .archetypes()
-            .iter()
-            .filter(|archetype| archetype.id() != ArchetypeId::EMPTY)
-            .filter(|archetype| archetype.id() != ArchetypeId::INVALID)
-            .filter(|archetype| archetype.contains(self.marker_id))
-        {
-            let entities_offset = scene.entities.len();
-            for archetype_entity in archetype.entities() {
-                scene.entities.push(DynamicEntity {
-                    entity: archetype_entity.entity(),
-                    components: Vec::new(),
-                });
-            }
-
-            for component_id in archetype.components() {
-                let Some((_, replication_info)) = self.get(component_id) else {
-                    continue;
-                };
-                if archetype.contains(replication_info.ignored_id) {
-                    continue;
-                }
-
-                // SAFETY: `component_info` obtained from the world.
-                let component_info = unsafe { world.components().get_info_unchecked(component_id) };
-                let type_name = component_info.name();
-                let type_id = component_info
-                    .type_id()
-                    .unwrap_or_else(|| panic!("{type_name} should have registered TypeId"));
-                let registration = registry
-                    .get(type_id)
-                    .unwrap_or_else(|| panic!("{type_name} should be registered"));
-                let reflect_component = registration
-                    .data::<ReflectComponent>()
-                    .unwrap_or_else(|| panic!("{type_name} should have reflect(Component)"));
-
-                for (index, archetype_entity) in archetype.entities().iter().enumerate() {
-                    let component = reflect_component
-                        .reflect(world.entity(archetype_entity.entity()))
-                        .unwrap_or_else(|| panic!("entity should have {type_name}"));
-
-                    scene.entities[entities_offset + index]
-                        .components
-                        .push(component.clone_value());
-                }
-            }
-        }
-    }
-
     /// ID of [`Replication`] component.
     pub(crate) fn get_marker_id(&self) -> ComponentId {
         self.marker_id
@@ -296,6 +236,68 @@ fn remove_component<C: Component>(entity: &mut EntityMut) {
     entity.remove::<C>();
 }
 
+/// Fills scene with all replicated entities and their components.
+///
+/// # Panics
+///
+/// Panics if any replicated component is not registered using `register_type()`
+/// or missing `#[reflect(Component)]`.
+pub fn replicate_into_scene(
+    scene: &mut DynamicScene,
+    world: &World,
+    registry: &AppTypeRegistry,
+    replication_rules: &ReplicationRules,
+) {
+    let registry = registry.read();
+    for archetype in world
+        .archetypes()
+        .iter()
+        .filter(|archetype| archetype.id() != ArchetypeId::EMPTY)
+        .filter(|archetype| archetype.id() != ArchetypeId::INVALID)
+        .filter(|archetype| archetype.contains(replication_rules.marker_id))
+    {
+        let entities_offset = scene.entities.len();
+        for archetype_entity in archetype.entities() {
+            scene.entities.push(DynamicEntity {
+                entity: archetype_entity.entity(),
+                components: Vec::new(),
+            });
+        }
+
+        for component_id in archetype.components() {
+            let Some((_, replication_info)) = replication_rules.get(component_id) else {
+                continue;
+            };
+            if archetype.contains(replication_info.ignored_id) {
+                continue;
+            }
+
+            // SAFETY: `component_info` obtained from the world.
+            let component_info = unsafe { world.components().get_info_unchecked(component_id) };
+            let type_name = component_info.name();
+            let type_id = component_info
+                .type_id()
+                .unwrap_or_else(|| panic!("{type_name} should have registered TypeId"));
+            let registration = registry
+                .get(type_id)
+                .unwrap_or_else(|| panic!("{type_name} should be registered"));
+            let reflect_component = registration
+                .data::<ReflectComponent>()
+                .unwrap_or_else(|| panic!("{type_name} should have reflect(Component)"));
+
+            for (index, archetype_entity) in archetype.entities().iter().enumerate() {
+                let component = reflect_component
+                    .reflect(world.entity(archetype_entity.entity()))
+                    .unwrap_or_else(|| panic!("entity should have {type_name}"));
+
+                scene.entities[entities_offset + index]
+                    .components
+                    .push(component.clone_value());
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use serde::{Deserialize, Serialize};
@@ -303,7 +305,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn scene_creation() {
+    fn replication_into_scene() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .register_type::<DummyComponent>()
@@ -321,10 +323,9 @@ mod tests {
             .id();
 
         let registry = app.world.resource::<AppTypeRegistry>();
+        let replication_rules = app.world.resource::<ReplicationRules>();
         let mut scene = DynamicScene::default();
-        app.world
-            .resource::<ReplicationRules>()
-            .extract_entities(&mut scene, &app.world, registry);
+        replicate_into_scene(&mut scene, &app.world, registry, replication_rules);
 
         assert!(scene.resources.is_empty());
 
