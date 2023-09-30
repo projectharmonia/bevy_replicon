@@ -380,7 +380,6 @@ pub mod prelude {
         replicon_core::{
             replication_rules::{
                 AppReplicationExt, Ignored, MapNetworkEntities, Mapper, Replication,
-                ReplicationRules,
             },
             NetworkChannels, NetworkTick, RepliconCorePlugin,
         },

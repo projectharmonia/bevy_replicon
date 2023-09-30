@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.11.0] - 2023-09-25
 
 - Add high-level API to extract replicated entities into `DynamicScene`.
-- Hide `ReplicationRules` low-level IDs API.
+- Hide `ReplicationRules` from public API.
 - Move logic related to replication rules to `replicon_core::replication_rules` module.
 
 ### Changed

@@ -81,7 +81,7 @@ impl AppReplicationExt for App {
 ///
 /// See also [`replicate_into_scene`].
 #[derive(Resource)]
-pub struct ReplicationRules {
+pub(crate) struct ReplicationRules {
     /// Maps component IDs to their replication IDs.
     ids: HashMap<ComponentId, ReplicationId>,
 
@@ -242,12 +242,10 @@ fn remove_component<C: Component>(entity: &mut EntityMut) {
 ///
 /// Panics if any replicated component is not registered using `register_type()`
 /// or missing `#[reflect(Component)]`.
-pub fn replicate_into_scene(
-    scene: &mut DynamicScene,
-    world: &World,
-    registry: &AppTypeRegistry,
-    replication_rules: &ReplicationRules,
-) {
+pub fn replicate_into_scene(scene: &mut DynamicScene, world: &World) {
+    let registry = world.resource::<AppTypeRegistry>();
+    let replication_rules = world.resource::<ReplicationRules>();
+
     let registry = registry.read();
     for archetype in world
         .archetypes()
@@ -322,10 +320,8 @@ mod tests {
             ))
             .id();
 
-        let registry = app.world.resource::<AppTypeRegistry>();
-        let replication_rules = app.world.resource::<ReplicationRules>();
         let mut scene = DynamicScene::default();
-        replicate_into_scene(&mut scene, &app.world, registry, replication_rules);
+        replicate_into_scene(&mut scene, &app.world);
 
         assert!(scene.resources.is_empty());
 
