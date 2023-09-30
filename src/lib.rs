@@ -309,8 +309,8 @@ And for events with `Box<dyn Reflect>` you can use [`ServerEventAppExt::add_serv
 ## Server and client creation
 
 To connect to the server or create it, you need to initialize the
-[`renet::RenetClient`] and [`renet::transport::NetcodeClientTransport`] **or**
-[`renet::RenetServer`] and [`renet::transport::NetcodeServerTransport`] resources from Renet.
+[`RenetClient`] and [`NetcodeClientTransport`](renet::transport::NetcodeClientTransport) **or**
+[`RenetServer`] and [`NetcodeServerTransport`](renet::transport::NetcodeServerTransport) resources from Renet.
 All Renet API is re-exported from this plugin.
 
 Never create client and server resources in the same app for single-player, it will cause replication loop.
