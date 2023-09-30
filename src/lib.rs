@@ -179,7 +179,8 @@ struct Player;
 ```
 
 This pairs nicely with server state serialization and keeps saves clean.
-You can use [`ReplicationRules`] to extract replicated entities into `DynamicScene`.
+You can use [`replicate_into_scene`](replicon_core::replication_rules::replicate_into_scene)
+fill `DynamicScene` with replicated entities and their components.
 
 ### Component relations
 
