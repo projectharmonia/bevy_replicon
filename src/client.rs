@@ -9,9 +9,9 @@ use bevy_renet::{renet::Bytes, transport::client_connected};
 use bevy_renet::{renet::RenetClient, transport::NetcodeClientPlugin, RenetClientPlugin};
 use bincode::{DefaultOptions, Options};
 
-use crate::{
-    replicon_core::{Mapper, NetworkTick, ReplicationRules, REPLICATION_CHANNEL_ID},
-    Replication,
+use crate::replicon_core::{
+    replication_rules::{Mapper, Replication, ReplicationRules},
+    NetworkTick, REPLICATION_CHANNEL_ID,
 };
 
 pub struct ClientPlugin;

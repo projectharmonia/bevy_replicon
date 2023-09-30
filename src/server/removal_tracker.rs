@@ -6,7 +6,7 @@ use bevy::{
 use bevy_renet::renet::RenetServer;
 
 use super::{ServerSet, ServerTicks};
-use crate::replicon_core::{Replication, ReplicationId, ReplicationRules};
+use crate::replicon_core::replication_rules::{Replication, ReplicationId, ReplicationRules};
 
 /// Stores component removals in [`RemovalTracker`] component to make them persistent across ticks.
 ///
@@ -87,7 +87,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::replicon_core::{AppReplicationExt, NetworkTick};
+    use crate::replicon_core::{replication_rules::AppReplicationExt, NetworkTick};
 
     #[test]
     fn detection() {

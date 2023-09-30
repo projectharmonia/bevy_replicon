@@ -23,7 +23,8 @@ use bincode::{DefaultOptions, Options};
 use derive_more::Constructor;
 
 use crate::replicon_core::{
-    NetworkTick, ReplicationId, ReplicationInfo, ReplicationRules, REPLICATION_CHANNEL_ID,
+    replication_rules::{ReplicationId, ReplicationInfo, ReplicationRules},
+    NetworkTick, REPLICATION_CHANNEL_ID,
 };
 use despawn_tracker::{DespawnTracker, DespawnTrackerPlugin};
 use removal_tracker::{RemovalTracker, RemovalTrackerPlugin};

@@ -378,8 +378,11 @@ pub mod prelude {
         parent_sync::{ParentSync, ParentSyncPlugin},
         renet::{RenetClient, RenetServer},
         replicon_core::{
-            AppReplicationExt, Ignored, MapNetworkEntities, Mapper, NetworkChannels, NetworkTick,
-            Replication, ReplicationRules, RepliconCorePlugin,
+            replication_rules::{
+                AppReplicationExt, Ignored, MapNetworkEntities, Mapper, Replication,
+                ReplicationRules,
+            },
+            NetworkChannels, NetworkTick, RepliconCorePlugin,
         },
         server::{has_authority, ServerPlugin, ServerSet, ServerTicks, TickPolicy, SERVER_ID},
         ReplicationPlugins,

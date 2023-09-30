@@ -6,7 +6,7 @@ use bevy::{
 use bevy_renet::renet::RenetServer;
 
 use super::{ServerSet, ServerTicks};
-use crate::replicon_core::Replication;
+use crate::replicon_core::replication_rules::Replication;
 
 /// Tracks entity despawns of entities with [`Replication`] component in [`DespawnTracker`] resource.
 ///
