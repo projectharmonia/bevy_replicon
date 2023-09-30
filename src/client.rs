@@ -54,7 +54,7 @@ impl ClientPlugin {
             world.resource_scope(|world, mut entity_map: Mut<NetworkEntityMap>| {
                 world.resource_scope(|world, replication_rules: Mut<ReplicationRules>| {
                     while let Some(message) = client.receive_message(REPLICATION_CHANNEL_ID) {
-                        let end_pos = message.len().try_into().unwrap();
+                        let end_pos: u64 = message.len().try_into().unwrap();
                         let mut cursor = Cursor::new(message);
 
                         if !deserialize_tick(&mut cursor, world)? {
