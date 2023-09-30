@@ -1,9 +1,10 @@
 use std::{io::Cursor, marker::PhantomData};
 
 use bevy::{
-    ecs::{component::ComponentId, world::EntityMut},
+    ecs::{archetype::ArchetypeId, component::ComponentId, world::EntityMut},
     prelude::*,
     ptr::Ptr,
+    scene::DynamicEntity,
     utils::HashMap,
 };
 use bevy_renet::renet::Bytes;
@@ -90,6 +91,68 @@ pub struct ReplicationRules {
 }
 
 impl ReplicationRules {
+    /// Extracts all replicated entities and their components into `scene`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if component is not registered using `register_type()`
+    /// or missing `#[reflect(Component)]`.
+    pub fn extract_entities(
+        &self,
+        scene: &mut DynamicScene,
+        world: &World,
+        registry: &AppTypeRegistry,
+    ) {
+        let registry = registry.read();
+        for archetype in world
+            .archetypes()
+            .iter()
+            .filter(|archetype| archetype.id() != ArchetypeId::EMPTY)
+            .filter(|archetype| archetype.id() != ArchetypeId::INVALID)
+            .filter(|archetype| archetype.contains(self.marker_id))
+        {
+            let entities_offset = scene.entities.len();
+            for archetype_entity in archetype.entities() {
+                scene.entities.push(DynamicEntity {
+                    entity: archetype_entity.entity(),
+                    components: Vec::new(),
+                });
+            }
+
+            for component_id in archetype.components() {
+                let Some((_, replication_info)) = self.get(component_id) else {
+                    continue;
+                };
+                if archetype.contains(replication_info.ignored_id) {
+                    continue;
+                }
+
+                // SAFETY: `component_info` obtained from the world.
+                let component_info = unsafe { world.components().get_info_unchecked(component_id) };
+                let type_name = component_info.name();
+                let type_id = component_info
+                    .type_id()
+                    .unwrap_or_else(|| panic!("{type_name} should have registered TypeId"));
+                let registration = registry
+                    .get(type_id)
+                    .unwrap_or_else(|| panic!("{type_name} should be registered"));
+                let reflect_component = registration
+                    .data::<ReflectComponent>()
+                    .unwrap_or_else(|| panic!("{type_name} should have reflect(Component)"));
+
+                for (index, archetype_entity) in archetype.entities().iter().enumerate() {
+                    let component = reflect_component
+                        .reflect(world.entity(archetype_entity.entity()))
+                        .unwrap_or_else(|| panic!("entity should have {type_name}"));
+
+                    scene.entities[entities_offset + index]
+                        .components
+                        .push(component.clone_value());
+                }
+            }
+        }
+    }
+
     /// ID of [`Replication`] component.
     pub(crate) fn get_marker_id(&self) -> ComponentId {
         self.marker_id
@@ -231,4 +294,52 @@ fn deserialize_mapped_component<C: Component + DeserializeOwned + MapNetworkEnti
 /// Removes specified component from entity.
 fn remove_component<C: Component>(entity: &mut EntityMut) {
     entity.remove::<C>();
+}
+
+#[cfg(test)]
+mod tests {
+    use serde::{Deserialize, Serialize};
+
+    use super::*;
+
+    #[test]
+    fn scene_creation() {
+        let mut app = App::new();
+        app.init_resource::<ReplicationRules>()
+            .register_type::<DummyComponent>()
+            .replicate::<DummyComponent>();
+
+        app.world.spawn(DummyComponent);
+        let dummy_entity = app.world.spawn((Replication, DummyComponent)).id();
+        let empty_entity = app
+            .world
+            .spawn((
+                Replication,
+                DummyComponent,
+                Ignored::<DummyComponent>::default(),
+            ))
+            .id();
+
+        let registry = app.world.resource::<AppTypeRegistry>();
+        let mut scene = DynamicScene::default();
+        app.world
+            .resource::<ReplicationRules>()
+            .extract_entities(&mut scene, &app.world, registry);
+
+        assert!(scene.resources.is_empty());
+
+        let [dummy, empty] = &scene.entities[..] else {
+            panic!("scene should only contain entities marked for replication");
+        };
+
+        assert_eq!(dummy.entity, dummy_entity);
+        assert_eq!(dummy.components.len(), 1);
+
+        assert_eq!(empty.entity, empty_entity);
+        assert!(empty.components.is_empty());
+    }
+
+    #[derive(Component, Default, Deserialize, Reflect, Serialize)]
+    #[reflect(Component)]
+    struct DummyComponent;
 }
