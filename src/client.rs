@@ -137,7 +137,8 @@ fn deserialize_component_diffs(
         let components_count: u8 = bincode::deserialize_from(&mut *cursor)?;
         for _ in 0..components_count {
             let replication_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
-            let replication_info = replication_rules.get_info(replication_id);
+            // SAFETY: server and client have identical `ReplicationRules` and server always sends valid IDs.
+            let replication_info = unsafe { replication_rules.get_info_unchecked(replication_id) };
             match diff_kind {
                 DiffKind::Change => {
                     (replication_info.deserialize)(&mut entity, entity_map, cursor)?
