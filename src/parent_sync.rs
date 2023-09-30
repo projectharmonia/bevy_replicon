@@ -9,9 +9,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     client::ClientSet,
-    replicon_core::{AppReplicationExt, Mapper},
+    replicon_core::replication_rules::{AppReplicationExt, MapNetworkEntities, Mapper},
     server::{has_authority, ServerSet},
-    MapNetworkEntities,
 };
 
 pub struct ParentSyncPlugin;

@@ -6,7 +6,7 @@ use std::{marker::PhantomData, time::Duration};
 use bevy::{prelude::*, reflect::TypeRegistryInternal, utils::HashMap};
 use bevy_renet::renet::SendType;
 
-use crate::replicon_core::Mapper;
+use crate::replicon_core::replication_rules::Mapper;
 
 /// Holds a channel ID for `T`.
 #[derive(Resource)]
