@@ -67,9 +67,9 @@ impl AppReplicationExt for App {
         };
 
         let mut replication_rules = self.world.resource_mut::<ReplicationRules>();
-        replication_rules.info.push(replicated_component);
+        replication_rules.infos.push(replicated_component);
 
-        let replication_id = ReplicationId(replication_rules.info.len() - 1);
+        let replication_id = ReplicationId(replication_rules.infos.len() - 1);
         replication_rules.ids.insert(component_id, replication_id);
 
         self
@@ -83,27 +83,16 @@ pub struct ReplicationRules {
     ids: HashMap<ComponentId, ReplicationId>,
 
     /// Meta information about components that should be replicated.
-    info: Vec<ReplicationInfo>,
+    infos: Vec<ReplicationInfo>,
 
     /// ID of [`Replication`] component.
     marker_id: ComponentId,
 }
 
 impl ReplicationRules {
-    /// ID of [`Replication`] component, only entities with this components will be replicated.
-    #[inline]
-    pub fn get_marker_id(&self) -> ComponentId {
+    /// ID of [`Replication`] component.
+    pub(crate) fn get_marker_id(&self) -> ComponentId {
         self.marker_id
-    }
-
-    /// Returns ID of the corresponding [`Ignored<T>`] for replicated component.
-    ///
-    /// Returns [`None`] if the component is not registered for replication.
-    #[inline]
-    pub fn ignored_id(&self, component_id: ComponentId) -> Option<ComponentId> {
-        self.ids
-            .get(&component_id)
-            .map(|&replication_id| self.get_info(replication_id).ignored_id)
     }
 
     /// Returns mapping of replicated components to their replication IDs.
@@ -111,18 +100,35 @@ impl ReplicationRules {
         &self.ids
     }
 
+    /// Returns replication ID and meta information about component if its replicated.
+    pub(crate) fn get(
+        &self,
+        component_id: ComponentId,
+    ) -> Option<(ReplicationId, &ReplicationInfo)> {
+        let replication_id = self.ids.get(&component_id).copied()?;
+        // SAFETY: ID corresponds to a valid index because it obtained from `ids`.
+        let replication_info = unsafe { self.infos.get_unchecked(replication_id.0) };
+
+        Some((replication_id, replication_info))
+    }
+
     /// Returns meta information about replicated component.
-    #[inline]
-    pub(crate) fn get_info(&self, replication_id: ReplicationId) -> &ReplicationInfo {
-        // SAFETY: `ReplicationId` always corresponds to a valid index.
-        unsafe { self.info.get_unchecked(replication_id.0) }
+    ///
+    /// # Safety
+    ///
+    /// `replication_id` should come from the same replication rules.
+    pub(crate) unsafe fn get_info_unchecked(
+        &self,
+        replication_id: ReplicationId,
+    ) -> &ReplicationInfo {
+        self.infos.get_unchecked(replication_id.0)
     }
 }
 
 impl FromWorld for ReplicationRules {
     fn from_world(world: &mut World) -> Self {
         Self {
-            info: Default::default(),
+            infos: Default::default(),
             ids: Default::default(),
             marker_id: world.init_component::<Replication>(),
         }
@@ -136,6 +142,7 @@ pub type SerializeFn = fn(Ptr, &mut Cursor<Vec<u8>>) -> Result<(), bincode::Erro
 pub type DeserializeFn =
     fn(&mut EntityMut, &mut NetworkEntityMap, &mut Cursor<Bytes>) -> Result<(), bincode::Error>;
 
+/// Stores meta information about replicated component.
 pub(crate) struct ReplicationInfo {
     /// ID of [`Ignored<T>`] component.
     pub(crate) ignored_id: ComponentId,

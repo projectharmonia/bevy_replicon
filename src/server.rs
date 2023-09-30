@@ -229,10 +229,10 @@ fn collect_changes(
             }
 
             for component_id in archetype.components() {
-                let Some(&replication_id) = replication_rules.get_ids().get(&component_id) else {
+                let Some((replication_id, replication_info)) = replication_rules.get(component_id)
+                else {
                     continue;
                 };
-                let replication_info = replication_rules.get_info(replication_id);
                 if archetype.contains(replication_info.ignored_id) {
                     continue;
                 }
