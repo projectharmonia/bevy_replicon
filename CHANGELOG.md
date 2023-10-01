@@ -7,11 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.11.0] - 2023-09-25
+## [0.12.0] - 2023-10-01
+
+### Changed
 
 - Add high-level API to extract replicated entities into `DynamicScene`.
 - Hide `ReplicationRules` from public API.
 - Move logic related to replication rules to `replicon_core::replication_rules` module.
+
+## [0.11.0] - 2023-09-25
 
 ### Changed
 
@@ -161,7 +165,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release after separation from [lifescape](https://github.com/lifescapegame/lifescape).
 
-[unreleased]: https://github.com/lifescapegame/bevy_replicon/compare/v0.10.0...HEAD
+[unreleased]: https://github.com/lifescapegame/bevy_replicon/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.11.0...v0.12.0
+[0.11.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/lifescapegame/bevy_replicon/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.8.0...v0.9.0
