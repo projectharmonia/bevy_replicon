@@ -111,3 +111,15 @@ impl PartialOrd for NetworkTick {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tick_comparsion() {
+        assert_eq!(NetworkTick(0), NetworkTick(0));
+        assert!(NetworkTick(0) < NetworkTick(1));
+        assert!(NetworkTick(0) > NetworkTick(u32::MAX));
+    }
+}
