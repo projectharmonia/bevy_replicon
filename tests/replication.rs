@@ -1,7 +1,7 @@
 mod common;
 
 use bevy::prelude::*;
-use bevy_replicon::prelude::*;
+use bevy_replicon::{prelude::*, server};
 
 use bevy_renet::renet::transport::NetcodeClientTransport;
 use serde::{Deserialize, Serialize};
@@ -237,6 +237,40 @@ fn despawn_replication() {
     assert!(entity_map.to_server().is_empty());
 }
 
+#[test]
+fn replication_into_scene() {
+    let mut app = App::new();
+    app.add_plugins(ReplicationPlugins)
+        .register_type::<ReflectedComponent>()
+        .replicate::<ReflectedComponent>();
+
+    app.world.spawn(ReflectedComponent);
+    let reflect_entity = app.world.spawn((Replication, ReflectedComponent)).id();
+    let empty_entity = app
+        .world
+        .spawn((
+            Replication,
+            ReflectedComponent,
+            Ignored::<ReflectedComponent>::default(),
+        ))
+        .id();
+
+    let mut scene = DynamicScene::default();
+    server::replicate_into_scene(&mut scene, &app.world);
+
+    assert!(scene.resources.is_empty());
+
+    let [reflect, empty] = &scene.entities[..] else {
+        panic!("scene should only contain entities marked for replication");
+    };
+
+    assert_eq!(reflect.entity, reflect_entity);
+    assert_eq!(reflect.components.len(), 1);
+
+    assert_eq!(empty.entity, empty_entity);
+    assert!(empty.components.is_empty());
+}
+
 #[derive(Component, Deserialize, Serialize)]
 struct MappedComponent(Entity);
 
@@ -258,3 +292,7 @@ struct NonReplicatingComponent;
 
 #[derive(Component, Deserialize, Serialize)]
 struct IgnoredComponent;
+
+#[derive(Component, Default, Deserialize, Reflect, Serialize)]
+#[reflect(Component)]
+struct ReflectedComponent;

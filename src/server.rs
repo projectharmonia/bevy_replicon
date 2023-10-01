@@ -11,6 +11,7 @@ use bevy::{
     },
     prelude::*,
     ptr::Ptr,
+    scene::DynamicEntity,
     time::common_conditions::on_timer,
     utils::HashMap,
 };
@@ -666,5 +667,65 @@ impl ReplicationBuffer {
         }
 
         Ok(())
+    }
+}
+
+/// Fills scene with all replicated entities and their components.
+///
+/// # Panics
+///
+/// Panics if any replicated component is not registered using `register_type()`
+/// or missing `#[reflect(Component)]`.
+pub fn replicate_into_scene(scene: &mut DynamicScene, world: &World) {
+    let registry = world.resource::<AppTypeRegistry>();
+    let replication_rules = world.resource::<ReplicationRules>();
+
+    let registry = registry.read();
+    for archetype in world
+        .archetypes()
+        .iter()
+        .filter(|archetype| archetype.id() != ArchetypeId::EMPTY)
+        .filter(|archetype| archetype.id() != ArchetypeId::INVALID)
+        .filter(|archetype| archetype.contains(replication_rules.get_marker_id()))
+    {
+        let entities_offset = scene.entities.len();
+        for archetype_entity in archetype.entities() {
+            scene.entities.push(DynamicEntity {
+                entity: archetype_entity.entity(),
+                components: Vec::new(),
+            });
+        }
+
+        for component_id in archetype.components() {
+            let Some((_, replication_info)) = replication_rules.get(component_id) else {
+                continue;
+            };
+            if archetype.contains(replication_info.ignored_id) {
+                continue;
+            }
+
+            // SAFETY: `component_info` obtained from the world.
+            let component_info = unsafe { world.components().get_info_unchecked(component_id) };
+            let type_name = component_info.name();
+            let type_id = component_info
+                .type_id()
+                .unwrap_or_else(|| panic!("{type_name} should have registered TypeId"));
+            let registration = registry
+                .get(type_id)
+                .unwrap_or_else(|| panic!("{type_name} should be registered"));
+            let reflect_component = registration
+                .data::<ReflectComponent>()
+                .unwrap_or_else(|| panic!("{type_name} should have reflect(Component)"));
+
+            for (index, archetype_entity) in archetype.entities().iter().enumerate() {
+                let component = reflect_component
+                    .reflect(world.entity(archetype_entity.entity()))
+                    .unwrap_or_else(|| panic!("entity should have {type_name}"));
+
+                scene.entities[entities_offset + index]
+                    .components
+                    .push(component.clone_value());
+            }
+        }
     }
 }
