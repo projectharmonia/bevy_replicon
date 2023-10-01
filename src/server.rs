@@ -406,7 +406,7 @@ impl ServerTicks {
         self.system_ticks.retain(|tick, _| {
             self.acked_ticks
                 .values()
-                .all(|acked_tick| acked_tick > tick)
+                .any(|acked_tick| acked_tick <= tick)
         })
     }
 
