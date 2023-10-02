@@ -34,7 +34,7 @@ fn main() {
             }),
             ..Default::default()
         }))
-        .add_plugins((ReplicationPlugins::default(), TicTacToePlugin))
+        .add_plugins((ReplicationPlugins, TicTacToePlugin))
         .run();
 }
 

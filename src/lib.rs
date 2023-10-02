@@ -408,7 +408,6 @@ pub use bincode;
 use prelude::*;
 
 /// Plugin Group for all replicon plugins.
-#[derive(Default)]
 pub struct ReplicationPlugins;
 
 impl PluginGroup for ReplicationPlugins {
