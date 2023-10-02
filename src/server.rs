@@ -86,7 +86,7 @@ impl Plugin for ServerPlugin {
             let tick_time = Duration::from_millis(1000 / max_tick_rate as u64);
             app.add_systems(
                 PostUpdate,
-                Self::increment_network_tick
+                Self::increment_tick
                     .before(Self::diffs_sending_system)
                     .run_if(on_timer(tick_time)),
             );
@@ -96,8 +96,8 @@ impl Plugin for ServerPlugin {
 
 impl ServerPlugin {
     /// Increments current server tick which causes the server to send a diff packet this frame.
-    pub fn increment_network_tick(mut network_tick: ResMut<CurrentTick>) {
-        network_tick.increment();
+    pub fn increment_tick(mut current_tick: ResMut<CurrentTick>) {
+        current_tick.increment();
     }
 
     fn acks_receiving_system(mut acked_ticks: ResMut<AckedTicks>, mut server: ResMut<RenetServer>) {

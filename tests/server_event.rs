@@ -217,7 +217,7 @@ fn local_resending() {
         ReplicationPlugins.set(ServerPlugin::new(TickPolicy::Manual)),
     ))
     .add_server_event::<DummyEvent>(SendPolicy::Ordered)
-    .add_systems(Update, ServerPlugin::increment_network_tick); // Increment tick every frame per `TickPolicy::Manual`.
+    .add_systems(Update, ServerPlugin::increment_tick); // Increment tick every frame per `TickPolicy::Manual`.
 
     const DUMMY_CLIENT_ID: u64 = 1;
     for (mode, events_count) in [
