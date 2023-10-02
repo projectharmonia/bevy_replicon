@@ -5,7 +5,7 @@ use bevy::{
 };
 use bevy_renet::renet::RenetServer;
 
-use super::{ServerSet, ServerTicks};
+use super::{AckedTicks, ServerSet};
 use crate::replicon_core::replication_rules::Replication;
 
 /// Tracks entity despawns of entities with [`Replication`] component in [`DespawnTracker`] resource.
@@ -44,11 +44,11 @@ impl DespawnTrackerPlugin {
     fn cleanup_system(
         change_tick: SystemChangeTick,
         mut despawn_tracker: ResMut<DespawnTracker>,
-        server_ticks: Res<ServerTicks>,
+        acked_ticks: Res<AckedTicks>,
     ) {
         despawn_tracker.despawns.retain(|(_, tick)| {
-            server_ticks.acked_ticks.values().any(|acked_tick| {
-                let system_tick = *server_ticks
+            acked_ticks.clients.values().any(|acked_tick| {
+                let system_tick = *acked_ticks
                     .system_ticks
                     .get(acked_tick)
                     .unwrap_or(&Tick::new(0));
@@ -95,15 +95,15 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(DespawnTrackerPlugin)
             .insert_resource(RenetServer::new(Default::default()))
-            .init_resource::<ServerTicks>();
+            .init_resource::<AckedTicks>();
 
         app.update();
 
         // To avoid cleanup.
         const DUMMY_CLIENT_ID: u64 = 0;
         app.world
-            .resource_mut::<ServerTicks>()
-            .acked_ticks
+            .resource_mut::<AckedTicks>()
+            .clients
             .insert(DUMMY_CLIENT_ID, NetworkTick::new(0));
 
         let replicated_entity = app.world.spawn(Replication).id();

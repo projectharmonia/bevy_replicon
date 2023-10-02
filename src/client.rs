@@ -57,9 +57,9 @@ impl ClientPlugin {
                         let end_pos: u64 = message.len().try_into().unwrap();
                         let mut cursor = Cursor::new(message);
 
-                        if !deserialize_tick(&mut cursor, world)? {
+                        let Some(network_tick) = deserialize_tick(&mut cursor, world)? else {
                             continue;
-                        }
+                        };
                         if cursor.position() == end_pos {
                             continue;
                         }
@@ -70,6 +70,7 @@ impl ClientPlugin {
                             &mut entity_map,
                             &replication_rules,
                             DiffKind::Change,
+                            network_tick,
                         )?;
                         if cursor.position() == end_pos {
                             continue;
@@ -81,12 +82,19 @@ impl ClientPlugin {
                             &mut entity_map,
                             &replication_rules,
                             DiffKind::Removal,
+                            network_tick,
                         )?;
                         if cursor.position() == end_pos {
                             continue;
                         }
 
-                        deserialize_despawns(&mut cursor, world, &mut entity_map)?;
+                        deserialize_despawns(
+                            &mut cursor,
+                            world,
+                            &mut entity_map,
+                            &replication_rules,
+                            network_tick,
+                        )?;
                     }
 
                     Ok(())
@@ -109,16 +117,19 @@ impl ClientPlugin {
 
 /// Deserializes server tick and applies it to [`LastTick`] if it is newer.
 ///
-/// Returns true if [`LastTick`] has been updated.
-fn deserialize_tick(cursor: &mut Cursor<Bytes>, world: &mut World) -> Result<bool, bincode::Error> {
+/// Returns the tick if [`LastTick`] has been updated.
+fn deserialize_tick(
+    cursor: &mut Cursor<Bytes>,
+    world: &mut World,
+) -> Result<Option<NetworkTick>, bincode::Error> {
     let tick = bincode::deserialize_from(cursor)?;
 
     let mut last_tick = world.resource_mut::<LastTick>();
     if last_tick.0 < tick {
         last_tick.0 = tick;
-        Ok(true)
+        Ok(Some(tick))
     } else {
-        Ok(false)
+        Ok(None)
     }
 }
 
@@ -129,6 +140,7 @@ fn deserialize_component_diffs(
     entity_map: &mut NetworkEntityMap,
     replication_rules: &ReplicationRules,
     diff_kind: DiffKind,
+    tick: NetworkTick,
 ) -> Result<(), bincode::Error> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..entities_count {
@@ -141,9 +153,9 @@ fn deserialize_component_diffs(
             let replication_info = unsafe { replication_rules.get_info_unchecked(replication_id) };
             match diff_kind {
                 DiffKind::Change => {
-                    (replication_info.deserialize)(&mut entity, entity_map, cursor)?
+                    (replication_info.deserialize)(&mut entity, entity_map, cursor, tick)?
                 }
-                DiffKind::Removal => (replication_info.remove)(&mut entity),
+                DiffKind::Removal => (replication_info.remove)(&mut entity, tick),
             }
         }
     }
@@ -156,6 +168,8 @@ fn deserialize_despawns(
     cursor: &mut Cursor<Bytes>,
     world: &mut World,
     entity_map: &mut NetworkEntityMap,
+    replication_rules: &ReplicationRules,
+    tick: NetworkTick,
 ) -> Result<(), bincode::Error> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..entities_count {
@@ -167,7 +181,7 @@ fn deserialize_despawns(
             .remove_by_server(server_entity)
             .and_then(|entity| world.get_entity_mut(entity))
         {
-            client_entity.despawn_recursive();
+            (replication_rules.despawn_fn)(client_entity, tick);
         }
     }
 

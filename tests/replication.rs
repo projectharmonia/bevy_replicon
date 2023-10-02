@@ -13,7 +13,7 @@ fn acked_ticks_cleanup() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::Manual)),
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
         ));
     }
 
@@ -27,8 +27,8 @@ fn acked_ticks_cleanup() {
     server_app.update();
     server_app.update();
 
-    let server_ticks = server_app.world.resource::<ServerTicks>();
-    assert!(!server_ticks.acked_ticks().contains_key(&client_id));
+    let acked_ticks = server_app.world.resource::<AckedTicks>();
+    assert!(!acked_ticks.acked_ticks().contains_key(&client_id));
 }
 
 #[test]
@@ -38,7 +38,7 @@ fn tick_acks_receiving() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::Manual)),
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
         ));
     }
 
@@ -47,7 +47,7 @@ fn tick_acks_receiving() {
     client_app.update();
     server_app.update();
 
-    let acked_ticks = server_app.world.resource::<ServerTicks>();
+    let acked_ticks = server_app.world.resource::<AckedTicks>();
     let client_id = client_app
         .world
         .resource::<NetcodeClientTransport>()
@@ -63,7 +63,7 @@ fn spawn_replication() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::Manual)),
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
         ))
         .replicate::<TableComponent>();
     }
@@ -96,10 +96,11 @@ fn spawn_replication() {
 fn insert_replication() {
     let mut server_app = App::new();
     let mut client_app = App::new();
+
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::Manual)),
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
         ))
         .replicate::<TableComponent>()
         .replicate::<SparseSetComponent>()
@@ -140,6 +141,7 @@ fn insert_replication() {
     assert!(client_entity.contains::<SparseSetComponent>());
     assert!(client_entity.contains::<TableComponent>());
     assert!(!client_entity.contains::<NonReplicatingComponent>());
+    assert!(!client_entity.contains::<IgnoredComponent>());
     assert_eq!(
         client_entity.get::<MappedComponent>().unwrap().0,
         client_map_entity
@@ -153,7 +155,7 @@ fn removal_replication() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::Manual)),
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
         ))
         .replicate::<TableComponent>();
     }
@@ -197,7 +199,7 @@ fn despawn_replication() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::Manual)),
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
         ));
     }
 

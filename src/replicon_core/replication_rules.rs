@@ -10,6 +10,7 @@ use bevy_renet::renet::Bytes;
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
+use super::NetworkTick;
 use crate::client::{ClientMapper, NetworkEntityMap};
 
 pub trait AppReplicationExt {
@@ -28,11 +29,12 @@ pub trait AppReplicationExt {
     where
         C: Component + Serialize + DeserializeOwned + MapNetworkEntities;
 
-    /// Same as [`Self::replicate`], but uses the specified functions for serialization and deserialization.
+    /// Same as [`Self::replicate`], but uses the specified functions for serialization, deserialization, and removal.
     fn replicate_with<C>(
         &mut self,
         serialize: SerializeFn,
         deserialize: DeserializeFn,
+        remove: RemoveComponentFn,
     ) -> &mut Self
     where
         C: Component;
@@ -43,17 +45,30 @@ impl AppReplicationExt for App {
     where
         C: Component + Serialize + DeserializeOwned,
     {
-        self.replicate_with::<C>(serialize_component::<C>, deserialize_component::<C>)
+        self.replicate_with::<C>(
+            serialize_component::<C>,
+            deserialize_component::<C>,
+            remove_component::<C>,
+        )
     }
 
     fn replicate_mapped<C>(&mut self) -> &mut Self
     where
         C: Component + Serialize + DeserializeOwned + MapNetworkEntities,
     {
-        self.replicate_with::<C>(serialize_component::<C>, deserialize_mapped_component::<C>)
+        self.replicate_with::<C>(
+            serialize_component::<C>,
+            deserialize_mapped_component::<C>,
+            remove_component::<C>,
+        )
     }
 
-    fn replicate_with<C>(&mut self, serialize: SerializeFn, deserialize: DeserializeFn) -> &mut Self
+    fn replicate_with<C>(
+        &mut self,
+        serialize: SerializeFn,
+        deserialize: DeserializeFn,
+        remove: RemoveComponentFn,
+    ) -> &mut Self
     where
         C: Component,
     {
@@ -63,7 +78,7 @@ impl AppReplicationExt for App {
             ignored_id,
             serialize,
             deserialize,
-            remove: remove_component::<C>,
+            remove,
         };
 
         let mut replication_rules = self.world.resource_mut::<ReplicationRules>();
@@ -77,10 +92,14 @@ impl AppReplicationExt for App {
 }
 
 /// Stores information about which components will be serialized and how.
-///
-/// See also [`replicate_into_scene`].
 #[derive(Resource)]
-pub(crate) struct ReplicationRules {
+pub struct ReplicationRules {
+    /// Custom function to handle entity despawning.
+    ///
+    /// By default uses [`despawn_recursive`].
+    /// Useful if you need to intercept despawns and handle them in a special way.
+    pub despawn_fn: EntityDespawnFn,
+
     /// Maps component IDs to their replication IDs.
     ids: HashMap<ComponentId, ReplicationId>,
 
@@ -133,6 +152,7 @@ impl FromWorld for ReplicationRules {
             infos: Default::default(),
             ids: Default::default(),
             marker_id: world.init_component::<Replication>(),
+            despawn_fn: despawn_recursive,
         }
     }
 }
@@ -141,8 +161,18 @@ impl FromWorld for ReplicationRules {
 pub type SerializeFn = fn(Ptr, &mut Cursor<Vec<u8>>) -> Result<(), bincode::Error>;
 
 /// Signature of component deserialization functions.
-pub type DeserializeFn =
-    fn(&mut EntityMut, &mut NetworkEntityMap, &mut Cursor<Bytes>) -> Result<(), bincode::Error>;
+pub type DeserializeFn = fn(
+    &mut EntityMut,
+    &mut NetworkEntityMap,
+    &mut Cursor<Bytes>,
+    NetworkTick,
+) -> Result<(), bincode::Error>;
+
+/// Signature of component removal functions.
+pub type RemoveComponentFn = fn(&mut EntityMut, NetworkTick);
+
+/// Signature of the entity despawn function.
+pub type EntityDespawnFn = fn(EntityMut, NetworkTick);
 
 /// Stores meta information about replicated component.
 pub(crate) struct ReplicationInfo {
@@ -156,7 +186,7 @@ pub(crate) struct ReplicationInfo {
     pub(crate) deserialize: DeserializeFn,
 
     /// Function that removes specific component from [`EntityMut`].
-    pub(crate) remove: fn(&mut EntityMut),
+    pub(crate) remove: RemoveComponentFn,
 }
 
 /// Marks entity for replication.
@@ -192,7 +222,7 @@ pub trait Mapper {
 }
 
 /// Default serialization function.
-fn serialize_component<C: Component + Serialize>(
+pub fn serialize_component<C: Component + Serialize>(
     component: Ptr,
     cursor: &mut Cursor<Vec<u8>>,
 ) -> Result<(), bincode::Error> {
@@ -202,10 +232,11 @@ fn serialize_component<C: Component + Serialize>(
 }
 
 /// Default deserialization function.
-fn deserialize_component<C: Component + DeserializeOwned>(
+pub fn deserialize_component<C: Component + DeserializeOwned>(
     entity: &mut EntityMut,
     _entity_map: &mut NetworkEntityMap,
     cursor: &mut Cursor<Bytes>,
+    _tick: NetworkTick,
 ) -> Result<(), bincode::Error> {
     let component: C = DefaultOptions::new().deserialize_from(cursor)?;
     entity.insert(component);
@@ -214,10 +245,11 @@ fn deserialize_component<C: Component + DeserializeOwned>(
 }
 
 /// Like [`deserialize_component`], but also maps entities before insertion.
-fn deserialize_mapped_component<C: Component + DeserializeOwned + MapNetworkEntities>(
+pub fn deserialize_mapped_component<C: Component + DeserializeOwned + MapNetworkEntities>(
     entity: &mut EntityMut,
     entity_map: &mut NetworkEntityMap,
     cursor: &mut Cursor<Bytes>,
+    _tick: NetworkTick,
 ) -> Result<(), bincode::Error> {
     let mut component: C = DefaultOptions::new().deserialize_from(cursor)?;
 
@@ -230,7 +262,12 @@ fn deserialize_mapped_component<C: Component + DeserializeOwned + MapNetworkEnti
     Ok(())
 }
 
-/// Removes specified component from entity.
-fn remove_component<C: Component>(entity: &mut EntityMut) {
+/// Default component removal function.
+pub fn remove_component<C: Component>(entity: &mut EntityMut, _tick: NetworkTick) {
     entity.remove::<C>();
+}
+
+/// Default entity despawn function.
+pub fn despawn_recursive(entity: EntityMut, _tick: NetworkTick) {
+    entity.despawn_recursive();
 }

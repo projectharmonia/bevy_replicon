@@ -34,7 +34,7 @@ fn sending_receiving() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::Manual)),
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
         ))
         .add_server_event::<DummyEvent>(SendPolicy::Ordered);
     }
@@ -79,7 +79,7 @@ fn sending_receiving_and_mapping() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::Manual)),
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
         ))
         .add_mapped_server_event::<DummyEvent>(SendPolicy::Ordered);
     }
@@ -120,7 +120,7 @@ fn sending_receiving_reflect() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::Manual)),
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
         ))
         .register_type::<ReflectedValue>()
         .add_server_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>(
@@ -171,7 +171,7 @@ fn sending_receiving_and_mapping_reflect() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::Manual)),
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
         ))
         .register_type::<ReflectedValue>()
         .add_mapped_server_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>(SendPolicy::Ordered);
@@ -214,7 +214,7 @@ fn local_resending() {
     let mut app = App::new();
     app.add_plugins((
         TimePlugin,
-        ReplicationPlugins.set(ServerPlugin::new(TickPolicy::Manual)),
+        ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
     ))
     .add_server_event::<DummyEvent>(SendPolicy::Ordered);
 
