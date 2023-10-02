@@ -95,11 +95,11 @@ you can use [`AppReplicationExt::replicate_with`]:
 ```rust
 # use std::io::Cursor;
 # use bevy::{ecs::world::EntityMut, prelude::*, ptr::Ptr, utils::HashMap};
-# use bevy_replicon::{prelude::*, renet::Bytes};
+# use bevy_replicon::{prelude::*, renet::Bytes, replicon_core::replicaiton_rules};
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
-app.replicate_with::<Transform>(serialize_transform, deserialize_transform);
+app.replicate_with::<Transform>(serialize_transform, deserialize_transform, replicaiton_rules::remove_component);
 
 /// Serializes only translation.
 fn serialize_transform(
@@ -161,11 +161,11 @@ your initialization systems to [`ClientSet::Receive`]:
 ```rust
 # use std::io::Cursor;
 # use bevy::{ecs::world::EntityMut, prelude::*, ptr::Ptr, utils::HashMap};
-# use bevy_replicon::{prelude::*, renet::Bytes};
+# use bevy_replicon::{prelude::*, renet::Bytes, replicon_core::replicaiton_rules};
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
-app.replicate_with::<Transform>(serialize_transform, deserialize_transform)
+app.replicate_with::<Transform>(serialize_transform, deserialize_transform, replicaiton_rules::remove_component)
     .replicate::<Player>()
     .add_systems(PreUpdate, player_init_system.after(ClientSet::Receive));
 
