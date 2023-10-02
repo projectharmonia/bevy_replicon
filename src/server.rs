@@ -103,7 +103,6 @@ impl ServerPlugin {
     }
 
     fn acks_receiving_system(mut acked_ticks: ResMut<AckedTicks>, mut server: ResMut<RenetServer>) {
-
         for client_id in server.clients_id() {
             while let Some(message) = server.receive_message(client_id, REPLICATION_CHANNEL_ID) {
                 match bincode::deserialize::<NetworkTick>(&message) {
