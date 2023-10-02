@@ -78,15 +78,8 @@ fn channel_configs(channels: &[SendType]) -> Vec<ChannelConfig> {
 /// This is mapped to the bevy Tick within [`ServerTicks`].
 ///
 /// See also [`crate::server::TickPolicy`].
-#[derive(Clone, Copy, Default, Debug, Deserialize, Eq, Hash, PartialEq, Serialize, Resource)]
-pub struct NetworkTick(pub u32);
-
-impl std::ops::Deref for NetworkTick {
-    type Target = u32;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub struct NetworkTick(u32);
 
 impl NetworkTick {
     /// Creates a new [`NetworkTick`] wrapping the given value.

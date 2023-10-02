@@ -54,7 +54,7 @@ impl Plugin for ServerPlugin {
             DespawnTrackerPlugin,
         ))
         .init_resource::<AckedTicks>()
-        .init_resource::<NetworkTick>()
+        .init_resource::<CurrentTick>()
         .configure_set(
             PreUpdate,
             ServerSet::Receive.after(NetcodeServerPlugin::update_system),
@@ -63,7 +63,7 @@ impl Plugin for ServerPlugin {
             PostUpdate,
             ServerSet::Send
                 .before(NetcodeServerPlugin::send_packets)
-                .run_if(resource_changed::<NetworkTick>()),
+                .run_if(resource_changed::<CurrentTick>()),
         )
         .add_systems(
             PreUpdate,
@@ -96,7 +96,7 @@ impl Plugin for ServerPlugin {
 
 impl ServerPlugin {
     /// Increments current server tick which causes the server to send a diff packet this frame.
-    pub fn increment_network_tick(mut network_tick: ResMut<NetworkTick>) {
+    pub fn increment_network_tick(mut network_tick: ResMut<CurrentTick>) {
         network_tick.increment();
     }
 
@@ -140,12 +140,12 @@ impl ServerPlugin {
         mut set: ParamSet<(&World, ResMut<RenetServer>, ResMut<AckedTicks>)>,
         replication_rules: Res<ReplicationRules>,
         despawn_tracker: Res<DespawnTracker>,
+        current_tick: Res<CurrentTick>,
         removal_trackers: Query<(Entity, &RemovalTracker)>,
-        network_tick: Res<NetworkTick>,
     ) -> Result<(), bincode::Error> {
         let mut acked_ticks = set.p2();
-        acked_ticks.register_network_tick(*network_tick, change_tick.this_run());
-        let buffers = prepare_buffers(&mut buffers, &acked_ticks, *network_tick)?;
+        acked_ticks.register_network_tick(**current_tick, change_tick.this_run());
+        let buffers = prepare_buffers(&mut buffers, &acked_ticks, **current_tick)?;
         collect_changes(
             buffers,
             set.p0(),
@@ -386,6 +386,10 @@ pub enum TickPolicy {
     /// [`ServerSet::Send`] should be manually configured.
     Manual,
 }
+
+/// Stores current server tick.
+#[derive(Default, Deref, DerefMut, Resource)]
+pub struct CurrentTick(NetworkTick);
 
 /// Stores information about ticks.
 ///

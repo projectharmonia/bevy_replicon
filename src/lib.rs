@@ -398,7 +398,9 @@ pub mod prelude {
             },
             NetworkChannels, NetworkTick, RepliconCorePlugin,
         },
-        server::{has_authority, AckedTicks, ServerPlugin, ServerSet, TickPolicy, SERVER_ID},
+        server::{
+            has_authority, AckedTicks, CurrentTick, ServerPlugin, ServerSet, TickPolicy, SERVER_ID,
+        },
         ReplicationPlugins,
     };
 }
