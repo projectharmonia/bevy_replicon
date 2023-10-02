@@ -1,11 +1,7 @@
 mod common;
 
-use bevy::{ecs::world::EntityMut, prelude::*};
-use bevy_replicon::{
-    prelude::*,
-    replicon_core::replication_rules::{self, serialize_component},
-    server,
-};
+use bevy::prelude::*;
+use bevy_replicon::{prelude::*, server};
 
 use bevy_renet::renet::transport::NetcodeClientTransport;
 use serde::{Deserialize, Serialize};
@@ -101,21 +97,6 @@ fn insert_replication() {
     let mut server_app = App::new();
     let mut client_app = App::new();
 
-    use bevy_replicon::prelude::*;
-    fn custom_deserialize(
-        entity: &mut EntityMut,
-        _entity_map: &mut NetworkEntityMap,
-        cursor: &mut std::io::Cursor<bevy_renet::renet::Bytes>,
-        tick: NetworkTick,
-    ) -> Result<(), bincode::Error> {
-        let mut component: CustomComponent =
-            bincode::Options::deserialize_from(bincode::DefaultOptions::new(), cursor)?;
-        component.0 = tick;
-        entity.insert(component);
-
-        Ok(())
-    }
-
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
@@ -124,15 +105,8 @@ fn insert_replication() {
         .replicate::<TableComponent>()
         .replicate::<SparseSetComponent>()
         .replicate::<IgnoredComponent>()
-        .replicate_with::<CustomComponent>(
-            serialize_component::<CustomComponent>,
-            custom_deserialize,
-        )
         .replicate_mapped::<MappedComponent>();
     }
-    // setting this, to verify it was incremented and included in the replication data
-    // and made available to custom deserializers.
-    server_app.world.resource_mut::<NetworkTick>().0 = 99;
 
     common::connect(&mut server_app, &mut client_app);
 
@@ -153,7 +127,6 @@ fn insert_replication() {
             MappedComponent(server_map_entity),
             IgnoredComponent,
             Ignored::<IgnoredComponent>::default(),
-            CustomComponent(NetworkTick(0)),
         ))
         .id();
 
@@ -169,8 +142,6 @@ fn insert_replication() {
     assert!(client_entity.contains::<TableComponent>());
     assert!(!client_entity.contains::<NonReplicatingComponent>());
     assert!(!client_entity.contains::<IgnoredComponent>());
-    // a positive number of NetworkTick increments should have happened before replication
-    assert!(*client_entity.get::<CustomComponent>().unwrap().0 >= 100);
     assert_eq!(
         client_entity.get::<MappedComponent>().unwrap().0,
         client_map_entity
@@ -218,64 +189,6 @@ fn removal_replication() {
 
     let client_entity = client_app.world.entity(client_entity);
     assert!(!client_entity.contains::<TableComponent>());
-    assert!(client_entity.contains::<NonReplicatingComponent>());
-}
-
-#[test]
-fn custom_removal_replication() {
-    let mut server_app = App::new();
-    let mut client_app = App::new();
-
-    // custom component removal. stores a copy in WrapperComponent<T> and then removes.
-    fn custom_removal_fn<T: Component + Clone>(entity: &mut EntityMut, tick: NetworkTick) {
-        let oldval: &T = entity.get::<T>().unwrap();
-        entity
-            .insert(WrapperComponent(oldval.clone(), tick))
-            .remove::<T>();
-    }
-
-    for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((
-            MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::Manual)),
-        ))
-        .replicate_and_remove_with::<TableComponent>(
-            replication_rules::serialize_component::<TableComponent>,
-            replication_rules::deserialize_component::<TableComponent>,
-            custom_removal_fn::<TableComponent>,
-        );
-    }
-
-    common::connect(&mut server_app, &mut client_app);
-
-    let server_entity = server_app
-        .world
-        .spawn((Replication, TableComponent, NonReplicatingComponent))
-        .id();
-
-    server_app.update();
-
-    server_app
-        .world
-        .entity_mut(server_entity)
-        .remove::<TableComponent>();
-
-    let client_entity = client_app
-        .world
-        .spawn((Replication, TableComponent, NonReplicatingComponent))
-        .id();
-
-    client_app
-        .world
-        .resource_mut::<NetworkEntityMap>()
-        .insert(server_entity, client_entity);
-
-    server_app.update();
-    client_app.update();
-
-    let client_entity = client_app.world.entity(client_entity);
-    assert!(!client_entity.contains::<TableComponent>());
-    assert!(client_entity.contains::<WrapperComponent<TableComponent>>());
     assert!(client_entity.contains::<NonReplicatingComponent>());
 }
 
@@ -369,14 +282,8 @@ impl MapNetworkEntities for MappedComponent {
     }
 }
 
-#[derive(Component, Deserialize, Serialize, Clone)]
+#[derive(Component, Deserialize, Serialize)]
 struct TableComponent;
-
-#[derive(Component, Deserialize, Serialize)]
-struct WrapperComponent<T: Component>(T, NetworkTick);
-
-#[derive(Component, Deserialize, Serialize)]
-struct CustomComponent(NetworkTick);
 
 #[derive(Component, Deserialize, Serialize)]
 #[component(storage = "SparseSet")]
