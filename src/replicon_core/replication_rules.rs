@@ -29,18 +29,8 @@ pub trait AppReplicationExt {
     where
         C: Component + Serialize + DeserializeOwned + MapNetworkEntities;
 
-    /// Same as [`Self::replicate`], but uses the specified functions for serialization and deserialization.
+    /// Same as [`Self::replicate`], but uses the specified functions for serialization, deserialization and removal.
     fn replicate_with<C>(
-        &mut self,
-        serialize: SerializeFn,
-        deserialize: DeserializeFn,
-    ) -> &mut Self
-    where
-        C: Component;
-
-    /// Same as [`Self::replicate`], but uses the specified functions for serialization and deserialization,
-    /// and uses the specified removal function for removing components from entities.
-    fn replicate_and_remove_with<C>(
         &mut self,
         serialize: SerializeFn,
         deserialize: DeserializeFn,
@@ -55,24 +45,25 @@ impl AppReplicationExt for App {
     where
         C: Component + Serialize + DeserializeOwned,
     {
-        self.replicate_with::<C>(serialize_component::<C>, deserialize_component::<C>)
+        self.replicate_with::<C>(
+            serialize_component::<C>,
+            deserialize_component::<C>,
+            remove_component::<C>,
+        )
     }
 
     fn replicate_mapped<C>(&mut self) -> &mut Self
     where
         C: Component + Serialize + DeserializeOwned + MapNetworkEntities,
     {
-        self.replicate_with::<C>(serialize_component::<C>, deserialize_mapped_component::<C>)
+        self.replicate_with::<C>(
+            serialize_component::<C>,
+            deserialize_mapped_component::<C>,
+            remove_component::<C>,
+        )
     }
 
-    fn replicate_with<C>(&mut self, serialize: SerializeFn, deserialize: DeserializeFn) -> &mut Self
-    where
-        C: Component,
-    {
-        self.replicate_and_remove_with::<C>(serialize, deserialize, remove_component::<C>)
-    }
-
-    fn replicate_and_remove_with<C>(
+    fn replicate_with<C>(
         &mut self,
         serialize: SerializeFn,
         deserialize: DeserializeFn,
