@@ -262,11 +262,12 @@ pub fn deserialize_mapped_component<C: Component + DeserializeOwned + MapNetwork
     Ok(())
 }
 
-/// Removes specified component from entity.
+/// Default component removal function.
 pub fn remove_component<C: Component>(entity: &mut EntityMut, _tick: NetworkTick) {
     entity.remove::<C>();
 }
 
+/// Default entity despawn function.
 pub fn despawn_recursive(entity: EntityMut, _tick: NetworkTick) {
     entity.despawn_recursive();
 }
