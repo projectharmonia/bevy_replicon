@@ -29,7 +29,7 @@ pub trait AppReplicationExt {
     where
         C: Component + Serialize + DeserializeOwned + MapNetworkEntities;
 
-    /// Same as [`Self::replicate`], but uses the specified functions for serialization, deserialization and removal.
+    /// Same as [`Self::replicate`], but uses the specified functions for serialization, deserialization, and removal.
     fn replicate_with<C>(
         &mut self,
         serialize: SerializeFn,
@@ -97,7 +97,7 @@ pub struct ReplicationRules {
     /// Custom function to handle entity despawning.
     ///
     /// By default uses [`despawn_recursive`].
-    /// May need to intercept the despawn and do it differently.
+    /// Useful if you need to intercept despawns and handle them in a special way.
     pub despawn_fn: EntityDespawnFn,
 
     /// Maps component IDs to their replication IDs.
