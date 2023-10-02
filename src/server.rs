@@ -59,7 +59,6 @@ impl Plugin for ServerPlugin {
             PreUpdate,
             ServerSet::Receive.after(NetcodeServerPlugin::update_system),
         )
-        // sending happens each time the NetworkTick resource changes
         .configure_set(
             PostUpdate,
             ServerSet::Send
@@ -87,7 +86,7 @@ impl Plugin for ServerPlugin {
             let tick_time = Duration::from_millis(1000 / max_tick_rate as u64);
             app.add_systems(
                 PostUpdate,
-                increment_network_tick
+                Self::increment_network_tick
                     .before(Self::diffs_sending_system)
                     .run_if(on_timer(tick_time)),
             );
@@ -95,12 +94,12 @@ impl Plugin for ServerPlugin {
     }
 }
 
-/// calls NetworkTick.increment() which causes the server to send a diff packet this frame
-pub fn increment_network_tick(mut network_tick: ResMut<NetworkTick>) {
-    network_tick.increment();
-}
-
 impl ServerPlugin {
+    /// Increments current server tick which causes the server to send a diff packet this frame.
+    pub fn increment_network_tick(mut network_tick: ResMut<NetworkTick>) {
+        network_tick.increment();
+    }
+
     fn acks_receiving_system(
         mut server_ticks: ResMut<ServerTicks>,
         mut server: ResMut<RenetServer>,

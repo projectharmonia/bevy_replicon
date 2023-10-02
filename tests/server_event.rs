@@ -219,7 +219,7 @@ fn local_resending() {
     .add_server_event::<DummyEvent>(SendPolicy::Ordered);
 
     // send every tick. have to increment ourselves because of TickPolicy::Manual
-    app.add_systems(Update, bevy_replicon::server::increment_network_tick);
+    app.add_systems(Update, ServerPlugin::increment_network_tick);
 
     const DUMMY_CLIENT_ID: u64 = 1;
     for (mode, events_count) in [
