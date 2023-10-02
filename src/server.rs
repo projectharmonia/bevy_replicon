@@ -21,7 +21,6 @@ use bevy_renet::{
     RenetServerPlugin,
 };
 use bincode::{DefaultOptions, Options};
-use derive_more::Constructor;
 
 use crate::replicon_core::{
     replication_rules::{ReplicationId, ReplicationInfo, ReplicationRules},
@@ -32,7 +31,6 @@ use removal_tracker::{RemovalTracker, RemovalTrackerPlugin};
 
 pub const SERVER_ID: u64 = 0;
 
-#[derive(Constructor)]
 pub struct ServerPlugin {
     tick_policy: TickPolicy,
 }
@@ -95,12 +93,17 @@ impl Plugin for ServerPlugin {
 }
 
 impl ServerPlugin {
+    pub fn new(tick_policy: TickPolicy) -> Self {
+        Self { tick_policy }
+    }
+
     /// Increments current server tick which causes the server to send a diff packet this frame.
     pub fn increment_tick(mut current_tick: ResMut<CurrentTick>) {
         current_tick.increment();
     }
 
     fn acks_receiving_system(mut acked_ticks: ResMut<AckedTicks>, mut server: ResMut<RenetServer>) {
+
         for client_id in server.clients_id() {
             while let Some(message) = server.receive_message(client_id, REPLICATION_CHANNEL_ID) {
                 match bincode::deserialize::<NetworkTick>(&message) {
