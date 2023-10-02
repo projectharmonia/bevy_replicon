@@ -117,7 +117,7 @@ pub(crate) struct ReplicationRules {
     /// Custom function to handle entity despawning.
     /// The default does despawn_recursive() – but if you're doing rollback networking you
     /// may need to intercept the despawn and do it differently.
-    despawn_entity_fn: Option<EntityDespawnFn>,
+    despawn_fn: Option<EntityDespawnFn>,
 }
 
 impl ReplicationRules {
@@ -146,13 +146,13 @@ impl ReplicationRules {
     /// Gets custom function used to despawn entities, if provided.
     #[inline]
     pub(crate) fn get_despawn_fn(&self) -> Option<EntityDespawnFn> {
-        self.despawn_entity_fn
+        self.despawn_fn
     }
 
     /// Sets a custom function for despawning entities on the client, when the server reports the despawn;
     /// without this, the default implementation uses despawn_recursive().
-    pub(crate) fn set_despawn_fn(&mut self, despawn_entity_fn: EntityDespawnFn) {
-        self.despawn_entity_fn = Some(despawn_entity_fn);
+    pub(crate) fn set_despawn_fn(&mut self, despawn_fn: EntityDespawnFn) {
+        self.despawn_fn = Some(despawn_fn);
     }
 
     /// Returns meta information about replicated component.
@@ -174,7 +174,7 @@ impl FromWorld for ReplicationRules {
             infos: Default::default(),
             ids: Default::default(),
             marker_id: world.init_component::<Replication>(),
-            despawn_entity_fn: Default::default(),
+            despawn_fn: Default::default(),
         }
     }
 }
