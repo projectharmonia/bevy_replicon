@@ -1,10 +1,9 @@
 pub mod replication_rules;
 
-use std::cmp::Ordering;
-
 use bevy::prelude::*;
 use bevy_renet::renet::{ChannelConfig, SendType};
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 
 use replication_rules::ReplicationRules;
 
@@ -74,11 +73,19 @@ fn channel_configs(channels: &[SendType]) -> Vec<ChannelConfig> {
     channel_configs
 }
 
-/// Corresponds to the number of server update.
+/// A tick that increments each time we need the server to compute and sends an update.
+/// This is mapped to the bevy Tick within [`ServerTicks`].
 ///
 /// See also [`crate::server::TickPolicy`].
-#[derive(Clone, Copy, Default, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
-pub struct NetworkTick(u32);
+#[derive(Clone, Copy, Default, Debug, Deserialize, Eq, Hash, PartialEq, Serialize, Resource)]
+pub struct NetworkTick(pub u32);
+
+impl std::ops::Deref for NetworkTick {
+    type Target = u32;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl NetworkTick {
     /// Creates a new [`NetworkTick`] wrapping the given value.

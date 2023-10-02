@@ -20,6 +20,7 @@ use bevy_renet::renet::{
     ChannelConfig, ConnectionConfig, RenetClient, RenetServer,
 };
 use bevy_replicon::prelude::*;
+use bevy_replicon::server::increment_network_tick;
 use serde::{
     de::{self, DeserializeSeed, SeqAccess, Visitor},
     ser::SerializeStruct,
@@ -47,7 +48,9 @@ pub(super) fn connect(server_app: &mut App, client_app: &mut App) {
 
     server_app
         .insert_resource(server)
-        .insert_resource(server_transport);
+        .insert_resource(server_transport)
+        // send every tick. have to increment ourselves because of TickPolicy::Manual
+        .add_systems(Update, increment_network_tick);
 
     client_app
         .insert_resource(client)

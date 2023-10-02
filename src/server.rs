@@ -21,7 +21,6 @@ use bevy_renet::{
     RenetServerPlugin,
 };
 use bincode::{DefaultOptions, Options};
-use derive_more::Constructor;
 
 use crate::replicon_core::{
     replication_rules::{ReplicationId, ReplicationInfo, ReplicationRules},
@@ -32,7 +31,6 @@ use removal_tracker::{RemovalTracker, RemovalTrackerPlugin};
 
 pub const SERVER_ID: u64 = 0;
 
-#[derive(Constructor)]
 pub struct ServerPlugin {
     tick_policy: TickPolicy,
 }
@@ -54,13 +52,17 @@ impl Plugin for ServerPlugin {
             DespawnTrackerPlugin,
         ))
         .init_resource::<ServerTicks>()
+        .init_resource::<NetworkTick>()
         .configure_set(
             PreUpdate,
             ServerSet::Receive.after(NetcodeServerPlugin::update_system),
         )
+        // sending happens each time the NetworkTick resource changes
         .configure_set(
             PostUpdate,
-            ServerSet::Send.before(NetcodeServerPlugin::send_packets),
+            ServerSet::Send
+                .before(NetcodeServerPlugin::send_packets)
+                .run_if(resource_changed::<NetworkTick>()),
         )
         .add_systems(
             PreUpdate,
@@ -81,12 +83,26 @@ impl Plugin for ServerPlugin {
 
         if let TickPolicy::MaxTickRate(max_tick_rate) = self.tick_policy {
             let tick_time = Duration::from_millis(1000 / max_tick_rate as u64);
-            app.configure_set(PostUpdate, ServerSet::Send.run_if(on_timer(tick_time)));
+            app.add_systems(
+                PostUpdate,
+                increment_network_tick
+                    .before(Self::diffs_sending_system)
+                    .run_if(on_timer(tick_time)),
+            );
         }
     }
 }
 
+/// calls NetworkTick.increment() which causes the server to send a diff packet this frame
+pub fn increment_network_tick(mut network_tick: ResMut<NetworkTick>) {
+    network_tick.increment();
+}
+
 impl ServerPlugin {
+    pub fn new(tick_policy: TickPolicy) -> Self {
+        Self { tick_policy }
+    }
+
     fn acks_receiving_system(
         mut server_ticks: ResMut<ServerTicks>,
         mut server: ResMut<RenetServer>,
@@ -131,11 +147,11 @@ impl ServerPlugin {
         replication_rules: Res<ReplicationRules>,
         despawn_tracker: Res<DespawnTracker>,
         removal_trackers: Query<(Entity, &RemovalTracker)>,
+        network_tick: Res<NetworkTick>,
     ) -> Result<(), bincode::Error> {
         let mut server_ticks = set.p2();
-        server_ticks.increment(change_tick.this_run());
-
-        let buffers = prepare_buffers(&mut buffers, &server_ticks)?;
+        server_ticks.register_network_tick(*network_tick, change_tick.this_run());
+        let buffers = prepare_buffers(&mut buffers, &server_ticks, *network_tick)?;
         collect_changes(
             buffers,
             set.p0(),
@@ -178,6 +194,7 @@ impl ServerPlugin {
 fn prepare_buffers<'a>(
     buffers: &'a mut Vec<ReplicationBuffer>,
     server_ticks: &ServerTicks,
+    network_tick: NetworkTick,
 ) -> Result<&'a mut [ReplicationBuffer], bincode::Error> {
     buffers.reserve(server_ticks.acked_ticks.len());
     for (index, (&client_id, &tick)) in server_ticks.acked_ticks.iter().enumerate() {
@@ -187,12 +204,12 @@ fn prepare_buffers<'a>(
             .unwrap_or(&Tick::new(0));
 
         if let Some(buffer) = buffers.get_mut(index) {
-            buffer.reset(client_id, system_tick, server_ticks.current_tick)?;
+            buffer.reset(client_id, system_tick, network_tick)?;
         } else {
             buffers.push(ReplicationBuffer::new(
                 client_id,
                 system_tick,
-                server_ticks.current_tick,
+                network_tick,
             )?);
         }
     }
@@ -384,9 +401,6 @@ pub enum TickPolicy {
 /// Used only on server.
 #[derive(Resource, Default)]
 pub struct ServerTicks {
-    /// Current server tick.
-    current_tick: NetworkTick,
-
     /// Last acknowledged server ticks for all clients.
     acked_ticks: HashMap<u64, NetworkTick>,
 
@@ -396,9 +410,8 @@ pub struct ServerTicks {
 
 impl ServerTicks {
     /// Increments current tick by 1 and makes corresponding system tick mapping for it.
-    fn increment(&mut self, system_tick: Tick) {
-        self.current_tick.increment();
-        self.system_ticks.insert(self.current_tick, system_tick);
+    fn register_network_tick(&mut self, network_tick: NetworkTick, system_tick: Tick) {
+        self.system_ticks.insert(network_tick, system_tick);
     }
 
     /// Removes system tick mappings for acks that was acknowledged by everyone.
@@ -408,12 +421,6 @@ impl ServerTicks {
                 .values()
                 .all(|acked_tick| acked_tick > tick)
         })
-    }
-
-    /// Returns current server tick.
-    #[inline]
-    pub fn current_tick(&self) -> NetworkTick {
-        self.current_tick
     }
 
     /// Returns last acknowledged server ticks for all clients.
@@ -466,10 +473,10 @@ impl ReplicationBuffer {
     fn new(
         client_id: u64,
         system_tick: Tick,
-        current_tick: NetworkTick,
+        network_tick: NetworkTick,
     ) -> Result<Self, bincode::Error> {
         let mut message = Default::default();
-        bincode::serialize_into(&mut message, &current_tick)?;
+        bincode::serialize_into(&mut message, &network_tick)?;
         Ok(Self {
             client_id,
             system_tick,
@@ -492,14 +499,14 @@ impl ReplicationBuffer {
         &mut self,
         client_id: u64,
         system_tick: Tick,
-        current_tick: NetworkTick,
+        network_tick: NetworkTick,
     ) -> Result<(), bincode::Error> {
         self.client_id = client_id;
         self.system_tick = system_tick;
         self.message.set_position(0);
         self.message.get_mut().clear();
         self.arrays_with_data = 0;
-        bincode::serialize_into(&mut self.message, &current_tick)?;
+        bincode::serialize_into(&mut self.message, &network_tick)?;
 
         Ok(())
     }

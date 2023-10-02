@@ -19,9 +19,10 @@ app.add_plugins(MinimalPlugins)
     .add_plugins(ReplicationPlugins);
 ```
 
-This group contains necessary replication stuff and setups server and client
-plugins to let you host and join games from the same application. If you
-planning to separate client and server you can use
+This group contains necessary replication stuff and sets up the server and client
+plugins to let you host and join games from the same application.
+
+If you are planning to separate client and server you can use
 `disable()` to disable [`ClientPlugin`] or
 [`ServerPlugin`]. You can also configure how often updates are sent from
 server to clients with [`ServerPlugin`]'s [`TickPolicy`].:
@@ -115,6 +116,7 @@ fn deserialize_transform(
     entity: &mut EntityMut,
     _entity_map: &mut NetworkEntityMap,
     cursor: &mut Cursor<Bytes>,
+    _tick: NetworkTick,
 ) -> Result<(), bincode::Error> {
     let translation: Vec3 = bincode::deserialize_from(cursor)?;
     entity.insert(Transform::from_translation(translation));
@@ -130,6 +132,18 @@ will be replicated.
 
 If you need to disable replication for specific component for specific entity,
 you can insert [`Ignored<T>`] component and replication will be skipped for `T`.
+
+### NetworkTick, and fixed timestep games.
+
+The [`ServerPlugin`] sends replication data in `PostUpdate` any time the [`NetworkTick`] resource
+changes. By default, NetworkTick is incremented in PostUpdate per the [`TickPolicy`].
+
+If you set `TickPolicy::Manual`, you can increment [`NetworkTick`] at the start of your
+`FixedTimestep` game loop. This value can represent your simulation step, and is made available
+to the client in the custom deserialization, despawn andcomponent removal functions.
+
+One use for this is rollback networking: you may want to rollback time and apply the update
+for the NetworkTick frame, which is in the past, then resimulate.
 
 ### "Blueprints" pattern
 
@@ -175,7 +189,7 @@ fn player_init_system(
 #[derive(Component, Deserialize, Serialize)]
 struct Player;
 # fn serialize_transform(_: Ptr, _: &mut Cursor<Vec<u8>>) -> Result<(), bincode::Error> { unimplemented!() }
-# fn deserialize_transform(_: &mut EntityMut, _: &mut NetworkEntityMap, _: &mut Cursor<Bytes>) -> Result<(), bincode::Error> { unimplemented!() }
+# fn deserialize_transform(_: &mut EntityMut, _: &mut NetworkEntityMap, _: &mut Cursor<Bytes>, _: NetworkTick) -> Result<(), bincode::Error> { unimplemented!() }
 ```
 
 This pairs nicely with server state serialization and keeps saves clean.
@@ -393,6 +407,8 @@ pub use bevy_renet::*;
 pub use bincode;
 use prelude::*;
 
+/// Plugin Group for all replicon plugins.
+#[derive(Default)]
 pub struct ReplicationPlugins;
 
 impl PluginGroup for ReplicationPlugins {
@@ -400,7 +416,7 @@ impl PluginGroup for ReplicationPlugins {
         PluginGroupBuilder::start::<Self>()
             .add(RepliconCorePlugin)
             .add(ParentSyncPlugin)
-            .add(ClientPlugin)
+            .add(ClientPlugin::default())
             .add(ServerPlugin::default())
     }
 }

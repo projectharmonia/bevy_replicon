@@ -1,7 +1,7 @@
 mod common;
 
-use bevy::prelude::*;
-use bevy_replicon::{prelude::*, server};
+use bevy::{ecs::world::EntityMut, prelude::*};
+use bevy_replicon::{prelude::*, replicon_core::replication_rules, server};
 
 use bevy_renet::renet::transport::NetcodeClientTransport;
 use serde::{Deserialize, Serialize};
@@ -190,6 +190,63 @@ fn removal_replication() {
     assert!(client_entity.contains::<NonReplicatingComponent>());
 }
 
+/// custom component removal. stores a copy in WrapperComponent<T> and then removes.
+fn custom_removal_fn<T: Component + Clone>(entity: &mut EntityMut, tick: NetworkTick) {
+    let oldval: &T = entity.get::<T>().unwrap();
+    entity
+        .insert(WrapperComponent(oldval.clone(), tick))
+        .remove::<T>();
+}
+
+#[test]
+fn custom_removal_replication() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::Manual)),
+        ))
+        .replicate_and_remove_with::<TableComponent>(
+            replication_rules::serialize_component::<TableComponent>,
+            replication_rules::deserialize_component::<TableComponent>,
+            custom_removal_fn::<TableComponent>,
+        );
+    }
+
+    common::connect(&mut server_app, &mut client_app);
+
+    let server_entity = server_app
+        .world
+        .spawn((Replication, TableComponent, NonReplicatingComponent))
+        .id();
+
+    server_app.update();
+
+    server_app
+        .world
+        .entity_mut(server_entity)
+        .remove::<TableComponent>();
+
+    let client_entity = client_app
+        .world
+        .spawn((Replication, TableComponent, NonReplicatingComponent))
+        .id();
+
+    client_app
+        .world
+        .resource_mut::<NetworkEntityMap>()
+        .insert(server_entity, client_entity);
+
+    server_app.update();
+    client_app.update();
+
+    let client_entity = client_app.world.entity(client_entity);
+    assert!(!client_entity.contains::<TableComponent>());
+    assert!(client_entity.contains::<WrapperComponent<TableComponent>>());
+    assert!(client_entity.contains::<NonReplicatingComponent>());
+}
+
 #[test]
 fn despawn_replication() {
     let mut server_app = App::new();
@@ -232,6 +289,58 @@ fn despawn_replication() {
     assert!(client_app.world.get_entity(client_entity).is_none());
     assert!(client_app.world.get_entity(client_child_entity).is_none());
 
+    let entity_map = client_app.world.resource::<NetworkEntityMap>();
+    assert!(entity_map.to_client().is_empty());
+    assert!(entity_map.to_server().is_empty());
+}
+
+#[derive(Component)]
+struct DespawnMarker(u32);
+
+fn custom_despawn_fn(e: &mut EntityMut, tick: NetworkTick) {
+    e.insert(DespawnMarker(*tick));
+}
+
+#[test]
+fn custom_despawn_replication() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins
+                .set(ServerPlugin::new(TickPolicy::Manual))
+                .set(ClientPlugin::new(custom_despawn_fn)),
+        ));
+    }
+
+    common::connect(&mut server_app, &mut client_app);
+
+    let server_entity = server_app.world.spawn(Replication).id();
+
+    server_app.update();
+
+    server_app.world.despawn(server_entity);
+
+    let client_entity = client_app.world.spawn_empty().id();
+
+    let mut entity_map = client_app.world.resource_mut::<NetworkEntityMap>();
+    entity_map.insert(server_entity, client_entity);
+
+    server_app.update();
+    client_app.update();
+
+    // rather than being despawned, our custom despawn fn will insert a DespawnMarker.
+    assert!(client_app
+        .world
+        .get_entity(client_entity)
+        .unwrap()
+        .contains::<DespawnMarker>());
+
+    // it is correct that the NetworkEntityMap has removed this entity, because once it's
+    // despawned on the server, it's gone forever.
+    // even if the client keeps it around for a few frames, the server won't be sending us
+    // any more updates about it.
     let entity_map = client_app.world.resource::<NetworkEntityMap>();
     assert!(entity_map.to_client().is_empty());
     assert!(entity_map.to_server().is_empty());
@@ -280,8 +389,11 @@ impl MapNetworkEntities for MappedComponent {
     }
 }
 
-#[derive(Component, Deserialize, Serialize)]
+#[derive(Component, Deserialize, Serialize, Clone)]
 struct TableComponent;
+
+#[derive(Component, Deserialize, Serialize)]
+struct WrapperComponent<T: Component>(T, NetworkTick);
 
 #[derive(Component, Deserialize, Serialize)]
 #[component(storage = "SparseSet")]

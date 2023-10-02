@@ -10,11 +10,14 @@ use bevy_renet::{renet::RenetClient, transport::NetcodeClientPlugin, RenetClient
 use bincode::{DefaultOptions, Options};
 
 use crate::replicon_core::{
-    replication_rules::{Mapper, Replication, ReplicationRules},
+    replication_rules::{EntityDespawnFn, Mapper, Replication, ReplicationRules},
     NetworkTick, REPLICATION_CHANNEL_ID,
 };
 
-pub struct ClientPlugin;
+#[derive(Default)]
+pub struct ClientPlugin {
+    despawn_fn: Option<EntityDespawnFn>,
+}
 
 impl Plugin for ClientPlugin {
     fn build(&self, app: &mut App) {
@@ -45,10 +48,24 @@ impl Plugin for ClientPlugin {
                     Self::reset_system.run_if(resource_removed::<RenetClient>()),
                 ),
             );
+        if let Some(entity_despawn_fn) = self.despawn_fn {
+            app.world
+                .resource_scope(|_, mut replication_rules: Mut<ReplicationRules>| {
+                    replication_rules.set_despawn_fn(entity_despawn_fn);
+                });
+        }
     }
 }
 
 impl ClientPlugin {
+    /// only useful in case you need to replace the default entity despawn function.
+    /// otherwis just use `ClientPlugin::default()`
+    pub fn new(despawn_fn: EntityDespawnFn) -> Self {
+        Self {
+            despawn_fn: Some(despawn_fn),
+        }
+    }
+
     fn diff_receiving_system(world: &mut World) -> Result<(), bincode::Error> {
         world.resource_scope(|world, mut client: Mut<RenetClient>| {
             world.resource_scope(|world, mut entity_map: Mut<NetworkEntityMap>| {
@@ -57,7 +74,9 @@ impl ClientPlugin {
                         let end_pos: u64 = message.len().try_into().unwrap();
                         let mut cursor = Cursor::new(message);
 
-                        if !deserialize_tick(&mut cursor, world)? {
+                        let (network_tick, was_updated) = deserialize_tick(&mut cursor, world)?;
+
+                        if !was_updated {
                             continue;
                         }
                         if cursor.position() == end_pos {
@@ -70,6 +89,7 @@ impl ClientPlugin {
                             &mut entity_map,
                             &replication_rules,
                             DiffKind::Change,
+                            network_tick,
                         )?;
                         if cursor.position() == end_pos {
                             continue;
@@ -81,12 +101,19 @@ impl ClientPlugin {
                             &mut entity_map,
                             &replication_rules,
                             DiffKind::Removal,
+                            network_tick,
                         )?;
                         if cursor.position() == end_pos {
                             continue;
                         }
 
-                        deserialize_despawns(&mut cursor, world, &mut entity_map)?;
+                        deserialize_despawns(
+                            &mut cursor,
+                            world,
+                            &mut entity_map,
+                            network_tick,
+                            replication_rules.get_despawn_fn(),
+                        )?;
                     }
 
                     Ok(())
@@ -109,16 +136,19 @@ impl ClientPlugin {
 
 /// Deserializes server tick and applies it to [`LastTick`] if it is newer.
 ///
-/// Returns true if [`LastTick`] has been updated.
-fn deserialize_tick(cursor: &mut Cursor<Bytes>, world: &mut World) -> Result<bool, bincode::Error> {
-    let tick = bincode::deserialize_from(cursor)?;
+/// Returns (network_tick, true) if [`LastTick`] has been updated, otherwise (network_tick, false).
+fn deserialize_tick(
+    cursor: &mut Cursor<Bytes>,
+    world: &mut World,
+) -> Result<(NetworkTick, bool), bincode::Error> {
+    let network_tick = bincode::deserialize_from(cursor)?;
 
     let mut last_tick = world.resource_mut::<LastTick>();
-    if last_tick.0 < tick {
-        last_tick.0 = tick;
-        Ok(true)
+    if last_tick.0 < network_tick {
+        last_tick.0 = network_tick;
+        Ok((network_tick, true))
     } else {
-        Ok(false)
+        Ok((network_tick, false))
     }
 }
 
@@ -129,6 +159,7 @@ fn deserialize_component_diffs(
     entity_map: &mut NetworkEntityMap,
     replication_rules: &ReplicationRules,
     diff_kind: DiffKind,
+    tick: NetworkTick,
 ) -> Result<(), bincode::Error> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..entities_count {
@@ -141,9 +172,9 @@ fn deserialize_component_diffs(
             let replication_info = unsafe { replication_rules.get_info_unchecked(replication_id) };
             match diff_kind {
                 DiffKind::Change => {
-                    (replication_info.deserialize)(&mut entity, entity_map, cursor)?
+                    (replication_info.deserialize)(&mut entity, entity_map, cursor, tick)?
                 }
-                DiffKind::Removal => (replication_info.remove)(&mut entity),
+                DiffKind::Removal => (replication_info.remove)(&mut entity, tick),
             }
         }
     }
@@ -156,6 +187,8 @@ fn deserialize_despawns(
     cursor: &mut Cursor<Bytes>,
     world: &mut World,
     entity_map: &mut NetworkEntityMap,
+    tick: NetworkTick,
+    custom_entity_despawn_fn: Option<EntityDespawnFn>,
 ) -> Result<(), bincode::Error> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..entities_count {
@@ -163,11 +196,15 @@ fn deserialize_despawns(
         // with the last diff, but the server might not yet have received confirmation
         // from the client and could include the deletion in the latest diff.
         let server_entity = deserialize_entity(&mut *cursor)?;
-        if let Some(client_entity) = entity_map
+        if let Some(mut client_entity) = entity_map
             .remove_by_server(server_entity)
             .and_then(|entity| world.get_entity_mut(entity))
         {
-            client_entity.despawn_recursive();
+            if let Some(despawn_fn) = custom_entity_despawn_fn {
+                (despawn_fn)(&mut client_entity, tick);
+            } else {
+                client_entity.despawn_recursive();
+            }
         }
     }
 
