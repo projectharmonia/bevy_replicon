@@ -157,7 +157,7 @@ fn replication(c: &mut Criterion) {
 fn setup_app(app: &mut App) {
     app.add_plugins((
         MinimalPlugins,
-        ReplicationPlugins.set(ServerPlugin::new(TickPolicy::Manual)),
+        ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
     ))
     .replicate::<DummyComponent>();
 

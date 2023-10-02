@@ -80,14 +80,23 @@ impl Plugin for ServerPlugin {
             ),
         );
 
-        if let TickPolicy::MaxTickRate(max_tick_rate) = self.tick_policy {
-            let tick_time = Duration::from_millis(1000 / max_tick_rate as u64);
-            app.add_systems(
-                PostUpdate,
-                Self::increment_tick
-                    .before(Self::diffs_sending_system)
-                    .run_if(on_timer(tick_time)),
-            );
+        match self.tick_policy {
+            TickPolicy::MaxTickRate(max_tick_rate) => {
+                let tick_time = Duration::from_millis(1000 / max_tick_rate as u64);
+                app.add_systems(
+                    PostUpdate,
+                    Self::increment_tick
+                        .before(Self::diffs_sending_system)
+                        .run_if(on_timer(tick_time)),
+                );
+            }
+            TickPolicy::EveryFrame => {
+                app.add_systems(
+                    PostUpdate,
+                    Self::increment_tick.before(Self::diffs_sending_system),
+                );
+            }
+            TickPolicy::Manual => (),
         }
     }
 }
@@ -386,6 +395,8 @@ pub enum TickPolicy {
     ///
     /// By default it's 30 updates per second.
     MaxTickRate(u16),
+    /// Send updates from server every frame.
+    EveryFrame,
     /// [`ServerSet::Send`] should be manually configured.
     Manual,
 }

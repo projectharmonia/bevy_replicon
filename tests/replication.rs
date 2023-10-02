@@ -13,7 +13,7 @@ fn acked_ticks_cleanup() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::Manual)),
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
         ));
     }
 
@@ -38,7 +38,7 @@ fn tick_acks_receiving() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::Manual)),
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
         ));
     }
 
@@ -63,7 +63,7 @@ fn spawn_replication() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::Manual)),
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
         ))
         .replicate::<TableComponent>();
     }
@@ -100,7 +100,7 @@ fn insert_replication() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::Manual)),
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
         ))
         .replicate::<TableComponent>()
         .replicate::<SparseSetComponent>()
@@ -155,7 +155,7 @@ fn removal_replication() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::Manual)),
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
         ))
         .replicate::<TableComponent>();
     }
@@ -199,7 +199,7 @@ fn despawn_replication() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::Manual)),
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
         ));
     }
 

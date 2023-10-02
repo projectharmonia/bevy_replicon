@@ -47,8 +47,7 @@ pub(super) fn connect(server_app: &mut App, client_app: &mut App) {
 
     server_app
         .insert_resource(server)
-        .insert_resource(server_transport)
-        .add_systems(Update, ServerPlugin::increment_tick); // Increment tick every frame per `TickPolicy::Manual`.
+        .insert_resource(server_transport);
 
     client_app
         .insert_resource(client)
