@@ -92,8 +92,6 @@ impl AppReplicationExt for App {
 }
 
 /// Stores information about which components will be serialized and how.
-///
-/// See also [`replicate_into_scene`].
 #[derive(Resource)]
 pub struct ReplicationRules {
     /// Custom function to handle entity despawning.

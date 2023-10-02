@@ -216,10 +216,8 @@ fn local_resending() {
         TimePlugin,
         ReplicationPlugins.set(ServerPlugin::new(TickPolicy::Manual)),
     ))
-    .add_server_event::<DummyEvent>(SendPolicy::Ordered);
-
-    // send every tick. have to increment ourselves because of TickPolicy::Manual
-    app.add_systems(Update, ServerPlugin::increment_network_tick);
+    .add_server_event::<DummyEvent>(SendPolicy::Ordered)
+    .add_systems(Update, ServerPlugin::increment_network_tick); // Increment tick every frame per `TickPolicy::Manual`.
 
     const DUMMY_CLIENT_ID: u64 = 1;
     for (mode, events_count) in [

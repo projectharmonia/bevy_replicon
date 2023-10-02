@@ -387,7 +387,7 @@ pub enum TickPolicy {
     Manual,
 }
 
-/// Stores current server tick.
+/// Stores current server [`NetworkTick`].
 #[derive(Default, Deref, DerefMut, Resource)]
 pub struct CurrentTick(NetworkTick);
 
@@ -404,7 +404,7 @@ pub struct AckedTicks {
 }
 
 impl AckedTicks {
-    /// Stores mapping between network_tick and the current system_tick
+    /// Stores mapping between `network_tick` and the current `system_tick`.
     fn register_network_tick(&mut self, network_tick: NetworkTick, system_tick: Tick) {
         self.system_ticks.insert(network_tick, system_tick);
     }
