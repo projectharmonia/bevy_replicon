@@ -49,10 +49,11 @@ impl Plugin for ClientPlugin {
                 ),
             );
         if let Some(entity_despawn_fn) = self.despawn_fn {
+            // register a custom entity despawn function
             app.world
-                .resource_scope(|_, mut replication_rules: Mut<ReplicationRules>| {
-                    replication_rules.set_despawn_fn(entity_despawn_fn);
-                });
+                .get_resource_mut::<ReplicationRules>()
+                .unwrap()
+                .set_despawn_fn(entity_despawn_fn);
         }
     }
 }

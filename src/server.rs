@@ -409,7 +409,7 @@ pub struct ServerTicks {
 }
 
 impl ServerTicks {
-    /// Increments current tick by 1 and makes corresponding system tick mapping for it.
+    /// Stores mapping between network_tick and the current system_tick
     fn register_network_tick(&mut self, network_tick: NetworkTick, system_tick: Tick) {
         self.system_ticks.insert(network_tick, system_tick);
     }

@@ -221,18 +221,19 @@ fn removal_replication() {
     assert!(client_entity.contains::<NonReplicatingComponent>());
 }
 
-/// custom component removal. stores a copy in WrapperComponent<T> and then removes.
-fn custom_removal_fn<T: Component + Clone>(entity: &mut EntityMut, tick: NetworkTick) {
-    let oldval: &T = entity.get::<T>().unwrap();
-    entity
-        .insert(WrapperComponent(oldval.clone(), tick))
-        .remove::<T>();
-}
-
 #[test]
 fn custom_removal_replication() {
     let mut server_app = App::new();
     let mut client_app = App::new();
+
+    // custom component removal. stores a copy in WrapperComponent<T> and then removes.
+    fn custom_removal_fn<T: Component + Clone>(entity: &mut EntityMut, tick: NetworkTick) {
+        let oldval: &T = entity.get::<T>().unwrap();
+        entity
+            .insert(WrapperComponent(oldval.clone(), tick))
+            .remove::<T>();
+    }
+
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,

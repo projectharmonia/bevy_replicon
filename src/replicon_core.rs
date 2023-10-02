@@ -73,7 +73,7 @@ fn channel_configs(channels: &[SendType]) -> Vec<ChannelConfig> {
     channel_configs
 }
 
-/// A tick that increments each time we need the server to compute and sends an update.
+/// A tick that increments each time we need the server to compute and send an update.
 /// This is mapped to the bevy Tick within [`ServerTicks`].
 ///
 /// See also [`crate::server::TickPolicy`].

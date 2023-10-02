@@ -140,7 +140,7 @@ changes. By default, NetworkTick is incremented in PostUpdate per the [`TickPoli
 
 If you set `TickPolicy::Manual`, you can increment [`NetworkTick`] at the start of your
 `FixedTimestep` game loop. This value can represent your simulation step, and is made available
-to the client in the custom deserialization, despawn andcomponent removal functions.
+to the client in the custom deserialization, despawn and component removal functions.
 
 One use for this is rollback networking: you may want to rollback time and apply the update
 for the NetworkTick frame, which is in the past, then resimulate.
