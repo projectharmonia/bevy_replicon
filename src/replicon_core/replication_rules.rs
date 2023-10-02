@@ -182,7 +182,7 @@ pub type DeserializeFn = fn(
 /// Signature of component removal functions.
 pub type RemoveComponentFn = fn(&mut EntityMut, NetworkTick);
 
-/// Signature of entity despawning functions.
+/// Signature of the entity despawn function.
 pub type EntityDespawnFn = fn(EntityMut, NetworkTick);
 
 /// Stores meta information about replicated component.
