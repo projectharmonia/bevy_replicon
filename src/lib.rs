@@ -99,7 +99,7 @@ you can use [`AppReplicationExt::replicate_with`]:
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
-app.replicate_with::<Transform>(serialize_transform, deserialize_transform, replication_rules::remove_component);
+app.replicate_with::<Transform>(serialize_transform, deserialize_transform, replication_rules::remove_component::<Transform>);
 
 /// Serializes only translation.
 fn serialize_transform(
@@ -165,7 +165,7 @@ your initialization systems to [`ClientSet::Receive`]:
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
-app.replicate_with::<Transform>(serialize_transform, deserialize_transform, replication_rules::remove_component)
+app.replicate_with::<Transform>(serialize_transform, deserialize_transform, replication_rules::remove_component::<Transform>)
     .replicate::<Player>()
     .add_systems(PreUpdate, player_init_system.after(ClientSet::Receive));
 
