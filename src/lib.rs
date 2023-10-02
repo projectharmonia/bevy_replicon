@@ -135,10 +135,10 @@ you can insert [`Ignored<T>`] component and replication will be skipped for `T`.
 
 ### NetworkTick, and fixed timestep games.
 
-The [`ServerPlugin`] sends replication data in `PostUpdate` any time the [`CurrentTick`] resource
+The [`ServerPlugin`] sends replication data in `PostUpdate` any time the [`NetworkTick`] resource
 changes. By default, its incremented in `PostUpdate` per the [`TickPolicy`].
 
-If you set [`TickPolicy::Manual`], you can increment [`CurrentTick`] at the start of your
+If you set [`TickPolicy::Manual`], you can increment [`NetworkTick`] at the start of your
 `FixedTimestep` game loop. This value can represent your simulation step, and is made available
 to the client in the custom deserialization, despawn and component removal functions.
 
@@ -398,9 +398,7 @@ pub mod prelude {
             },
             NetworkChannels, NetworkTick, RepliconCorePlugin,
         },
-        server::{
-            has_authority, AckedTicks, CurrentTick, ServerPlugin, ServerSet, TickPolicy, SERVER_ID,
-        },
+        server::{has_authority, AckedTicks, ServerPlugin, ServerSet, TickPolicy, SERVER_ID},
         ReplicationPlugins,
     };
 }

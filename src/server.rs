@@ -52,7 +52,7 @@ impl Plugin for ServerPlugin {
             DespawnTrackerPlugin,
         ))
         .init_resource::<AckedTicks>()
-        .init_resource::<CurrentTick>()
+        .init_resource::<NetworkTick>()
         .configure_set(
             PreUpdate,
             ServerSet::Receive.after(NetcodeServerPlugin::update_system),
@@ -61,7 +61,7 @@ impl Plugin for ServerPlugin {
             PostUpdate,
             ServerSet::Send
                 .before(NetcodeServerPlugin::send_packets)
-                .run_if(resource_changed::<CurrentTick>()),
+                .run_if(resource_changed::<NetworkTick>()),
         )
         .add_systems(
             PreUpdate,
@@ -98,8 +98,8 @@ impl ServerPlugin {
     }
 
     /// Increments current server tick which causes the server to send a diff packet this frame.
-    pub fn increment_tick(mut current_tick: ResMut<CurrentTick>) {
-        current_tick.increment();
+    pub fn increment_tick(mut network_tick: ResMut<NetworkTick>) {
+        network_tick.increment();
     }
 
     fn acks_receiving_system(mut acked_ticks: ResMut<AckedTicks>, mut server: ResMut<RenetServer>) {
@@ -143,13 +143,13 @@ impl ServerPlugin {
         mut set: ParamSet<(&World, ResMut<RenetServer>, ResMut<AckedTicks>)>,
         replication_rules: Res<ReplicationRules>,
         despawn_tracker: Res<DespawnTracker>,
-        current_tick: Res<CurrentTick>,
+        network_tick: Res<NetworkTick>,
         removal_trackers: Query<(Entity, &RemovalTracker)>,
     ) -> Result<(), bincode::Error> {
         let mut acked_ticks = set.p2();
-        acked_ticks.register_network_tick(**current_tick, change_tick.this_run());
+        acked_ticks.register_network_tick(*network_tick, change_tick.this_run());
 
-        let buffers = prepare_buffers(&mut buffers, &acked_ticks, **current_tick)?;
+        let buffers = prepare_buffers(&mut buffers, &acked_ticks, *network_tick)?;
         collect_changes(
             buffers,
             set.p0(),
@@ -390,10 +390,6 @@ pub enum TickPolicy {
     /// [`ServerSet::Send`] should be manually configured.
     Manual,
 }
-
-/// Stores current server [`NetworkTick`].
-#[derive(Default, Deref, DerefMut, Resource)]
-pub struct CurrentTick(NetworkTick);
 
 /// Stores information about ticks.
 ///

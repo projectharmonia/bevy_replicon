@@ -78,7 +78,7 @@ fn channel_configs(channels: &[SendType]) -> Vec<ChannelConfig> {
 /// This is mapped to the bevy Tick in [`crate::server::AckedTicks`].
 ///
 /// See also [`crate::server::TickPolicy`].
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Resource, Serialize)]
 pub struct NetworkTick(u32);
 
 impl NetworkTick {
