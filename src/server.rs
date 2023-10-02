@@ -145,6 +145,7 @@ impl ServerPlugin {
     ) -> Result<(), bincode::Error> {
         let mut acked_ticks = set.p2();
         acked_ticks.register_network_tick(**current_tick, change_tick.this_run());
+
         let buffers = prepare_buffers(&mut buffers, &acked_ticks, **current_tick)?;
         collect_changes(
             buffers,

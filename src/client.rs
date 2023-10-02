@@ -60,7 +60,6 @@ impl ClientPlugin {
                         let Some(network_tick) = deserialize_tick(&mut cursor, world)? else {
                             continue;
                         };
-
                         if cursor.position() == end_pos {
                             continue;
                         }
@@ -123,12 +122,12 @@ fn deserialize_tick(
     cursor: &mut Cursor<Bytes>,
     world: &mut World,
 ) -> Result<Option<NetworkTick>, bincode::Error> {
-    let network_tick = bincode::deserialize_from(cursor)?;
+    let tick = bincode::deserialize_from(cursor)?;
 
     let mut last_tick = world.resource_mut::<LastTick>();
-    if last_tick.0 < network_tick {
-        last_tick.0 = network_tick;
-        Ok(Some(network_tick))
+    if last_tick.0 < tick {
+        last_tick.0 = tick;
+        Ok(Some(tick))
     } else {
         Ok(None)
     }
