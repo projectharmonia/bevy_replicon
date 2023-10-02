@@ -31,8 +31,8 @@ fn acked_ticks_cleanup() {
     server_app.update();
     server_app.update();
 
-    let server_ticks = server_app.world.resource::<ServerTicks>();
-    assert!(!server_ticks.acked_ticks().contains_key(&client_id));
+    let acked_ticks = server_app.world.resource::<AckedTicks>();
+    assert!(!acked_ticks.acked_ticks().contains_key(&client_id));
 }
 
 #[test]
@@ -51,7 +51,7 @@ fn tick_acks_receiving() {
     client_app.update();
     server_app.update();
 
-    let acked_ticks = server_app.world.resource::<ServerTicks>();
+    let acked_ticks = server_app.world.resource::<AckedTicks>();
     let client_id = client_app
         .world
         .resource::<NetcodeClientTransport>()

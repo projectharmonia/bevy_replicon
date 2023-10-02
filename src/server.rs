@@ -53,7 +53,7 @@ impl Plugin for ServerPlugin {
             RemovalTrackerPlugin,
             DespawnTrackerPlugin,
         ))
-        .init_resource::<ServerTicks>()
+        .init_resource::<AckedTicks>()
         .init_resource::<NetworkTick>()
         .configure_set(
             PreUpdate,
@@ -100,15 +100,12 @@ impl ServerPlugin {
         network_tick.increment();
     }
 
-    fn acks_receiving_system(
-        mut server_ticks: ResMut<ServerTicks>,
-        mut server: ResMut<RenetServer>,
-    ) {
+    fn acks_receiving_system(mut acked_ticks: ResMut<AckedTicks>, mut server: ResMut<RenetServer>) {
         for client_id in server.clients_id() {
             while let Some(message) = server.receive_message(client_id, REPLICATION_CHANNEL_ID) {
                 match bincode::deserialize::<NetworkTick>(&message) {
                     Ok(tick) => {
-                        let acked_tick = server_ticks.acked_ticks.entry(client_id).or_default();
+                        let acked_tick = acked_ticks.clients.entry(client_id).or_default();
                         if *acked_tick < tick {
                             *acked_tick = tick;
                         }
@@ -118,20 +115,20 @@ impl ServerPlugin {
             }
         }
 
-        server_ticks.cleanup_system_ticks();
+        acked_ticks.cleanup_system_ticks();
     }
 
     fn acks_cleanup_system(
         mut server_events: EventReader<ServerEvent>,
-        mut server_ticks: ResMut<ServerTicks>,
+        mut acked_ticks: ResMut<AckedTicks>,
     ) {
         for event in &mut server_events {
             match event {
                 ServerEvent::ClientDisconnected { client_id, .. } => {
-                    server_ticks.acked_ticks.remove(client_id);
+                    acked_ticks.clients.remove(client_id);
                 }
                 ServerEvent::ClientConnected { client_id } => {
-                    server_ticks.acked_ticks.entry(*client_id).or_default();
+                    acked_ticks.clients.entry(*client_id).or_default();
                 }
             }
         }
@@ -140,15 +137,15 @@ impl ServerPlugin {
     fn diffs_sending_system(
         mut buffers: Local<Vec<ReplicationBuffer>>,
         change_tick: SystemChangeTick,
-        mut set: ParamSet<(&World, ResMut<RenetServer>, ResMut<ServerTicks>)>,
+        mut set: ParamSet<(&World, ResMut<RenetServer>, ResMut<AckedTicks>)>,
         replication_rules: Res<ReplicationRules>,
         despawn_tracker: Res<DespawnTracker>,
         removal_trackers: Query<(Entity, &RemovalTracker)>,
         network_tick: Res<NetworkTick>,
     ) -> Result<(), bincode::Error> {
-        let mut server_ticks = set.p2();
-        server_ticks.register_network_tick(*network_tick, change_tick.this_run());
-        let buffers = prepare_buffers(&mut buffers, &server_ticks, *network_tick)?;
+        let mut acked_ticks = set.p2();
+        acked_ticks.register_network_tick(*network_tick, change_tick.this_run());
+        let buffers = prepare_buffers(&mut buffers, &acked_ticks, *network_tick)?;
         collect_changes(
             buffers,
             set.p0(),
@@ -176,9 +173,9 @@ impl ServerPlugin {
         Ok(())
     }
 
-    fn reset_system(mut server_ticks: ResMut<ServerTicks>) {
-        server_ticks.acked_ticks.clear();
-        server_ticks.system_ticks.clear();
+    fn reset_system(mut acked_ticks: ResMut<AckedTicks>) {
+        acked_ticks.clients.clear();
+        acked_ticks.system_ticks.clear();
     }
 }
 
@@ -190,15 +187,12 @@ impl ServerPlugin {
 /// and the returned slice will not include them.
 fn prepare_buffers<'a>(
     buffers: &'a mut Vec<ReplicationBuffer>,
-    server_ticks: &ServerTicks,
+    acked_ticks: &AckedTicks,
     network_tick: NetworkTick,
 ) -> Result<&'a mut [ReplicationBuffer], bincode::Error> {
-    buffers.reserve(server_ticks.acked_ticks.len());
-    for (index, (&client_id, &tick)) in server_ticks.acked_ticks.iter().enumerate() {
-        let system_tick = *server_ticks
-            .system_ticks
-            .get(&tick)
-            .unwrap_or(&Tick::new(0));
+    buffers.reserve(acked_ticks.clients.len());
+    for (index, (&client_id, &tick)) in acked_ticks.clients.iter().enumerate() {
+        let system_tick = *acked_ticks.system_ticks.get(&tick).unwrap_or(&Tick::new(0));
 
         if let Some(buffer) = buffers.get_mut(index) {
             buffer.reset(client_id, system_tick, network_tick)?;
@@ -211,7 +205,7 @@ fn prepare_buffers<'a>(
         }
     }
 
-    Ok(&mut buffers[..server_ticks.acked_ticks.len()])
+    Ok(&mut buffers[..acked_ticks.clients.len()])
 }
 
 /// Collect component changes into buffers based on last acknowledged tick.
@@ -397,15 +391,15 @@ pub enum TickPolicy {
 ///
 /// Used only on server.
 #[derive(Resource, Default)]
-pub struct ServerTicks {
+pub struct AckedTicks {
     /// Last acknowledged server ticks for all clients.
-    acked_ticks: HashMap<u64, NetworkTick>,
+    clients: HashMap<u64, NetworkTick>,
 
     /// Stores mapping from server ticks to system change ticks.
     system_ticks: HashMap<NetworkTick, Tick>,
 }
 
-impl ServerTicks {
+impl AckedTicks {
     /// Stores mapping between network_tick and the current system_tick
     fn register_network_tick(&mut self, network_tick: NetworkTick, system_tick: Tick) {
         self.system_ticks.insert(network_tick, system_tick);
@@ -413,17 +407,14 @@ impl ServerTicks {
 
     /// Removes system tick mappings for acks that was acknowledged by everyone.
     fn cleanup_system_ticks(&mut self) {
-        self.system_ticks.retain(|tick, _| {
-            self.acked_ticks
-                .values()
-                .all(|acked_tick| acked_tick > tick)
-        })
+        self.system_ticks
+            .retain(|tick, _| self.clients.values().all(|acked_tick| acked_tick > tick))
     }
 
     /// Returns last acknowledged server ticks for all clients.
     #[inline]
     pub fn acked_ticks(&self) -> &HashMap<u64, NetworkTick> {
-        &self.acked_ticks
+        &self.clients
     }
 }
 
