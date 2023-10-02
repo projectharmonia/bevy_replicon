@@ -394,6 +394,7 @@ pub mod prelude {
         replicon_core::{
             replication_rules::{
                 AppReplicationExt, Ignored, MapNetworkEntities, Mapper, Replication,
+                ReplicationRules,
             },
             NetworkChannels, NetworkTick, RepliconCorePlugin,
         },
@@ -415,7 +416,7 @@ impl PluginGroup for ReplicationPlugins {
         PluginGroupBuilder::start::<Self>()
             .add(RepliconCorePlugin)
             .add(ParentSyncPlugin)
-            .add(ClientPlugin::default())
+            .add(ClientPlugin)
             .add(ServerPlugin::default())
     }
 }

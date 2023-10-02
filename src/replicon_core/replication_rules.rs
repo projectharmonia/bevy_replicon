@@ -104,7 +104,13 @@ impl AppReplicationExt for App {
 ///
 /// See also [`replicate_into_scene`].
 #[derive(Resource)]
-pub(crate) struct ReplicationRules {
+pub struct ReplicationRules {
+    /// Custom function to handle entity despawning.
+    ///
+    /// By default uses [`despawn_recursive`].
+    /// May need to intercept the despawn and do it differently.
+    pub despawn_fn: EntityDespawnFn,
+
     /// Maps component IDs to their replication IDs.
     ids: HashMap<ComponentId, ReplicationId>,
 
@@ -113,11 +119,6 @@ pub(crate) struct ReplicationRules {
 
     /// ID of [`Replication`] component.
     marker_id: ComponentId,
-
-    /// Custom function to handle entity despawning.
-    /// The default does despawn_recursive() – but if you're doing rollback networking you
-    /// may need to intercept the despawn and do it differently.
-    despawn_fn: Option<EntityDespawnFn>,
 }
 
 impl ReplicationRules {
@@ -143,18 +144,6 @@ impl ReplicationRules {
         Some((replication_id, replication_info))
     }
 
-    /// Gets custom function used to despawn entities, if provided.
-    #[inline]
-    pub(crate) fn get_despawn_fn(&self) -> Option<EntityDespawnFn> {
-        self.despawn_fn
-    }
-
-    /// Sets a custom function for despawning entities on the client, when the server reports the despawn;
-    /// without this, the default implementation uses despawn_recursive().
-    pub(crate) fn set_despawn_fn(&mut self, despawn_fn: EntityDespawnFn) {
-        self.despawn_fn = Some(despawn_fn);
-    }
-
     /// Returns meta information about replicated component.
     ///
     /// # Safety
@@ -174,7 +163,7 @@ impl FromWorld for ReplicationRules {
             infos: Default::default(),
             ids: Default::default(),
             marker_id: world.init_component::<Replication>(),
-            despawn_fn: Default::default(),
+            despawn_fn: despawn_recursive,
         }
     }
 }
@@ -194,7 +183,7 @@ pub type DeserializeFn = fn(
 pub type RemoveComponentFn = fn(&mut EntityMut, NetworkTick);
 
 /// Signature of entity despawning functions.
-pub type EntityDespawnFn = fn(&mut EntityMut, NetworkTick);
+pub type EntityDespawnFn = fn(EntityMut, NetworkTick);
 
 /// Stores meta information about replicated component.
 pub(crate) struct ReplicationInfo {
@@ -287,4 +276,8 @@ pub fn deserialize_mapped_component<C: Component + DeserializeOwned + MapNetwork
 /// Removes specified component from entity.
 pub fn remove_component<C: Component>(entity: &mut EntityMut, _tick: NetworkTick) {
     entity.remove::<C>();
+}
+
+pub fn despawn_recursive(entity: EntityMut, _tick: NetworkTick) {
+    entity.despawn_recursive();
 }

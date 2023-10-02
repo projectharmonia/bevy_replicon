@@ -10,14 +10,11 @@ use bevy_renet::{renet::RenetClient, transport::NetcodeClientPlugin, RenetClient
 use bincode::{DefaultOptions, Options};
 
 use crate::replicon_core::{
-    replication_rules::{EntityDespawnFn, Mapper, Replication, ReplicationRules},
+    replication_rules::{Mapper, Replication, ReplicationRules},
     NetworkTick, REPLICATION_CHANNEL_ID,
 };
 
-#[derive(Default)]
-pub struct ClientPlugin {
-    despawn_fn: Option<EntityDespawnFn>,
-}
+pub struct ClientPlugin;
 
 impl Plugin for ClientPlugin {
     fn build(&self, app: &mut App) {
@@ -48,25 +45,10 @@ impl Plugin for ClientPlugin {
                     Self::reset_system.run_if(resource_removed::<RenetClient>()),
                 ),
             );
-        if let Some(entity_despawn_fn) = self.despawn_fn {
-            // register a custom entity despawn function
-            app.world
-                .get_resource_mut::<ReplicationRules>()
-                .unwrap()
-                .set_despawn_fn(entity_despawn_fn);
-        }
     }
 }
 
 impl ClientPlugin {
-    /// only useful in case you need to replace the default entity despawn function.
-    /// otherwis just use `ClientPlugin::default()`
-    pub fn new(despawn_fn: EntityDespawnFn) -> Self {
-        Self {
-            despawn_fn: Some(despawn_fn),
-        }
-    }
-
     fn diff_receiving_system(world: &mut World) -> Result<(), bincode::Error> {
         world.resource_scope(|world, mut client: Mut<RenetClient>| {
             world.resource_scope(|world, mut entity_map: Mut<NetworkEntityMap>| {
@@ -111,8 +93,8 @@ impl ClientPlugin {
                             &mut cursor,
                             world,
                             &mut entity_map,
+                            &replication_rules,
                             network_tick,
-                            replication_rules.get_despawn_fn(),
                         )?;
                     }
 
@@ -187,8 +169,8 @@ fn deserialize_despawns(
     cursor: &mut Cursor<Bytes>,
     world: &mut World,
     entity_map: &mut NetworkEntityMap,
+    replication_rules: &ReplicationRules,
     tick: NetworkTick,
-    custom_entity_despawn_fn: Option<EntityDespawnFn>,
 ) -> Result<(), bincode::Error> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..entities_count {
@@ -196,15 +178,11 @@ fn deserialize_despawns(
         // with the last diff, but the server might not yet have received confirmation
         // from the client and could include the deletion in the latest diff.
         let server_entity = deserialize_entity(&mut *cursor)?;
-        if let Some(mut client_entity) = entity_map
+        if let Some(client_entity) = entity_map
             .remove_by_server(server_entity)
             .and_then(|entity| world.get_entity_mut(entity))
         {
-            if let Some(despawn_fn) = custom_entity_despawn_fn {
-                (despawn_fn)(&mut client_entity, tick);
-            } else {
-                client_entity.despawn_recursive();
-            }
+            (replication_rules.despawn_fn)(client_entity, tick);
         }
     }
 

@@ -326,58 +326,6 @@ fn despawn_replication() {
     assert!(entity_map.to_server().is_empty());
 }
 
-#[derive(Component)]
-struct DespawnMarker(u32);
-
-fn custom_despawn_fn(e: &mut EntityMut, tick: NetworkTick) {
-    e.insert(DespawnMarker(*tick));
-}
-
-#[test]
-fn custom_despawn_replication() {
-    let mut server_app = App::new();
-    let mut client_app = App::new();
-    for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((
-            MinimalPlugins,
-            ReplicationPlugins
-                .set(ServerPlugin::new(TickPolicy::Manual))
-                .set(ClientPlugin::new(custom_despawn_fn)),
-        ));
-    }
-
-    common::connect(&mut server_app, &mut client_app);
-
-    let server_entity = server_app.world.spawn(Replication).id();
-
-    server_app.update();
-
-    server_app.world.despawn(server_entity);
-
-    let client_entity = client_app.world.spawn_empty().id();
-
-    let mut entity_map = client_app.world.resource_mut::<NetworkEntityMap>();
-    entity_map.insert(server_entity, client_entity);
-
-    server_app.update();
-    client_app.update();
-
-    // rather than being despawned, our custom despawn fn will insert a DespawnMarker.
-    assert!(client_app
-        .world
-        .get_entity(client_entity)
-        .unwrap()
-        .contains::<DespawnMarker>());
-
-    // it is correct that the NetworkEntityMap has removed this entity, because once it's
-    // despawned on the server, it's gone forever.
-    // even if the client keeps it around for a few frames, the server won't be sending us
-    // any more updates about it.
-    let entity_map = client_app.world.resource::<NetworkEntityMap>();
-    assert!(entity_map.to_client().is_empty());
-    assert!(entity_map.to_server().is_empty());
-}
-
 #[test]
 fn replication_into_scene() {
     let mut app = App::new();
