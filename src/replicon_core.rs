@@ -1,9 +1,10 @@
 pub mod replication_rules;
 
+use std::cmp::Ordering;
+
 use bevy::prelude::*;
 use bevy_renet::renet::{ChannelConfig, SendType};
 use serde::{Deserialize, Serialize};
-use std::cmp::Ordering;
 
 use replication_rules::ReplicationRules;
 

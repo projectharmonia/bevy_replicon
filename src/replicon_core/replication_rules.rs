@@ -10,9 +10,8 @@ use bevy_renet::renet::Bytes;
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use crate::client::{ClientMapper, NetworkEntityMap};
-
 use super::NetworkTick;
+use crate::client::{ClientMapper, NetworkEntityMap};
 
 pub trait AppReplicationExt {
     /// Marks component for replication.
