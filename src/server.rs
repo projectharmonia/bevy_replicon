@@ -412,7 +412,7 @@ impl AckedTicks {
     /// Removes system tick mappings for acks that was acknowledged by everyone.
     fn cleanup_system_ticks(&mut self) {
         self.system_ticks
-            .retain(|tick, _| self.clients.values().all(|acked_tick| acked_tick > tick))
+            .retain(|tick, _| self.clients.values().any(|acked_tick| acked_tick <= tick));
     }
 
     /// Returns last acknowledged server ticks for all clients.
