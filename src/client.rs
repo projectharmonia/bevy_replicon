@@ -75,11 +75,10 @@ impl ClientPlugin {
                         let end_pos: u64 = message.len().try_into().unwrap();
                         let mut cursor = Cursor::new(message);
 
-                        let (network_tick, was_updated) = deserialize_tick(&mut cursor, world)?;
-
-                        if !was_updated {
+                        let Some(network_tick) = deserialize_tick(&mut cursor, world)? else {
                             continue;
-                        }
+                        };
+
                         if cursor.position() == end_pos {
                             continue;
                         }
@@ -137,19 +136,19 @@ impl ClientPlugin {
 
 /// Deserializes server tick and applies it to [`LastTick`] if it is newer.
 ///
-/// Returns (network_tick, true) if [`LastTick`] has been updated, otherwise (network_tick, false).
+/// Returns the tick if [`LastTick`] has been updated.
 fn deserialize_tick(
     cursor: &mut Cursor<Bytes>,
     world: &mut World,
-) -> Result<(NetworkTick, bool), bincode::Error> {
+) -> Result<Option<NetworkTick>, bincode::Error> {
     let network_tick = bincode::deserialize_from(cursor)?;
 
     let mut last_tick = world.resource_mut::<LastTick>();
     if last_tick.0 < network_tick {
         last_tick.0 = network_tick;
-        Ok((network_tick, true))
+        Ok(Some(network_tick))
     } else {
-        Ok((network_tick, false))
+        Ok(None)
     }
 }
 
