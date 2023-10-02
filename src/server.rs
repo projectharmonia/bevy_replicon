@@ -21,7 +21,6 @@ use bevy_renet::{
     RenetServerPlugin,
 };
 use bincode::{DefaultOptions, Options};
-use derive_more::Constructor;
 
 use crate::replicon_core::{
     replication_rules::{ReplicationId, ReplicationInfo, ReplicationRules},
@@ -32,7 +31,6 @@ use removal_tracker::{RemovalTracker, RemovalTrackerPlugin};
 
 pub const SERVER_ID: u64 = 0;
 
-#[derive(Constructor)]
 pub struct ServerPlugin {
     tick_policy: TickPolicy,
 }
@@ -87,6 +85,10 @@ impl Plugin for ServerPlugin {
 }
 
 impl ServerPlugin {
+    pub fn new(tick_policy: TickPolicy) -> Self {
+        Self { tick_policy }
+    }
+
     fn acks_receiving_system(
         mut server_ticks: ResMut<ServerTicks>,
         mut server: ResMut<RenetServer>,
