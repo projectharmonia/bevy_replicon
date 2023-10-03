@@ -1,7 +1,7 @@
 pub(super) mod despawn_tracker;
 pub(super) mod removal_tracker;
 
-use std::{io::Cursor, mem, time::Duration};
+use std::{cmp::Ordering, io::Cursor, mem, time::Duration};
 
 use bevy::{
     ecs::{
@@ -21,10 +21,11 @@ use bevy_renet::{
     RenetServerPlugin,
 };
 use bincode::{DefaultOptions, Options};
+use serde::{Deserialize, Serialize};
 
 use crate::replicon_core::{
     replication_rules::{ReplicationId, ReplicationInfo, ReplicationRules},
-    NetworkTick, REPLICATION_CHANNEL_ID,
+    REPLICATION_CHANNEL_ID,
 };
 use despawn_tracker::{DespawnTracker, DespawnTrackerPlugin};
 use removal_tracker::{RemovalTracker, RemovalTrackerPlugin};
@@ -52,7 +53,7 @@ impl Plugin for ServerPlugin {
             DespawnTrackerPlugin,
         ))
         .init_resource::<AckedTicks>()
-        .init_resource::<NetworkTick>()
+        .init_resource::<RepliconTick>()
         .configure_set(
             PreUpdate,
             ServerSet::Receive.after(NetcodeServerPlugin::update_system),
@@ -61,7 +62,7 @@ impl Plugin for ServerPlugin {
             PostUpdate,
             ServerSet::Send
                 .before(NetcodeServerPlugin::send_packets)
-                .run_if(resource_changed::<NetworkTick>()),
+                .run_if(resource_changed::<RepliconTick>()),
         )
         .add_systems(
             PreUpdate,
@@ -107,14 +108,14 @@ impl ServerPlugin {
     }
 
     /// Increments current server tick which causes the server to send a diff packet this frame.
-    pub fn increment_tick(mut network_tick: ResMut<NetworkTick>) {
-        network_tick.increment();
+    pub fn increment_tick(mut replicon_tick: ResMut<RepliconTick>) {
+        replicon_tick.increment();
     }
 
     fn acks_receiving_system(mut acked_ticks: ResMut<AckedTicks>, mut server: ResMut<RenetServer>) {
         for client_id in server.clients_id() {
             while let Some(message) = server.receive_message(client_id, REPLICATION_CHANNEL_ID) {
-                match bincode::deserialize::<NetworkTick>(&message) {
+                match bincode::deserialize::<RepliconTick>(&message) {
                     Ok(tick) => {
                         let acked_tick = acked_ticks.clients.entry(client_id).or_default();
                         if *acked_tick < tick {
@@ -151,13 +152,13 @@ impl ServerPlugin {
         mut set: ParamSet<(&World, ResMut<RenetServer>, ResMut<AckedTicks>)>,
         replication_rules: Res<ReplicationRules>,
         despawn_tracker: Res<DespawnTracker>,
-        network_tick: Res<NetworkTick>,
+        replicon_tick: Res<RepliconTick>,
         removal_trackers: Query<(Entity, &RemovalTracker)>,
     ) -> Result<(), bincode::Error> {
         let mut acked_ticks = set.p2();
-        acked_ticks.register_network_tick(*network_tick, change_tick.this_run());
+        acked_ticks.register_tick(*replicon_tick, change_tick.this_run());
 
-        let buffers = prepare_buffers(&mut buffers, &acked_ticks, *network_tick)?;
+        let buffers = prepare_buffers(&mut buffers, &acked_ticks, *replicon_tick)?;
         collect_changes(
             buffers,
             set.p0(),
@@ -200,19 +201,19 @@ impl ServerPlugin {
 fn prepare_buffers<'a>(
     buffers: &'a mut Vec<ReplicationBuffer>,
     acked_ticks: &AckedTicks,
-    network_tick: NetworkTick,
+    replicon_tick: RepliconTick,
 ) -> Result<&'a mut [ReplicationBuffer], bincode::Error> {
     buffers.reserve(acked_ticks.clients.len());
     for (index, (&client_id, &tick)) in acked_ticks.clients.iter().enumerate() {
         let system_tick = *acked_ticks.system_ticks.get(&tick).unwrap_or(&Tick::new(0));
 
         if let Some(buffer) = buffers.get_mut(index) {
-            buffer.reset(client_id, system_tick, network_tick)?;
+            buffer.reset(client_id, system_tick, replicon_tick)?;
         } else {
             buffers.push(ReplicationBuffer::new(
                 client_id,
                 system_tick,
-                network_tick,
+                replicon_tick,
             )?);
         }
     }
@@ -407,16 +408,16 @@ pub enum TickPolicy {
 #[derive(Resource, Default)]
 pub struct AckedTicks {
     /// Last acknowledged server ticks for all clients.
-    clients: HashMap<u64, NetworkTick>,
+    clients: HashMap<u64, RepliconTick>,
 
     /// Stores mapping from server ticks to system change ticks.
-    system_ticks: HashMap<NetworkTick, Tick>,
+    system_ticks: HashMap<RepliconTick, Tick>,
 }
 
 impl AckedTicks {
-    /// Stores mapping between `network_tick` and the current `system_tick`.
-    fn register_network_tick(&mut self, network_tick: NetworkTick, system_tick: Tick) {
-        self.system_ticks.insert(network_tick, system_tick);
+    /// Stores mapping between `replicon_tick` and the current `system_tick`.
+    fn register_tick(&mut self, replicon_tick: RepliconTick, system_tick: Tick) {
+        self.system_ticks.insert(replicon_tick, system_tick);
     }
 
     /// Removes system tick mappings for acks that was acknowledged by everyone.
@@ -427,7 +428,7 @@ impl AckedTicks {
 
     /// Returns last acknowledged server ticks for all clients.
     #[inline]
-    pub fn acked_ticks(&self) -> &HashMap<u64, NetworkTick> {
+    pub fn acked_ticks(&self) -> &HashMap<u64, RepliconTick> {
         &self.clients
     }
 }
@@ -475,10 +476,10 @@ impl ReplicationBuffer {
     fn new(
         client_id: u64,
         system_tick: Tick,
-        network_tick: NetworkTick,
+        replicon_tick: RepliconTick,
     ) -> Result<Self, bincode::Error> {
         let mut message = Default::default();
-        bincode::serialize_into(&mut message, &network_tick)?;
+        bincode::serialize_into(&mut message, &replicon_tick)?;
         Ok(Self {
             client_id,
             system_tick,
@@ -501,14 +502,14 @@ impl ReplicationBuffer {
         &mut self,
         client_id: u64,
         system_tick: Tick,
-        network_tick: NetworkTick,
+        replicon_tick: RepliconTick,
     ) -> Result<(), bincode::Error> {
         self.client_id = client_id;
         self.system_tick = system_tick;
         self.message.set_position(0);
         self.message.get_mut().clear();
         self.arrays_with_data = 0;
-        bincode::serialize_into(&mut self.message, &network_tick)?;
+        bincode::serialize_into(&mut self.message, &replicon_tick)?;
 
         Ok(())
     }
@@ -679,6 +680,52 @@ impl ReplicationBuffer {
     }
 }
 
+/// A tick that increments each time we need the server to compute and send an update.
+/// This is mapped to the bevy Tick in [`AckedTicks`].
+///
+/// See also [`TickPolicy`].
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Resource, Serialize)]
+pub struct RepliconTick(u32);
+
+impl RepliconTick {
+    /// Creates a new tick wrapping the given value.
+    #[inline]
+    pub fn new(value: u32) -> Self {
+        Self(value)
+    }
+
+    /// Gets the value of this network tick.
+    #[inline]
+    pub fn get(self) -> u32 {
+        self.0
+    }
+
+    /// Sets the value of this network tick.
+    #[inline]
+    pub fn set(&mut self, value: u32) {
+        self.0 = value;
+    }
+
+    /// Increments current tick and takes wrapping into account.
+    #[inline]
+    pub fn increment(&mut self) {
+        self.0 = self.0.wrapping_add(1);
+    }
+}
+
+impl PartialOrd for RepliconTick {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        let difference = self.0.wrapping_sub(other.0);
+        if difference == 0 {
+            Some(Ordering::Equal)
+        } else if difference > u32::MAX / 2 {
+            Some(Ordering::Less)
+        } else {
+            Some(Ordering::Greater)
+        }
+    }
+}
+
 /// Fills scene with all replicated entities and their components.
 ///
 /// # Panics
@@ -736,5 +783,17 @@ pub fn replicate_into_scene(scene: &mut DynamicScene, world: &World) {
                     .push(component.clone_value());
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tick_comparsion() {
+        assert_eq!(RepliconTick(0), RepliconTick(0));
+        assert!(RepliconTick(0) < RepliconTick(1));
+        assert!(RepliconTick(0) > RepliconTick(u32::MAX));
     }
 }

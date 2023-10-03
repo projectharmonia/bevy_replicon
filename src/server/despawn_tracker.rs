@@ -88,7 +88,7 @@ pub(super) struct DespawnTracker {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::replicon_core::NetworkTick;
+    use crate::server::RepliconTick;
 
     #[test]
     fn detection() {
@@ -104,7 +104,7 @@ mod tests {
         app.world
             .resource_mut::<AckedTicks>()
             .clients
-            .insert(DUMMY_CLIENT_ID, NetworkTick::new(0));
+            .insert(DUMMY_CLIENT_ID, RepliconTick::new(0));
 
         let replicated_entity = app.world.spawn(Replication).id();
 
