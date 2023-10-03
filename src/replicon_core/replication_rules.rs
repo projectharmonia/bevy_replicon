@@ -10,8 +10,10 @@ use bevy_renet::renet::Bytes;
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use super::NetworkTick;
-use crate::client::{ClientMapper, NetworkEntityMap};
+use crate::{
+    client::{ClientMapper, NetworkEntityMap},
+    server::RepliconTick,
+};
 
 pub trait AppReplicationExt {
     /// Marks component for replication.
@@ -165,14 +167,14 @@ pub type DeserializeFn = fn(
     &mut EntityMut,
     &mut NetworkEntityMap,
     &mut Cursor<Bytes>,
-    NetworkTick,
+    RepliconTick,
 ) -> Result<(), bincode::Error>;
 
 /// Signature of component removal functions.
-pub type RemoveComponentFn = fn(&mut EntityMut, NetworkTick);
+pub type RemoveComponentFn = fn(&mut EntityMut, RepliconTick);
 
 /// Signature of the entity despawn function.
-pub type EntityDespawnFn = fn(EntityMut, NetworkTick);
+pub type EntityDespawnFn = fn(EntityMut, RepliconTick);
 
 /// Stores meta information about replicated component.
 pub(crate) struct ReplicationInfo {
@@ -236,7 +238,7 @@ pub fn deserialize_component<C: Component + DeserializeOwned>(
     entity: &mut EntityMut,
     _entity_map: &mut NetworkEntityMap,
     cursor: &mut Cursor<Bytes>,
-    _tick: NetworkTick,
+    _tick: RepliconTick,
 ) -> Result<(), bincode::Error> {
     let component: C = DefaultOptions::new().deserialize_from(cursor)?;
     entity.insert(component);
@@ -249,7 +251,7 @@ pub fn deserialize_mapped_component<C: Component + DeserializeOwned + MapNetwork
     entity: &mut EntityMut,
     entity_map: &mut NetworkEntityMap,
     cursor: &mut Cursor<Bytes>,
-    _tick: NetworkTick,
+    _tick: RepliconTick,
 ) -> Result<(), bincode::Error> {
     let mut component: C = DefaultOptions::new().deserialize_from(cursor)?;
 
@@ -263,11 +265,11 @@ pub fn deserialize_mapped_component<C: Component + DeserializeOwned + MapNetwork
 }
 
 /// Default component removal function.
-pub fn remove_component<C: Component>(entity: &mut EntityMut, _tick: NetworkTick) {
+pub fn remove_component<C: Component>(entity: &mut EntityMut, _tick: RepliconTick) {
     entity.remove::<C>();
 }
 
 /// Default entity despawn function.
-pub fn despawn_recursive(entity: EntityMut, _tick: NetworkTick) {
+pub fn despawn_recursive(entity: EntityMut, _tick: RepliconTick) {
     entity.despawn_recursive();
 }

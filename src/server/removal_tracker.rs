@@ -87,7 +87,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::replicon_core::{replication_rules::AppReplicationExt, NetworkTick};
+    use crate::{replicon_core::replication_rules::AppReplicationExt, server::RepliconTick};
 
     #[test]
     fn detection() {
@@ -105,7 +105,7 @@ mod tests {
         app.world
             .resource_mut::<AckedTicks>()
             .clients
-            .insert(DUMMY_CLIENT_ID, NetworkTick::new(0));
+            .insert(DUMMY_CLIENT_ID, RepliconTick::new(0));
 
         let replicated_entity = app.world.spawn((DummyComponent, Replication)).id();
 

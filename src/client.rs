@@ -9,9 +9,12 @@ use bevy_renet::{renet::Bytes, transport::client_connected};
 use bevy_renet::{renet::RenetClient, transport::NetcodeClientPlugin, RenetClientPlugin};
 use bincode::{DefaultOptions, Options};
 
-use crate::replicon_core::{
-    replication_rules::{Mapper, Replication, ReplicationRules},
-    NetworkTick, REPLICATION_CHANNEL_ID,
+use crate::{
+    replicon_core::{
+        replication_rules::{Mapper, Replication, ReplicationRules},
+        REPLICATION_CHANNEL_ID,
+    },
+    server::RepliconTick,
 };
 
 pub struct ClientPlugin;
@@ -57,7 +60,7 @@ impl ClientPlugin {
                         let end_pos: u64 = message.len().try_into().unwrap();
                         let mut cursor = Cursor::new(message);
 
-                        let Some(network_tick) = deserialize_tick(&mut cursor, world)? else {
+                        let Some(tick) = deserialize_tick(&mut cursor, world)? else {
                             continue;
                         };
                         if cursor.position() == end_pos {
@@ -70,7 +73,7 @@ impl ClientPlugin {
                             &mut entity_map,
                             &replication_rules,
                             DiffKind::Change,
-                            network_tick,
+                            tick,
                         )?;
                         if cursor.position() == end_pos {
                             continue;
@@ -82,7 +85,7 @@ impl ClientPlugin {
                             &mut entity_map,
                             &replication_rules,
                             DiffKind::Removal,
-                            network_tick,
+                            tick,
                         )?;
                         if cursor.position() == end_pos {
                             continue;
@@ -93,7 +96,7 @@ impl ClientPlugin {
                             world,
                             &mut entity_map,
                             &replication_rules,
-                            network_tick,
+                            tick,
                         )?;
                     }
 
@@ -121,7 +124,7 @@ impl ClientPlugin {
 fn deserialize_tick(
     cursor: &mut Cursor<Bytes>,
     world: &mut World,
-) -> Result<Option<NetworkTick>, bincode::Error> {
+) -> Result<Option<RepliconTick>, bincode::Error> {
     let tick = bincode::deserialize_from(cursor)?;
 
     let mut last_tick = world.resource_mut::<LastTick>();
@@ -140,7 +143,7 @@ fn deserialize_component_diffs(
     entity_map: &mut NetworkEntityMap,
     replication_rules: &ReplicationRules,
     diff_kind: DiffKind,
-    tick: NetworkTick,
+    tick: RepliconTick,
 ) -> Result<(), bincode::Error> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..entities_count {
@@ -169,7 +172,7 @@ fn deserialize_despawns(
     world: &mut World,
     entity_map: &mut NetworkEntityMap,
     replication_rules: &ReplicationRules,
-    tick: NetworkTick,
+    tick: RepliconTick,
 ) -> Result<(), bincode::Error> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..entities_count {
@@ -215,7 +218,7 @@ enum DiffKind {
 ///
 /// Exists only on clients, sent to the server.
 #[derive(Default, Resource, Deref)]
-pub struct LastTick(pub(super) NetworkTick);
+pub struct LastTick(pub(super) RepliconTick);
 
 /// Set with replication and event systems related to client.
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone, Copy)]

@@ -116,7 +116,7 @@ fn deserialize_transform(
     entity: &mut EntityMut,
     _entity_map: &mut NetworkEntityMap,
     cursor: &mut Cursor<Bytes>,
-    _tick: NetworkTick,
+    _tick: RepliconTick,
 ) -> Result<(), bincode::Error> {
     let translation: Vec3 = bincode::deserialize_from(cursor)?;
     entity.insert(Transform::from_translation(translation));
@@ -133,12 +133,12 @@ will be replicated.
 If you need to disable replication for specific component for specific entity,
 you can insert [`Ignored<T>`] component and replication will be skipped for `T`.
 
-### NetworkTick, and fixed timestep games.
+### [`RepliconTick`], and fixed timestep games.
 
-The [`ServerPlugin`] sends replication data in `PostUpdate` any time the [`NetworkTick`] resource
+The [`ServerPlugin`] sends replication data in `PostUpdate` any time the [`RepliconTick`] resource
 changes. By default, its incremented in `PostUpdate` per the [`TickPolicy`].
 
-If you set [`TickPolicy::Manual`], you can increment [`NetworkTick`] at the start of your
+If you set [`TickPolicy::Manual`], you can increment [`RepliconTick`] at the start of your
 `FixedTimestep` game loop. This value can represent your simulation step, and is made available
 to the client in the custom deserialization, despawn and component removal functions.
 
@@ -189,7 +189,7 @@ fn player_init_system(
 #[derive(Component, Deserialize, Serialize)]
 struct Player;
 # fn serialize_transform(_: Ptr, _: &mut Cursor<Vec<u8>>) -> Result<(), bincode::Error> { unimplemented!() }
-# fn deserialize_transform(_: &mut EntityMut, _: &mut NetworkEntityMap, _: &mut Cursor<Bytes>, _: NetworkTick) -> Result<(), bincode::Error> { unimplemented!() }
+# fn deserialize_transform(_: &mut EntityMut, _: &mut NetworkEntityMap, _: &mut Cursor<Bytes>, _: RepliconTick) -> Result<(), bincode::Error> { unimplemented!() }
 ```
 
 This pairs nicely with server state serialization and keeps saves clean.
@@ -396,9 +396,11 @@ pub mod prelude {
                 AppReplicationExt, Ignored, MapNetworkEntities, Mapper, Replication,
                 ReplicationRules,
             },
-            NetworkChannels, NetworkTick, RepliconCorePlugin,
+            NetworkChannels, RepliconCorePlugin,
         },
-        server::{has_authority, AckedTicks, ServerPlugin, ServerSet, TickPolicy, SERVER_ID},
+        server::{
+            has_authority, AckedTicks, RepliconTick, ServerPlugin, ServerSet, TickPolicy, SERVER_ID,
+        },
         ReplicationPlugins,
     };
 }
