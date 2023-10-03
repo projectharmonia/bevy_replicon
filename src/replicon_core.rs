@@ -94,6 +94,12 @@ impl NetworkTick {
         self.0
     }
 
+    /// Sets the value of this network tick.
+    #[inline]
+    pub fn set(&mut self, value: u32) {
+        self.0 = value;
+    }
+
     /// Increments current tick and takes wrapping into account.
     #[inline]
     pub fn increment(&mut self) {
