@@ -91,6 +91,7 @@ impl ReplicationBuffer {
         self.message.set_position(0);
         self.message.get_mut().clear();
         self.arrays_with_data = 0;
+        self.trailing_empty_arrays = 0;
         bincode::serialize_into(&mut self.message, &replicon_tick)?;
 
         Ok(())
@@ -256,6 +257,8 @@ impl ReplicationBuffer {
     }
 
     /// Send the buffer contents into a renet server channel.
+    ///
+    /// [`Self::reset`] should be called after it to use this buffer again.
     pub(super) fn send_to(&mut self, server: &mut RenetServer, replication_channel_id: u8) {
         debug_assert_eq!(self.array_len, 0);
         debug_assert_eq!(self.entity_data_len, 0);
@@ -279,6 +282,27 @@ impl ReplicationBuffer {
         let used_len = self.message.get_ref().len()
             - self.trailing_empty_arrays * mem::size_of_val(&self.array_len);
         self.message.get_mut().truncate(used_len);
-        self.trailing_empty_arrays = 0;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn trim_empty_arrays() -> Result<(), bincode::Error> {
+        let mut buffer = ReplicationBuffer::new(0, Tick::new(0), RepliconTick(0))?;
+
+        let begin_len = buffer.message.get_ref().len();
+        for _ in 0..3 {
+            buffer.start_array();
+            buffer.end_array()?;
+        }
+
+        buffer.trim_empty_arrays();
+
+        assert_eq!(buffer.message.get_ref().len(), begin_len);
+
+        Ok(())
     }
 }
