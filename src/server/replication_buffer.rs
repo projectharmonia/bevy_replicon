@@ -49,11 +49,6 @@ pub(super) struct ReplicationBuffer {
 }
 
 impl ReplicationBuffer {
-    /// Read access to the buffer's system tick (this client's last acked replicon tick).
-    pub(super) fn system_tick(&self) -> Tick {
-        self.system_tick
-    }
-
     /// Creates a new buffer with assigned client ID and acknowledged system tick
     /// and writes current server tick into buffer data.
     pub(super) fn new(
@@ -75,6 +70,11 @@ impl ReplicationBuffer {
             entity_data_len: Default::default(),
             data_entity: Entity::PLACEHOLDER,
         })
+    }
+
+    /// Read access to the buffer's system tick (this client's last acked replicon tick).
+    pub(super) fn system_tick(&self) -> Tick {
+        self.system_tick
     }
 
     /// Reassigns current client ID and acknowledged system tick to the buffer
