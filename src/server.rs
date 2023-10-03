@@ -688,12 +688,6 @@ impl ReplicationBuffer {
 pub struct RepliconTick(u32);
 
 impl RepliconTick {
-    /// Creates a new tick wrapping the given value.
-    #[inline]
-    pub fn new(value: u32) -> Self {
-        Self(value)
-    }
-
     /// Gets the value of this network tick.
     #[inline]
     pub fn get(self) -> u32 {
