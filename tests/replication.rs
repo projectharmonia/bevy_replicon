@@ -53,7 +53,7 @@ fn tick_acks_receiving() {
         .resource::<NetcodeClientTransport>()
         .client_id();
     let acked_tick = acked_ticks.acked_ticks()[&client_id];
-    assert_eq!(acked_tick, RepliconTick::new(0));
+    assert_eq!(acked_tick.get(), 0);
 }
 
 #[test]
