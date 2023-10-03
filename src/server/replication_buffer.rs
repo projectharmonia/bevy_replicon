@@ -132,17 +132,6 @@ impl ReplicationBuffer {
         Ok(())
     }
 
-    /// Crops empty arrays at the end.
-    ///
-    /// Should only be called after all arrays have been written, because
-    /// removed array somewhere the middle cannot be detected during deserialization.
-    pub(super) fn trim_empty_arrays(&mut self) {
-        let used_len = self.message.get_ref().len()
-            - self.trailing_empty_arrays * mem::size_of_val(&self.array_len);
-        self.message.get_mut().truncate(used_len);
-        self.trailing_empty_arrays = 0;
-    }
-
     /// Starts writing entity and its data by remembering `entity`.
     ///
     /// Arrays can contain component changes or removals inside.
@@ -280,5 +269,16 @@ impl ReplicationBuffer {
                 Bytes::copy_from_slice(self.message.get_ref()),
             );
         }
+    }
+
+    /// Crops empty arrays at the end.
+    ///
+    /// Should only be called after all arrays have been written, because
+    /// removed array somewhere the middle cannot be detected during deserialization.
+    fn trim_empty_arrays(&mut self) {
+        let used_len = self.message.get_ref().len()
+            - self.trailing_empty_arrays * mem::size_of_val(&self.array_len);
+        self.message.get_mut().truncate(used_len);
+        self.trailing_empty_arrays = 0;
     }
 }
