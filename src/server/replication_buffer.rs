@@ -1,15 +1,14 @@
 use std::{io::Cursor, mem};
 
 use bevy::{ecs::component::Tick, prelude::*, ptr::Ptr};
-use bincode::{DefaultOptions, Options};
-
 use bevy_renet::renet::{Bytes, RenetServer};
+use bincode::{DefaultOptions, Options};
+use varint_rs::VarintWriter;
 
 use crate::replicon_core::{
     replication_rules::{ReplicationId, ReplicationInfo},
     replicon_tick::RepliconTick,
 };
-use varint_rs::VarintWriter;
 
 /// A reusable buffer with replicated data for a client.
 ///
