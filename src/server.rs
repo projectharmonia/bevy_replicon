@@ -700,16 +700,16 @@ impl RepliconTick {
         self.0
     }
 
-    /// Sets the value of this network tick.
+    /// Increments current tick by the specified `value` and takes wrapping into account.
     #[inline]
-    pub fn set(&mut self, value: u32) {
-        self.0 = value;
+    pub fn increment_by(&mut self, value: u32) {
+        self.0 = self.0.wrapping_add(value);
     }
 
-    /// Increments current tick and takes wrapping into account.
+    /// Same as [`Self::increment_by`], but increments only by 1.
     #[inline]
     pub fn increment(&mut self) {
-        self.0 = self.0.wrapping_add(1);
+        self.increment_by(1)
     }
 }
 
