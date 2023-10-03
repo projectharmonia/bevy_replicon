@@ -681,8 +681,8 @@ impl ReplicationBuffer {
 }
 
 /// A tick that increments each time we need the server to compute and send an update.
-/// This is mapped to the bevy Tick in [`AckedTicks`].
 ///
+/// Mapped to the Bevy's `Tick` in [`AckedTicks`].
 /// See also [`TickPolicy`].
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Resource, Serialize)]
 pub struct RepliconTick(u32);
