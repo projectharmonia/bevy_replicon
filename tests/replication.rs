@@ -116,7 +116,7 @@ fn insert_replication() {
     let server_map_entity = server_app.world.spawn_empty().id();
     let client_map_entity = client_app.world.spawn_empty().id();
 
-    let client_entity = client_app.world.spawn_empty().id();
+    let client_entity = client_app.world.spawn(Replication).id();
     let server_entity = server_app
         .world
         .spawn((
@@ -217,10 +217,10 @@ fn despawn_replication() {
     server_app.world.despawn(server_entity);
     server_app.world.despawn(server_child_entity);
 
-    let client_child_entity = client_app.world.spawn_empty().id();
+    let client_child_entity = client_app.world.spawn(Replication).id();
     let client_entity = client_app
         .world
-        .spawn_empty()
+        .spawn(Replication)
         .push_children(&[client_child_entity])
         .id();
 
