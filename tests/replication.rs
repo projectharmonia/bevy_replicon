@@ -70,14 +70,14 @@ fn spawn_replication() {
 
     common::connect(&mut server_app, &mut client_app);
 
-    let server_entity = server_app.world.spawn((TableComponent, Replication)).id();
+    let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
 
     server_app.update();
     client_app.update();
 
     let client_entity = client_app
         .world
-        .query_filtered::<Entity, (With<TableComponent>, With<Replication>)>()
+        .query_filtered::<Entity, (With<Replication>, With<TableComponent>)>()
         .single(&client_app.world);
     let entity_map = client_app.world.resource::<NetworkEntityMap>();
     assert_eq!(
