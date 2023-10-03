@@ -133,12 +133,12 @@ will be replicated.
 If you need to disable replication for specific component for specific entity,
 you can insert [`Ignored<T>`] component and replication will be skipped for `T`.
 
-### [`RepliconTick`], and fixed timestep games.
+### Tick and fixed timestep games
 
-The [`ServerPlugin`] sends replication data in `PostUpdate` any time the [`RepliconTick`] resource
+The [`ServerPlugin`] sends replication data in `PostUpdate` any time the [`ServerTick`] resource
 changes. By default, its incremented in `PostUpdate` per the [`TickPolicy`].
 
-If you set [`TickPolicy::Manual`], you can increment [`RepliconTick`] at the start of your
+If you set [`TickPolicy::Manual`], you can increment [`ServerTick`] at the start of your
 `FixedTimestep` game loop. This value can represent your simulation step, and is made available
 to the client in the custom deserialization, despawn and component removal functions.
 
@@ -396,10 +396,11 @@ pub mod prelude {
                 AppReplicationExt, Ignored, MapNetworkEntities, Mapper, Replication,
                 ReplicationRules,
             },
+            replicon_tick::RepliconTick,
             NetworkChannels, RepliconCorePlugin,
         },
         server::{
-            has_authority, AckedTicks, RepliconTick, ServerPlugin, ServerSet, TickPolicy, SERVER_ID,
+            has_authority, AckedTicks, ServerPlugin, ServerSet, ServerTick, TickPolicy, SERVER_ID,
         },
         ReplicationPlugins,
     };
