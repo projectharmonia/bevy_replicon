@@ -1,4 +1,5 @@
 pub mod replication_rules;
+pub mod replicon_tick;
 
 use bevy::prelude::*;
 use bevy_renet::renet::{ChannelConfig, SendType};

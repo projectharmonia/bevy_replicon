@@ -1,7 +1,7 @@
 pub(super) mod despawn_tracker;
 pub(super) mod removal_tracker;
 
-use std::{cmp::Ordering, io::Cursor, mem, time::Duration};
+use std::{io::Cursor, mem, time::Duration};
 
 use bevy::{
     ecs::{
@@ -21,10 +21,10 @@ use bevy_renet::{
     RenetServerPlugin,
 };
 use bincode::{DefaultOptions, Options};
-use serde::{Deserialize, Serialize};
 
 use crate::replicon_core::{
     replication_rules::{ReplicationId, ReplicationInfo, ReplicationRules},
+    replicon_tick::RepliconTick,
     REPLICATION_CHANNEL_ID,
 };
 use despawn_tracker::{DespawnTracker, DespawnTrackerPlugin};
@@ -53,7 +53,7 @@ impl Plugin for ServerPlugin {
             DespawnTrackerPlugin,
         ))
         .init_resource::<AckedTicks>()
-        .init_resource::<RepliconTick>()
+        .init_resource::<ServerTick>()
         .configure_set(
             PreUpdate,
             ServerSet::Receive.after(NetcodeServerPlugin::update_system),
@@ -62,7 +62,7 @@ impl Plugin for ServerPlugin {
             PostUpdate,
             ServerSet::Send
                 .before(NetcodeServerPlugin::send_packets)
-                .run_if(resource_changed::<RepliconTick>()),
+                .run_if(resource_changed::<ServerTick>()),
         )
         .add_systems(
             PreUpdate,
@@ -108,8 +108,8 @@ impl ServerPlugin {
     }
 
     /// Increments current server tick which causes the server to send a diff packet this frame.
-    pub fn increment_tick(mut replicon_tick: ResMut<RepliconTick>) {
-        replicon_tick.increment();
+    pub fn increment_tick(mut server_tick: ResMut<ServerTick>) {
+        server_tick.increment();
     }
 
     fn acks_receiving_system(mut acked_ticks: ResMut<AckedTicks>, mut server: ResMut<RenetServer>) {
@@ -152,13 +152,13 @@ impl ServerPlugin {
         mut set: ParamSet<(&World, ResMut<RenetServer>, ResMut<AckedTicks>)>,
         replication_rules: Res<ReplicationRules>,
         despawn_tracker: Res<DespawnTracker>,
-        replicon_tick: Res<RepliconTick>,
+        server_tick: Res<ServerTick>,
         removal_trackers: Query<(Entity, &RemovalTracker)>,
     ) -> Result<(), bincode::Error> {
         let mut acked_ticks = set.p2();
-        acked_ticks.register_tick(*replicon_tick, change_tick.this_run());
+        acked_ticks.register_tick(**server_tick, change_tick.this_run());
 
-        let buffers = prepare_buffers(&mut buffers, &acked_ticks, *replicon_tick)?;
+        let buffers = prepare_buffers(&mut buffers, &acked_ticks, **server_tick)?;
         collect_changes(
             buffers,
             set.p0(),
@@ -401,6 +401,13 @@ pub enum TickPolicy {
     /// [`ServerSet::Send`] should be manually configured.
     Manual,
 }
+
+/// A tick that increments each time we need the server to compute and send an update.
+///
+/// Mapped to the Bevy's `Tick` in [`AckedTicks`].
+/// See also [`TickPolicy`].
+#[derive(Default, Deref, DerefMut, Resource)]
+pub struct ServerTick(RepliconTick);
 
 /// Stores information about ticks.
 ///
@@ -680,46 +687,6 @@ impl ReplicationBuffer {
     }
 }
 
-/// A tick that increments each time we need the server to compute and send an update.
-///
-/// Mapped to the Bevy's `Tick` in [`AckedTicks`].
-/// See also [`TickPolicy`].
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Resource, Serialize)]
-pub struct RepliconTick(u32);
-
-impl RepliconTick {
-    /// Gets the value of this network tick.
-    #[inline]
-    pub fn get(self) -> u32 {
-        self.0
-    }
-
-    /// Increments current tick by the specified `value` and takes wrapping into account.
-    #[inline]
-    pub fn increment_by(&mut self, value: u32) {
-        self.0 = self.0.wrapping_add(value);
-    }
-
-    /// Same as [`Self::increment_by`], but increments only by 1.
-    #[inline]
-    pub fn increment(&mut self) {
-        self.increment_by(1)
-    }
-}
-
-impl PartialOrd for RepliconTick {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        let difference = self.0.wrapping_sub(other.0);
-        if difference == 0 {
-            Some(Ordering::Equal)
-        } else if difference > u32::MAX / 2 {
-            Some(Ordering::Less)
-        } else {
-            Some(Ordering::Greater)
-        }
-    }
-}
-
 /// Fills scene with all replicated entities and their components.
 ///
 /// # Panics
@@ -777,17 +744,5 @@ pub fn replicate_into_scene(scene: &mut DynamicScene, world: &World) {
                     .push(component.clone_value());
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn tick_comparsion() {
-        assert_eq!(RepliconTick(0), RepliconTick(0));
-        assert!(RepliconTick(0) < RepliconTick(1));
-        assert!(RepliconTick(0) > RepliconTick(u32::MAX));
     }
 }
