@@ -7,15 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The ability to set custom despawn and component removal functions.
+- `TickPolicy::EveryFrame` to update `RepliconTick` every frame.
+
 ### Changed
 
+- Now all replication functions accept `RepliconTick`.
 - Rename `NetworkTick` into `RepliconTick` and move it into `server` module.
+- Fix the entire world was always sent instead of changes.
 
 ## [0.12.0] - 2023-10-01
 
+### Added
+
+- High-level API to extract replicated entities into `DynamicScene`.
+
 ### Changed
 
-- Add high-level API to extract replicated entities into `DynamicScene`.
 - Hide `ReplicationRules` from public API.
 - Move logic related to replication rules to `replicon_core::replication_rules` module.
 
