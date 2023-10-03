@@ -8,6 +8,7 @@ use bevy::{
 use bevy_renet::{renet::Bytes, transport::client_connected};
 use bevy_renet::{renet::RenetClient, transport::NetcodeClientPlugin, RenetClientPlugin};
 use bincode::{DefaultOptions, Options};
+use varint_rs::VarintReader;
 
 use crate::replicon_core::{
     replication_rules::{Mapper, Replication, ReplicationRules},
@@ -190,10 +191,10 @@ fn deserialize_despawns(
 
 /// Deserializes `entity` from compressed index and generation, for details see [`ReplicationBuffer::write_entity()`].
 fn deserialize_entity(cursor: &mut Cursor<Bytes>) -> Result<Entity, bincode::Error> {
-    let flagged_index: u64 = DefaultOptions::new().deserialize_from(&mut *cursor)?;
+    let flagged_index: u64 = cursor.read_u64_varint()?;
     let has_generation = (flagged_index & 1) > 0;
     let generation = if has_generation {
-        DefaultOptions::new().deserialize_from(&mut *cursor)?
+        cursor.read_u32_varint()?
     } else {
         0u32
     };

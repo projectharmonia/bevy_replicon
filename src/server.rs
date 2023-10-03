@@ -28,6 +28,7 @@ use crate::replicon_core::{
 };
 use despawn_tracker::{DespawnTracker, DespawnTrackerPlugin};
 use removal_tracker::{RemovalTracker, RemovalTrackerPlugin};
+use varint_rs::VarintWriter;
 
 pub const SERVER_ID: u64 = 0;
 
@@ -670,9 +671,9 @@ impl ReplicationBuffer {
         let flag = entity.generation() > 0;
         flagged_index |= flag as u64;
 
-        DefaultOptions::new().serialize_into(&mut self.message, &flagged_index)?;
+        self.message.write_u64_varint(flagged_index)?;
         if flag {
-            DefaultOptions::new().serialize_into(&mut self.message, &entity.generation())?;
+            self.message.write_u32_varint(entity.generation())?;
         }
 
         Ok(())
