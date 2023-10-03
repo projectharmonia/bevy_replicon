@@ -149,7 +149,7 @@ impl ReplicationBuffer {
     /// Writes entity for current data and updates remembered position for it to write length later.
     ///
     /// Should be called only after first data write.
-    pub(super) fn write_data_entity(&mut self) -> Result<(), bincode::Error> {
+    fn write_data_entity(&mut self) -> Result<(), bincode::Error> {
         self.write_entity(self.data_entity)?;
         self.entity_data_pos = self.message.position();
         self.message
@@ -243,7 +243,7 @@ impl ReplicationBuffer {
     ///
     /// The index is first prepended with a bit flag to indicate if the generation
     /// is serialized or not (it is not serialized if equal to zero).
-    pub(super) fn write_entity(&mut self, entity: Entity) -> Result<(), bincode::Error> {
+    fn write_entity(&mut self, entity: Entity) -> Result<(), bincode::Error> {
         let mut flagged_index = (entity.index() as u64) << 1;
         let flag = entity.generation() > 0;
         flagged_index |= flag as u64;
