@@ -95,7 +95,8 @@ impl NetworkTick {
     }
 
     /// Increments current tick and takes wrapping into account.
-    pub(super) fn increment(&mut self) {
+    #[inline]
+    pub fn increment(&mut self) {
         self.0 = self.0.wrapping_add(1);
     }
 }
