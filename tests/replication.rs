@@ -149,7 +149,7 @@ fn insert_replication() {
 }
 
 #[test]
-fn insert_and_spawn_replication() {
+fn insert_and_spawn_empty_replication() {
     let mut server_app = App::new();
     let mut client_app = App::new();
 
@@ -165,7 +165,7 @@ fn insert_and_spawn_replication() {
 
     let client_entity = client_app.world.spawn(Replication).id();
     let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
-    server_app.world.spawn((Replication, TableComponent));
+    server_app.world.spawn(Replication);
 
     let mut entity_map = client_app.world.resource_mut::<NetworkEntityMap>();
     entity_map.insert(server_entity, client_entity);
@@ -173,12 +173,9 @@ fn insert_and_spawn_replication() {
     server_app.update();
     client_app.update();
 
-    let replicated_entities = client_app
-        .world
-        .query_filtered::<(), (With<Replication>, With<TableComponent>)>()
-        .iter(&client_app.world)
-        .count();
-    assert_eq!(replicated_entities, 2);
+    let client_entity = client_app.world.entity(client_entity);
+    assert!(client_entity.contains::<TableComponent>());
+    assert_eq!(client_app.world.entities().len(), 2);
 }
 
 #[test]
