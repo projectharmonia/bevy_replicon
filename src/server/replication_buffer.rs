@@ -144,6 +144,7 @@ impl ReplicationBuffer {
         debug_assert_eq!(self.entity_data_len, 0);
 
         self.data_entity = entity;
+        self.entity_data_pos = self.message.position();
     }
 
     /// Writes entity for current data and updates remembered position for it to write length later.

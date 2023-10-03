@@ -149,6 +149,39 @@ fn insert_replication() {
 }
 
 #[test]
+fn insert_and_spawn_replication() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+        ))
+        .replicate::<TableComponent>();
+    }
+
+    common::connect(&mut server_app, &mut client_app);
+
+    let client_entity = client_app.world.spawn(Replication).id();
+    let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
+    server_app.world.spawn((Replication, TableComponent));
+
+    let mut entity_map = client_app.world.resource_mut::<NetworkEntityMap>();
+    entity_map.insert(server_entity, client_entity);
+
+    server_app.update();
+    client_app.update();
+
+    let replicated_entities = client_app
+        .world
+        .query_filtered::<(), (With<Replication>, With<TableComponent>)>()
+        .iter(&client_app.world)
+        .count();
+    assert_eq!(replicated_entities, 2);
+}
+
+#[test]
 fn removal_replication() {
     let mut server_app = App::new();
     let mut client_app = App::new();
