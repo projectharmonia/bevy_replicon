@@ -14,10 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Use more compact varint encoding for entities.
 - Now all replication functions accept `RepliconTick`.
 - Rename `NetworkTick` into `RepliconTick` and move it into `server` module.
 - Fix crash with several entities spawned and updated.
 - Fix the entire world was always sent instead of changes.
+
+### Removed
+
+- `derive_more` dependency.
 
 ## [0.12.0] - 2023-10-01
 
