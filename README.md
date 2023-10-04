@@ -17,6 +17,6 @@ See also [Tic-Tac-Toe](https://github.com/lifescapegame/bevy_replicon/tree/maste
 
 | bevy   | bevy_replicon |
 |--------|---------------|
-| 0.11.0 | 0.6-0.12      |
+| 0.11.0 | 0.6-0.13      |
 | 0.10.1 | 0.2-0.6       |
 | 0.10.0 | 0.1           |
