@@ -91,6 +91,7 @@ impl ReplicationBuffer {
         self.message.set_position(0);
         self.message.get_mut().clear();
         self.arrays_with_data = 0;
+        self.trailing_empty_arrays = 0;
         bincode::serialize_into(&mut self.message, &replicon_tick)?;
 
         Ok(())
@@ -132,17 +133,6 @@ impl ReplicationBuffer {
         Ok(())
     }
 
-    /// Crops empty arrays at the end.
-    ///
-    /// Should only be called after all arrays have been written, because
-    /// removed array somewhere the middle cannot be detected during deserialization.
-    pub(super) fn trim_empty_arrays(&mut self) {
-        let used_len = self.message.get_ref().len()
-            - self.trailing_empty_arrays * mem::size_of_val(&self.array_len);
-        self.message.get_mut().truncate(used_len);
-        self.trailing_empty_arrays = 0;
-    }
-
     /// Starts writing entity and its data by remembering `entity`.
     ///
     /// Arrays can contain component changes or removals inside.
@@ -154,12 +144,13 @@ impl ReplicationBuffer {
         debug_assert_eq!(self.entity_data_len, 0);
 
         self.data_entity = entity;
+        self.entity_data_pos = self.message.position();
     }
 
     /// Writes entity for current data and updates remembered position for it to write length later.
     ///
     /// Should be called only after first data write.
-    pub(super) fn write_data_entity(&mut self) -> Result<(), bincode::Error> {
+    fn write_data_entity(&mut self) -> Result<(), bincode::Error> {
         self.write_entity(self.data_entity)?;
         self.entity_data_pos = self.message.position();
         self.message
@@ -253,7 +244,7 @@ impl ReplicationBuffer {
     ///
     /// The index is first prepended with a bit flag to indicate if the generation
     /// is serialized or not (it is not serialized if equal to zero).
-    pub(super) fn write_entity(&mut self, entity: Entity) -> Result<(), bincode::Error> {
+    fn write_entity(&mut self, entity: Entity) -> Result<(), bincode::Error> {
         let mut flagged_index = (entity.index() as u64) << 1;
         let flag = entity.generation() > 0;
         flagged_index |= flag as u64;
@@ -267,6 +258,8 @@ impl ReplicationBuffer {
     }
 
     /// Send the buffer contents into a renet server channel.
+    ///
+    /// [`Self::reset`] should be called after it to use this buffer again.
     pub(super) fn send_to(&mut self, server: &mut RenetServer, replication_channel_id: u8) {
         debug_assert_eq!(self.array_len, 0);
         debug_assert_eq!(self.entity_data_len, 0);
@@ -280,5 +273,37 @@ impl ReplicationBuffer {
                 Bytes::copy_from_slice(self.message.get_ref()),
             );
         }
+    }
+
+    /// Crops empty arrays at the end.
+    ///
+    /// Should only be called after all arrays have been written, because
+    /// removed array somewhere the middle cannot be detected during deserialization.
+    fn trim_empty_arrays(&mut self) {
+        let used_len = self.message.get_ref().len()
+            - self.trailing_empty_arrays * mem::size_of_val(&self.array_len);
+        self.message.get_mut().truncate(used_len);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn trim_empty_arrays() -> Result<(), bincode::Error> {
+        let mut buffer = ReplicationBuffer::new(0, Tick::new(0), RepliconTick(0))?;
+
+        let begin_len = buffer.message.get_ref().len();
+        for _ in 0..3 {
+            buffer.start_array();
+            buffer.end_array()?;
+        }
+
+        buffer.trim_empty_arrays();
+
+        assert_eq!(buffer.message.get_ref().len(), begin_len);
+
+        Ok(())
     }
 }
