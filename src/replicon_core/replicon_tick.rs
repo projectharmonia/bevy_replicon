@@ -1,9 +1,14 @@
 use std::cmp::Ordering;
 
+use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// Wraps a value that represents an index of server update.
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
+/// A tick that increments each time we need the server to compute and send an update.
+///
+/// Used as resource only on server.
+/// Mapped to the Bevy's `Tick` in [`AckedTicks`](crate::server::AckedTicks).
+/// See also [`TickPolicy`](crate::server::TickPolicy).
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Resource, Serialize)]
 pub struct RepliconTick(pub(crate) u32);
 
 impl RepliconTick {

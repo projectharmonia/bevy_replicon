@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Now all replication functions accept `RepliconTick`.
 - Rename `NetworkTick` into `RepliconTick` and move it into `server` module.
 - Fix crash with several entities spawned and updated.
+- Rename `LastTick` into `LastRepliconTick`.
 - Fix the entire world was always sent instead of changes.
 
 ### Removed

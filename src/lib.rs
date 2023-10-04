@@ -135,10 +135,10 @@ you can insert [`Ignored<T>`] component and replication will be skipped for `T`.
 
 ### Tick and fixed timestep games
 
-The [`ServerPlugin`] sends replication data in `PostUpdate` any time the [`ServerTick`] resource
+The [`ServerPlugin`] sends replication data in `PostUpdate` any time the [`RepliconTick`] resource
 changes. By default, its incremented in `PostUpdate` per the [`TickPolicy`].
 
-If you set [`TickPolicy::Manual`], you can increment [`ServerTick`] at the start of your
+If you set [`TickPolicy::Manual`], you can increment [`RepliconTick`] at the start of your
 `FixedTimestep` game loop. This value can represent your simulation step, and is made available
 to the client in the custom deserialization, despawn and component removal functions.
 
@@ -383,7 +383,7 @@ pub mod server;
 
 pub mod prelude {
     pub use super::{
-        client::{ClientMapper, ClientPlugin, ClientSet, LastTick, NetworkEntityMap},
+        client::{ClientMapper, ClientPlugin, ClientSet, LastRepliconTick, NetworkEntityMap},
         network_event::{
             client_event::{ClientEventAppExt, FromClient},
             server_event::{SendMode, ServerEventAppExt, ToClients},
@@ -399,9 +399,7 @@ pub mod prelude {
             replicon_tick::RepliconTick,
             NetworkChannels, RepliconCorePlugin,
         },
-        server::{
-            has_authority, AckedTicks, ServerPlugin, ServerSet, ServerTick, TickPolicy, SERVER_ID,
-        },
+        server::{has_authority, AckedTicks, ServerPlugin, ServerSet, TickPolicy, SERVER_ID},
         ReplicationPlugins,
     };
 }
