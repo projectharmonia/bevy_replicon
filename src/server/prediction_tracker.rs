@@ -68,9 +68,9 @@ use super::RepliconTick;
 ///
 #[derive(Resource, Debug, Default)]
 pub struct PredictionTracker {
-    entity_map: HashMap<(u64, ServerEntity), ClientEntity>,
-    tick_map: HashMap<u64, Vec<(RepliconTick, ServerEntity)>>,
+    mappings: HashMap<u64, Vec<EntityMapping>>,
 }
+type EntityMapping = (RepliconTick, ServerEntity, ClientEntity);
 
 // Internal aliases for clarity in the PredictionTracker types above.
 type ServerEntity = Entity;
@@ -88,21 +88,31 @@ impl PredictionTracker {
         client_entity: Entity,
         tick: RepliconTick,
     ) {
-        self.entity_map
-            .insert((client_id, server_entity), client_entity);
-
-        if let Some(v) = self.tick_map.get_mut(&client_id) {
-            v.push((tick, server_entity));
+        let new_entry = (tick, server_entity, client_entity);
+        if let Some(mut v) = self.mappings.get_mut(&client_id) {
+            v.push(new_entry);
         } else {
-            self.tick_map.insert(client_id, vec![(tick, server_entity)]);
+            self.mappings.insert(client_id, vec![new_entry]);
         }
     }
-    pub(crate) fn get_predicted_entity(
+    pub(crate) fn get_mappings(
         &self,
         client_id: u64,
-        server_entity: Entity,
-    ) -> Option<&Entity> {
-        self.entity_map.get(&(client_id, server_entity))
+        tick: RepliconTick,
+    ) -> impl Iterator<Item = &EntityMapping> {
+        // let Some(v) = self.mappings.get(&client_id) else {
+        //     return None;
+        // };
+        let v = match self.mappings
+            .get(&client_id) {
+                Some(v) => v.iter(),
+                None => std::iter::empty().into(),
+            };
+
+
+            .map_(std::iter::empty())
+            .into_iter()
+            .filter(|(entry_tick, _, _)| *entry_tick >= tick)
     }
     /// remove predicted entities in cases where the RepliconTick at which that entity was spawned
     /// has been acked by a client.
