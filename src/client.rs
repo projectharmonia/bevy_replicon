@@ -149,7 +149,11 @@ fn deserialize_component_diffs(
 ) -> Result<(), bincode::Error> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..entities_count {
-        let (entity, predicted_entity) = deserialize_entity_combo(&mut *cursor)?;
+        let entity = deserialize_entity(&mut *cursor)?;
+        let predicted_entity = match deserialize_entity(&mut *cursor)? {
+            Entity::PLACEHOLDER => None,
+            e => Some(e),
+        };
         let mut entity = entity_map.get_by_server_or_spawn(world, entity, predicted_entity);
         let components_count: u8 = bincode::deserialize_from(&mut *cursor)?;
         for _ in 0..components_count {
@@ -206,41 +210,6 @@ fn deserialize_entity(cursor: &mut Cursor<Bytes>) -> Result<Entity, bincode::Err
     let bits = (generation as u64) << 32 | (flagged_index >> 1);
 
     Ok(Entity::from_bits(bits))
-}
-
-/// Deserializes an Entity then an optional second Entity from the cursor.
-/// see [`ReplicationBuffer::write_entity_combo()`].
-fn deserialize_entity_combo(
-    cursor: &mut Cursor<Bytes>,
-) -> Result<(Entity, Option<Entity>), bincode::Error> {
-    let flagged_index: u64 = DefaultOptions::new().deserialize_from(&mut *cursor)?;
-    let has_generation = (flagged_index & 1) > 0;
-    let has_prediction = (flagged_index & 2) > 0;
-    let has_prediction_generation = (flagged_index & 4) > 0;
-
-    let generation = if has_generation {
-        DefaultOptions::new().deserialize_from(&mut *cursor)?
-    } else {
-        0u32
-    };
-
-    let bits = (generation as u64) << 32 | (flagged_index >> 3);
-    let entity = Entity::from_bits(bits);
-
-    let predicted_entity: Option<Entity> = if has_prediction {
-        let predicted_index: u32 = DefaultOptions::new().deserialize_from(&mut *cursor)?;
-        let predicted_generation = if has_prediction_generation {
-            DefaultOptions::new().deserialize_from(&mut *cursor)?
-        } else {
-            0u32
-        };
-        let bits = (predicted_generation as u64) << 32 | predicted_index as u64;
-        Some(Entity::from_bits(bits))
-    } else {
-        None
-    };
-
-    Ok((entity, predicted_entity))
 }
 
 /// Type of component change.

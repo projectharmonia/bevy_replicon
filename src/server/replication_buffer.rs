@@ -48,12 +48,7 @@ pub(super) struct ReplicationBuffer {
 
     /// Entity client told us they spawned as a prediction, that they hope to match up with
     /// data_entity, insted of spawning a new one during diff receiving.
-    data_entity_prediction: Option<Entity>,
-
-    /// Does this data_entity potentially have a client-predicted entity associated?
-    /// This could be true when data_entity_prediction is None, when we are supporting predictions
-    /// but there is no prediction for this entity (we have to transmit the none in that case).
-    data_entity_send_prediction: bool,
+    data_prediction_entity: Option<Entity>,
 }
 
 impl ReplicationBuffer {
@@ -77,8 +72,7 @@ impl ReplicationBuffer {
             entity_data_pos: Default::default(),
             entity_data_len: Default::default(),
             data_entity: Entity::PLACEHOLDER,
-            data_entity_prediction: None,
-            data_entity_send_prediction: false,
+            data_prediction_entity: None,
         })
     }
 
@@ -158,35 +152,24 @@ impl ReplicationBuffer {
     /// Entity will be written lazily after first data write and its position will be remembered to write length later.
     /// See also [`Self::end_entity_data`], [`Self::write_current_entity`], [`Self::write_change`]
     /// and [`Self::write_removal`].
-    pub(super) fn start_entity_data(&mut self, entity: Entity) {
+    pub(super) fn start_entity_data(&mut self, entity: Entity, predicted_entity: Option<Entity>) {
         debug_assert_eq!(self.entity_data_len, 0);
 
         self.data_entity = entity;
-        self.data_entity_send_prediction = false;
         self.entity_data_pos = self.message.position();
-    }
-
-    pub(super) fn start_entity_data_with_prediction(
-        &mut self,
-        entity: Entity,
-        predicted_entity: Option<Entity>,
-    ) {
-        debug_assert_eq!(self.entity_data_len, 0);
-
-        self.data_entity = entity;
-        self.data_entity_send_prediction = true;
-        self.data_entity_prediction = predicted_entity;
-        self.entity_data_pos = self.message.position();
+        self.data_prediction_entity = predicted_entity;
     }
 
     /// Writes entity for current data and updates remembered position for it to write length later.
     ///
     /// Should be called only after first data write.
     fn write_data_entity(&mut self) -> Result<(), bincode::Error> {
-        if self.data_entity_send_prediction {
-            self.write_entity_combo(self.data_entity, self.data_entity_prediction)?;
+        self.write_entity(self.data_entity)?;
+        if let Some(pred_entity) = self.data_prediction_entity {
+            self.write_entity(pred_entity)?;
         } else {
-            self.write_entity(self.data_entity)?;
+            // temporary hack until i decide on format
+            self.write_entity(Entity::PLACEHOLDER)?;
         }
         self.entity_data_pos = self.message.position();
         self.message
@@ -288,44 +271,6 @@ impl ReplicationBuffer {
         self.message.write_u64_varint(flagged_index)?;
         if flag {
             self.message.write_u32_varint(entity.generation())?;
-        }
-
-        Ok(())
-    }
-
-    /// Serializes `entity` and `predicted_entity`, similar to write_entity.
-    ///
-    /// The index is first shifted left by 3, to make room for the three flags:
-    ///
-    /// 001 | generation_flag: does our entity have a generation > 0
-    /// 010 | prediction_flag: is there an associated predicted entity
-    /// 100 | prediction_generation_flag: does any predicted entity have a generation > 0
-    fn write_entity_combo(
-        &mut self,
-        entity: Entity,
-        optional_entity: Option<Entity>,
-    ) -> Result<(), bincode::Error> {
-        let mut flagged_index = (entity.index() as u64) << 3;
-
-        let generation_flag = entity.generation() > 0;
-        let prediction_flag = optional_entity.is_some();
-        let prediction_generation_flag = optional_entity.map_or(false, |e| e.generation() > 0);
-
-        flagged_index |= generation_flag as u64;
-        flagged_index |= (prediction_flag as u64) << 1;
-        flagged_index |= (prediction_generation_flag as u64) << 2;
-
-        DefaultOptions::new().serialize_into(&mut self.message, &flagged_index)?;
-        if generation_flag {
-            DefaultOptions::new().serialize_into(&mut self.message, &entity.generation())?;
-        }
-        if prediction_flag {
-            DefaultOptions::new()
-                .serialize_into(&mut self.message, &optional_entity.unwrap().index())?;
-            if prediction_generation_flag {
-                DefaultOptions::new()
-                    .serialize_into(&mut self.message, &optional_entity.unwrap().generation())?;
-            }
         }
 
         Ok(())
