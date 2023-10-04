@@ -157,10 +157,11 @@ fn spawn_prediction_replication() {
     server_app.update();
     client_app.update();
 
-    // Repliction component should be inserted for correctly predicted entities:
+    // Repliction component should be inserted for correctly predicted entities
+    // and the prediction callback should have removed the Prediction component:
     let client_entity = client_app
         .world
-        .query_filtered::<Entity, (With<Projectile>, With<Replication>)>()
+        .query_filtered::<Entity, (With<Projectile>, With<Replication>, Without<Prediction>)>()
         .single(&client_app.world);
 
     assert_eq!(
