@@ -106,12 +106,21 @@ fn spawn_prediction_replication() {
     server_app.world.spawn(NonReplicatingComponent);
     server_app.world.spawn(NonReplicatingComponent);
     server_app.world.spawn(NonReplicatingComponent);
+    // we need the (Replication, MappedComponent) archetype to exist before the client predicted test later,
+    // see comment below for more. Archetypes are never removed, so we just need to spawn this entity then
+    // remove it, so the archetype exists but the entity doesn't interfere with our testing.
+    let tmp_id = server_app
+        .world
+        .spawn((Replication, MappedComponent(Entity::PLACEHOLDER)))
+        .id();
+    server_app.world.entity_mut(tmp_id).despawn();
 
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
             ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
         ))
+        .replicate_mapped::<MappedComponent>()
         .replicate::<Projectile>();
     }
 
@@ -153,6 +162,16 @@ fn spawn_prediction_replication() {
         .resource_scope(|_world, mut pt: Mut<PredictionTracker>| {
             pt.insert(client_id, server_entity, client_predicted_entity, tick)
         });
+    // an edge case to test is when the server spawns an entity that has a predicted entity,
+    // and also spawns another entity with a mapped component that references that entity.
+    // we need to make sure the mapping works properly at the client.
+    // this edge case is triggered when the archetype of the entity with the mapping was created before the
+    // archetype of the predicted entity, since replication diffs are built in order of Archetypes iter,
+    // which is backed by a vec so the ordering is stable.
+    // this is why we ensured the archetype for (Replication, MappedComponent) was created above.
+    server_app
+        .world
+        .spawn((Replication, MappedComponent(server_entity)));
     // the server update which sends this replication data will attach the predicted entity
     server_app.update();
     client_app.update();
@@ -163,6 +182,23 @@ fn spawn_prediction_replication() {
         .world
         .query_filtered::<Entity, (With<Projectile>, With<Replication>, Without<Prediction>)>()
         .single(&client_app.world);
+
+    let mapped_component = client_app
+        .world
+        .query_filtered::<&MappedComponent, With<Replication>>()
+        .single(&client_app.world);
+
+    // TODO if the mapped component entity was processed before the predicted projectile entity,
+    // a new entity would be spawned, because currently the client predicted entity is only sent alongside
+    // the server_entity it predicted, so the mapping doesn't exist if a mapped component referencing it
+    // is created first.
+    //
+    // as a result, both of the following two asserts will fail until the bug is fixed:
+    //
+    assert_eq!(
+        mapped_component.0, client_predicted_entity,
+        "MappedComponent should point to correctly mapped predicted client entity"
+    );
 
     assert_eq!(
         client_entity, client_predicted_entity,
