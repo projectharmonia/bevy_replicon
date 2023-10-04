@@ -132,23 +132,6 @@ fn spawn_prediction_replication() {
         .unwrap()
         .client_id();
 
-    fn predition_hit_fn(cmd: &mut EntityMut) {
-        // prediction hit, remove the client's Prediction marker.
-        // This is a custom component from your game, replicon does not provide it.
-        // typically your Prediction marker might include a TTL after which to depsawn the entity
-        // as a misprediction. Thus we remove the marker to indicate a successful prediction.
-        //
-        // You could also insert a component here, and have a fully fledged system do the cleanup
-        // later with an Added<PredictionHit> query, for example.
-        cmd.remove::<Prediction>();
-    }
-
-    client_app
-        .world
-        .get_resource_mut::<NetworkEntityMap>()
-        .unwrap()
-        .set_prediction_hit_callback(predition_hit_fn);
-
     let tick = *server_app.world.get_resource::<RepliconTick>().unwrap();
 
     // let's pretend the client sent a message to the server saying:
@@ -180,7 +163,7 @@ fn spawn_prediction_replication() {
     // and the prediction callback should have removed the Prediction component:
     let client_entity = client_app
         .world
-        .query_filtered::<Entity, (With<Projectile>, With<Replication>, Without<Prediction>)>()
+        .query_filtered::<Entity, (With<Projectile>, With<Replication>, With<Prediction>)>()
         .single(&client_app.world);
 
     let mapped_component = client_app

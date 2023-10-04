@@ -250,14 +250,9 @@ pub type PredictionHitFn = fn(&mut EntityMut);
 pub struct NetworkEntityMap {
     server_to_client: HashMap<Entity, Entity>,
     client_to_server: HashMap<Entity, Entity>,
-    prediction_hit_fn: Option<PredictionHitFn>,
 }
 
 impl NetworkEntityMap {
-    pub fn set_prediction_hit_callback(&mut self, predition_hit_fn: PredictionHitFn) {
-        self.prediction_hit_fn = Some(predition_hit_fn);
-    }
-
     #[inline]
     pub fn insert(&mut self, server_entity: Entity, client_entity: Entity) {
         self.server_to_client.insert(server_entity, client_entity);
@@ -277,11 +272,7 @@ impl NetworkEntityMap {
                 let client_entity = match predicted_entity {
                     Some(e) => {
                         if world.get_entity(e).is_some() {
-                            // hit. call prediction_hit callback if specified
                             let mut ent_mut = world.get_entity_mut(e).unwrap();
-                            if let Some(pred_fn) = self.prediction_hit_fn {
-                                (pred_fn)(&mut ent_mut)
-                            }
                             ent_mut.insert(Replication);
                             ent_mut
                         } else {

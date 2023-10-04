@@ -46,33 +46,25 @@ use super::RepliconTick;
 /// If `client_predicted_entity` is not found, a new entity will be spawned on the client,
 /// just the same as when no client prediction is provided.
 ///
-/// ### Callback for successful predictions
+/// ### Successful prediction detection
 ///
-/// The client can register a callback for when predictions are successful, to confirm
-/// the spawn.
+/// Upon successful replication, the predicted client entity will receive the Replication component.
 ///
-/// Typically this is used to remove your game's Prediction marker component, something that might
-/// usually include a TTL or timeout, after which the predicted entity would be despawned by
-/// your game's misprediction cleanup system.
-///
-/// You could also insert a component in the callback, and have a fully fledged system do the
-/// cleanup later, for example with an `Added<PredictionHit>` query.
+/// Check for this in a system to perform cleanup:
 ///
 /// ```rust
-/// // on client:
-/// # use bevy_replicon::client::NetworkEntityMap;
-/// # use bevy::ecs::{component::Component, world::EntityMut, system::ResMut};
-/// # #[derive(Component)]
-/// # struct Prediction;
-/// fn predition_hit_fn(cmd: &mut EntityMut) {
-///     // prediction hit: remove any Prediction marker component.
-///     // This is specific to your game, replicon does not include a Prediction component.
-///     cmd.remove::<Prediction>();
-/// }
-/// fn client_setup(mut net_entity_map: ResMut<NetworkEntityMap>) {
-///     net_entity_map.set_prediction_hit_callback(predition_hit_fn);
+/// fn cleanup_successful_predictions(
+///     q: Query<Entity, (With<Prediction>, Added<Replication>)>,
+///     mut commands: Commands,
+/// ) {
+///     for entity in q.iter() {
+///         commands.entity(entity).remove::<Prediction>();
+///     }
 /// }
 /// ```
+///
+/// Typically your Prediction marker component might include a TTL or timeout, after which the
+/// predicted entity would be despawned by your game's misprediction cleanup system.
 ///
 #[derive(Resource, Debug, Default)]
 pub struct PredictionTracker {
