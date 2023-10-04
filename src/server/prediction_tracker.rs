@@ -115,7 +115,9 @@ impl PredictionTracker {
     /// remove predicted entities in cases where the RepliconTick at which that entity was spawned
     /// has been acked by a client.
     pub(crate) fn cleanup_acked(&mut self, client_id: u64, acked_tick: RepliconTick) {
-        let Some(v) = self.tick_map.get_mut(&client_id) else { return; };
+        let Some(v) = self.tick_map.get_mut(&client_id) else {
+            return;
+        };
         v.retain(|(tick, server_entity)| {
             if tick.get() > acked_tick.get() {
                 // not acked yet, retain it
