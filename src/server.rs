@@ -248,7 +248,10 @@ fn collect_changes(
                 let predicted_entity = predictions
                     .get_predicted_entity(buffer.client_id(), archetype_entity.entity())
                     .copied();
-                buffer.start_entity_data(archetype_entity.entity(), predicted_entity);
+                // even if predicted_entity is none, we have to send the None, since the client is
+                // configured to expect prediction data to be encoded.
+                buffer
+                    .start_entity_data_with_prediction(archetype_entity.entity(), predicted_entity);
             }
 
             for component_id in archetype.components() {
@@ -332,7 +335,7 @@ fn collect_removals(
 
     for (entity, removal_tracker) in removal_trackers {
         for buffer in &mut *buffers {
-            buffer.start_entity_data(entity, None);
+            buffer.start_entity_data(entity);
             for (&replication_id, &tick) in &removal_tracker.0 {
                 if tick.is_newer_than(buffer.system_tick(), system_tick) {
                     buffer.write_removal(replication_id)?;
