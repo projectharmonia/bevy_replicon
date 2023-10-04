@@ -218,7 +218,7 @@ enum DiffKind {
 
 /// Last received tick from server.
 ///
-/// Used only on clients, sent to the server.
+/// Used only on clients, sent to the server in last replicon ack message.
 #[derive(Default, Resource, Deref)]
 pub struct LastRepliconTick(pub(super) RepliconTick);
 
