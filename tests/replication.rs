@@ -1,6 +1,6 @@
 mod common;
 
-use bevy::prelude::*;
+use bevy::{ecs::world::EntityMut, prelude::*};
 use bevy_replicon::{prelude::*, server};
 
 use bevy_renet::renet::transport::NetcodeClientTransport;
@@ -95,6 +95,89 @@ fn spawn_replication() {
         client_app.world.entities().len(),
         1,
         "empty entity shouldn't be replicated"
+    );
+}
+
+#[test]
+fn spawn_prediction_replication() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    // make sure server entity ids don't align with client accidentally..
+    server_app.world.spawn(NonReplicatingComponent);
+    server_app.world.spawn(NonReplicatingComponent);
+    server_app.world.spawn(NonReplicatingComponent);
+
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+        ))
+        .replicate::<Projectile>();
+    }
+
+    common::connect(&mut server_app, &mut client_app);
+
+    let client_id = client_app
+        .world
+        .get_resource::<NetcodeClientTransport>()
+        .unwrap()
+        .client_id();
+
+    fn predition_hit_fn(cmd: &mut EntityMut) {
+        // prediction hit, remove the client's Prediction marker.
+        // This is a custom component from your game, replicon does not provide it.
+        // typically your Prediction marker might include a TTL after which to depsawn the entity
+        // as a misprediction. Thus we remove the marker to indicate a successful prediction.
+        //
+        // You could also insert a component here, and have a fully fledged system do the cleanup
+        // later with an Added<PredictionHit> query, for example.
+        cmd.remove::<Prediction>();
+    }
+
+    client_app
+        .world
+        .get_resource_mut::<NetworkEntityMap>()
+        .unwrap()
+        .set_prediction_hit_callback(predition_hit_fn);
+
+    let tick = *server_app.world.get_resource::<RepliconTick>().unwrap();
+
+    // let's pretend the client sent a message to the server saying:
+    // "I pressed my [spawn Projectile] button, and predicted the spawn with entity: X"
+    let client_predicted_entity = client_app.world.spawn((Projectile, Prediction)).id();
+    // so the server spawns in response to a player command..
+    let server_entity = server_app.world.spawn((Projectile, Replication)).id();
+    // and registers the client's predicted entity
+    server_app
+        .world
+        .resource_scope(|_world, mut pt: Mut<PredictionTracker>| {
+            pt.insert(client_id, server_entity, client_predicted_entity, tick)
+        });
+    // the server update which sends this replication data will attach the predicted entity
+    server_app.update();
+    client_app.update();
+
+    // Repliction component should be inserted for correctly predicted entities:
+    let client_entity = client_app
+        .world
+        .query_filtered::<Entity, (With<Projectile>, With<Replication>)>()
+        .single(&client_app.world);
+
+    assert_eq!(
+        client_entity, client_predicted_entity,
+        "Predicted client entity should match"
+    );
+
+    let entity_map = client_app.world.resource::<NetworkEntityMap>();
+    assert_eq!(
+        entity_map.to_client().get(&server_entity),
+        Some(&client_entity),
+        "server entity should be mapped to a replicated entity on client"
+    );
+    assert_eq!(
+        entity_map.to_server().get(&client_entity),
+        Some(&server_entity),
+        "replicated entity on client should be mapped to a server entity"
     );
 }
 
@@ -290,6 +373,12 @@ impl MapNetworkEntities for MappedComponent {
 
 #[derive(Component, Deserialize, Serialize)]
 struct TableComponent;
+
+#[derive(Component, Deserialize, Serialize)]
+struct Projectile;
+
+#[derive(Component, Deserialize, Serialize)]
+struct Prediction;
 
 #[derive(Component, Deserialize, Serialize)]
 #[component(storage = "SparseSet")]

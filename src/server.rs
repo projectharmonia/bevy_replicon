@@ -1,4 +1,5 @@
 pub(super) mod despawn_tracker;
+pub(super) mod prediction_tracker;
 pub(super) mod removal_tracker;
 pub(super) mod replication_buffer;
 
@@ -25,6 +26,7 @@ use crate::replicon_core::{
     replication_rules::ReplicationRules, replicon_tick::RepliconTick, REPLICATION_CHANNEL_ID,
 };
 use despawn_tracker::{DespawnTracker, DespawnTrackerPlugin};
+use prediction_tracker::PredictionTracker;
 use removal_tracker::{RemovalTracker, RemovalTrackerPlugin};
 use replication_buffer::ReplicationBuffer;
 
@@ -52,6 +54,7 @@ impl Plugin for ServerPlugin {
         ))
         .init_resource::<AckedTicks>()
         .init_resource::<RepliconTick>()
+        .init_resource::<PredictionTracker>()
         .configure_set(
             PreUpdate,
             ServerSet::Receive.after(NetcodeServerPlugin::update_system),
@@ -110,7 +113,11 @@ impl ServerPlugin {
         tick.increment();
     }
 
-    fn acks_receiving_system(mut acked_ticks: ResMut<AckedTicks>, mut server: ResMut<RenetServer>) {
+    fn acks_receiving_system(
+        mut acked_ticks: ResMut<AckedTicks>,
+        mut server: ResMut<RenetServer>,
+        mut predictions: ResMut<PredictionTracker>,
+    ) {
         for client_id in server.clients_id() {
             while let Some(message) = server.receive_message(client_id, REPLICATION_CHANNEL_ID) {
                 match bincode::deserialize::<RepliconTick>(&message) {
@@ -118,13 +125,13 @@ impl ServerPlugin {
                         let acked_tick = acked_ticks.clients.entry(client_id).or_default();
                         if *acked_tick < tick {
                             *acked_tick = tick;
+                            predictions.cleanup_acked(client_id, *acked_tick);
                         }
                     }
                     Err(e) => error!("unable to deserialize tick from client {client_id}: {e}"),
                 }
             }
         }
-
         acked_ticks.cleanup_system_ticks();
     }
 
@@ -144,6 +151,7 @@ impl ServerPlugin {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn diffs_sending_system(
         mut buffers: Local<Vec<ReplicationBuffer>>,
         change_tick: SystemChangeTick,
@@ -152,6 +160,7 @@ impl ServerPlugin {
         despawn_tracker: Res<DespawnTracker>,
         replicon_tick: Res<RepliconTick>,
         removal_trackers: Query<(Entity, &RemovalTracker)>,
+        predictions: Res<PredictionTracker>,
     ) -> Result<(), bincode::Error> {
         let mut acked_ticks = set.p2();
         acked_ticks.register_tick(*replicon_tick, change_tick.this_run());
@@ -162,6 +171,7 @@ impl ServerPlugin {
             set.p0(),
             change_tick.this_run(),
             &replication_rules,
+            &predictions,
         )?;
         collect_removals(buffers, &removal_trackers, change_tick.this_run())?;
         collect_despawns(buffers, &despawn_tracker, change_tick.this_run())?;
@@ -214,6 +224,7 @@ fn collect_changes(
     world: &World,
     system_tick: Tick,
     replication_rules: &ReplicationRules,
+    predictions: &Res<PredictionTracker>,
 ) -> Result<(), bincode::Error> {
     for buffer in &mut *buffers {
         buffer.start_array();
@@ -234,7 +245,10 @@ fn collect_changes(
 
         for archetype_entity in archetype.entities() {
             for buffer in &mut *buffers {
-                buffer.start_entity_data(archetype_entity.entity());
+                let predicted_entity = predictions
+                    .get_predicted_entity(buffer.client_id(), archetype_entity.entity())
+                    .copied();
+                buffer.start_entity_data(archetype_entity.entity(), predicted_entity);
             }
 
             for component_id in archetype.components() {
@@ -318,7 +332,7 @@ fn collect_removals(
 
     for (entity, removal_tracker) in removal_trackers {
         for buffer in &mut *buffers {
-            buffer.start_entity_data(entity);
+            buffer.start_entity_data(entity, None);
             for (&replication_id, &tick) in &removal_tracker.0 {
                 if tick.is_newer_than(buffer.system_tick(), system_tick) {
                     buffer.write_removal(replication_id)?;

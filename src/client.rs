@@ -150,7 +150,11 @@ fn deserialize_component_diffs(
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..entities_count {
         let entity = deserialize_entity(&mut *cursor)?;
-        let mut entity = entity_map.get_by_server_or_spawn(world, entity);
+        let predicted_entity = match deserialize_entity(&mut *cursor)? {
+            Entity::PLACEHOLDER => None,
+            e => Some(e),
+        };
+        let mut entity = entity_map.get_by_server_or_spawn(world, entity, predicted_entity);
         let components_count: u8 = bincode::deserialize_from(&mut *cursor)?;
         for _ in 0..components_count {
             let replication_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
@@ -235,6 +239,10 @@ pub enum ClientSet {
     Send,
 }
 
+/// Signature for callback, when an entity matched to a predicted client entity
+/// typically you want to remove any prediction component in here.
+pub type PredictionHitFn = fn(&mut EntityMut);
+
 /// Maps server entities to client entities and vice versa.
 ///
 /// Used only on client.
@@ -242,9 +250,14 @@ pub enum ClientSet {
 pub struct NetworkEntityMap {
     server_to_client: HashMap<Entity, Entity>,
     client_to_server: HashMap<Entity, Entity>,
+    prediction_hit_fn: Option<PredictionHitFn>,
 }
 
 impl NetworkEntityMap {
+    pub fn set_prediction_hit_callback(&mut self, predition_hit_fn: PredictionHitFn) {
+        self.prediction_hit_fn = Some(predition_hit_fn);
+    }
+
     #[inline]
     pub fn insert(&mut self, server_entity: Entity, client_entity: Entity) {
         self.server_to_client.insert(server_entity, client_entity);
@@ -255,11 +268,30 @@ impl NetworkEntityMap {
         &mut self,
         world: &'a mut World,
         server_entity: Entity,
+        predicted_entity: Option<Entity>,
     ) -> EntityMut<'a> {
         match self.server_to_client.entry(server_entity) {
             Entry::Occupied(entry) => world.entity_mut(*entry.get()),
             Entry::Vacant(entry) => {
-                let client_entity = world.spawn(Replication);
+                // test if a predicted entity exists
+                let client_entity = match predicted_entity {
+                    Some(e) => {
+                        if world.get_entity(e).is_some() {
+                            // hit. call prediction_hit callback if specified
+                            let mut ent_mut = world.get_entity_mut(e).unwrap();
+                            if let Some(pred_fn) = self.prediction_hit_fn {
+                                (pred_fn)(&mut ent_mut)
+                            }
+                            ent_mut.insert(Replication);
+                            ent_mut
+                        } else {
+                            // miss, spawn a new entity.
+                            world.spawn(Replication)
+                        }
+                    }
+                    None => world.spawn(Replication),
+                };
+
                 entry.insert(client_entity.id());
                 self.client_to_server
                     .insert(client_entity.id(), server_entity);

@@ -45,6 +45,10 @@ pub(super) struct ReplicationBuffer {
 
     /// Entity from last call of [`Self::start_entity_data`].
     data_entity: Entity,
+
+    /// Entity client told us they spawned as a prediction, that they hope to match up with
+    /// data_entity, insted of spawning a new one during diff receiving.
+    data_prediction_entity: Option<Entity>,
 }
 
 impl ReplicationBuffer {
@@ -68,7 +72,13 @@ impl ReplicationBuffer {
             entity_data_pos: Default::default(),
             entity_data_len: Default::default(),
             data_entity: Entity::PLACEHOLDER,
+            data_prediction_entity: None,
         })
+    }
+
+    #[inline]
+    pub(crate) fn client_id(&self) -> u64 {
+        self.client_id
     }
 
     /// Read access to the buffer's system tick (this client's last acked replicon tick).
@@ -134,17 +144,20 @@ impl ReplicationBuffer {
     }
 
     /// Starts writing entity and its data by remembering `entity`.
+    /// If provided, predicted_entity is sent to the client so instead of spawning a new entity,
+    /// they can match this `entity` to their existing `predicted_entity`. See [`PredictionTracker'].
     ///
     /// Arrays can contain component changes or removals inside.
     /// Length will be increased automatically after writing data.
     /// Entity will be written lazily after first data write and its position will be remembered to write length later.
     /// See also [`Self::end_entity_data`], [`Self::write_current_entity`], [`Self::write_change`]
     /// and [`Self::write_removal`].
-    pub(super) fn start_entity_data(&mut self, entity: Entity) {
+    pub(super) fn start_entity_data(&mut self, entity: Entity, predicted_entity: Option<Entity>) {
         debug_assert_eq!(self.entity_data_len, 0);
 
         self.data_entity = entity;
         self.entity_data_pos = self.message.position();
+        self.data_prediction_entity = predicted_entity;
     }
 
     /// Writes entity for current data and updates remembered position for it to write length later.
@@ -152,6 +165,12 @@ impl ReplicationBuffer {
     /// Should be called only after first data write.
     fn write_data_entity(&mut self) -> Result<(), bincode::Error> {
         self.write_entity(self.data_entity)?;
+        if let Some(pred_entity) = self.data_prediction_entity {
+            self.write_entity(pred_entity)?;
+        } else {
+            // temporary hack until i decide on format
+            self.write_entity(Entity::PLACEHOLDER)?;
+        }
         self.entity_data_pos = self.message.position();
         self.message
             .set_position(self.entity_data_pos + mem::size_of_val(&self.entity_data_len) as u64);
