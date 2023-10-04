@@ -21,7 +21,7 @@ pub struct ClientPlugin;
 impl Plugin for ClientPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((RenetClientPlugin, NetcodeClientPlugin))
-            .init_resource::<LastTick>()
+            .init_resource::<LastRepliconTick>()
             .init_resource::<NetworkEntityMap>()
             .configure_set(
                 PreUpdate,
@@ -105,13 +105,16 @@ impl ClientPlugin {
         })
     }
 
-    fn ack_sending_system(last_tick: Res<LastTick>, mut client: ResMut<RenetClient>) {
+    fn ack_sending_system(last_tick: Res<LastRepliconTick>, mut client: ResMut<RenetClient>) {
         let message = bincode::serialize(&last_tick.0)
             .unwrap_or_else(|e| panic!("client ack should be serialized: {e}"));
         client.send_message(REPLICATION_CHANNEL_ID, message);
     }
 
-    fn reset_system(mut last_tick: ResMut<LastTick>, mut entity_map: ResMut<NetworkEntityMap>) {
+    fn reset_system(
+        mut last_tick: ResMut<LastRepliconTick>,
+        mut entity_map: ResMut<NetworkEntityMap>,
+    ) {
         last_tick.0 = Default::default();
         entity_map.clear();
     }
@@ -126,7 +129,7 @@ fn deserialize_tick(
 ) -> Result<Option<RepliconTick>, bincode::Error> {
     let tick = bincode::deserialize_from(cursor)?;
 
-    let mut last_tick = world.resource_mut::<LastTick>();
+    let mut last_tick = world.resource_mut::<LastRepliconTick>();
     if last_tick.0 < tick {
         last_tick.0 = tick;
         Ok(Some(tick))
@@ -215,9 +218,9 @@ enum DiffKind {
 
 /// Last received tick from server.
 ///
-/// Exists only on clients, sent to the server.
+/// Used only on clients, sent to the server.
 #[derive(Default, Resource, Deref)]
-pub struct LastTick(pub(super) RepliconTick);
+pub struct LastRepliconTick(pub(super) RepliconTick);
 
 /// Set with replication and event systems related to client.
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone, Copy)]

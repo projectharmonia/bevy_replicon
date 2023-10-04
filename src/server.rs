@@ -51,7 +51,7 @@ impl Plugin for ServerPlugin {
             DespawnTrackerPlugin,
         ))
         .init_resource::<AckedTicks>()
-        .init_resource::<ServerTick>()
+        .init_resource::<RepliconTick>()
         .configure_set(
             PreUpdate,
             ServerSet::Receive.after(NetcodeServerPlugin::update_system),
@@ -60,7 +60,7 @@ impl Plugin for ServerPlugin {
             PostUpdate,
             ServerSet::Send
                 .before(NetcodeServerPlugin::send_packets)
-                .run_if(resource_changed::<ServerTick>()),
+                .run_if(resource_changed::<RepliconTick>()),
         )
         .add_systems(
             PreUpdate,
@@ -106,8 +106,8 @@ impl ServerPlugin {
     }
 
     /// Increments current server tick which causes the server to send a diff packet this frame.
-    pub fn increment_tick(mut server_tick: ResMut<ServerTick>) {
-        server_tick.increment();
+    pub fn increment_tick(mut tick: ResMut<RepliconTick>) {
+        tick.increment();
     }
 
     fn acks_receiving_system(mut acked_ticks: ResMut<AckedTicks>, mut server: ResMut<RenetServer>) {
@@ -150,13 +150,13 @@ impl ServerPlugin {
         mut set: ParamSet<(&World, ResMut<RenetServer>, ResMut<AckedTicks>)>,
         replication_rules: Res<ReplicationRules>,
         despawn_tracker: Res<DespawnTracker>,
-        server_tick: Res<ServerTick>,
+        replicon_tick: Res<RepliconTick>,
         removal_trackers: Query<(Entity, &RemovalTracker)>,
     ) -> Result<(), bincode::Error> {
         let mut acked_ticks = set.p2();
-        acked_ticks.register_tick(**server_tick, change_tick.this_run());
+        acked_ticks.register_tick(*replicon_tick, change_tick.this_run());
 
-        let buffers = prepare_buffers(&mut buffers, &acked_ticks, **server_tick)?;
+        let buffers = prepare_buffers(&mut buffers, &acked_ticks, *replicon_tick)?;
         collect_changes(
             buffers,
             set.p0(),
@@ -388,13 +388,6 @@ pub enum TickPolicy {
     /// [`ServerSet::Send`] should be manually configured.
     Manual,
 }
-
-/// A tick that increments each time we need the server to compute and send an update.
-///
-/// Mapped to the Bevy's `Tick` in [`AckedTicks`].
-/// See also [`TickPolicy`].
-#[derive(Default, Deref, DerefMut, Resource)]
-pub struct ServerTick(RepliconTick);
 
 /// Stores information about ticks.
 ///
