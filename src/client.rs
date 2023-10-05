@@ -247,10 +247,6 @@ pub enum ClientSet {
     Send,
 }
 
-/// Signature for callback, when an entity matched to a predicted client entity
-/// typically you want to remove any prediction component in here.
-pub type PredictionHitFn = fn(&mut EntityMut);
-
 /// Maps server entities to client entities and vice versa.
 ///
 /// Used only on client.

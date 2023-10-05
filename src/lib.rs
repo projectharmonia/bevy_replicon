@@ -145,10 +145,13 @@ to the client in the custom deserialization, despawn and component removal funct
 One use for this is rollback networking: you may want to rollback time and apply the update
 for the tick frame, which is in the past, then resimulate.
 
-### Client-predicted spawns
+### Mapping to existing client entities
 
-If you want to spawn entities on the client before the server replicates the spawn
-to the client, see [`PredictionTracker`].
+If you want to spawn entities on the client before the server replicates the spawn back
+to the client, and use the existing client entity to replicate data into, see [`RepliconEntityMap`]
+
+This can be useful for certain types of game. Eg, spawning bullets on the client immediately without
+waiting on replication.
 
 ### "Blueprints" pattern
 
@@ -405,8 +408,8 @@ pub mod prelude {
             NetworkChannels, RepliconCorePlugin,
         },
         server::{
-            has_authority, prediction_tracker::PredictionTracker, AckedTicks, ServerPlugin,
-            ServerSet, TickPolicy, SERVER_ID,
+            has_authority, AckedTicks, RepliconEntityMap, ServerPlugin, ServerSet, TickPolicy,
+            SERVER_ID,
         },
         ReplicationPlugins,
     };

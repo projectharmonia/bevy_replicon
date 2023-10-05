@@ -4,18 +4,22 @@ use bevy::{
 };
 
 use super::RepliconTick;
-/// Tracks client-predicted entities, which are sent along with spawn data when the corresponding
-/// entity is created on the server.
+/// ['RepliconEntityMap'] is a resource that exists on the server for mapping server entities to
+/// entities that clients have already spawned. The mappings are sent to clients and injected into
+/// the client's [`crate::client::NetworkEntityMap`].
 ///
 /// Sometimes you don't want to wait for the server to spawn something before it appears on the
-/// client. When a client presses shoot, they can immediately spawn the bullet, then match up that
+/// client – when a client presses shoot, they can immediately spawn the bullet, then match up that
 /// entity with the eventual replicated bullet the server spawns, rather than have replication spawn
 /// a brand new bullet on the client.
 ///
-/// ### Example usage:
+/// In this situation, the server can write the client `Entity` it sent (in your game's custom
+/// protocol) into the [`RepliconEntityMap`], associating it with the newly spawned server entity.
 ///
-/// Your client presses shoot and spawns a predicted bullet immediately, in anticipation of the
-/// server replicating a newly spawned bullet, and matching it up to our predicted entity:
+/// Replication packets will send a list of such mappings
+/// to clients, which will be inserted into the client's [`crate::client::NetworkEntityMap`].
+///
+/// ### Example usage:
 ///
 /// ```rust,ignore
 /// // on client:
@@ -25,12 +29,12 @@ use super::RepliconTick;
 ///     send_shoot_command_to_server(client_predicted_entity);
 /// }
 /// // on server:
-/// fn apply_inputs_system(mut predictions: ResMut<PredictionTracker>, tick: Res<RepliconTick>) {
+/// fn apply_inputs_system(mut entity_map: ResMut<RepliconEntityMap>, tick: Res<RepliconTick>) {
 ///     // ...
 ///     if player_input.pressed_shoot() {
 ///         let server_entity = commands.spawn((Bullet, Replication, Etc)).id();
 ///         // your game's netcode checks for a client predicted entity, and registers it here:
-///         predictions.insert(
+///         entity_map.insert(
 ///             player_input.client_id,
 ///             server_entity,
 ///             player_input.client_predicted_entity,
@@ -42,37 +46,13 @@ use super::RepliconTick;
 ///
 /// Provided that `client_predicted_entity` exists when the replication data for `server_entity`
 /// arrives, replicated data will be applied to that entity instead of spawning a new one.
+/// You can detect when this happens by querying for `Added<Replication>` on your client entity.
 ///
 /// If `client_predicted_entity` is not found, a new entity will be spawned on the client,
 /// just the same as when no client prediction is provided.
 ///
-/// ### Successful prediction detection
-///
-/// Upon successful replication, the predicted client entity will receive the Replication component.
-///
-/// Check for this in a system to perform cleanup:
-///
-/// ```rust
-/// # use bevy::prelude::*;
-/// # #[derive(Component)]
-/// # struct Prediction;
-/// # #[derive(Component)]
-/// # struct Replication;
-/// fn cleanup_successful_predictions(
-///     q: Query<Entity, (With<Prediction>, Added<Replication>)>,
-///     mut commands: Commands,
-/// ) {
-///     for entity in q.iter() {
-///         commands.entity(entity).remove::<Prediction>();
-///     }
-/// }
-/// ```
-///
-/// Typically your Prediction marker component might include a TTL or timeout, after which the
-/// predicted entity would be despawned by your game's misprediction cleanup system.
-///
 #[derive(Resource, Debug, Default)]
-pub struct PredictionTracker {
+pub struct RepliconEntityMap {
     mappings: HashMap<u64, Vec<EntityMapping>>,
 }
 pub(crate) type EntityMapping = (RepliconTick, ServerEntity, ClientEntity);
@@ -81,9 +61,11 @@ pub(crate) type EntityMapping = (RepliconTick, ServerEntity, ClientEntity);
 pub(crate) type ServerEntity = Entity;
 pub(crate) type ClientEntity = Entity;
 
-impl PredictionTracker {
+impl RepliconEntityMap {
     /// Register that the server spawned `server_entity` as a result of `client_id` sending a
-    /// command which also included a `client_entity` denoting the client's predicted local spawn.
+    /// command which included a `client_entity` they already spawned. This will be sent and added
+    /// to the client's [`crate::client::NetworkEntityMap`].
+    ///
     /// The current `tick` is needed so that this prediction data can be cleaned up once the tick
     /// has been acked by the client.
     pub fn insert(
@@ -100,11 +82,11 @@ impl PredictionTracker {
             self.mappings.insert(client_id, vec![new_entry]);
         }
     }
-    /// gives an optional iter over (tick, server_entity, client_entity)
+    /// Get entity mappings for a client that have been added since the `from_tick`.
     pub(crate) fn get_mappings(
         &self,
         client_id: u64,
-        tick: RepliconTick,
+        from_tick: RepliconTick,
     ) -> Option<Vec<(ServerEntity, ClientEntity)>> {
         let Some(v) = self.mappings.get(&client_id) else {
             return None;
@@ -112,7 +94,7 @@ impl PredictionTracker {
         Some(
             v.iter()
                 .filter_map(|(entry_tick, server_entity, client_entity)| {
-                    if *entry_tick >= tick {
+                    if *entry_tick >= from_tick {
                         Some((*server_entity, *client_entity))
                     } else {
                         None
@@ -121,18 +103,12 @@ impl PredictionTracker {
                 .collect::<Vec<(Entity, Entity)>>(),
         )
     }
-    /// remove predicted entities in cases where the RepliconTick at which that entity was spawned
-    /// has been acked by a client.
+    /// remove predicted entities in cases where the RepliconTick at which that entity mapping
+    /// was created has been acked by the client.
     pub(crate) fn cleanup_acked(&mut self, client_id: u64, acked_tick: RepliconTick) {
         let Some(v) = self.mappings.get_mut(&client_id) else {
             return;
         };
-        v.retain(|(tick, _, _)| {
-            if *tick > acked_tick {
-                // not acked yet, retain it
-                return true;
-            }
-            false
-        });
+        v.retain(|(tick, _, _)| *tick > acked_tick);
     }
 }

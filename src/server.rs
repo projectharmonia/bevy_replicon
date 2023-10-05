@@ -1,7 +1,7 @@
 pub(super) mod despawn_tracker;
-pub(super) mod prediction_tracker;
 pub(super) mod removal_tracker;
 pub(super) mod replication_buffer;
+pub(super) mod replicon_entity_map;
 
 use std::time::Duration;
 
@@ -26,9 +26,9 @@ use crate::replicon_core::{
     replication_rules::ReplicationRules, replicon_tick::RepliconTick, REPLICATION_CHANNEL_ID,
 };
 use despawn_tracker::{DespawnTracker, DespawnTrackerPlugin};
-use prediction_tracker::PredictionTracker;
 use removal_tracker::{RemovalTracker, RemovalTrackerPlugin};
 use replication_buffer::ReplicationBuffer;
+pub use replicon_entity_map::RepliconEntityMap;
 
 pub const SERVER_ID: u64 = 0;
 
@@ -54,7 +54,7 @@ impl Plugin for ServerPlugin {
         ))
         .init_resource::<AckedTicks>()
         .init_resource::<RepliconTick>()
-        .init_resource::<PredictionTracker>()
+        .init_resource::<RepliconEntityMap>()
         .configure_set(
             PreUpdate,
             ServerSet::Receive.after(NetcodeServerPlugin::update_system),
@@ -116,7 +116,7 @@ impl ServerPlugin {
     fn acks_receiving_system(
         mut acked_ticks: ResMut<AckedTicks>,
         mut server: ResMut<RenetServer>,
-        mut predictions: ResMut<PredictionTracker>,
+        mut predictions: ResMut<RepliconEntityMap>,
     ) {
         for client_id in server.clients_id() {
             while let Some(message) = server.receive_message(client_id, REPLICATION_CHANNEL_ID) {
@@ -160,7 +160,7 @@ impl ServerPlugin {
         despawn_tracker: Res<DespawnTracker>,
         replicon_tick: Res<RepliconTick>,
         removal_trackers: Query<(Entity, &RemovalTracker)>,
-        predictions: Res<PredictionTracker>,
+        predictions: Res<RepliconEntityMap>,
     ) -> Result<(), bincode::Error> {
         let mut acked_ticks = set.p2();
         acked_ticks.register_tick(*replicon_tick, change_tick.this_run());
@@ -223,7 +223,7 @@ fn prepare_buffers<'a>(
 fn collect_mappings(
     buffers: &mut [ReplicationBuffer],
     acked_ticks: &ResMut<AckedTicks>,
-    predictions: &Res<PredictionTracker>,
+    predictions: &Res<RepliconEntityMap>,
 ) -> Result<(), bincode::Error> {
     for buffer in &mut *buffers {
         // Include all entity mappings since the last acknowledged tick.

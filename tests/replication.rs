@@ -142,7 +142,7 @@ fn spawn_prediction_replication() {
     // and registers the client's predicted entity
     server_app
         .world
-        .resource_scope(|_world, mut pt: Mut<PredictionTracker>| {
+        .resource_scope(|_world, mut pt: Mut<RepliconEntityMap>| {
             pt.insert(client_id, server_entity, client_predicted_entity, tick)
         });
     // an edge case to test is when the server spawns an entity that has a predicted entity,
