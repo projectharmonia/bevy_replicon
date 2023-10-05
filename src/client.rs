@@ -67,6 +67,9 @@ impl ClientPlugin {
                         }
 
                         deserialize_entity_mappings(&mut cursor, world, &mut entity_map)?;
+                        if cursor.position() == end_pos {
+                            continue;
+                        }
 
                         deserialize_component_diffs(
                             &mut cursor,
