@@ -71,11 +71,12 @@ impl ReplicationBuffer {
         })
     }
 
+    /// Returns buffer's written client ID.
     pub(super) fn client_id(&self) -> u64 {
         self.client_id
     }
 
-    /// Read access to the buffer's system tick (this client's last acked replicon tick).
+    /// Returns buffer's system tick (this client's last acked replicon tick).
     pub(super) fn system_tick(&self) -> Tick {
         self.system_tick
     }
