@@ -66,6 +66,11 @@ impl ClientPlugin {
                             continue;
                         }
 
+                        deserialize_entity_mappings(&mut cursor, world, &mut entity_map)?;
+                        if cursor.position() == end_pos {
+                            continue;
+                        }
+
                         deserialize_component_diffs(
                             &mut cursor,
                             world,
@@ -138,6 +143,32 @@ fn deserialize_tick(
     }
 }
 
+fn deserialize_entity_mappings(
+    cursor: &mut Cursor<Bytes>,
+    world: &mut World,
+    entity_map: &mut NetworkEntityMap,
+) -> Result<(), bincode::Error> {
+    let array_len: u16 = bincode::deserialize_from(&mut *cursor)?;
+    for _ in 0..array_len {
+        let server_entity = deserialize_entity(cursor)?;
+        let client_entity = deserialize_entity(cursor)?;
+
+        if let Some(entry) = entity_map.to_client().get(&server_entity) {
+            panic!("received mapping from {server_entity:?} to {client_entity:?}, but already mapped to {entry:?}");
+        }
+
+        if let Some(mut entity) = world.get_entity_mut(client_entity) {
+            debug!("received mapping from {server_entity:?} to {client_entity:?}");
+            entity.insert(Replication);
+            entity_map.insert(server_entity, client_entity);
+        } else {
+            // Entity could be despawned on client already.
+            debug!("received mapping from {server_entity:?} to {client_entity:?}, but the entity doesn't exists");
+        }
+    }
+    Ok(())
+}
+
 /// Deserializes component diffs of `diff_kind` and applies them to the `world`.
 fn deserialize_component_diffs(
     cursor: &mut Cursor<Bytes>,
@@ -149,7 +180,7 @@ fn deserialize_component_diffs(
 ) -> Result<(), bincode::Error> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..entities_count {
-        let entity = deserialize_entity(&mut *cursor)?;
+        let entity = deserialize_entity(cursor)?;
         let mut entity = entity_map.get_by_server_or_spawn(world, entity);
         let components_count: u8 = bincode::deserialize_from(&mut *cursor)?;
         for _ in 0..components_count {
@@ -181,7 +212,7 @@ fn deserialize_despawns(
         // The entity might have already been despawned because of hierarchy or
         // with the last diff, but the server might not yet have received confirmation
         // from the client and could include the deletion in the latest diff.
-        let server_entity = deserialize_entity(&mut *cursor)?;
+        let server_entity = deserialize_entity(cursor)?;
         if let Some(client_entity) = entity_map
             .remove_by_server(server_entity)
             .and_then(|entity| world.get_entity_mut(entity))

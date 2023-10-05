@@ -71,7 +71,12 @@ impl ReplicationBuffer {
         })
     }
 
-    /// Read access to the buffer's system tick (this client's last acked replicon tick).
+    /// Returns buffer's written client ID.
+    pub(super) fn client_id(&self) -> u64 {
+        self.client_id
+    }
+
+    /// Returns buffer's system tick (this client's last acked replicon tick).
     pub(super) fn system_tick(&self) -> Tick {
         self.system_tick
     }
@@ -129,6 +134,26 @@ impl ReplicationBuffer {
             self.message.set_position(self.array_pos);
             bincode::serialize_into(&mut self.message, &self.array_len)?;
         }
+
+        Ok(())
+    }
+
+    /// Serializes entity to entity mapping.
+    ///
+    /// Should be called only inside array.
+    /// Increases array length by 1.
+    /// See also [`Self::start_array`].
+    pub(super) fn write_entity_mapping(
+        &mut self,
+        server_entity: Entity,
+        client_entity: Entity,
+    ) -> Result<(), bincode::Error> {
+        self.write_entity(server_entity)?;
+        self.write_entity(client_entity)?;
+        self.array_len = self
+            .array_len
+            .checked_add(1)
+            .ok_or(bincode::ErrorKind::SizeLimit)?;
 
         Ok(())
     }
@@ -244,7 +269,7 @@ impl ReplicationBuffer {
     ///
     /// The index is first prepended with a bit flag to indicate if the generation
     /// is serialized or not (it is not serialized if equal to zero).
-    fn write_entity(&mut self, entity: Entity) -> Result<(), bincode::Error> {
+    pub(super) fn write_entity(&mut self, entity: Entity) -> Result<(), bincode::Error> {
         let mut flagged_index = (entity.index() as u64) << 1;
         let flag = entity.generation() > 0;
         flagged_index |= flag as u64;

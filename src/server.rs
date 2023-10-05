@@ -52,6 +52,7 @@ impl Plugin for ServerPlugin {
         ))
         .init_resource::<AckedTicks>()
         .init_resource::<RepliconTick>()
+        .init_resource::<ClientEntityMap>()
         .configure_set(
             PreUpdate,
             ServerSet::Receive.after(NetcodeServerPlugin::update_system),
@@ -110,7 +111,11 @@ impl ServerPlugin {
         tick.increment();
     }
 
-    fn acks_receiving_system(mut acked_ticks: ResMut<AckedTicks>, mut server: ResMut<RenetServer>) {
+    fn acks_receiving_system(
+        mut acked_ticks: ResMut<AckedTicks>,
+        mut server: ResMut<RenetServer>,
+        mut entity_map: ResMut<ClientEntityMap>,
+    ) {
         for client_id in server.clients_id() {
             while let Some(message) = server.receive_message(client_id, REPLICATION_CHANNEL_ID) {
                 match bincode::deserialize::<RepliconTick>(&message) {
@@ -118,6 +123,7 @@ impl ServerPlugin {
                         let acked_tick = acked_ticks.clients.entry(client_id).or_default();
                         if *acked_tick < tick {
                             *acked_tick = tick;
+                            entity_map.cleanup_acked(client_id, *acked_tick);
                         }
                     }
                     Err(e) => error!("unable to deserialize tick from client {client_id}: {e}"),
@@ -144,6 +150,7 @@ impl ServerPlugin {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn diffs_sending_system(
         mut buffers: Local<Vec<ReplicationBuffer>>,
         change_tick: SystemChangeTick,
@@ -152,11 +159,14 @@ impl ServerPlugin {
         despawn_tracker: Res<DespawnTracker>,
         replicon_tick: Res<RepliconTick>,
         removal_trackers: Query<(Entity, &RemovalTracker)>,
+        entity_map: Res<ClientEntityMap>,
     ) -> Result<(), bincode::Error> {
         let mut acked_ticks = set.p2();
         acked_ticks.register_tick(*replicon_tick, change_tick.this_run());
 
         let buffers = prepare_buffers(&mut buffers, &acked_ticks, *replicon_tick)?;
+
+        collect_mappings(buffers, &entity_map)?;
         collect_changes(
             buffers,
             set.p0(),
@@ -206,6 +216,27 @@ fn prepare_buffers<'a>(
     }
 
     Ok(&mut buffers[..acked_ticks.clients.len()])
+}
+
+/// Collect and write any new entity mappings into buffers since last acknowledged tick.
+///
+/// Mappings will be processed first, so all referenced entities after it will behave correctly.
+fn collect_mappings(
+    buffers: &mut [ReplicationBuffer],
+    entity_map: &ClientEntityMap,
+) -> Result<(), bincode::Error> {
+    for buffer in &mut *buffers {
+        buffer.start_array();
+
+        if let Some(mappings) = entity_map.get(&buffer.client_id()) {
+            for mapping in mappings {
+                buffer.write_entity_mapping(mapping.server_entity, mapping.client_entity)?;
+            }
+        }
+
+        buffer.end_array()?;
+    }
+    Ok(())
 }
 
 /// Collect component changes into buffers based on last acknowledged tick.
@@ -478,4 +509,103 @@ pub fn replicate_into_scene(scene: &mut DynamicScene, world: &World) {
             }
         }
     }
+}
+
+/**
+A resource that exists on the server for mapping server entities to
+entities that clients have already spawned. The mappings are sent to clients as part of replication
+and injected into the client's [`NetworkEntityMap`](crate::client::NetworkEntityMap).
+
+Sometimes you don't want to wait for the server to spawn something before it appears on the
+client – when a client performs an action, they can immediately simulate it on the client,
+then match up that entity with the eventual replicated server spawn, rather than have replication spawn
+a brand new entity on the client.
+
+In this situation, the client can send the server its pre-spawned entity id, then the server can spawn its own entity
+and inject the [`ClientMapping`] into its [`ClientEntityMap`].
+
+Replication packets will send a list of such mappings to clients, which will
+be inserted into the client's [`NetworkEntityMap`](crate::client::NetworkEntityMap). Using replication
+to propagate the mappings ensures any replication messages related to the pre-mapped
+server entities will synchronize with updating the client's [`NetworkEntityMap`](crate::client::NetworkEntityMap).
+
+### Example:
+
+```rust
+# use bevy::prelude::*;
+# use bevy_replicon::prelude::*;
+
+#[derive(Event)]
+struct SpawnBullet(Entity);
+
+#[derive(Component)]
+struct Bullet;
+
+/// System that shoots a bullet and spawns it on the client.
+fn shoot_system(mut commands: Commands, mut bullet_events: EventWriter<SpawnBullet>) {
+    let entity = commands.spawn(Bullet).id();
+    bullet_events.send(SpawnBullet(entity));
+}
+
+/// Validation to check if client is not cheating or the simulation is correct.
+///
+/// Depending on the type of game you may want to correct the client or disconnect it.
+/// In this example we just always confirm the spawn.
+fn confirm_bullet(
+    mut commands: Commands,
+    mut bullet_events: EventReader<FromClient<SpawnBullet>>,
+    mut entity_map: ResMut<ClientEntityMap>,
+    replicon_tick: Res<RepliconTick>,
+) {
+    for FromClient { client_id, event } in &mut bullet_events {
+        let server_entity = commands.spawn(Bullet).id(); // You can insert more components, they will be sent to the client's entity correctly.
+
+        entity_map.insert(
+            *client_id,
+            ClientMapping {
+                tick: *replicon_tick,
+                server_entity,
+                client_entity: event.0,
+            },
+        );
+    }
+}
+```
+
+If the client is connected and receives the replication data for the server entity mapping,
+replicated data will be applied to the client's original entity instead of spawning a new one.
+You can detect when the mapping is replicated by querying for `Added<Replication>` on your original
+client entity.
+
+If client's original entity is not found, a new entity will be spawned on the client,
+just the same as when no client entity is provided.
+**/
+#[derive(Resource, Debug, Default, Deref)]
+pub struct ClientEntityMap(HashMap<u64, Vec<ClientMapping>>);
+
+impl ClientEntityMap {
+    /// Registers `mapping` for a client entity pre-spawned by the specified client.
+    ///
+    /// This will be sent as part of replication data and added to the client's [`NetworkEntityMap`](crate::client::NetworkEntityMap).
+    pub fn insert(&mut self, client_id: u64, mapping: ClientMapping) {
+        self.0.entry(client_id).or_default().push(mapping);
+    }
+
+    /// Removes acknowledged mappings.
+    fn cleanup_acked(&mut self, client_id: u64, acked_tick: RepliconTick) {
+        if let Some(mappings) = self.0.get_mut(&client_id) {
+            mappings.retain(|mapping| mapping.tick > acked_tick);
+        }
+    }
+}
+
+/// Stores the server entity corresponding to a client's pre-spawned entity.
+///
+/// The `tick` is stored here so that this prediction data can be cleaned up once the tick
+/// has been acked by the client.
+#[derive(Debug)]
+pub struct ClientMapping {
+    pub tick: RepliconTick,
+    pub server_entity: Entity,
+    pub client_entity: Entity,
 }

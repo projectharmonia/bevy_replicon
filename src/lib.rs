@@ -145,6 +145,13 @@ to the client in the custom deserialization, despawn and component removal funct
 One use for this is rollback networking: you may want to rollback time and apply the update
 for the tick frame, which is in the past, then resimulate.
 
+### Mapping to existing client entities
+
+If you want the server to replicate an entity into a client entity that was already spawned on a client, see [`ClientEntityMap`].
+
+This can be useful for certain types of game. For example, spawning bullets on the client immediately without
+waiting on replication.
+
 ### "Blueprints" pattern
 
 The idea was borrowed from [iyes_scene_tools](https://github.com/IyesGames/iyes_scene_tools#blueprints-pattern).
@@ -399,7 +406,10 @@ pub mod prelude {
             replicon_tick::RepliconTick,
             NetworkChannels, RepliconCorePlugin,
         },
-        server::{has_authority, AckedTicks, ServerPlugin, ServerSet, TickPolicy, SERVER_ID},
+        server::{
+            has_authority, AckedTicks, ClientEntityMap, ClientMapping, ServerPlugin, ServerSet,
+            TickPolicy, SERVER_ID,
+        },
         ReplicationPlugins,
     };
 }
