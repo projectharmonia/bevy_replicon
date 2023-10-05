@@ -13,7 +13,7 @@ use serde::{
 
 use super::{BuildEventDeserializer, BuildEventSerializer, EventChannel};
 use crate::{
-    client::{ClientSet, NetworkEntityMap},
+    client::{ClientSet, ServerEntityMap},
     network_event::EventMapper,
     replicon_core::{replication_rules::MapNetworkEntities, NetworkChannels},
     server::{has_authority, ServerSet, SERVER_ID},
@@ -170,7 +170,7 @@ fn receiving_system<T: Event + DeserializeOwned + Debug>(
 fn receiving_and_mapping_system<T: Event + MapNetworkEntities + DeserializeOwned + Debug>(
     mut server_events: EventWriter<T>,
     mut client: ResMut<RenetClient>,
-    entity_map: Res<NetworkEntityMap>,
+    entity_map: Res<ServerEntityMap>,
     channel: Res<EventChannel<T>>,
 ) {
     while let Some(message) = client.receive_message(channel.id) {
@@ -207,7 +207,7 @@ fn receiving_reflect_system<T, D>(
 fn receiving_and_mapping_reflect_system<T, D>(
     mut server_events: EventWriter<T>,
     mut client: ResMut<RenetClient>,
-    entity_map: Res<NetworkEntityMap>,
+    entity_map: Res<ServerEntityMap>,
     channel: Res<EventChannel<T>>,
     registry: Res<AppTypeRegistry>,
 ) where

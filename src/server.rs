@@ -514,7 +514,7 @@ pub fn replicate_into_scene(scene: &mut DynamicScene, world: &World) {
 /**
 A resource that exists on the server for mapping server entities to
 entities that clients have already spawned. The mappings are sent to clients as part of replication
-and injected into the client's [`NetworkEntityMap`](crate::client::NetworkEntityMap).
+and injected into the client's [`ServerEntityMap`](crate::client::ServerEntityMap).
 
 Sometimes you don't want to wait for the server to spawn something before it appears on the
 client – when a client performs an action, they can immediately simulate it on the client,
@@ -525,9 +525,9 @@ In this situation, the client can send the server its pre-spawned entity id, the
 and inject the [`ClientMapping`] into its [`ClientEntityMap`].
 
 Replication packets will send a list of such mappings to clients, which will
-be inserted into the client's [`NetworkEntityMap`](crate::client::NetworkEntityMap). Using replication
+be inserted into the client's [`ServerEntityMap`](crate::client::ServerEntityMap). Using replication
 to propagate the mappings ensures any replication messages related to the pre-mapped
-server entities will synchronize with updating the client's [`NetworkEntityMap`](crate::client::NetworkEntityMap).
+server entities will synchronize with updating the client's [`ServerEntityMap`](crate::client::ServerEntityMap).
 
 ### Example:
 
@@ -586,7 +586,7 @@ pub struct ClientEntityMap(HashMap<u64, Vec<ClientMapping>>);
 impl ClientEntityMap {
     /// Registers `mapping` for a client entity pre-spawned by the specified client.
     ///
-    /// This will be sent as part of replication data and added to the client's [`NetworkEntityMap`](crate::client::NetworkEntityMap).
+    /// This will be sent as part of replication data and added to the client's [`ServerEntityMap`](crate::client::ServerEntityMap).
     pub fn insert(&mut self, client_id: u64, mapping: ClientMapping) {
         self.0.entry(client_id).or_default().push(mapping);
     }

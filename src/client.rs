@@ -22,7 +22,7 @@ impl Plugin for ClientPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((RenetClientPlugin, NetcodeClientPlugin))
             .init_resource::<LastRepliconTick>()
-            .init_resource::<NetworkEntityMap>()
+            .init_resource::<ServerEntityMap>()
             .configure_set(
                 PreUpdate,
                 ClientSet::Receive.after(NetcodeClientPlugin::update_system),
@@ -53,7 +53,7 @@ impl Plugin for ClientPlugin {
 impl ClientPlugin {
     fn diff_receiving_system(world: &mut World) -> Result<(), bincode::Error> {
         world.resource_scope(|world, mut client: Mut<RenetClient>| {
-            world.resource_scope(|world, mut entity_map: Mut<NetworkEntityMap>| {
+            world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
                 world.resource_scope(|world, replication_rules: Mut<ReplicationRules>| {
                     while let Some(message) = client.receive_message(REPLICATION_CHANNEL_ID) {
                         let end_pos: u64 = message.len().try_into().unwrap();
@@ -118,7 +118,7 @@ impl ClientPlugin {
 
     fn reset_system(
         mut last_tick: ResMut<LastRepliconTick>,
-        mut entity_map: ResMut<NetworkEntityMap>,
+        mut entity_map: ResMut<ServerEntityMap>,
     ) {
         last_tick.0 = Default::default();
         entity_map.clear();
@@ -146,7 +146,7 @@ fn deserialize_tick(
 fn deserialize_entity_mappings(
     cursor: &mut Cursor<Bytes>,
     world: &mut World,
-    entity_map: &mut NetworkEntityMap,
+    entity_map: &mut ServerEntityMap,
 ) -> Result<(), bincode::Error> {
     let array_len: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..array_len {
@@ -173,7 +173,7 @@ fn deserialize_entity_mappings(
 fn deserialize_component_diffs(
     cursor: &mut Cursor<Bytes>,
     world: &mut World,
-    entity_map: &mut NetworkEntityMap,
+    entity_map: &mut ServerEntityMap,
     replication_rules: &ReplicationRules,
     diff_kind: DiffKind,
     tick: RepliconTick,
@@ -203,7 +203,7 @@ fn deserialize_component_diffs(
 fn deserialize_despawns(
     cursor: &mut Cursor<Bytes>,
     world: &mut World,
-    entity_map: &mut NetworkEntityMap,
+    entity_map: &mut ServerEntityMap,
     replication_rules: &ReplicationRules,
     tick: RepliconTick,
 ) -> Result<(), bincode::Error> {
@@ -270,12 +270,12 @@ pub enum ClientSet {
 ///
 /// Used only on client.
 #[derive(Default, Resource)]
-pub struct NetworkEntityMap {
+pub struct ServerEntityMap {
     server_to_client: HashMap<Entity, Entity>,
     client_to_server: HashMap<Entity, Entity>,
 }
 
-impl NetworkEntityMap {
+impl ServerEntityMap {
     #[inline]
     pub fn insert(&mut self, server_entity: Entity, client_entity: Entity) {
         self.server_to_client.insert(server_entity, client_entity);
@@ -334,7 +334,7 @@ pub struct ClientMapper<'a> {
 
 impl<'a> ClientMapper<'a> {
     #[inline]
-    pub fn new(world: &'a mut World, entity_map: &'a mut NetworkEntityMap) -> Self {
+    pub fn new(world: &'a mut World, entity_map: &'a mut ServerEntityMap) -> Self {
         Self {
             world,
             server_to_client: &mut entity_map.server_to_client,

@@ -11,7 +11,7 @@ use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use super::replicon_tick::RepliconTick;
-use crate::client::{ClientMapper, NetworkEntityMap};
+use crate::client::{ClientMapper, ServerEntityMap};
 
 pub trait AppReplicationExt {
     /// Marks component for replication.
@@ -163,7 +163,7 @@ pub type SerializeFn = fn(Ptr, &mut Cursor<Vec<u8>>) -> Result<(), bincode::Erro
 /// Signature of component deserialization functions.
 pub type DeserializeFn = fn(
     &mut EntityMut,
-    &mut NetworkEntityMap,
+    &mut ServerEntityMap,
     &mut Cursor<Bytes>,
     RepliconTick,
 ) -> Result<(), bincode::Error>;
@@ -234,7 +234,7 @@ pub fn serialize_component<C: Component + Serialize>(
 /// Default deserialization function.
 pub fn deserialize_component<C: Component + DeserializeOwned>(
     entity: &mut EntityMut,
-    _entity_map: &mut NetworkEntityMap,
+    _entity_map: &mut ServerEntityMap,
     cursor: &mut Cursor<Bytes>,
     _tick: RepliconTick,
 ) -> Result<(), bincode::Error> {
@@ -247,7 +247,7 @@ pub fn deserialize_component<C: Component + DeserializeOwned>(
 /// Like [`deserialize_component`], but also maps entities before insertion.
 pub fn deserialize_mapped_component<C: Component + DeserializeOwned + MapNetworkEntities>(
     entity: &mut EntityMut,
-    entity_map: &mut NetworkEntityMap,
+    entity_map: &mut ServerEntityMap,
     cursor: &mut Cursor<Bytes>,
     _tick: RepliconTick,
 ) -> Result<(), bincode::Error> {
