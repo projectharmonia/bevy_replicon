@@ -4,7 +4,7 @@ use bevy::{
 };
 
 use super::RepliconTick;
-/// ['RepliconEntityMap'] is a resource that exists on the server for mapping server entities to
+/// ['ClientEntityMap'] is a resource that exists on the server for mapping server entities to
 /// entities that clients have already spawned. The mappings are sent to clients and injected into
 /// the client's [`crate::client::NetworkEntityMap`].
 ///
@@ -14,7 +14,7 @@ use super::RepliconTick;
 /// a brand new bullet on the client.
 ///
 /// In this situation, the server can write the client `Entity` it sent (in your game's custom
-/// protocol) into the [`RepliconEntityMap`], associating it with the newly spawned server entity.
+/// protocol) into the [`ClientEntityMap`], associating it with the newly spawned server entity.
 ///
 /// Replication packets will send a list of such mappings
 /// to clients, which will be inserted into the client's [`crate::client::NetworkEntityMap`].
@@ -29,7 +29,7 @@ use super::RepliconTick;
 ///     send_shoot_command_to_server(client_predicted_entity);
 /// }
 /// // on server:
-/// fn apply_inputs_system(mut entity_map: ResMut<RepliconEntityMap>, tick: Res<RepliconTick>) {
+/// fn apply_inputs_system(mut entity_map: ResMut<ClientEntityMap>, tick: Res<RepliconTick>) {
 ///     // ...
 ///     if player_input.pressed_shoot() {
 ///         let server_entity = commands.spawn((Bullet, Replication, Etc)).id();
@@ -52,7 +52,7 @@ use super::RepliconTick;
 /// just the same as when no client prediction is provided.
 ///
 #[derive(Resource, Debug, Default)]
-pub struct RepliconEntityMap {
+pub struct ClientEntityMap {
     mappings: HashMap<u64, Vec<EntityMapping>>,
 }
 pub(crate) type EntityMapping = (RepliconTick, ServerEntity, ClientEntity);
@@ -61,7 +61,7 @@ pub(crate) type EntityMapping = (RepliconTick, ServerEntity, ClientEntity);
 pub(crate) type ServerEntity = Entity;
 pub(crate) type ClientEntity = Entity;
 
-impl RepliconEntityMap {
+impl ClientEntityMap {
     /// Register that the server spawned `server_entity` as a result of `client_id` sending a
     /// command which included a `client_entity` they already spawned. This will be sent and added
     /// to the client's [`crate::client::NetworkEntityMap`].

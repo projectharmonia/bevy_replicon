@@ -148,7 +148,7 @@ for the tick frame, which is in the past, then resimulate.
 ### Mapping to existing client entities
 
 If you want to spawn entities on the client before the server replicates the spawn back
-to the client, and use the existing client entity to replicate data into, see [`RepliconEntityMap`]
+to the client, and use the existing client entity to replicate data into, see [`ClientEntityMap`]
 
 This can be useful for certain types of game. Eg, spawning bullets on the client immediately without
 waiting on replication.
@@ -408,7 +408,7 @@ pub mod prelude {
             NetworkChannels, RepliconCorePlugin,
         },
         server::{
-            has_authority, AckedTicks, RepliconEntityMap, ServerPlugin, ServerSet, TickPolicy,
+            has_authority, AckedTicks, ClientEntityMap, ServerPlugin, ServerSet, TickPolicy,
             SERVER_ID,
         },
         ReplicationPlugins,

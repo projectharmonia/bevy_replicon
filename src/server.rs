@@ -28,7 +28,7 @@ use crate::replicon_core::{
 use despawn_tracker::{DespawnTracker, DespawnTrackerPlugin};
 use removal_tracker::{RemovalTracker, RemovalTrackerPlugin};
 use replication_buffer::ReplicationBuffer;
-pub use replicon_entity_map::RepliconEntityMap;
+pub use replicon_entity_map::ClientEntityMap;
 
 pub const SERVER_ID: u64 = 0;
 
@@ -54,7 +54,7 @@ impl Plugin for ServerPlugin {
         ))
         .init_resource::<AckedTicks>()
         .init_resource::<RepliconTick>()
-        .init_resource::<RepliconEntityMap>()
+        .init_resource::<ClientEntityMap>()
         .configure_set(
             PreUpdate,
             ServerSet::Receive.after(NetcodeServerPlugin::update_system),
@@ -116,7 +116,7 @@ impl ServerPlugin {
     fn acks_receiving_system(
         mut acked_ticks: ResMut<AckedTicks>,
         mut server: ResMut<RenetServer>,
-        mut predictions: ResMut<RepliconEntityMap>,
+        mut predictions: ResMut<ClientEntityMap>,
     ) {
         for client_id in server.clients_id() {
             while let Some(message) = server.receive_message(client_id, REPLICATION_CHANNEL_ID) {
@@ -160,7 +160,7 @@ impl ServerPlugin {
         despawn_tracker: Res<DespawnTracker>,
         replicon_tick: Res<RepliconTick>,
         removal_trackers: Query<(Entity, &RemovalTracker)>,
-        predictions: Res<RepliconEntityMap>,
+        predictions: Res<ClientEntityMap>,
     ) -> Result<(), bincode::Error> {
         let mut acked_ticks = set.p2();
         acked_ticks.register_tick(*replicon_tick, change_tick.this_run());
@@ -223,7 +223,7 @@ fn prepare_buffers<'a>(
 fn collect_mappings(
     buffers: &mut [ReplicationBuffer],
     acked_ticks: &ResMut<AckedTicks>,
-    predictions: &Res<RepliconEntityMap>,
+    predictions: &Res<ClientEntityMap>,
 ) -> Result<(), bincode::Error> {
     for buffer in &mut *buffers {
         // Include all entity mappings since the last acknowledged tick.
