@@ -170,13 +170,6 @@ fn spawn_prediction_replication() {
         .query_filtered::<&MappedComponent, With<Replication>>()
         .single(&client_app.world);
 
-    // TODO if the mapped component entity was processed before the predicted projectile entity,
-    // a new entity would be spawned, because currently the client predicted entity is only sent alongside
-    // the server_entity it predicted, so the mapping doesn't exist if a mapped component referencing it
-    // is created first.
-    //
-    // as a result, both of the following two asserts will fail until the bug is fixed:
-    //
     assert_eq!(
         mapped_component.0, client_predicted_entity,
         "MappedComponent should point to correctly mapped predicted client entity"
