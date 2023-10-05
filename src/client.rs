@@ -8,13 +8,13 @@ use bevy::{
 use bevy_renet::{renet::Bytes, transport::client_connected};
 use bevy_renet::{renet::RenetClient, transport::NetcodeClientPlugin, RenetClientPlugin};
 use bincode::{DefaultOptions, Options};
+use varint_rs::VarintReader;
 
 use crate::replicon_core::{
     replication_rules::{Mapper, Replication, ReplicationRules},
     replicon_tick::RepliconTick,
     REPLICATION_CHANNEL_ID,
 };
-use crate::server::replication_buffer::ReplicationBuffer;
 
 pub struct ClientPlugin;
 
@@ -129,7 +129,7 @@ fn deserialize_tick(
     cursor: &mut Cursor<Bytes>,
     world: &mut World,
 ) -> Result<Option<RepliconTick>, bincode::Error> {
-    let tick = ReplicationBuffer::read_replicon_tick(cursor)?;
+    let tick = bincode::deserialize_from(cursor)?;
 
     let mut last_tick = world.resource_mut::<LastRepliconTick>();
     if last_tick.0 < tick {
@@ -145,18 +145,20 @@ fn deserialize_entity_mappings(
     world: &mut World,
     entity_map: &mut NetworkEntityMap,
 ) -> Result<(), bincode::Error> {
-    let mappings = ReplicationBuffer::read_entity_mappings(cursor)?;
-    for (server_entity, client_entity) in mappings.iter() {
+    let array_len: u16 = bincode::deserialize_from(&mut *cursor)?;
+    for _ in 0..array_len {
+        let server_entity = deserialize_entity(cursor)?;
+        let client_entity = deserialize_entity(cursor)?;
         // does this server entity already map to a client entity?
-        if let Some(existing_mapping) = entity_map.to_client().get(server_entity) {
+        if let Some(existing_mapping) = entity_map.to_client().get(&server_entity) {
             println!("Received mapping for s:{server_entity:?} -> c:{client_entity:?}, but already mapped to c:{existing_mapping:?}");
             continue;
         }
         // does client entity actually exist? maybe we despawned it due to timings
-        if let Some(mut cmd) = world.get_entity_mut(*client_entity) {
+        if let Some(mut cmd) = world.get_entity_mut(client_entity) {
             println!("Adding entity mapping s:{server_entity:?} -> c:{client_entity:?}");
             cmd.insert(Replication);
-            entity_map.insert(*server_entity, *client_entity);
+            entity_map.insert(server_entity, client_entity);
         } else {
             println!("Received mapping for s:{server_entity:?} -> c:{client_entity:?}, but client entity doesn't exist");
             continue;
@@ -176,7 +178,7 @@ fn deserialize_component_diffs(
 ) -> Result<(), bincode::Error> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..entities_count {
-        let entity = ReplicationBuffer::read_entity(cursor)?;
+        let entity = deserialize_entity(cursor)?;
         let mut entity = entity_map.get_by_server_or_spawn(world, entity);
         let components_count: u8 = bincode::deserialize_from(&mut *cursor)?;
         for _ in 0..components_count {
@@ -208,7 +210,7 @@ fn deserialize_despawns(
         // The entity might have already been despawned because of hierarchy or
         // with the last diff, but the server might not yet have received confirmation
         // from the client and could include the deletion in the latest diff.
-        let server_entity = ReplicationBuffer::read_entity(cursor)?;
+        let server_entity = deserialize_entity(cursor)?;
         if let Some(client_entity) = entity_map
             .remove_by_server(server_entity)
             .and_then(|entity| world.get_entity_mut(entity))
@@ -218,6 +220,20 @@ fn deserialize_despawns(
     }
 
     Ok(())
+}
+
+fn deserialize_entity(cursor: &mut Cursor<Bytes>) -> Result<Entity, bincode::Error> {
+    let flagged_index: u64 = cursor.read_u64_varint()?;
+    let has_generation = (flagged_index & 1) > 0;
+    let generation = if has_generation {
+        cursor.read_u32_varint()?
+    } else {
+        0u32
+    };
+
+    let bits = (generation as u64) << 32 | (flagged_index >> 1);
+
+    Ok(Entity::from_bits(bits))
 }
 
 /// Type of component change.

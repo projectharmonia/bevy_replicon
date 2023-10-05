@@ -3,7 +3,7 @@ use std::{io::Cursor, mem};
 use bevy::{ecs::component::Tick, prelude::*, ptr::Ptr};
 use bevy_renet::renet::{Bytes, RenetServer};
 use bincode::{DefaultOptions, Options};
-use varint_rs::{VarintReader, VarintWriter};
+use varint_rs::VarintWriter;
 
 use crate::replicon_core::{
     replication_rules::{ReplicationId, ReplicationInfo},
@@ -13,7 +13,7 @@ use crate::replicon_core::{
 /// A reusable buffer with replicated data for a client.
 ///
 /// See also [Limits](../index.html#limits)
-pub(crate) struct ReplicationBuffer {
+pub(super) struct ReplicationBuffer {
     /// ID of a client for which this buffer is written.
     client_id: u64,
 
@@ -55,10 +55,12 @@ impl ReplicationBuffer {
         system_tick: Tick,
         replicon_tick: RepliconTick,
     ) -> Result<Self, bincode::Error> {
-        let mut result = Self {
+        let mut message = Default::default();
+        bincode::serialize_into(&mut message, &replicon_tick)?;
+        Ok(Self {
             client_id,
             system_tick,
-            message: Default::default(),
+            message,
             array_pos: Default::default(),
             array_len: Default::default(),
             arrays_with_data: Default::default(),
@@ -66,27 +68,11 @@ impl ReplicationBuffer {
             entity_data_pos: Default::default(),
             entity_data_len: Default::default(),
             data_entity: Entity::PLACEHOLDER,
-        };
-        result.write_replicon_tick(&replicon_tick)?;
-        Ok(result)
+        })
     }
 
     #[inline]
-    fn write_replicon_tick(&mut self, replicon_tick: &RepliconTick) -> Result<(), bincode::Error> {
-        bincode::serialize_into(&mut self.message, &replicon_tick)?;
-        Ok(())
-    }
-
-    #[inline]
-    pub(crate) fn read_replicon_tick(
-        cursor: &mut Cursor<Bytes>,
-    ) -> Result<RepliconTick, bincode::Error> {
-        let tick = bincode::deserialize_from(cursor)?;
-        Ok(tick)
-    }
-
-    #[inline]
-    pub(crate) fn client_id(&self) -> u64 {
+    pub(super) fn client_id(&self) -> u64 {
         self.client_id
     }
 
@@ -111,8 +97,7 @@ impl ReplicationBuffer {
         self.message.get_mut().clear();
         self.arrays_with_data = 0;
         self.trailing_empty_arrays = 0;
-
-        self.write_replicon_tick(&replicon_tick)?;
+        bincode::serialize_into(&mut self.message, &replicon_tick)?;
 
         Ok(())
     }
@@ -135,22 +120,6 @@ impl ReplicationBuffer {
         }
         self.end_array()?;
         Ok(())
-    }
-
-    /// Reads entity mapping list
-    ///
-    /// Static counterpart of `write_entity_mappings()`
-    pub(crate) fn read_entity_mappings(
-        cursor: &mut Cursor<Bytes>,
-    ) -> Result<Vec<(Entity, Entity)>, bincode::Error> {
-        let mut mappings = Vec::new();
-        let array_len: u16 = bincode::deserialize_from(&mut *cursor)?;
-        for _ in 0..array_len {
-            let server_entity = Self::read_entity(cursor)?;
-            let client_entity = Self::read_entity(cursor)?;
-            mappings.push((server_entity, client_entity));
-        }
-        Ok(mappings)
     }
 
     /// Starts writing array by remembering its position to write length after.
@@ -301,7 +270,7 @@ impl ReplicationBuffer {
     ///
     /// The index is first prepended with a bit flag to indicate if the generation
     /// is serialized or not (it is not serialized if equal to zero).
-    pub(crate) fn write_entity(&mut self, entity: Entity) -> Result<(), bincode::Error> {
+    pub(super) fn write_entity(&mut self, entity: Entity) -> Result<(), bincode::Error> {
         let mut flagged_index = (entity.index() as u64) << 1;
         let flag = entity.generation() > 0;
         flagged_index |= flag as u64;
@@ -312,22 +281,6 @@ impl ReplicationBuffer {
         }
 
         Ok(())
-    }
-
-    /// Deserializes `entity` from compressed index and generation
-    /// Static counterpart to [`write_entity()`].
-    pub(crate) fn read_entity(cursor: &mut Cursor<Bytes>) -> Result<Entity, bincode::Error> {
-        let flagged_index: u64 = cursor.read_u64_varint()?;
-        let has_generation = (flagged_index & 1) > 0;
-        let generation = if has_generation {
-            cursor.read_u32_varint()?
-        } else {
-            0u32
-        };
-
-        let bits = (generation as u64) << 32 | (flagged_index >> 1);
-
-        Ok(Entity::from_bits(bits))
     }
 
     /// Send the buffer contents into a renet server channel.
