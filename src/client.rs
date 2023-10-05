@@ -8,13 +8,13 @@ use bevy::{
 use bevy_renet::{renet::Bytes, transport::client_connected};
 use bevy_renet::{renet::RenetClient, transport::NetcodeClientPlugin, RenetClientPlugin};
 use bincode::{DefaultOptions, Options};
-use varint_rs::VarintReader;
 
 use crate::replicon_core::{
     replication_rules::{Mapper, Replication, ReplicationRules},
     replicon_tick::RepliconTick,
     REPLICATION_CHANNEL_ID,
 };
+use crate::server::replication_buffer::ReplicationBuffer;
 
 pub struct ClientPlugin;
 
@@ -65,6 +65,8 @@ impl ClientPlugin {
                         if cursor.position() == end_pos {
                             continue;
                         }
+
+                        deserialize_entity_mappings(&mut cursor, world, &mut entity_map)?;
 
                         deserialize_component_diffs(
                             &mut cursor,
@@ -127,7 +129,7 @@ fn deserialize_tick(
     cursor: &mut Cursor<Bytes>,
     world: &mut World,
 ) -> Result<Option<RepliconTick>, bincode::Error> {
-    let tick = bincode::deserialize_from(cursor)?;
+    let tick = ReplicationBuffer::read_replicon_tick(cursor)?;
 
     let mut last_tick = world.resource_mut::<LastRepliconTick>();
     if last_tick.0 < tick {
@@ -136,6 +138,31 @@ fn deserialize_tick(
     } else {
         Ok(None)
     }
+}
+
+fn deserialize_entity_mappings(
+    cursor: &mut Cursor<Bytes>,
+    world: &mut World,
+    entity_map: &mut NetworkEntityMap,
+) -> Result<(), bincode::Error> {
+    let mappings = ReplicationBuffer::read_entity_mappings(cursor)?;
+    for (server_entity, client_entity) in mappings.iter() {
+        // does this server entity already map to a client entity?
+        if let Some(existing_mapping) = entity_map.get_mapping_from_server(*server_entity) {
+            println!("Received mapping for s:{server_entity:?} -> c:{client_entity:?}, but already mapped to c:{existing_mapping:?}");
+            continue;
+        }
+        // does client entity actually exist? maybe we despawned it due to timings
+        if let Some(mut cmd) = world.get_entity_mut(*client_entity) {
+            println!("Adding entity mapping s:{server_entity:?} -> c:{client_entity:?}");
+            cmd.insert(Replication);
+            entity_map.insert(*server_entity, *client_entity);
+        } else {
+            println!("Received mapping for s:{server_entity:?} -> c:{client_entity:?}, but client entity doesn't exist");
+            continue;
+        }
+    }
+    Ok(())
 }
 
 /// Deserializes component diffs of `diff_kind` and applies them to the `world`.
@@ -149,12 +176,8 @@ fn deserialize_component_diffs(
 ) -> Result<(), bincode::Error> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..entities_count {
-        let entity = deserialize_entity(&mut *cursor)?;
-        let predicted_entity = match deserialize_entity(&mut *cursor)? {
-            Entity::PLACEHOLDER => None,
-            e => Some(e),
-        };
-        let mut entity = entity_map.get_by_server_or_spawn(world, entity, predicted_entity);
+        let entity = ReplicationBuffer::read_entity(cursor)?;
+        let mut entity = entity_map.get_by_server_or_spawn(world, entity);
         let components_count: u8 = bincode::deserialize_from(&mut *cursor)?;
         for _ in 0..components_count {
             let replication_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
@@ -185,7 +208,7 @@ fn deserialize_despawns(
         // The entity might have already been despawned because of hierarchy or
         // with the last diff, but the server might not yet have received confirmation
         // from the client and could include the deletion in the latest diff.
-        let server_entity = deserialize_entity(&mut *cursor)?;
+        let server_entity = ReplicationBuffer::read_entity(cursor)?;
         if let Some(client_entity) = entity_map
             .remove_by_server(server_entity)
             .and_then(|entity| world.get_entity_mut(entity))
@@ -195,21 +218,6 @@ fn deserialize_despawns(
     }
 
     Ok(())
-}
-
-/// Deserializes `entity` from compressed index and generation, for details see [`ReplicationBuffer::write_entity()`].
-fn deserialize_entity(cursor: &mut Cursor<Bytes>) -> Result<Entity, bincode::Error> {
-    let flagged_index: u64 = cursor.read_u64_varint()?;
-    let has_generation = (flagged_index & 1) > 0;
-    let generation = if has_generation {
-        cursor.read_u32_varint()?
-    } else {
-        0u32
-    };
-
-    let bits = (generation as u64) << 32 | (flagged_index >> 1);
-
-    Ok(Entity::from_bits(bits))
 }
 
 /// Type of component change.
@@ -259,30 +267,20 @@ impl NetworkEntityMap {
         self.client_to_server.insert(client_entity, server_entity);
     }
 
+    // Gets client Entity mapped from server Entity, if a mapping exists
+    pub(super) fn get_mapping_from_server(&self, server_entity: Entity) -> Option<&Entity> {
+        self.server_to_client.get(&server_entity)
+    }
+
     pub(super) fn get_by_server_or_spawn<'a>(
         &mut self,
         world: &'a mut World,
         server_entity: Entity,
-        predicted_entity: Option<Entity>,
     ) -> EntityMut<'a> {
         match self.server_to_client.entry(server_entity) {
             Entry::Occupied(entry) => world.entity_mut(*entry.get()),
             Entry::Vacant(entry) => {
-                // test if a predicted entity exists
-                let client_entity = match predicted_entity {
-                    Some(e) => {
-                        if world.get_entity(e).is_some() {
-                            let mut ent_mut = world.get_entity_mut(e).unwrap();
-                            ent_mut.insert(Replication);
-                            ent_mut
-                        } else {
-                            // miss, spawn a new entity.
-                            world.spawn(Replication)
-                        }
-                    }
-                    None => world.spawn(Replication),
-                };
-
+                let client_entity = world.spawn(Replication);
                 entry.insert(client_entity.id());
                 self.client_to_server
                     .insert(client_entity.id(), server_entity);

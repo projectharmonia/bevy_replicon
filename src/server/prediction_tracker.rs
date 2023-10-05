@@ -53,6 +53,11 @@ use super::RepliconTick;
 /// Check for this in a system to perform cleanup:
 ///
 /// ```rust
+/// # use bevy::prelude::*;
+/// # #[derive(Component)]
+/// # struct Prediction;
+/// # #[derive(Component)]
+/// # struct Replication;
 /// fn cleanup_successful_predictions(
 ///     q: Query<Entity, (With<Prediction>, Added<Replication>)>,
 ///     mut commands: Commands,
@@ -70,11 +75,11 @@ use super::RepliconTick;
 pub struct PredictionTracker {
     mappings: HashMap<u64, Vec<EntityMapping>>,
 }
-type EntityMapping = (RepliconTick, ServerEntity, ClientEntity);
+pub(crate) type EntityMapping = (RepliconTick, ServerEntity, ClientEntity);
 
-// Internal aliases for clarity in the PredictionTracker types above.
-type ServerEntity = Entity;
-type ClientEntity = Entity;
+// Aliases for clarity in APIs dealing with `Entity`s that exist on servers and clients.
+pub(crate) type ServerEntity = Entity;
+pub(crate) type ClientEntity = Entity;
 
 impl PredictionTracker {
     /// Register that the server spawned `server_entity` as a result of `client_id` sending a
@@ -89,43 +94,44 @@ impl PredictionTracker {
         tick: RepliconTick,
     ) {
         let new_entry = (tick, server_entity, client_entity);
-        if let Some(mut v) = self.mappings.get_mut(&client_id) {
+        if let Some(v) = self.mappings.get_mut(&client_id) {
             v.push(new_entry);
         } else {
             self.mappings.insert(client_id, vec![new_entry]);
         }
     }
+    /// gives an optional iter over (tick, server_entity, client_entity)
     pub(crate) fn get_mappings(
         &self,
         client_id: u64,
         tick: RepliconTick,
-    ) -> impl Iterator<Item = &EntityMapping> {
-        // let Some(v) = self.mappings.get(&client_id) else {
-        //     return None;
-        // };
-        let v = match self.mappings
-            .get(&client_id) {
-                Some(v) => v.iter(),
-                None => std::iter::empty().into(),
-            };
-
-
-            .map_(std::iter::empty())
-            .into_iter()
-            .filter(|(entry_tick, _, _)| *entry_tick >= tick)
+    ) -> Option<Vec<(ServerEntity, ClientEntity)>> {
+        let Some(v) = self.mappings.get(&client_id) else {
+            return None;
+        };
+        Some(
+            v.iter()
+                .filter_map(|(entry_tick, server_entity, client_entity)| {
+                    if *entry_tick >= tick {
+                        Some((*server_entity, *client_entity))
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<(Entity, Entity)>>(),
+        )
     }
     /// remove predicted entities in cases where the RepliconTick at which that entity was spawned
     /// has been acked by a client.
     pub(crate) fn cleanup_acked(&mut self, client_id: u64, acked_tick: RepliconTick) {
-        let Some(v) = self.tick_map.get_mut(&client_id) else {
+        let Some(v) = self.mappings.get_mut(&client_id) else {
             return;
         };
-        v.retain(|(tick, server_entity)| {
-            if tick.get() > acked_tick.get() {
+        v.retain(|(tick, _, _)| {
+            if *tick > acked_tick {
                 // not acked yet, retain it
                 return true;
             }
-            self.entity_map.remove(&(client_id, *server_entity));
             false
         });
     }

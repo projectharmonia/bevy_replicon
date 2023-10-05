@@ -3,17 +3,47 @@ use std::{io::Cursor, mem};
 use bevy::{ecs::component::Tick, prelude::*, ptr::Ptr};
 use bevy_renet::renet::{Bytes, RenetServer};
 use bincode::{DefaultOptions, Options};
-use varint_rs::VarintWriter;
+use varint_rs::{VarintReader, VarintWriter};
 
 use crate::replicon_core::{
     replication_rules::{ReplicationId, ReplicationInfo},
     replicon_tick::RepliconTick,
 };
 
+/*
+/// Packet headers contain a RepliconTick, and some flags, masked into a u64, written as varint.
+pub(super) struct PacketHeader {
+    /// does this packet contain an array at the start of client entity mappings?
+    /// if so, expect an array of [(ServerEntity, ClientEntity)]
+    client_entity_mappings_flag: bool,
+    replicon_tick: RepliconTick,
+}
+
+impl PacketHeader {
+    fn write(&self, message: &mut Cursor<Vec<u8>>) -> Result<(), bincode::Error> {
+        let mut flagged_tick = (self.replicon_tick.get() as u64) << 1;
+        flagged_tick |= self.client_entity_mappings_flag as u64;
+
+        message.write_u64_varint(flagged_tick)?;
+        Ok(())
+    }
+    fn read(cursor: &mut Cursor<Bytes>) -> Result<PacketHeader, bincode::Error> {
+        let flagged_tick = cursor.read_u64_varint()?;
+        let client_entity_mappings_flag = flagged_tick & 1 > 0;
+        let tick_value = (flagged_tick >> 1) as u32;
+        let replicon_tick = RepliconTick(tick_value);
+        Ok(PacketHeader {
+            client_entity_mappings_flag,
+            replicon_tick,
+        })
+    }
+}
+*/
+
 /// A reusable buffer with replicated data for a client.
 ///
 /// See also [Limits](../index.html#limits)
-pub(super) struct ReplicationBuffer {
+pub(crate) struct ReplicationBuffer {
     /// ID of a client for which this buffer is written.
     client_id: u64,
 
@@ -45,10 +75,6 @@ pub(super) struct ReplicationBuffer {
 
     /// Entity from last call of [`Self::start_entity_data`].
     data_entity: Entity,
-
-    /// Entity client told us they spawned as a prediction, that they hope to match up with
-    /// data_entity, insted of spawning a new one during diff receiving.
-    data_prediction_entity: Option<Entity>,
 }
 
 impl ReplicationBuffer {
@@ -59,12 +85,10 @@ impl ReplicationBuffer {
         system_tick: Tick,
         replicon_tick: RepliconTick,
     ) -> Result<Self, bincode::Error> {
-        let mut message = Default::default();
-        bincode::serialize_into(&mut message, &replicon_tick)?;
-        Ok(Self {
+        let mut result = Self {
             client_id,
             system_tick,
-            message,
+            message: Default::default(),
             array_pos: Default::default(),
             array_len: Default::default(),
             arrays_with_data: Default::default(),
@@ -72,8 +96,23 @@ impl ReplicationBuffer {
             entity_data_pos: Default::default(),
             entity_data_len: Default::default(),
             data_entity: Entity::PLACEHOLDER,
-            data_prediction_entity: None,
-        })
+        };
+        result.write_replicon_tick(&replicon_tick)?;
+        Ok(result)
+    }
+
+    #[inline]
+    fn write_replicon_tick(&mut self, replicon_tick: &RepliconTick) -> Result<(), bincode::Error> {
+        bincode::serialize_into(&mut self.message, &replicon_tick)?;
+        Ok(())
+    }
+
+    #[inline]
+    pub(crate) fn read_replicon_tick(
+        cursor: &mut Cursor<Bytes>,
+    ) -> Result<RepliconTick, bincode::Error> {
+        let tick = bincode::deserialize_from(cursor)?;
+        Ok(tick)
     }
 
     #[inline]
@@ -102,9 +141,48 @@ impl ReplicationBuffer {
         self.message.get_mut().clear();
         self.arrays_with_data = 0;
         self.trailing_empty_arrays = 0;
-        bincode::serialize_into(&mut self.message, &replicon_tick)?;
+
+        self.write_replicon_tick(&replicon_tick)?;
 
         Ok(())
+    }
+
+    /// Writes array of entity->entity mappings
+    ///
+    /// Includes a marker byte to say whether the array was written or not.
+    pub(super) fn write_entity_mappings(
+        &mut self,
+        mappings: Option<Vec<(Entity, Entity)>>,
+    ) -> Result<(), bincode::Error> {
+        self.start_array();
+        if let Some(mappings) = mappings {
+            for (server_entity, client_entity) in &mappings {
+                self.write_entity(*server_entity)?;
+                self.write_entity(*client_entity)?;
+                self.array_len = self
+                    .array_len
+                    .checked_add(1)
+                    .ok_or(bincode::ErrorKind::SizeLimit)?;
+            }
+        }
+        self.end_array()?;
+        Ok(())
+    }
+
+    /// Reads entity mapping list
+    ///
+    /// Static counterpart of `write_entity_mappings()`
+    pub(crate) fn read_entity_mappings(
+        cursor: &mut Cursor<Bytes>,
+    ) -> Result<Vec<(Entity, Entity)>, bincode::Error> {
+        let mut mappings = Vec::new();
+        let array_len: u16 = bincode::deserialize_from(&mut *cursor)?;
+        for _ in 0..array_len {
+            let server_entity = Self::read_entity(cursor)?;
+            let client_entity = Self::read_entity(cursor)?;
+            mappings.push((server_entity, client_entity));
+        }
+        Ok(mappings)
     }
 
     /// Starts writing array by remembering its position to write length after.
@@ -144,20 +222,17 @@ impl ReplicationBuffer {
     }
 
     /// Starts writing entity and its data by remembering `entity`.
-    /// If provided, predicted_entity is sent to the client so instead of spawning a new entity,
-    /// they can match this `entity` to their existing `predicted_entity`. See [`PredictionTracker'].
     ///
     /// Arrays can contain component changes or removals inside.
     /// Length will be increased automatically after writing data.
     /// Entity will be written lazily after first data write and its position will be remembered to write length later.
     /// See also [`Self::end_entity_data`], [`Self::write_current_entity`], [`Self::write_change`]
     /// and [`Self::write_removal`].
-    pub(super) fn start_entity_data(&mut self, entity: Entity, predicted_entity: Option<Entity>) {
+    pub(super) fn start_entity_data(&mut self, entity: Entity) {
         debug_assert_eq!(self.entity_data_len, 0);
 
         self.data_entity = entity;
         self.entity_data_pos = self.message.position();
-        self.data_prediction_entity = predicted_entity;
     }
 
     /// Writes entity for current data and updates remembered position for it to write length later.
@@ -165,12 +240,7 @@ impl ReplicationBuffer {
     /// Should be called only after first data write.
     fn write_data_entity(&mut self) -> Result<(), bincode::Error> {
         self.write_entity(self.data_entity)?;
-        if let Some(pred_entity) = self.data_prediction_entity {
-            self.write_entity(pred_entity)?;
-        } else {
-            // temporary hack until i decide on format
-            self.write_entity(Entity::PLACEHOLDER)?;
-        }
+
         self.entity_data_pos = self.message.position();
         self.message
             .set_position(self.entity_data_pos + mem::size_of_val(&self.entity_data_len) as u64);
@@ -263,7 +333,7 @@ impl ReplicationBuffer {
     ///
     /// The index is first prepended with a bit flag to indicate if the generation
     /// is serialized or not (it is not serialized if equal to zero).
-    fn write_entity(&mut self, entity: Entity) -> Result<(), bincode::Error> {
+    pub(crate) fn write_entity(&mut self, entity: Entity) -> Result<(), bincode::Error> {
         let mut flagged_index = (entity.index() as u64) << 1;
         let flag = entity.generation() > 0;
         flagged_index |= flag as u64;
@@ -274,6 +344,22 @@ impl ReplicationBuffer {
         }
 
         Ok(())
+    }
+
+    /// Deserializes `entity` from compressed index and generation
+    /// Static counterpart to [`write_entity()`].
+    pub(crate) fn read_entity(cursor: &mut Cursor<Bytes>) -> Result<Entity, bincode::Error> {
+        let flagged_index: u64 = cursor.read_u64_varint()?;
+        let has_generation = (flagged_index & 1) > 0;
+        let generation = if has_generation {
+            cursor.read_u32_varint()?
+        } else {
+            0u32
+        };
+
+        let bits = (generation as u64) << 32 | (flagged_index >> 1);
+
+        Ok(Entity::from_bits(bits))
     }
 
     /// Send the buffer contents into a renet server channel.
@@ -322,6 +408,22 @@ mod tests {
         buffer.trim_empty_arrays();
 
         assert_eq!(buffer.message.get_ref().len(), begin_len);
+
+        Ok(())
+    }
+
+    #[test]
+    fn mappings() -> Result<(), bincode::Error> {
+        let mut buffer = ReplicationBuffer::new(0, Tick::new(0), RepliconTick(0))?;
+        let mappings = vec![(Entity::PLACEHOLDER, Entity::PLACEHOLDER)];
+        buffer.write_entity_mappings(Some(mappings.clone()))?;
+
+        let slice: &[u8] = buffer.message.get_ref();
+        let mut cursor = Cursor::new(Bytes::copy_from_slice(slice));
+        // skip the 4 byte replicon tick at the start of the buffer
+        let _ = ReplicationBuffer::read_replicon_tick(&mut cursor)?;
+        let received_mappings = ReplicationBuffer::read_entity_mappings(&mut cursor)?;
+        assert_eq!(mappings, received_mappings);
 
         Ok(())
     }

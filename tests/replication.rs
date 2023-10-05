@@ -1,6 +1,6 @@
 mod common;
 
-use bevy::{ecs::world::EntityMut, prelude::*};
+use bevy::prelude::*;
 use bevy_replicon::{prelude::*, server};
 
 use bevy_renet::renet::transport::NetcodeClientTransport;
@@ -160,7 +160,6 @@ fn spawn_prediction_replication() {
     client_app.update();
 
     // Repliction component should be inserted for correctly predicted entities
-    // and the prediction callback should have removed the Prediction component:
     let client_entity = client_app
         .world
         .query_filtered::<Entity, (With<Projectile>, With<Replication>, With<Prediction>)>()

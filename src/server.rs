@@ -166,12 +166,13 @@ impl ServerPlugin {
         acked_ticks.register_tick(*replicon_tick, change_tick.this_run());
 
         let buffers = prepare_buffers(&mut buffers, &acked_ticks, *replicon_tick)?;
+
+        collect_mappings(buffers, &acked_ticks, &predictions)?;
         collect_changes(
             buffers,
             set.p0(),
             change_tick.this_run(),
             &replication_rules,
-            &predictions,
         )?;
         collect_removals(buffers, &removal_trackers, change_tick.this_run())?;
         collect_despawns(buffers, &despawn_tracker, change_tick.this_run())?;
@@ -218,15 +219,41 @@ fn prepare_buffers<'a>(
     Ok(&mut buffers[..acked_ticks.clients.len()])
 }
 
+/// Collect and write any new entity mappings into buffers since last acknowledged tick
+fn collect_mappings(
+    buffers: &mut [ReplicationBuffer],
+    acked_ticks: &ResMut<AckedTicks>,
+    predictions: &Res<PredictionTracker>,
+) -> Result<(), bincode::Error> {
+    for buffer in &mut *buffers {
+        // Include all entity mappings since the last acknowledged tick.
+        //
+        // if the spawn command for a mapped client entity was lost, a mapped component on another
+        // entity could arrive first, referencing the mapped entity, so we include all until acked.
+        //
+        // could this grow very large? probably not, since mappings only get created in response to
+        // clients sending specific types of command to the server, and if there is any packet loss
+        // resulting in a larger unacked backlog, it's unlikely the server received those commands
+        // anyway, so won't have created more mappings during the packet loss.
+        let acked_tick = acked_ticks
+            .acked_ticks()
+            .get(&buffer.client_id())
+            .unwrap_or(&RepliconTick(0));
+        let mappings = predictions.get_mappings(buffer.client_id(), *acked_tick);
+        buffer.write_entity_mappings(mappings)?;
+    }
+    Ok(())
+}
+
 /// Collect component changes into buffers based on last acknowledged tick.
 fn collect_changes(
     buffers: &mut [ReplicationBuffer],
     world: &World,
     system_tick: Tick,
     replication_rules: &ReplicationRules,
-    predictions: &Res<PredictionTracker>,
 ) -> Result<(), bincode::Error> {
     for buffer in &mut *buffers {
+        // start the array for entity change data:
         buffer.start_array();
     }
 
@@ -245,10 +272,7 @@ fn collect_changes(
 
         for archetype_entity in archetype.entities() {
             for buffer in &mut *buffers {
-                let predicted_entity = predictions
-                    .get_predicted_entity(buffer.client_id(), archetype_entity.entity())
-                    .copied();
-                buffer.start_entity_data(archetype_entity.entity(), predicted_entity);
+                buffer.start_entity_data(archetype_entity.entity());
             }
 
             for component_id in archetype.components() {
@@ -314,6 +338,7 @@ fn collect_changes(
     }
 
     for buffer in &mut *buffers {
+        // ending the array of entity change data
         buffer.end_array()?;
     }
 
@@ -332,7 +357,7 @@ fn collect_removals(
 
     for (entity, removal_tracker) in removal_trackers {
         for buffer in &mut *buffers {
-            buffer.start_entity_data(entity, None);
+            buffer.start_entity_data(entity);
             for (&replication_id, &tick) in &removal_tracker.0 {
                 if tick.is_newer_than(buffer.system_tick(), system_tick) {
                     buffer.write_removal(replication_id)?;
