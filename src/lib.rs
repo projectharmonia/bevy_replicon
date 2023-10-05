@@ -147,8 +147,7 @@ for the tick frame, which is in the past, then resimulate.
 
 ### Mapping to existing client entities
 
-If you want to spawn entities on the client before the server replicates the spawn back
-to the client, and use the existing client entity to replicate data into, see [`ClientEntityMap`]
+If you want the server to replicate an entity into a client entity that was already spawned on a client, see [`ClientEntityMap`].
 
 This can be useful for certain types of game. For example, spawning bullets on the client immediately without
 waiting on replication.

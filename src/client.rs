@@ -163,7 +163,7 @@ fn deserialize_entity_mappings(
             entity.insert(Replication);
             entity_map.insert(server_entity, client_entity);
         } else {
-            // Entity could be despawned on client due timings.
+            // Entity could be despawned on client already.
             debug!("received mapping from {server_entity:?} to {client_entity:?}, but the entity doesn't exists");
         }
     }

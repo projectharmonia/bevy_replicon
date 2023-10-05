@@ -513,8 +513,8 @@ pub fn replicate_into_scene(scene: &mut DynamicScene, world: &World) {
 
 /**
 A resource that exists on the server for mapping server entities to
-entities that clients have already spawned. The mappings are sent to clients and injected into
-the client's [`crate::client::NetworkEntityMap`].
+entities that clients have already spawned. The mappings are sent to clients as part of replication
+and injected into the client's [`crate::client::NetworkEntityMap`].
 
 Sometimes you don't want to wait for the server to spawn something before it appears on the
 client – when a client performs an action, they can immediately simulate it on the client,
@@ -524,8 +524,10 @@ a brand new entity on the client.
 In this situation, the server can write the client entity it sent into the [`ClientEntityMap`],
 associating it with the newly spawned server entity.
 
-Replication packets will send a list of such mappings
-to clients, which will be inserted into the client's [`crate::client::NetworkEntityMap`].
+Replication packets will send a list of such mappings to clients, which will
+be inserted into the client's [`crate::client::NetworkEntityMap`]. Using replication
+to propagate the mappings ensures any replication messages related to the pre-mapped
+server entities will synchronize with updating the client's [`crate::client::NetworkEntityMap`].
 
 ### Example:
 
@@ -539,7 +541,7 @@ struct SpawnBullet(Entity);
 #[derive(Component)]
 struct Bullet;
 
-/// System that shoots a bullet and spawns on it on client.
+/// System that shoots a bullet and spawns it on the client.
 fn shoot_system(mut commands: Commands, mut bullet_events: EventWriter<SpawnBullet>) {
     let entity = commands.spawn(Bullet).id();
     bullet_events.send(SpawnBullet(entity));
@@ -570,12 +572,13 @@ fn confirm_bullet(
 }
 ```
 
-Provided that client exists when the replication data for server entity
-arrives, replicated data will be applied to that entity instead of spawning a new one.
-You can detect when this happens by querying for `Added<Replication>` on your client entity.
+If the client is connected and receives the replication data for the server entity mapping,
+replicated data will be applied to the client's original entity instead of spawning a new one.
+You can detect when the mapping is replicated by querying for `Added<Replication>` on your original
+client entity.
 
-If client predicted entity is not found, a new entity will be spawned on the client,
-just the same as when no client prediction is provided.
+If client's original entity is not found, a new entity will be spawned on the client,
+just the same as when no client entity is provided.
 **/
 #[derive(Resource, Debug, Default, Deref)]
 pub struct ClientEntityMap(HashMap<u64, Vec<ClientMapping>>);
