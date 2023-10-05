@@ -70,7 +70,7 @@ fn spawn_replication() {
 
     common::connect(&mut server_app, &mut client_app);
 
-    server_app.world.spawn(Replication);
+    server_app.world.spawn(Replication); // Empty entity that won't be replicated.
     let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
 
     server_app.update();
