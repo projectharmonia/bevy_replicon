@@ -148,7 +148,7 @@ fn deserialize_entity_mappings(
     let mappings = ReplicationBuffer::read_entity_mappings(cursor)?;
     for (server_entity, client_entity) in mappings.iter() {
         // does this server entity already map to a client entity?
-        if let Some(existing_mapping) = entity_map.get_mapping_from_server(*server_entity) {
+        if let Some(existing_mapping) = entity_map.to_client().get(server_entity) {
             println!("Received mapping for s:{server_entity:?} -> c:{client_entity:?}, but already mapped to c:{existing_mapping:?}");
             continue;
         }
@@ -261,11 +261,6 @@ impl NetworkEntityMap {
     pub fn insert(&mut self, server_entity: Entity, client_entity: Entity) {
         self.server_to_client.insert(server_entity, client_entity);
         self.client_to_server.insert(client_entity, server_entity);
-    }
-
-    // Gets client Entity mapped from server Entity, if a mapping exists
-    pub(super) fn get_mapping_from_server(&self, server_entity: Entity) -> Option<&Entity> {
-        self.server_to_client.get(&server_entity)
     }
 
     pub(super) fn get_by_server_or_spawn<'a>(
