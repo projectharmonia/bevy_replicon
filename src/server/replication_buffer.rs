@@ -118,8 +118,6 @@ impl ReplicationBuffer {
     }
 
     /// Writes array of entity->entity mappings
-    ///
-    /// Includes a marker byte to say whether the array was written or not.
     pub(super) fn write_entity_mappings<'a>(
         &mut self,
         mappings: Option<impl Iterator<Item = (&'a Entity, &'a Entity)>>,
