@@ -87,20 +87,19 @@ impl RepliconEntityMap {
         &self,
         client_id: u64,
         from_tick: RepliconTick,
-    ) -> Option<Vec<(ServerEntity, ClientEntity)>> {
+    ) -> Option<impl Iterator<Item = (&ServerEntity, &ClientEntity)> + '_> {
         let Some(v) = self.mappings.get(&client_id) else {
             return None;
         };
         Some(
             v.iter()
-                .filter_map(|(entry_tick, server_entity, client_entity)| {
+                .filter_map(move |(entry_tick, server_entity, client_entity)| {
                     if *entry_tick >= from_tick {
-                        Some((*server_entity, *client_entity))
+                        Some((server_entity, client_entity))
                     } else {
                         None
                     }
-                })
-                .collect::<Vec<(Entity, Entity)>>(),
+                }),
         )
     }
     /// remove predicted entities in cases where the RepliconTick at which that entity mapping

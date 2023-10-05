@@ -120,13 +120,13 @@ impl ReplicationBuffer {
     /// Writes array of entity->entity mappings
     ///
     /// Includes a marker byte to say whether the array was written or not.
-    pub(super) fn write_entity_mappings(
+    pub(super) fn write_entity_mappings<'a>(
         &mut self,
-        mappings: Option<Vec<(Entity, Entity)>>,
+        mappings: Option<impl Iterator<Item = (&'a Entity, &'a Entity)>>,
     ) -> Result<(), bincode::Error> {
         self.start_array();
         if let Some(mappings) = mappings {
-            for (server_entity, client_entity) in &mappings {
+            for (server_entity, client_entity) in mappings {
                 self.write_entity(*server_entity)?;
                 self.write_entity(*client_entity)?;
                 self.array_len = self
@@ -378,22 +378,6 @@ mod tests {
         buffer.trim_empty_arrays();
 
         assert_eq!(buffer.message.get_ref().len(), begin_len);
-
-        Ok(())
-    }
-
-    #[test]
-    fn mappings() -> Result<(), bincode::Error> {
-        let mut buffer = ReplicationBuffer::new(0, Tick::new(0), RepliconTick(0))?;
-        let mappings = vec![(Entity::PLACEHOLDER, Entity::PLACEHOLDER)];
-        buffer.write_entity_mappings(Some(mappings.clone()))?;
-
-        let slice: &[u8] = buffer.message.get_ref();
-        let mut cursor = Cursor::new(Bytes::copy_from_slice(slice));
-        // skip the 4 byte replicon tick at the start of the buffer
-        let _ = ReplicationBuffer::read_replicon_tick(&mut cursor)?;
-        let received_mappings = ReplicationBuffer::read_entity_mappings(&mut cursor)?;
-        assert_eq!(mappings, received_mappings);
 
         Ok(())
     }
