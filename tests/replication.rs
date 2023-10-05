@@ -143,7 +143,14 @@ fn spawn_prediction_replication() {
     server_app
         .world
         .resource_scope(|_world, mut pt: Mut<ClientEntityMap>| {
-            pt.insert(client_id, server_entity, client_predicted_entity, tick)
+            pt.insert(
+                client_id,
+                ClientMapping {
+                    tick,
+                    server_entity,
+                    client_entity: client_predicted_entity,
+                },
+            )
         });
     // an edge case to test is when the server spawns an entity that has a predicted entity,
     // and also spawns another entity with a mapped component that references that entity.

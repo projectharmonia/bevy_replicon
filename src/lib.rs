@@ -408,8 +408,8 @@ pub mod prelude {
             NetworkChannels, RepliconCorePlugin,
         },
         server::{
-            has_authority, AckedTicks, ClientEntityMap, ServerPlugin, ServerSet, TickPolicy,
-            SERVER_ID,
+            has_authority, AckedTicks, ClientEntityMap, ClientMapping, ServerPlugin, ServerSet,
+            TickPolicy, SERVER_ID,
         },
         ReplicationPlugins,
     };

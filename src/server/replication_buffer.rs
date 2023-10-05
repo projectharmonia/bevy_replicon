@@ -102,26 +102,6 @@ impl ReplicationBuffer {
         Ok(())
     }
 
-    /// Writes array of entity->entity mappings
-    pub(super) fn write_entity_mappings<'a>(
-        &mut self,
-        mappings: Option<impl Iterator<Item = (&'a Entity, &'a Entity)>>,
-    ) -> Result<(), bincode::Error> {
-        self.start_array();
-        if let Some(mappings) = mappings {
-            for (server_entity, client_entity) in mappings {
-                self.write_entity(*server_entity)?;
-                self.write_entity(*client_entity)?;
-                self.array_len = self
-                    .array_len
-                    .checked_add(1)
-                    .ok_or(bincode::ErrorKind::SizeLimit)?;
-            }
-        }
-        self.end_array()?;
-        Ok(())
-    }
-
     /// Starts writing array by remembering its position to write length after.
     ///
     /// Arrays can contain entity data or despawns inside.
@@ -154,6 +134,26 @@ impl ReplicationBuffer {
             self.message.set_position(self.array_pos);
             bincode::serialize_into(&mut self.message, &self.array_len)?;
         }
+
+        Ok(())
+    }
+
+    /// Serializes entity to entity mapping.
+    ///
+    /// Should be called only inside array.
+    /// Increases array length by 1.
+    /// See also [`Self::start_array`].
+    pub(super) fn write_entity_mapping(
+        &mut self,
+        server_entity: Entity,
+        client_entity: Entity,
+    ) -> Result<(), bincode::Error> {
+        self.write_entity(server_entity)?;
+        self.write_entity(client_entity)?;
+        self.array_len = self
+            .array_len
+            .checked_add(1)
+            .ok_or(bincode::ErrorKind::SizeLimit)?;
 
         Ok(())
     }

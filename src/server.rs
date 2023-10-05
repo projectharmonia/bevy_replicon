@@ -1,4 +1,3 @@
-pub(super) mod client_entity_map;
 pub(super) mod despawn_tracker;
 pub(super) mod removal_tracker;
 pub(super) mod replication_buffer;
@@ -25,7 +24,6 @@ use bevy_renet::{
 use crate::replicon_core::{
     replication_rules::ReplicationRules, replicon_tick::RepliconTick, REPLICATION_CHANNEL_ID,
 };
-pub use client_entity_map::ClientEntityMap;
 use despawn_tracker::{DespawnTracker, DespawnTrackerPlugin};
 use removal_tracker::{RemovalTracker, RemovalTrackerPlugin};
 use replication_buffer::ReplicationBuffer;
@@ -167,7 +165,7 @@ impl ServerPlugin {
 
         let buffers = prepare_buffers(&mut buffers, &acked_ticks, *replicon_tick)?;
 
-        collect_mappings(buffers, &acked_ticks, &entity_map)?;
+        collect_mappings(buffers, &entity_map)?;
         collect_changes(
             buffers,
             set.p0(),
@@ -219,28 +217,23 @@ fn prepare_buffers<'a>(
     Ok(&mut buffers[..acked_ticks.clients.len()])
 }
 
-/// Collect and write any new entity mappings into buffers since last acknowledged tick
+/// Collect and write any new entity mappings into buffers since last acknowledged tick.
+///
+/// Mappings will be processed first, so all referenced entities after it will behave correctly.
 fn collect_mappings(
     buffers: &mut [ReplicationBuffer],
-    acked_ticks: &ResMut<AckedTicks>,
-    predictions: &Res<ClientEntityMap>,
+    entity_map: &ClientEntityMap,
 ) -> Result<(), bincode::Error> {
     for buffer in &mut *buffers {
-        // Include all entity mappings since the last acknowledged tick.
-        //
-        // if the spawn command for a mapped client entity was lost, a mapped component on another
-        // entity could arrive first, referencing the mapped entity, so we include all until acked.
-        //
-        // could this grow very large? probably not, since mappings only get created in response to
-        // clients sending specific types of command to the server, and if there is any packet loss
-        // resulting in a larger unacked backlog, it's unlikely the server received those commands
-        // anyway, so won't have created more mappings during the packet loss.
-        let acked_tick = acked_ticks
-            .acked_ticks()
-            .get(&buffer.client_id())
-            .unwrap_or(&RepliconTick(0));
-        let mappings = predictions.get_mappings(buffer.client_id(), *acked_tick);
-        buffer.write_entity_mappings(mappings)?;
+        buffer.start_array();
+
+        if let Some(mappings) = entity_map.get(&buffer.client_id()) {
+            for mapping in mappings {
+                buffer.write_entity_mapping(mapping.server_entity, mapping.client_entity)?;
+            }
+        }
+
+        buffer.end_array()?;
     }
     Ok(())
 }
@@ -517,4 +510,100 @@ pub fn replicate_into_scene(scene: &mut DynamicScene, world: &World) {
             }
         }
     }
+}
+
+/**
+A resource that exists on the server for mapping server entities to
+entities that clients have already spawned. The mappings are sent to clients and injected into
+the client's [`crate::client::NetworkEntityMap`].
+
+Sometimes you don't want to wait for the server to spawn something before it appears on the
+client – when a client performs an action, they can immediately simulate it on the client,
+then match up that entity with the eventual replicated server spawn, rather than have replication spawn
+a brand new entity on the client.
+
+In this situation, the server can write the client entity it sent into the [`ClientEntityMap`],
+associating it with the newly spawned server entity.
+
+Replication packets will send a list of such mappings
+to clients, which will be inserted into the client's [`crate::client::NetworkEntityMap`].
+
+### Example:
+
+```rust
+# use bevy::prelude::*;
+# use bevy_replicon::prelude::*;
+
+#[derive(Event)]
+struct SpawnBullet(Entity);
+
+#[derive(Component)]
+struct Bullet;
+
+/// System that shoots a bullet and spawns on it on client.
+fn shoot_system(mut commands: Commands, mut bullet_events: EventWriter<SpawnBullet>) {
+    let entity = commands.spawn(Bullet).id();
+    bullet_events.send(SpawnBullet(entity));
+}
+
+/// Validation to check if client is not cheating or the simulation is correct.
+///
+/// Depending on the type of game you may want to correct the client or disconnect it.
+/// In this example we just always confirm the spawn.
+fn confirm_bullet(
+    mut commands: Commands,
+    mut bullet_events: EventReader<FromClient<SpawnBullet>>,
+    mut entity_map: ResMut<ClientEntityMap>,
+    replicon_tick: Res<RepliconTick>,
+) {
+    for FromClient { client_id, event } in &mut bullet_events {
+        let server_entity = commands.spawn(Bullet).id(); // You can insert more components, they will be sent to the client's entity correctly.
+
+        entity_map.insert(
+            *client_id,
+            ClientMapping {
+                tick: *replicon_tick,
+                server_entity,
+                client_entity: event.0,
+            },
+        );
+    }
+}
+```
+
+Provided that client exists when the replication data for server entity
+arrives, replicated data will be applied to that entity instead of spawning a new one.
+You can detect when this happens by querying for `Added<Replication>` on your client entity.
+
+If client predicted entity is not found, a new entity will be spawned on the client,
+just the same as when no client prediction is provided.
+**/
+#[derive(Resource, Debug, Default, Deref)]
+pub struct ClientEntityMap(HashMap<u64, Vec<ClientMapping>>);
+
+impl ClientEntityMap {
+    /// Registers `mapping` from server to entity of `client_id` sending a
+    /// command which included an entity that already spawned. This will be sent and added
+    /// to the client's [`crate::client::NetworkEntityMap`].
+    pub fn insert(&mut self, client_id: u64, mapping: ClientMapping) {
+        self.0.entry(client_id).or_default().push(mapping);
+    }
+
+    /// Removes acknowledged mappings.
+    fn cleanup_acked(&mut self, client_id: u64, acked_tick: RepliconTick) {
+        if let Some(mappings) = self.0.get_mut(&client_id) {
+            mappings.retain(|mapping| mapping.tick > acked_tick);
+        }
+    }
+}
+
+/// Stores the corresponding server entity for a spawned entity from client.
+///
+/// The `tick` is needed so that this prediction data can be cleaned up once the tick
+/// has been acked by the client.
+#[derive(Debug)]
+pub struct ClientMapping {
+    pub tick: RepliconTick,
+    pub server_entity: Entity,
+    pub client_entity: Entity,
 }
