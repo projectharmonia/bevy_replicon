@@ -246,7 +246,6 @@ fn collect_changes(
     replication_rules: &ReplicationRules,
 ) -> Result<(), bincode::Error> {
     for buffer in &mut *buffers {
-        // start the array for entity change data:
         buffer.start_array();
     }
 
@@ -331,7 +330,6 @@ fn collect_changes(
     }
 
     for buffer in &mut *buffers {
-        // ending the array of entity change data
         buffer.end_array()?;
     }
 
