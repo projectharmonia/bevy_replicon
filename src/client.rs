@@ -152,19 +152,19 @@ fn deserialize_entity_mappings(
     for _ in 0..array_len {
         let server_entity = deserialize_entity(cursor)?;
         let client_entity = deserialize_entity(cursor)?;
-        // does this server entity already map to a client entity?
-        if let Some(existing_mapping) = entity_map.to_client().get(&server_entity) {
-            println!("Received mapping for s:{server_entity:?} -> c:{client_entity:?}, but already mapped to c:{existing_mapping:?}");
+
+        if let Some(entry) = entity_map.to_client().get(&server_entity) {
+            error!("received mapping from {server_entity:?} to {client_entity:?}, but already mapped to {entry:?}");
             continue;
         }
-        // does client entity actually exist? maybe we despawned it due to timings
-        if let Some(mut cmd) = world.get_entity_mut(client_entity) {
-            println!("Adding entity mapping s:{server_entity:?} -> c:{client_entity:?}");
-            cmd.insert(Replication);
+
+        if let Some(mut entity) = world.get_entity_mut(client_entity) {
+            debug!("received mapping from {server_entity:?} to {client_entity:?}");
+            entity.insert(Replication);
             entity_map.insert(server_entity, client_entity);
         } else {
-            println!("Received mapping for s:{server_entity:?} -> c:{client_entity:?}, but client entity doesn't exist");
-            continue;
+            // Entity could be despawned on client due timings.
+            debug!("received mapping from {server_entity:?} to {client_entity:?}, but the entity doesn't exists");
         }
     }
     Ok(())
