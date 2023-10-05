@@ -599,9 +599,9 @@ impl ClientEntityMap {
     }
 }
 
-/// Stores the corresponding server entity for a spawned entity from client.
+/// Stores the server entity corresponding to a client's pre-spawned entity.
 ///
-/// The `tick` is needed so that this prediction data can be cleaned up once the tick
+/// The `tick` is stored here so that this prediction data can be cleaned up once the tick
 /// has been acked by the client.
 #[derive(Debug)]
 pub struct ClientMapping {
