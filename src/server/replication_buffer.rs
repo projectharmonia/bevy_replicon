@@ -10,36 +10,6 @@ use crate::replicon_core::{
     replicon_tick::RepliconTick,
 };
 
-/*
-/// Packet headers contain a RepliconTick, and some flags, masked into a u64, written as varint.
-pub(super) struct PacketHeader {
-    /// does this packet contain an array at the start of client entity mappings?
-    /// if so, expect an array of [(ServerEntity, ClientEntity)]
-    client_entity_mappings_flag: bool,
-    replicon_tick: RepliconTick,
-}
-
-impl PacketHeader {
-    fn write(&self, message: &mut Cursor<Vec<u8>>) -> Result<(), bincode::Error> {
-        let mut flagged_tick = (self.replicon_tick.get() as u64) << 1;
-        flagged_tick |= self.client_entity_mappings_flag as u64;
-
-        message.write_u64_varint(flagged_tick)?;
-        Ok(())
-    }
-    fn read(cursor: &mut Cursor<Bytes>) -> Result<PacketHeader, bincode::Error> {
-        let flagged_tick = cursor.read_u64_varint()?;
-        let client_entity_mappings_flag = flagged_tick & 1 > 0;
-        let tick_value = (flagged_tick >> 1) as u32;
-        let replicon_tick = RepliconTick(tick_value);
-        Ok(PacketHeader {
-            client_entity_mappings_flag,
-            replicon_tick,
-        })
-    }
-}
-*/
-
 /// A reusable buffer with replicated data for a client.
 ///
 /// See also [Limits](../index.html#limits)
