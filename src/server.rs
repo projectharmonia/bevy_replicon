@@ -1,7 +1,7 @@
+pub(super) mod client_entity_map;
 pub(super) mod despawn_tracker;
 pub(super) mod removal_tracker;
 pub(super) mod replication_buffer;
-pub(super) mod replicon_entity_map;
 
 use std::time::Duration;
 
@@ -25,10 +25,10 @@ use bevy_renet::{
 use crate::replicon_core::{
     replication_rules::ReplicationRules, replicon_tick::RepliconTick, REPLICATION_CHANNEL_ID,
 };
+pub use client_entity_map::ClientEntityMap;
 use despawn_tracker::{DespawnTracker, DespawnTrackerPlugin};
 use removal_tracker::{RemovalTracker, RemovalTrackerPlugin};
 use replication_buffer::ReplicationBuffer;
-pub use replicon_entity_map::ClientEntityMap;
 
 pub const SERVER_ID: u64 = 0;
 
