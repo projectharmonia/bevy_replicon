@@ -154,8 +154,7 @@ fn deserialize_entity_mappings(
         let client_entity = deserialize_entity(cursor)?;
 
         if let Some(entry) = entity_map.to_client().get(&server_entity) {
-            error!("received mapping from {server_entity:?} to {client_entity:?}, but already mapped to {entry:?}");
-            continue;
+            panic!("received mapping from {server_entity:?} to {client_entity:?}, but already mapped to {entry:?}");
         }
 
         if let Some(mut entity) = world.get_entity_mut(client_entity) {
