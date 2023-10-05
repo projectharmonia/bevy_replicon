@@ -225,6 +225,7 @@ fn deserialize_despawns(
     Ok(())
 }
 
+/// Deserializes `entity` from compressed index and generation, for details see [`ReplicationBuffer::write_entity()`].
 fn deserialize_entity(cursor: &mut Cursor<Bytes>) -> Result<Entity, bincode::Error> {
     let flagged_index: u64 = cursor.read_u64_varint()?;
     let has_generation = (flagged_index & 1) > 0;

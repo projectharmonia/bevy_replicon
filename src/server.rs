@@ -130,6 +130,7 @@ impl ServerPlugin {
                 }
             }
         }
+
         acked_ticks.cleanup_system_ticks();
     }
 

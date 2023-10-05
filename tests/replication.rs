@@ -360,12 +360,6 @@ impl MapNetworkEntities for MappedComponent {
 struct TableComponent;
 
 #[derive(Component, Deserialize, Serialize)]
-struct Projectile;
-
-#[derive(Component, Deserialize, Serialize)]
-struct Prediction;
-
-#[derive(Component, Deserialize, Serialize)]
 #[component(storage = "SparseSet")]
 struct SparseSetComponent;
 

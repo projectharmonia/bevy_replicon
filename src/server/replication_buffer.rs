@@ -177,7 +177,6 @@ impl ReplicationBuffer {
     /// Should be called only after first data write.
     fn write_data_entity(&mut self) -> Result<(), bincode::Error> {
         self.write_entity(self.data_entity)?;
-
         self.entity_data_pos = self.message.position();
         self.message
             .set_position(self.entity_data_pos + mem::size_of_val(&self.entity_data_len) as u64);
