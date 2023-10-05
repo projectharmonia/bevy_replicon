@@ -114,7 +114,7 @@ fn serialize_transform(
 /// Deserializes translation and creates [`Transform`] from it.
 fn deserialize_transform(
     entity: &mut EntityMut,
-    _entity_map: &mut NetworkEntityMap,
+    _entity_map: &mut ServerEntityMap,
     cursor: &mut Cursor<Bytes>,
     _tick: RepliconTick,
 ) -> Result<(), bincode::Error> {
@@ -196,7 +196,7 @@ fn player_init_system(
 #[derive(Component, Deserialize, Serialize)]
 struct Player;
 # fn serialize_transform(_: Ptr, _: &mut Cursor<Vec<u8>>) -> Result<(), bincode::Error> { unimplemented!() }
-# fn deserialize_transform(_: &mut EntityMut, _: &mut NetworkEntityMap, _: &mut Cursor<Bytes>, _: RepliconTick) -> Result<(), bincode::Error> { unimplemented!() }
+# fn deserialize_transform(_: &mut EntityMut, _: &mut ServerEntityMap, _: &mut Cursor<Bytes>, _: RepliconTick) -> Result<(), bincode::Error> { unimplemented!() }
 ```
 
 This pairs nicely with server state serialization and keeps saves clean.
@@ -390,7 +390,7 @@ pub mod server;
 
 pub mod prelude {
     pub use super::{
-        client::{ClientMapper, ClientPlugin, ClientSet, LastRepliconTick, NetworkEntityMap},
+        client::{ClientMapper, ClientPlugin, ClientSet, LastRepliconTick, ServerEntityMap},
         network_event::{
             client_event::{ClientEventAppExt, FromClient},
             server_event::{SendMode, ServerEventAppExt, ToClients},

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The ability to pre-spawn entities on client.
+
+### Changed
+
+- Rename `NetworkEntityMap` to `ServerEntityMap`.
+
 ## [0.13.0] - 2023-10-04
 
 ### Added

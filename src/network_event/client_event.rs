@@ -13,7 +13,7 @@ use serde::{
 
 use super::{BuildEventDeserializer, BuildEventSerializer, EventChannel};
 use crate::{
-    client::{ClientSet, NetworkEntityMap},
+    client::{ClientSet, ServerEntityMap},
     network_event::EventMapper,
     replicon_core::{replication_rules::MapNetworkEntities, NetworkChannels},
     server::{has_authority, ServerSet, SERVER_ID},
@@ -216,7 +216,7 @@ fn sending_system<T: Event + Serialize + Debug>(
 fn mapping_and_sending_system<T: Event + MapNetworkEntities + Serialize + Debug>(
     mut events: ResMut<Events<T>>,
     mut client: ResMut<RenetClient>,
-    entity_map: Res<NetworkEntityMap>,
+    entity_map: Res<ServerEntityMap>,
     channel: Res<EventChannel<T>>,
 ) {
     for mut event in events.drain() {
@@ -253,7 +253,7 @@ fn sending_reflect_system<T, S>(
 fn mapping_and_sending_reflect_system<T, S>(
     mut events: ResMut<Events<T>>,
     mut client: ResMut<RenetClient>,
-    entity_map: Res<NetworkEntityMap>,
+    entity_map: Res<ServerEntityMap>,
     channel: Res<EventChannel<T>>,
     registry: Res<AppTypeRegistry>,
 ) where

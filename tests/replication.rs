@@ -80,7 +80,7 @@ fn spawn_replication() {
         .world
         .query_filtered::<Entity, (With<Replication>, With<TableComponent>)>()
         .single(&client_app.world);
-    let entity_map = client_app.world.resource::<NetworkEntityMap>();
+    let entity_map = client_app.world.resource::<ServerEntityMap>();
     assert_eq!(
         entity_map.to_client().get(&server_entity),
         Some(&client_entity),
@@ -137,7 +137,7 @@ fn client_spawn_replication() {
     server_app.update();
     client_app.update();
 
-    let entity_map = client_app.world.resource::<NetworkEntityMap>();
+    let entity_map = client_app.world.resource::<ServerEntityMap>();
     assert_eq!(
         entity_map.to_client().get(&server_entity),
         Some(&client_entity),
@@ -204,7 +204,7 @@ fn insert_replication() {
         ))
         .id();
 
-    let mut entity_map = client_app.world.resource_mut::<NetworkEntityMap>();
+    let mut entity_map = client_app.world.resource_mut::<ServerEntityMap>();
     entity_map.insert(server_map_entity, client_map_entity);
     entity_map.insert(server_entity, client_entity);
 
@@ -255,7 +255,7 @@ fn removal_replication() {
 
     client_app
         .world
-        .resource_mut::<NetworkEntityMap>()
+        .resource_mut::<ServerEntityMap>()
         .insert(server_entity, client_entity);
 
     server_app.update();
@@ -298,7 +298,7 @@ fn despawn_replication() {
         .push_children(&[client_child_entity])
         .id();
 
-    let mut entity_map = client_app.world.resource_mut::<NetworkEntityMap>();
+    let mut entity_map = client_app.world.resource_mut::<ServerEntityMap>();
     entity_map.insert(server_entity, client_entity);
     entity_map.insert(server_child_entity, client_child_entity);
 
@@ -308,7 +308,7 @@ fn despawn_replication() {
     assert!(client_app.world.get_entity(client_entity).is_none());
     assert!(client_app.world.get_entity(client_child_entity).is_none());
 
-    let entity_map = client_app.world.resource::<NetworkEntityMap>();
+    let entity_map = client_app.world.resource::<ServerEntityMap>();
     assert!(entity_map.to_client().is_empty());
     assert!(entity_map.to_server().is_empty());
 }

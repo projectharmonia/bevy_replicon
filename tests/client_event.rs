@@ -66,7 +66,7 @@ fn mapping_and_sending_receiving() {
     let server_entity = Entity::from_raw(client_entity.index() + 1);
     client_app
         .world
-        .resource_mut::<NetworkEntityMap>()
+        .resource_mut::<ServerEntityMap>()
         .insert(server_entity, client_entity);
 
     client_app
@@ -133,7 +133,7 @@ fn mapping_and_sending_receiving_reflect() {
     let server_entity = Entity::from_raw(client_entity.index() + 1);
     client_app
         .world
-        .resource_mut::<NetworkEntityMap>()
+        .resource_mut::<ServerEntityMap>()
         .insert(server_entity, client_entity);
 
     client_app
