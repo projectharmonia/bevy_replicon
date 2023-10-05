@@ -521,8 +521,8 @@ client – when a client performs an action, they can immediately simulate it on
 then match up that entity with the eventual replicated server spawn, rather than have replication spawn
 a brand new entity on the client.
 
-In this situation, the server can write the client entity it sent into the [`ClientEntityMap`],
-associating it with the newly spawned server entity.
+In this situation, the client can send the server its pre-spawned entity id, then the server can spawn its own entity
+and inject the [`ClientMapping`] into its [`ClientEntityMap`].
 
 Replication packets will send a list of such mappings to clients, which will
 be inserted into the client's [`crate::client::NetworkEntityMap`]. Using replication
@@ -584,9 +584,9 @@ just the same as when no client entity is provided.
 pub struct ClientEntityMap(HashMap<u64, Vec<ClientMapping>>);
 
 impl ClientEntityMap {
-    /// Registers `mapping` from server to entity of `client_id` sending a
-    /// command which included an entity that already spawned. This will be sent and added
-    /// to the client's [`crate::client::NetworkEntityMap`].
+    /// Registers `mapping` for a client entity pre-spawned by the specified client.
+    ///
+    /// This will be sent as part of replication data and added to the client's [`crate::client::NetworkEntityMap`].
     pub fn insert(&mut self, client_id: u64, mapping: ClientMapping) {
         self.0.entry(client_id).or_default().push(mapping);
     }
