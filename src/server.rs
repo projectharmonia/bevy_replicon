@@ -116,7 +116,7 @@ impl ServerPlugin {
     fn acks_receiving_system(
         mut acked_ticks: ResMut<AckedTicks>,
         mut server: ResMut<RenetServer>,
-        mut predictions: ResMut<ClientEntityMap>,
+        mut entity_map: ResMut<ClientEntityMap>,
     ) {
         for client_id in server.clients_id() {
             while let Some(message) = server.receive_message(client_id, REPLICATION_CHANNEL_ID) {
@@ -125,7 +125,7 @@ impl ServerPlugin {
                         let acked_tick = acked_ticks.clients.entry(client_id).or_default();
                         if *acked_tick < tick {
                             *acked_tick = tick;
-                            predictions.cleanup_acked(client_id, *acked_tick);
+                            entity_map.cleanup_acked(client_id, *acked_tick);
                         }
                     }
                     Err(e) => error!("unable to deserialize tick from client {client_id}: {e}"),
@@ -160,14 +160,14 @@ impl ServerPlugin {
         despawn_tracker: Res<DespawnTracker>,
         replicon_tick: Res<RepliconTick>,
         removal_trackers: Query<(Entity, &RemovalTracker)>,
-        predictions: Res<ClientEntityMap>,
+        entity_map: Res<ClientEntityMap>,
     ) -> Result<(), bincode::Error> {
         let mut acked_ticks = set.p2();
         acked_ticks.register_tick(*replicon_tick, change_tick.this_run());
 
         let buffers = prepare_buffers(&mut buffers, &acked_ticks, *replicon_tick)?;
 
-        collect_mappings(buffers, &acked_ticks, &predictions)?;
+        collect_mappings(buffers, &acked_ticks, &entity_map)?;
         collect_changes(
             buffers,
             set.p0(),
