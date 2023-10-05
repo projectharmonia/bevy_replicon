@@ -71,7 +71,6 @@ impl ReplicationBuffer {
         })
     }
 
-    #[inline]
     pub(super) fn client_id(&self) -> u64 {
         self.client_id
     }
