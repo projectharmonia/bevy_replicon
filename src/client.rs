@@ -154,10 +154,9 @@ fn deserialize_entity_mappings(
         let client_entity = deserialize_entity(cursor)?;
 
         if let Some(entry) = entity_map.to_client().get(&server_entity) {
-            if *entry == client_entity {
-                warn!("ignoring mapping from {server_entity:?} to {client_entity:?} that already exists");
-                continue;
-            } else {
+            // It's possible to receive the same mappings in multiple packets if the server has not
+            // yet received an ack from the client for the tick when the mapping was created.
+            if *entry != client_entity {
                 panic!("received mapping from {server_entity:?} to {client_entity:?}, but already mapped to {entry:?}");
             }
         }
