@@ -59,19 +59,19 @@ impl ClientPlugin {
                         let end_pos: u64 = message.len().try_into().unwrap();
                         let mut cursor = Cursor::new(message);
 
-                        let Some(tick) = deserialize_tick(&mut cursor, world)? else {
+                        let Some(tick) = apply_tick(&mut cursor, world)? else {
                             continue;
                         };
                         if cursor.position() == end_pos {
                             continue;
                         }
 
-                        deserialize_entity_mappings(&mut cursor, world, &mut entity_map)?;
+                        apply_entity_mappings(&mut cursor, world, &mut entity_map)?;
                         if cursor.position() == end_pos {
                             continue;
                         }
 
-                        deserialize_component_diffs(
+                        apply_component_diffs(
                             &mut cursor,
                             world,
                             &mut entity_map,
@@ -83,7 +83,7 @@ impl ClientPlugin {
                             continue;
                         }
 
-                        deserialize_component_diffs(
+                        apply_component_diffs(
                             &mut cursor,
                             world,
                             &mut entity_map,
@@ -95,7 +95,7 @@ impl ClientPlugin {
                             continue;
                         }
 
-                        deserialize_despawns(
+                        apply_despawns(
                             &mut cursor,
                             world,
                             &mut entity_map,
@@ -128,7 +128,7 @@ impl ClientPlugin {
 /// Deserializes server tick and applies it to [`LastTick`] if it is newer.
 ///
 /// Returns the tick if [`LastTick`] has been updated.
-fn deserialize_tick(
+fn apply_tick(
     cursor: &mut Cursor<Bytes>,
     world: &mut World,
 ) -> Result<Option<RepliconTick>, bincode::Error> {
@@ -143,15 +143,16 @@ fn deserialize_tick(
     }
 }
 
-fn deserialize_entity_mappings(
+/// Applies received server mappings from client's pre-spawned entities.
+fn apply_entity_mappings(
     cursor: &mut Cursor<Bytes>,
     world: &mut World,
     entity_map: &mut ServerEntityMap,
 ) -> Result<(), bincode::Error> {
     let array_len: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..array_len {
-        let server_entity = deserialize_entity(cursor)?;
-        let client_entity = deserialize_entity(cursor)?;
+        let server_entity = read_entity(cursor)?;
+        let client_entity = read_entity(cursor)?;
 
         if let Some(entry) = entity_map.to_client().get(&server_entity) {
             // It's possible to receive the same mappings in multiple packets if the server has not
@@ -174,7 +175,7 @@ fn deserialize_entity_mappings(
 }
 
 /// Deserializes component diffs of `diff_kind` and applies them to the `world`.
-fn deserialize_component_diffs(
+fn apply_component_diffs(
     cursor: &mut Cursor<Bytes>,
     world: &mut World,
     entity_map: &mut ServerEntityMap,
@@ -184,7 +185,7 @@ fn deserialize_component_diffs(
 ) -> Result<(), bincode::Error> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..entities_count {
-        let entity = deserialize_entity(cursor)?;
+        let entity = read_entity(cursor)?;
         let mut entity = entity_map.get_by_server_or_spawn(world, entity);
         let components_count: u8 = bincode::deserialize_from(&mut *cursor)?;
         for _ in 0..components_count {
@@ -204,7 +205,7 @@ fn deserialize_component_diffs(
 }
 
 /// Deserializes despawns and applies them to the `world`.
-fn deserialize_despawns(
+fn apply_despawns(
     cursor: &mut Cursor<Bytes>,
     world: &mut World,
     entity_map: &mut ServerEntityMap,
@@ -216,7 +217,7 @@ fn deserialize_despawns(
         // The entity might have already been despawned because of hierarchy or
         // with the last diff, but the server might not yet have received confirmation
         // from the client and could include the deletion in the latest diff.
-        let server_entity = deserialize_entity(cursor)?;
+        let server_entity = read_entity(cursor)?;
         if let Some(client_entity) = entity_map
             .remove_by_server(server_entity)
             .and_then(|entity| world.get_entity_mut(entity))
@@ -228,8 +229,10 @@ fn deserialize_despawns(
     Ok(())
 }
 
-/// Deserializes `entity` from compressed index and generation, for details see [`ReplicationBuffer::write_entity()`].
-fn deserialize_entity(cursor: &mut Cursor<Bytes>) -> Result<Entity, bincode::Error> {
+/// Deserializes `entity` from compressed index and generation.
+///
+/// For details see [`ReplicationBuffer::write_entity`](crate::server::replication_buffer::ReplicationBuffer::write_entity).
+fn read_entity(cursor: &mut Cursor<Bytes>) -> Result<Entity, bincode::Error> {
     let flagged_index: u64 = cursor.read_u64_varint()?;
     let has_generation = (flagged_index & 1) > 0;
     let generation = if has_generation {
@@ -245,7 +248,7 @@ fn deserialize_entity(cursor: &mut Cursor<Bytes>) -> Result<Entity, bincode::Err
 
 /// Type of component change.
 ///
-/// Parameter for [`deserialize_component_diffs`].
+/// Parameter for [`apply_component_diffs`].
 enum DiffKind {
     Change,
     Removal,
