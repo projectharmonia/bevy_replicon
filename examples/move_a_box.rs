@@ -31,6 +31,7 @@ fn main() {
                 .set(ServerPlugin::new(TickPolicy::MaxTickRate(60)))),
         )
         .replicate::<PlayerPosition>()
+        .replicate::<PlayerColor>()
         .add_client_event::<MoveCommandEvent>(SendPolicy::Ordered)
         .add_systems(
             Startup,
@@ -52,22 +53,28 @@ fn main() {
 
 #[derive(Component, Deserialize, Serialize)]
 struct PlayerPosition(Vec2);
+
+#[derive(Component, Deserialize, Serialize)]
+struct PlayerColor(Color);
+
+/// Contains the client ID of the player
 #[derive(Component, Serialize, Deserialize)]
 struct Player(u64);
 
-/// Contains player ID
 #[derive(Bundle)]
 struct PlayerBundle {
     player: Player,
     position: PlayerPosition,
+    color: PlayerColor,
     replication: Replication,
 }
 
 impl PlayerBundle {
-    fn new(id: u64, position: Vec2) -> Self {
+    fn new(id: u64, position: Vec2, color: Color) -> Self {
         Self {
             player: Player(id),
             position: PlayerPosition(position),
+            color: PlayerColor(color),
             replication: Replication,
         }
     }
@@ -77,13 +84,13 @@ fn init_system(mut commands: Commands) {
     commands.spawn(Camera2dBundle::default());
 }
 
-fn draw_box_system(q_net_pos: Query<&PlayerPosition>, mut gizmos: Gizmos) {
-    for p in q_net_pos.iter() {
+fn draw_box_system(q_net_pos: Query<(&PlayerPosition, &PlayerColor)>, mut gizmos: Gizmos) {
+    for (p, color) in q_net_pos.iter() {
         gizmos.rect(
             Vec3::new(p.0.x, p.0.y, 0.),
             Quat::IDENTITY,
             Vec2::ONE * 50.,
-            Color::GREEN,
+            color.0,
         );
     }
 }
@@ -142,7 +149,15 @@ fn server_event_system(mut commands: Commands, mut server_event: EventReader<Ser
         match event {
             ServerEvent::ClientConnected { client_id } => {
                 info!("Player: {client_id} Connected");
-                commands.spawn(PlayerBundle::new(*client_id, Vec2::ZERO));
+                // Generate pseudo random color from client id
+                let r = ((client_id % 23) as f32) / 23.;
+                let g = ((client_id % 27) as f32) / 27.;
+                let b = ((client_id % 39) as f32) / 39.;
+                commands.spawn(PlayerBundle::new(
+                    *client_id,
+                    Vec2::ZERO,
+                    Color::rgb(r, g, b),
+                ));
             }
             ServerEvent::ClientDisconnected { client_id, reason } => {
                 info!("Client {client_id} disconnected: {reason}");
@@ -183,7 +198,7 @@ fn cli_system(
 ) -> Result<(), Box<dyn Error>> {
     match *cli {
         Cli::SinglePlayer => {
-            commands.spawn(PlayerBundle::new(0, Vec2::ZERO));
+            commands.spawn(PlayerBundle::new(0, Vec2::ZERO, Color::GREEN));
         }
         Cli::Server { port } => {
             let server_channels_config = network_channels.server_channels();
