@@ -47,7 +47,7 @@ fn main() {
         // Systems that run only on the client or a single player instance
         .add_systems(Update, (input_system).run_if(is_client_or_single_player()))
         // Systems that run everywhere
-        .add_systems(Update, (draw_box_system))
+        .add_systems(Update, draw_box_system)
         .run();
 }
 
