@@ -214,7 +214,7 @@ fn cli_system(
             let public_addr = SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port);
             let socket = UdpSocket::bind(public_addr)?;
             let server_config = ServerConfig {
-                max_clients: 4,
+                max_clients: 10,
                 protocol_id: PROTOCOL_ID,
                 public_addr,
                 authentication: ServerAuthentication::Unsecure,
