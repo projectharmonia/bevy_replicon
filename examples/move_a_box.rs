@@ -1,18 +1,23 @@
-use std::error::Error;
-use std::net::Ipv4Addr;
-use std::net::{IpAddr, SocketAddr, UdpSocket};
-use std::time::SystemTime;
+use std::{
+    error::Error,
+    net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket},
+    time::SystemTime,
+};
 
 use bevy::prelude::*;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 
-use bevy_replicon::prelude::*;
-use bevy_replicon::renet::transport::{
-    ClientAuthentication, NetcodeClientTransport, NetcodeServerTransport, ServerAuthentication,
-    ServerConfig,
+use bevy_replicon::{
+    prelude::*,
+    renet::{
+        transport::{
+            ClientAuthentication, NetcodeClientTransport, NetcodeServerTransport,
+            ServerAuthentication, ServerConfig,
+        },
+        ConnectionConfig, ServerEvent,
+    },
 };
-use bevy_replicon::renet::{ConnectionConfig, ServerEvent};
 
 fn main() {
     App::new()
