@@ -200,12 +200,12 @@ impl SimpleBoxPlugin {
         mut players: Query<(&Player, &mut PlayerPosition)>,
         time: Res<Time>,
     ) {
-        let move_speed = 300.0;
+        const MOVE_SPEED: f32 = 300.0;
         for FromClient { client_id, event } in &mut events {
             info!("received event {event:?} from client {client_id}");
             for (player, mut position) in players.iter_mut() {
                 if *client_id == **player {
-                    **position += event.direction * time.delta_seconds() * move_speed;
+                    **position += event.direction * time.delta_seconds() * MOVE_SPEED;
                 }
             }
         }
