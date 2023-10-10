@@ -143,7 +143,7 @@ impl SimpleBoxPlugin {
         for event in &mut server_event {
             match event {
                 ServerEvent::ClientConnected { client_id } => {
-                    info!("Player: {client_id} Connected");
+                    info!("player: {client_id} Connected");
                     // Generate pseudo random color from client id.
                     let r = ((client_id % 23) as f32) / 23.0;
                     let g = ((client_id % 27) as f32) / 27.0;
@@ -155,7 +155,7 @@ impl SimpleBoxPlugin {
                     ));
                 }
                 ServerEvent::ClientDisconnected { client_id, reason } => {
-                    info!("Client {client_id} disconnected: {reason}");
+                    info!("client {client_id} disconnected: {reason}");
                 }
             }
         }
