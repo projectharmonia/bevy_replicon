@@ -10,8 +10,7 @@ Write the same logic that works for both multiplayer and single-player. The crat
 
 Check out the [quick start guide](https://docs.rs/bevy_replicon/latest/bevy_replicon).
 
-See also [Tic-Tac-Toe](https://github.com/lifescapegame/bevy_replicon/tree/master/examples/tic_tac_toe.rs) example.
-
+See also [examples](https://github.com/lifescapegame/bevy_replicon/tree/master/examples).
 
 ## Bevy compatibility
 
