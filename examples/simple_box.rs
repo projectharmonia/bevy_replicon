@@ -138,13 +138,13 @@ impl SimpleBoxPlugin {
         commands.spawn(Camera2dBundle::default());
     }
 
-    // Spawns a new player whenever a client connects
+    /// Logs server events and spawns a new player whenever a client connects.
     fn server_event_system(mut commands: Commands, mut server_event: EventReader<ServerEvent>) {
         for event in &mut server_event {
             match event {
                 ServerEvent::ClientConnected { client_id } => {
                     info!("Player: {client_id} Connected");
-                    // Generate pseudo random color from client id
+                    // Generate pseudo random color from client id.
                     let r = ((client_id % 23) as f32) / 23.0;
                     let g = ((client_id % 27) as f32) / 27.0;
                     let b = ((client_id % 39) as f32) / 39.0;
@@ -172,7 +172,7 @@ impl SimpleBoxPlugin {
         }
     }
 
-    // Read player inputs and publish MoveCommandEvents, only for client or single player instance
+    /// Reads player inputs and sends [`MoveCommandEvents`]
     fn input_system(input: Res<Input<KeyCode>>, mut move_event: EventWriter<MoveCommandEvent>) {
         let right = input.pressed(KeyCode::Right);
         let left = input.pressed(KeyCode::Left);
@@ -198,7 +198,7 @@ impl SimpleBoxPlugin {
         }
     }
 
-    // Mutate PlayerPosition based on MoveCommandEvents, runs on server or single player instance
+    /// Mutate [`PlayerPosition`] based on [`MoveCommandEvents`].
     fn movement_system(
         mut events: EventReader<FromClient<MoveCommandEvent>>,
         mut players: Query<(&Player, &mut PlayerPosition)>,
@@ -260,7 +260,7 @@ impl PlayerBundle {
     }
 }
 
-/// Contains the client ID of the player
+/// Contains the client ID of the player.
 #[derive(Component, Serialize, Deserialize, Deref)]
 struct Player(u64);
 
