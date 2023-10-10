@@ -50,15 +50,14 @@ impl Plugin for SimpleBoxPlugin {
                 Startup,
                 (cli_system.pipe(system_adapter::unwrap), init_system),
             )
-            // Systems that run only on the server or a single player instance
-            .add_systems(Update, (movement_system).run_if(has_authority()))
-            // Systems that run only on the server
             .add_systems(
                 Update,
-                (server_event_system).run_if(resource_exists::<RenetServer>()),
-            )
-            // Systems that run everywhere
-            .add_systems(Update, (draw_box_system, input_system));
+                (
+                    movement_system.run_if(has_authority()), // Runs only on the server or a single player.
+                    server_event_system.run_if(resource_exists::<RenetServer>()), // Runs only on the server.
+                    (draw_box_system, input_system),
+                ),
+            );
     }
 }
 
