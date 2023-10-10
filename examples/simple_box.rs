@@ -162,7 +162,7 @@ impl SimpleBoxPlugin {
     }
 
     fn draw_box_system(mut gizmos: Gizmos, players: Query<(&PlayerPosition, &PlayerColor)>) {
-        for (position, color) in players.iter() {
+        for (position, color) in &players {
             gizmos.rect(
                 Vec3::new(position.x, position.y, 0.0),
                 Quat::IDENTITY,
@@ -201,7 +201,7 @@ impl SimpleBoxPlugin {
         const MOVE_SPEED: f32 = 300.0;
         for FromClient { client_id, event } in &mut move_events {
             info!("received event {event:?} from client {client_id}");
-            for (player, mut position) in players.iter_mut() {
+            for (player, mut position) in &mut players {
                 if *client_id == player.0 {
                     **position += event.0 * time.delta_seconds() * MOVE_SPEED;
                 }
