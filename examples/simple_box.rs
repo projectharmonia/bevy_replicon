@@ -174,24 +174,20 @@ impl SimpleBoxPlugin {
 
     /// Reads player inputs and sends [`MoveCommandEvents`]
     fn input_system(input: Res<Input<KeyCode>>, mut move_event: EventWriter<MoveCommandEvent>) {
-        let right = input.pressed(KeyCode::Right);
-        let left = input.pressed(KeyCode::Left);
-        let up = input.pressed(KeyCode::Up);
-        let down = input.pressed(KeyCode::Down);
         let mut direction = Vec2::ZERO;
-        if right {
+        if input.pressed(KeyCode::Right) {
             direction.x += 1.0;
         }
-        if left {
+        if input.pressed(KeyCode::Left) {
             direction.x -= 1.0;
         }
-        if up {
+        if input.pressed(KeyCode::Up) {
             direction.y += 1.0;
         }
-        if down {
+        if input.pressed(KeyCode::Down) {
             direction.y -= 1.0;
         }
-        if right || left || up || down {
+        if direction != Vec2::ZERO {
             move_event.send(MoveCommandEvent {
                 direction: direction.normalize_or_zero(),
             })
