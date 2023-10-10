@@ -161,7 +161,7 @@ impl SimpleBoxPlugin {
         }
     }
 
-    fn draw_box_system(players: Query<(&PlayerPosition, &PlayerColor)>, mut gizmos: Gizmos) {
+    fn draw_box_system(mut gizmos: Gizmos, players: Query<(&PlayerPosition, &PlayerColor)>) {
         for (position, color) in players.iter() {
             gizmos.rect(
                 Vec3::new(position.x, position.y, 0.0),
@@ -173,7 +173,7 @@ impl SimpleBoxPlugin {
     }
 
     /// Reads player inputs and sends [`MoveCommandEvents`]
-    fn input_system(input: Res<Input<KeyCode>>, mut move_event: EventWriter<MoveCommandEvent>) {
+    fn input_system(mut move_event: EventWriter<MoveCommandEvent>, input: Res<Input<KeyCode>>) {
         let mut direction = Vec2::ZERO;
         if input.pressed(KeyCode::Right) {
             direction.x += 1.0;
@@ -196,9 +196,9 @@ impl SimpleBoxPlugin {
 
     /// Mutate [`PlayerPosition`] based on [`MoveCommandEvents`].
     fn movement_system(
+        time: Res<Time>,
         mut events: EventReader<FromClient<MoveCommandEvent>>,
         mut players: Query<(&Player, &mut PlayerPosition)>,
-        time: Res<Time>,
     ) {
         const MOVE_SPEED: f32 = 300.0;
         for FromClient { client_id, event } in &mut events {
