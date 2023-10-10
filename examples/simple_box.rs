@@ -161,13 +161,13 @@ impl SimpleBoxPlugin {
         }
     }
 
-    fn draw_box_system(q_net_pos: Query<(&PlayerPosition, &PlayerColor)>, mut gizmos: Gizmos) {
-        for (p, color) in q_net_pos.iter() {
+    fn draw_box_system(players: Query<(&PlayerPosition, &PlayerColor)>, mut gizmos: Gizmos) {
+        for (position, color) in players.iter() {
             gizmos.rect(
-                Vec3::new(p.0.x, p.0.y, 0.),
+                Vec3::new(position.x, position.y, 0.0),
                 Quat::IDENTITY,
-                Vec2::ONE * 50.,
-                color.0,
+                Vec2::ONE * 50.0,
+                **color,
             );
         }
     }
@@ -201,15 +201,15 @@ impl SimpleBoxPlugin {
     // Mutate PlayerPosition based on MoveCommandEvents, runs on server or single player instance
     fn movement_system(
         mut events: EventReader<FromClient<MoveCommandEvent>>,
-        mut q_net_pos: Query<(&Player, &mut PlayerPosition)>,
+        mut players: Query<(&Player, &mut PlayerPosition)>,
         time: Res<Time>,
     ) {
         let move_speed = 300.0;
         for FromClient { client_id, event } in &mut events {
             info!("received event {event:?} from client {client_id}");
-            for (player, mut position) in q_net_pos.iter_mut() {
-                if *client_id == player.0 {
-                    position.0 += event.direction * time.delta_seconds() * move_speed;
+            for (player, mut position) in players.iter_mut() {
+                if *client_id == **player {
+                    **position += event.direction * time.delta_seconds() * move_speed;
                 }
             }
         }
@@ -261,13 +261,13 @@ impl PlayerBundle {
 }
 
 /// Contains the client ID of the player
-#[derive(Component, Serialize, Deserialize)]
+#[derive(Component, Serialize, Deserialize, Deref)]
 struct Player(u64);
 
-#[derive(Component, Deserialize, Serialize)]
+#[derive(Component, Deserialize, Serialize, Deref, DerefMut)]
 struct PlayerPosition(Vec2);
 
-#[derive(Component, Deserialize, Serialize)]
+#[derive(Component, Deserialize, Serialize, Deref)]
 struct PlayerColor(Color);
 
 #[derive(Debug, Default, Deserialize, Event, Serialize)]
