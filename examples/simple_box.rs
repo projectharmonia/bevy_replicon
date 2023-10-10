@@ -145,9 +145,9 @@ impl SimpleBoxPlugin {
                 ServerEvent::ClientConnected { client_id } => {
                     info!("Player: {client_id} Connected");
                     // Generate pseudo random color from client id
-                    let r = ((client_id % 23) as f32) / 23.;
-                    let g = ((client_id % 27) as f32) / 27.;
-                    let b = ((client_id % 39) as f32) / 39.;
+                    let r = ((client_id % 23) as f32) / 23.0;
+                    let g = ((client_id % 27) as f32) / 27.0;
+                    let b = ((client_id % 39) as f32) / 39.0;
                     commands.spawn(PlayerBundle::new(
                         *client_id,
                         Vec2::ZERO,
