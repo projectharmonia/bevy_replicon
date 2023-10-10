@@ -52,10 +52,8 @@ impl Plugin for MoveABoxPlugin {
                 Update,
                 (server_event_system).run_if(resource_exists::<RenetServer>()),
             )
-            // Systems that run only on the client or a single player instance
-            .add_systems(Update, (input_system).run_if(is_client_or_single_player()))
             // Systems that run everywhere
-            .add_systems(Update, draw_box_system);
+            .add_systems(Update, (draw_box_system, input_system));
     }
 }
 
@@ -240,6 +238,7 @@ fn cli_system(
                     ..default()
                 },
             ));
+            commands.spawn(PlayerBundle::new(0, Vec2::ZERO, Color::GREEN));
         }
         Cli::Client { port, ip } => {
             let server_channels_config = network_channels.server_channels();
@@ -278,9 +277,4 @@ fn cli_system(
     }
 
     Ok(())
-}
-
-fn is_client_or_single_player(
-) -> impl FnMut(Option<Res<RenetClient>>, Option<Res<RenetServer>>) -> bool + Clone {
-    move |client, server| client.is_some() || server.is_none()
 }
