@@ -167,7 +167,7 @@ impl SimpleBoxPlugin {
                 Vec3::new(position.x, position.y, 0.0),
                 Quat::IDENTITY,
                 Vec2::ONE * 50.0,
-                **color,
+                color.0,
             );
         }
     }
@@ -202,7 +202,7 @@ impl SimpleBoxPlugin {
         for FromClient { client_id, event } in &mut move_events {
             info!("received event {event:?} from client {client_id}");
             for (player, mut position) in players.iter_mut() {
-                if *client_id == **player {
+                if *client_id == player.0 {
                     **position += event.0 * time.delta_seconds() * MOVE_SPEED;
                 }
             }
@@ -255,13 +255,13 @@ impl PlayerBundle {
 }
 
 /// Contains the client ID of the player.
-#[derive(Component, Serialize, Deserialize, Deref)]
+#[derive(Component, Serialize, Deserialize)]
 struct Player(u64);
 
 #[derive(Component, Deserialize, Serialize, Deref, DerefMut)]
 struct PlayerPosition(Vec2);
 
-#[derive(Component, Deserialize, Serialize, Deref)]
+#[derive(Component, Deserialize, Serialize)]
 struct PlayerColor(Color);
 
 /// A movement event for the controlled box.
