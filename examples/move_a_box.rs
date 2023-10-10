@@ -31,9 +31,9 @@ fn main() {
             ..Default::default()
         }))
         .add_plugins(
-            (ReplicationPlugins
+            ReplicationPlugins
                 .build()
-                .set(ServerPlugin::new(TickPolicy::MaxTickRate(60)))),
+                .set(ServerPlugin::new(TickPolicy::MaxTickRate(60))),
         )
         .add_plugins(MoveABoxPlugin)
         .run();
