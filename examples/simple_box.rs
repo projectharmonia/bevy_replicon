@@ -22,20 +22,7 @@ use bevy_replicon::{
 fn main() {
     App::new()
         .init_resource::<Cli>() // Parse CLI before creating window.
-        .add_plugins(DefaultPlugins.build().set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "Simple Box".into(),
-                resolution: (800.0, 600.0).into(),
-                ..Default::default()
-            }),
-            ..Default::default()
-        }))
-        .add_plugins(
-            ReplicationPlugins
-                .build()
-                .set(ServerPlugin::new(TickPolicy::MaxTickRate(60))),
-        )
-        .add_plugins(SimpleBoxPlugin)
+        .add_plugins((DefaultPlugins, ReplicationPlugins, SimpleBoxPlugin))
         .run();
 }
 
