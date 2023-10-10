@@ -192,7 +192,7 @@ impl SimpleBoxPlugin {
         }
     }
 
-    /// Mutate [`PlayerPosition`] based on [`MoveCommandEvents`].
+    /// Mutates [`PlayerPosition`] based on [`MoveCommandEvents`].
     fn movement_system(
         time: Res<Time>,
         mut move_events: EventReader<FromClient<MoveDirection>>,
