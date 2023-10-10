@@ -32,7 +32,7 @@ impl Plugin for SimpleBoxPlugin {
     fn build(&self, app: &mut App) {
         app.replicate::<PlayerPosition>()
             .replicate::<PlayerColor>()
-            .add_client_event::<MoveCommandEvent>(SendPolicy::Ordered)
+            .add_client_event::<MoveDirection>(SendPolicy::Ordered)
             .add_systems(
                 Startup,
                 (
@@ -173,7 +173,7 @@ impl SimpleBoxPlugin {
     }
 
     /// Reads player inputs and sends [`MoveCommandEvents`]
-    fn input_system(mut move_event: EventWriter<MoveCommandEvent>, input: Res<Input<KeyCode>>) {
+    fn input_system(mut move_events: EventWriter<MoveDirection>, input: Res<Input<KeyCode>>) {
         let mut direction = Vec2::ZERO;
         if input.pressed(KeyCode::Right) {
             direction.x += 1.0;
@@ -188,24 +188,22 @@ impl SimpleBoxPlugin {
             direction.y -= 1.0;
         }
         if direction != Vec2::ZERO {
-            move_event.send(MoveCommandEvent {
-                direction: direction.normalize_or_zero(),
-            })
+            move_events.send(MoveDirection(direction.normalize_or_zero()));
         }
     }
 
     /// Mutate [`PlayerPosition`] based on [`MoveCommandEvents`].
     fn movement_system(
         time: Res<Time>,
-        mut events: EventReader<FromClient<MoveCommandEvent>>,
+        mut move_events: EventReader<FromClient<MoveDirection>>,
         mut players: Query<(&Player, &mut PlayerPosition)>,
     ) {
         const MOVE_SPEED: f32 = 300.0;
-        for FromClient { client_id, event } in &mut events {
+        for FromClient { client_id, event } in &mut move_events {
             info!("received event {event:?} from client {client_id}");
             for (player, mut position) in players.iter_mut() {
                 if *client_id == **player {
-                    **position += event.direction * time.delta_seconds() * MOVE_SPEED;
+                    **position += event.0 * time.delta_seconds() * MOVE_SPEED;
                 }
             }
         }
@@ -266,7 +264,6 @@ struct PlayerPosition(Vec2);
 #[derive(Component, Deserialize, Serialize, Deref)]
 struct PlayerColor(Color);
 
+/// A movement event for the controlled box.
 #[derive(Debug, Default, Deserialize, Event, Serialize)]
-struct MoveCommandEvent {
-    pub direction: Vec2,
-}
+struct MoveDirection(Vec2);
