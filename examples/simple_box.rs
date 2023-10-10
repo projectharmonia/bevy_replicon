@@ -45,7 +45,7 @@ impl Plugin for SimpleBoxPlugin {
                 (
                     Self::movement_system.run_if(has_authority()), // Runs only on the server or a single player.
                     Self::server_event_system.run_if(resource_exists::<RenetServer>()), // Runs only on the server.
-                    (Self::draw_box_system, Self::input_system),
+                    (Self::draw_boxes_system, Self::input_system),
                 ),
             );
     }
@@ -161,7 +161,7 @@ impl SimpleBoxPlugin {
         }
     }
 
-    fn draw_box_system(mut gizmos: Gizmos, players: Query<(&PlayerPosition, &PlayerColor)>) {
+    fn draw_boxes_system(mut gizmos: Gizmos, players: Query<(&PlayerPosition, &PlayerColor)>) {
         for (position, color) in &players {
             gizmos.rect(
                 Vec3::new(position.x, position.y, 0.0),
