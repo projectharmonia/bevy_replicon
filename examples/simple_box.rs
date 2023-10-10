@@ -1,3 +1,6 @@
+//! A simple demo to showcase how player could send inputs to move the square and server replicates position back.
+//! Also demonstrates the single-player and how sever also could be a player.
+
 use std::{
     error::Error,
     net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket},
@@ -193,6 +196,9 @@ impl SimpleBoxPlugin {
     }
 
     /// Mutates [`PlayerPosition`] based on [`MoveCommandEvents`].
+    ///
+    /// Fast-paced games usually you don't want to wait until server send a position back because of the latency.
+    /// But this example just demonstrates simple replication concept.
     fn movement_system(
         time: Res<Time>,
         mut move_events: EventReader<FromClient<MoveDirection>>,
