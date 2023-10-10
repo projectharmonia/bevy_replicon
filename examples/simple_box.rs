@@ -24,7 +24,7 @@ fn main() {
         .init_resource::<Cli>() // Parse CLI before creating window.
         .add_plugins(DefaultPlugins.build().set(WindowPlugin {
             primary_window: Some(Window {
-                title: "Move a Box".into(),
+                title: "Simple Box".into(),
                 resolution: (800.0, 600.0).into(),
                 ..Default::default()
             }),
@@ -35,13 +35,13 @@ fn main() {
                 .build()
                 .set(ServerPlugin::new(TickPolicy::MaxTickRate(60))),
         )
-        .add_plugins(MoveABoxPlugin)
+        .add_plugins(SimpleBoxPlugin)
         .run();
 }
 
-struct MoveABoxPlugin;
+struct SimpleBoxPlugin;
 
-impl Plugin for MoveABoxPlugin {
+impl Plugin for SimpleBoxPlugin {
     fn build(&self, app: &mut App) {
         app.replicate::<PlayerPosition>()
             .replicate::<PlayerColor>()
