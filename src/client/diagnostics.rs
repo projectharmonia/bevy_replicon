@@ -20,6 +20,8 @@ pub struct ReplicationStats {
     pub despawns: u32,
     // replication packets recvd
     pub packets: u32,
+    // replication bytes received as packet payload (not transport layer headers, etc)
+    pub bytes: u32,
 }
 
 pub mod replication_diagnostics {
@@ -39,6 +41,9 @@ pub mod replication_diagnostics {
     /// How many replication packets processed per second
     pub const REPLICATED_PACKETS_DIAGNOSTIC: DiagnosticId =
         DiagnosticId::from_u128(40094818756895929689855772983865);
+    /// How many bytes of replication packets payloads per second
+    pub const REPLICATED_BYTES_DIAGNOSTIC: DiagnosticId =
+        DiagnosticId::from_u128(87998088176776397493423835383418);
 
     /// Diagnostic max_history_length
     pub const REPLICATED_DIAGNOSTIC_HISTORY_LEN: usize = 60;
@@ -81,6 +86,11 @@ impl Plugin for ReplicationStatsPlugin {
             REPLICATED_PACKETS_DIAGNOSTIC,
             "packets per second",
             REPLICATED_DIAGNOSTIC_HISTORY_LEN,
+        ))
+        .register_diagnostic(Diagnostic::new(
+            REPLICATED_BYTES_DIAGNOSTIC,
+            "bytes per second",
+            REPLICATED_DIAGNOSTIC_HISTORY_LEN,
         ));
     }
 }
@@ -113,6 +123,13 @@ fn write_diagnostics(mut stats: ResMut<ReplicationStats>, mut diagnostics: Diagn
             0_f64
         } else {
             stats.despawns as f64 / stats.packets as f64
+        }
+    });
+    diagnostics.add_measurement(REPLICATED_BYTES_DIAGNOSTIC, || {
+        if stats.packets == 0 {
+            0_f64
+        } else {
+            stats.bytes as f64 / stats.packets as f64
         }
     });
     diagnostics.add_measurement(REPLICATED_PACKETS_DIAGNOSTIC, || stats.packets as f64);
