@@ -17,7 +17,7 @@ use crate::replicon_core::{
 };
 
 pub(crate) mod diagnostics;
-pub use diagnostics::{ClientDiagnosticsPlugin, ReplicationStats};
+pub use diagnostics::{ClientDiagnosticsPlugin, ClientStats};
 
 pub struct ClientPlugin;
 
@@ -58,7 +58,7 @@ impl ClientPlugin {
         world.resource_scope(|world, mut client: Mut<RenetClient>| {
             world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
                 world.resource_scope(|world, replication_rules: Mut<ReplicationRules>| {
-                    let mut stats = world.remove_resource::<ReplicationStats>();
+                    let mut stats = world.remove_resource::<ClientStats>();
                     while let Some(message) = client.receive_message(REPLICATION_CHANNEL_ID) {
                         let end_pos: u64 = message.len().try_into().unwrap();
                         let mut cursor = Cursor::new(message);
@@ -164,7 +164,7 @@ fn apply_entity_mappings(
     cursor: &mut Cursor<Bytes>,
     world: &mut World,
     entity_map: &mut ServerEntityMap,
-    stats: &mut Option<ReplicationStats>,
+    stats: &mut Option<ClientStats>,
 ) -> Result<(), bincode::Error> {
     let array_len: u16 = bincode::deserialize_from(&mut *cursor)?;
     if let Some(rs) = stats {
@@ -202,7 +202,7 @@ fn apply_component_diffs(
     replication_rules: &ReplicationRules,
     diff_kind: DiffKind,
     tick: RepliconTick,
-    stats: &mut Option<ReplicationStats>,
+    stats: &mut Option<ClientStats>,
 ) -> Result<(), bincode::Error> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..entities_count {
@@ -236,7 +236,7 @@ fn apply_despawns(
     entity_map: &mut ServerEntityMap,
     replication_rules: &ReplicationRules,
     tick: RepliconTick,
-    stats: &mut Option<ReplicationStats>,
+    stats: &mut Option<ClientStats>,
 ) -> Result<(), bincode::Error> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
     if let Some(rs) = stats {

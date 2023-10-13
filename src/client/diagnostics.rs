@@ -10,7 +10,7 @@ use std::time::Duration;
 ///
 /// Flushed to Diagnostics system periodically.
 #[derive(Default, Resource, Debug)]
-pub struct ReplicationStats {
+pub struct ClientStats {
     /// Incremented per entity that changes.
     pub entities_changed: u32,
     /// Incremented for every component that changes.
@@ -38,7 +38,7 @@ impl Plugin for ClientDiagnosticsPlugin {
             Update,
             Self::diagnostic_system.run_if(on_timer(diagnostics_timer)),
         )
-        .init_resource::<ReplicationStats>()
+        .init_resource::<ClientStats>()
         .register_diagnostic(Diagnostic::new(
             Self::ENTITY_CHANGES,
             "entities changed per second",
@@ -91,7 +91,7 @@ impl ClientDiagnosticsPlugin {
     /// Diagnostic max_history_length
     pub const DIAGNOSTIC_HISTORY_LEN: usize = 60;
 
-    fn diagnostic_system(mut stats: ResMut<ReplicationStats>, mut diagnostics: Diagnostics) {
+    fn diagnostic_system(mut stats: ResMut<ClientStats>, mut diagnostics: Diagnostics) {
         diagnostics.add_measurement(Self::ENTITY_CHANGES, || {
             if stats.packets == 0 {
                 0_f64
@@ -128,6 +128,6 @@ impl ClientDiagnosticsPlugin {
             }
         });
         diagnostics.add_measurement(Self::PACKETS, || stats.packets as f64);
-        *stats = ReplicationStats::default();
+        *stats = ClientStats::default();
     }
 }
