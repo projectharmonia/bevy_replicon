@@ -24,6 +24,7 @@ pub struct ReplicationStats {
     pub bytes: u32,
 }
 
+/// Diagnostic IDs for per-second replication diagnostics
 pub mod replication_diagnostics {
     use super::*;
     /// How many entities modified per second by replication
@@ -51,6 +52,10 @@ pub mod replication_diagnostics {
 
 use replication_diagnostics::*;
 
+/// Clientside plugin to write Diagnostics every second
+/// Not added by default.
+///
+/// See [`replication_diagnostics`]
 #[derive(Default)]
 pub(super) struct ReplicationStatsPlugin;
 

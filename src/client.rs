@@ -17,7 +17,7 @@ use crate::replicon_core::{
 };
 
 pub(crate) mod diagnostics;
-use diagnostics::{ReplicationStats, ReplicationStatsPlugin};
+use diagnostics::ReplicationStats;
 
 pub struct ClientPlugin;
 
@@ -26,7 +26,6 @@ impl Plugin for ClientPlugin {
         app.add_plugins((RenetClientPlugin, NetcodeClientPlugin))
             .init_resource::<LastRepliconTick>()
             .init_resource::<ServerEntityMap>()
-            .add_plugins(ReplicationStatsPlugin)
             .configure_set(
                 PreUpdate,
                 ClientSet::Receive.after(NetcodeClientPlugin::update_system),
