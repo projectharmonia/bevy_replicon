@@ -63,9 +63,9 @@ impl ClientPlugin {
                         let end_pos: u64 = message.len().try_into().unwrap();
                         let mut cursor = Cursor::new(message);
 
-                        if let Some(ref mut rs) = stats {
-                            rs.packets += 1;
-                            rs.bytes += end_pos as u32;
+                        if let Some(stats) = &mut stats {
+                            stats.packets += 1;
+                            stats.bytes += end_pos as u32;
                         }
 
                         let Some(tick) = apply_tick(&mut cursor, world)? else {
