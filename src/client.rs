@@ -17,7 +17,7 @@ use crate::replicon_core::{
 };
 
 pub(crate) mod diagnostics;
-use diagnostics::ReplicationStats;
+pub use diagnostics::{ClientDiagnosticsPlugin, ReplicationStats};
 
 pub struct ClientPlugin;
 

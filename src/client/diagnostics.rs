@@ -26,12 +26,12 @@ pub struct ReplicationStats {
     pub bytes: u32,
 }
 
-/// Clientside plugin to write Diagnostics every second
+/// Plugin to write Diagnostics every second.
 /// Not added by default.
 #[derive(Default)]
-pub struct ReplicationDiagnosticsPlugin;
+pub struct ClientDiagnosticsPlugin;
 
-impl Plugin for ReplicationDiagnosticsPlugin {
+impl Plugin for ClientDiagnosticsPlugin {
     fn build(&self, app: &mut App) {
         let diagnostics_timer = Duration::from_millis(1000);
         app.add_systems(
@@ -72,7 +72,7 @@ impl Plugin for ReplicationDiagnosticsPlugin {
     }
 }
 
-impl ReplicationDiagnosticsPlugin {
+impl ClientDiagnosticsPlugin {
     /// How many entities modified per second by replication
     pub const ENTITY_CHANGES: DiagnosticId =
         DiagnosticId::from_u128(87359945710349305342211647237348);
