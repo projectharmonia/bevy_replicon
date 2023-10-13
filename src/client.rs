@@ -16,6 +16,9 @@ use crate::replicon_core::{
     REPLICATION_CHANNEL_ID,
 };
 
+pub(crate) mod diagnostics;
+use diagnostics::{ReplicationStats, ReplicationStatsPlugin};
+
 pub struct ClientPlugin;
 
 impl Plugin for ClientPlugin {
@@ -23,6 +26,7 @@ impl Plugin for ClientPlugin {
         app.add_plugins((RenetClientPlugin, NetcodeClientPlugin))
             .init_resource::<LastRepliconTick>()
             .init_resource::<ServerEntityMap>()
+            .add_plugins(ReplicationStatsPlugin)
             .configure_set(
                 PreUpdate,
                 ClientSet::Receive.after(NetcodeClientPlugin::update_system),
@@ -55,56 +59,63 @@ impl ClientPlugin {
         world.resource_scope(|world, mut client: Mut<RenetClient>| {
             world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
                 world.resource_scope(|world, replication_rules: Mut<ReplicationRules>| {
-                    while let Some(message) = client.receive_message(REPLICATION_CHANNEL_ID) {
-                        let end_pos: u64 = message.len().try_into().unwrap();
-                        let mut cursor = Cursor::new(message);
+                    world.resource_scope(|world, mut stats: Mut<ReplicationStats>| {
+                        while let Some(message) = client.receive_message(REPLICATION_CHANNEL_ID) {
+                            let end_pos: u64 = message.len().try_into().unwrap();
+                            let mut cursor = Cursor::new(message);
 
-                        let Some(tick) = apply_tick(&mut cursor, world)? else {
-                            continue;
-                        };
-                        if cursor.position() == end_pos {
-                            continue;
+                            let Some(tick) = apply_tick(&mut cursor, world)? else {
+                                continue;
+                            };
+                            stats.packets += 1;
+
+                            if cursor.position() == end_pos {
+                                continue;
+                            }
+
+                            apply_entity_mappings(&mut cursor, world, &mut entity_map, &mut stats)?;
+
+                            if cursor.position() == end_pos {
+                                continue;
+                            }
+
+                            apply_component_diffs(
+                                &mut cursor,
+                                world,
+                                &mut entity_map,
+                                &replication_rules,
+                                DiffKind::Change,
+                                tick,
+                                &mut stats,
+                            )?;
+                            if cursor.position() == end_pos {
+                                continue;
+                            }
+
+                            apply_component_diffs(
+                                &mut cursor,
+                                world,
+                                &mut entity_map,
+                                &replication_rules,
+                                DiffKind::Removal,
+                                tick,
+                                &mut stats,
+                            )?;
+                            if cursor.position() == end_pos {
+                                continue;
+                            }
+
+                            apply_despawns(
+                                &mut cursor,
+                                world,
+                                &mut entity_map,
+                                &replication_rules,
+                                tick,
+                                &mut stats,
+                            )?;
                         }
-
-                        apply_entity_mappings(&mut cursor, world, &mut entity_map)?;
-                        if cursor.position() == end_pos {
-                            continue;
-                        }
-
-                        apply_component_diffs(
-                            &mut cursor,
-                            world,
-                            &mut entity_map,
-                            &replication_rules,
-                            DiffKind::Change,
-                            tick,
-                        )?;
-                        if cursor.position() == end_pos {
-                            continue;
-                        }
-
-                        apply_component_diffs(
-                            &mut cursor,
-                            world,
-                            &mut entity_map,
-                            &replication_rules,
-                            DiffKind::Removal,
-                            tick,
-                        )?;
-                        if cursor.position() == end_pos {
-                            continue;
-                        }
-
-                        apply_despawns(
-                            &mut cursor,
-                            world,
-                            &mut entity_map,
-                            &replication_rules,
-                            tick,
-                        )?;
-                    }
-
-                    Ok(())
+                        Ok(())
+                    })
                 })
             })
         })
@@ -148,8 +159,10 @@ fn apply_entity_mappings(
     cursor: &mut Cursor<Bytes>,
     world: &mut World,
     entity_map: &mut ServerEntityMap,
+    stats: &mut ReplicationStats,
 ) -> Result<(), bincode::Error> {
     let array_len: u16 = bincode::deserialize_from(&mut *cursor)?;
+    stats.mappings += array_len as u32;
     for _ in 0..array_len {
         let server_entity = read_entity(cursor)?;
         let client_entity = read_entity(cursor)?;
@@ -182,12 +195,15 @@ fn apply_component_diffs(
     replication_rules: &ReplicationRules,
     diff_kind: DiffKind,
     tick: RepliconTick,
+    stats: &mut ReplicationStats,
 ) -> Result<(), bincode::Error> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
+    stats.entities_changed += entities_count as u32;
     for _ in 0..entities_count {
         let entity = read_entity(cursor)?;
         let mut entity = entity_map.get_by_server_or_spawn(world, entity);
         let components_count: u8 = bincode::deserialize_from(&mut *cursor)?;
+        stats.components_changed += components_count as u32;
         for _ in 0..components_count {
             let replication_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
             // SAFETY: server and client have identical `ReplicationRules` and server always sends valid IDs.
@@ -211,8 +227,10 @@ fn apply_despawns(
     entity_map: &mut ServerEntityMap,
     replication_rules: &ReplicationRules,
     tick: RepliconTick,
+    stats: &mut ReplicationStats,
 ) -> Result<(), bincode::Error> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
+    stats.despawns += entities_count as u32;
     for _ in 0..entities_count {
         // The entity might have already been despawned because of hierarchy or
         // with the last diff, but the server might not yet have received confirmation

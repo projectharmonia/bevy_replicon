@@ -390,6 +390,7 @@ pub mod server;
 
 pub mod prelude {
     pub use super::{
+        client::diagnostics::replication_diagnostics as ReplicationDiagnostics,
         client::{ClientMapper, ClientPlugin, ClientSet, LastRepliconTick, ServerEntityMap},
         network_event::{
             client_event::{ClientEventAppExt, FromClient},
