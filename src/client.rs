@@ -69,7 +69,7 @@ impl ClientPlugin {
                         }
 
                         let Some(tick) = apply_tick(&mut cursor, world)? else {
-                                continue;
+                            continue;
                         };
 
                         if cursor.position() == end_pos {
