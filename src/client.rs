@@ -117,8 +117,8 @@ impl ClientPlugin {
                             &mut stats,
                         )?;
                     }
-                    if let Some(rs) = stats {
-                        world.insert_resource(rs);
+                    if let Some(stats) = stats {
+                        world.insert_resource(stats);
                     }
                     Ok(())
                 })
@@ -167,8 +167,8 @@ fn apply_entity_mappings(
     stats: &mut Option<ClientStats>,
 ) -> Result<(), bincode::Error> {
     let array_len: u16 = bincode::deserialize_from(&mut *cursor)?;
-    if let Some(rs) = stats {
-        rs.mappings += array_len as u32;
+    if let Some(stats) = stats {
+        stats.mappings += array_len as u32;
     }
     for _ in 0..array_len {
         let server_entity = read_entity(cursor)?;
@@ -209,9 +209,9 @@ fn apply_component_diffs(
         let entity = read_entity(cursor)?;
         let mut entity = entity_map.get_by_server_or_spawn(world, entity);
         let components_count: u8 = bincode::deserialize_from(&mut *cursor)?;
-        if let Some(rs) = stats {
-            rs.entities_changed += 1;
-            rs.components_changed += components_count as u32;
+        if let Some(stats) = stats {
+            stats.entities_changed += 1;
+            stats.components_changed += components_count as u32;
         }
         for _ in 0..components_count {
             let replication_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
@@ -239,8 +239,8 @@ fn apply_despawns(
     stats: &mut Option<ClientStats>,
 ) -> Result<(), bincode::Error> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
-    if let Some(rs) = stats {
-        rs.despawns += entities_count as u32;
+    if let Some(stats) = stats {
+        stats.despawns += entities_count as u32;
     }
     for _ in 0..entities_count {
         // The entity might have already been despawned because of hierarchy or
