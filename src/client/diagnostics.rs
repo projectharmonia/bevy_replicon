@@ -28,7 +28,6 @@ pub struct ClientStats {
 /// Plugin to write Diagnostics every second.
 ///
 /// Not added by default.
-#[derive(Default)]
 pub struct ClientDiagnosticsPlugin;
 
 impl Plugin for ClientDiagnosticsPlugin {
