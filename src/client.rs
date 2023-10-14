@@ -74,7 +74,7 @@ impl ClientPlugin {
                             continue;
                         }
 
-                        apply_entity_mappings(&mut cursor, world, &mut entity_map, &mut stats)?;
+                        apply_entity_mappings(&mut cursor, world, &mut entity_map, stats.as_mut())?;
                         if cursor.position() == end_pos {
                             continue;
                         }
@@ -86,7 +86,7 @@ impl ClientPlugin {
                             &replication_rules,
                             DiffKind::Change,
                             tick,
-                            &mut stats,
+                            stats.as_mut(),
                         )?;
                         if cursor.position() == end_pos {
                             continue;
@@ -99,7 +99,7 @@ impl ClientPlugin {
                             &replication_rules,
                             DiffKind::Removal,
                             tick,
-                            &mut stats,
+                            stats.as_mut(),
                         )?;
                         if cursor.position() == end_pos {
                             continue;
@@ -163,7 +163,7 @@ fn apply_entity_mappings(
     cursor: &mut Cursor<Bytes>,
     world: &mut World,
     entity_map: &mut ServerEntityMap,
-    stats: &mut Option<ClientStats>,
+    stats: Option<&mut ClientStats>,
 ) -> Result<(), bincode::Error> {
     let array_len: u16 = bincode::deserialize_from(&mut *cursor)?;
     if let Some(stats) = stats {
@@ -201,14 +201,14 @@ fn apply_component_diffs(
     replication_rules: &ReplicationRules,
     diff_kind: DiffKind,
     tick: RepliconTick,
-    stats: &mut Option<ClientStats>,
+    mut stats: Option<&mut ClientStats>,
 ) -> Result<(), bincode::Error> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..entities_count {
         let entity = read_entity(cursor)?;
         let mut entity = entity_map.get_by_server_or_spawn(world, entity);
         let components_count: u8 = bincode::deserialize_from(&mut *cursor)?;
-        if let Some(stats) = stats {
+        if let Some(stats) = &mut stats {
             stats.entities_changed += 1;
             stats.components_changed += components_count as u32;
         }
