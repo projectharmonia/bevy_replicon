@@ -32,10 +32,9 @@ pub struct ClientDiagnosticsPlugin;
 
 impl Plugin for ClientDiagnosticsPlugin {
     fn build(&self, app: &mut App) {
-        let diagnostics_timer = Duration::from_millis(1000);
         app.add_systems(
             Update,
-            Self::diagnostic_system.run_if(on_timer(diagnostics_timer)),
+            Self::diagnostic_system.run_if(on_timer(Duration::from_secs(1))),
         )
         .init_resource::<ClientStats>()
         .register_diagnostic(Diagnostic::new(
