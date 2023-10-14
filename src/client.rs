@@ -1,3 +1,5 @@
+pub mod diagnostics;
+
 use std::io::Cursor;
 
 use bevy::{
@@ -15,9 +17,6 @@ use crate::replicon_core::{
     replicon_tick::RepliconTick,
     REPLICATION_CHANNEL_ID,
 };
-
-pub(crate) mod diagnostics;
-pub use diagnostics::{ClientDiagnosticsPlugin, ClientStats};
 
 pub struct ClientPlugin;
 
