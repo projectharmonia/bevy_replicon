@@ -1,3 +1,5 @@
+pub mod diagnostics;
+
 use std::io::Cursor;
 
 use bevy::{
@@ -15,6 +17,7 @@ use crate::replicon_core::{
     replicon_tick::RepliconTick,
     REPLICATION_CHANNEL_ID,
 };
+use diagnostics::ClientStats;
 
 pub struct ClientPlugin;
 
@@ -55,9 +58,14 @@ impl ClientPlugin {
         world.resource_scope(|world, mut client: Mut<RenetClient>| {
             world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
                 world.resource_scope(|world, replication_rules: Mut<ReplicationRules>| {
+                    let mut stats = world.remove_resource::<ClientStats>();
                     while let Some(message) = client.receive_message(REPLICATION_CHANNEL_ID) {
                         let end_pos: u64 = message.len().try_into().unwrap();
                         let mut cursor = Cursor::new(message);
+                        if let Some(stats) = &mut stats {
+                            stats.packets += 1;
+                            stats.bytes += end_pos;
+                        }
 
                         let Some(tick) = apply_tick(&mut cursor, world)? else {
                             continue;
@@ -66,7 +74,7 @@ impl ClientPlugin {
                             continue;
                         }
 
-                        apply_entity_mappings(&mut cursor, world, &mut entity_map)?;
+                        apply_entity_mappings(&mut cursor, world, &mut entity_map, stats.as_mut())?;
                         if cursor.position() == end_pos {
                             continue;
                         }
@@ -78,6 +86,7 @@ impl ClientPlugin {
                             &replication_rules,
                             DiffKind::Change,
                             tick,
+                            stats.as_mut(),
                         )?;
                         if cursor.position() == end_pos {
                             continue;
@@ -90,6 +99,7 @@ impl ClientPlugin {
                             &replication_rules,
                             DiffKind::Removal,
                             tick,
+                            stats.as_mut(),
                         )?;
                         if cursor.position() == end_pos {
                             continue;
@@ -101,7 +111,12 @@ impl ClientPlugin {
                             &mut entity_map,
                             &replication_rules,
                             tick,
+                            stats.as_mut(),
                         )?;
+                    }
+
+                    if let Some(stats) = stats {
+                        world.insert_resource(stats);
                     }
 
                     Ok(())
@@ -148,8 +163,12 @@ fn apply_entity_mappings(
     cursor: &mut Cursor<Bytes>,
     world: &mut World,
     entity_map: &mut ServerEntityMap,
+    stats: Option<&mut ClientStats>,
 ) -> Result<(), bincode::Error> {
     let array_len: u16 = bincode::deserialize_from(&mut *cursor)?;
+    if let Some(stats) = stats {
+        stats.mappings += array_len as u32;
+    }
     for _ in 0..array_len {
         let server_entity = read_entity(cursor)?;
         let client_entity = read_entity(cursor)?;
@@ -182,12 +201,17 @@ fn apply_component_diffs(
     replication_rules: &ReplicationRules,
     diff_kind: DiffKind,
     tick: RepliconTick,
+    mut stats: Option<&mut ClientStats>,
 ) -> Result<(), bincode::Error> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..entities_count {
         let entity = read_entity(cursor)?;
         let mut entity = entity_map.get_by_server_or_spawn(world, entity);
         let components_count: u8 = bincode::deserialize_from(&mut *cursor)?;
+        if let Some(stats) = &mut stats {
+            stats.entities_changed += 1;
+            stats.components_changed += components_count as u32;
+        }
         for _ in 0..components_count {
             let replication_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
             // SAFETY: server and client have identical `ReplicationRules` and server always sends valid IDs.
@@ -211,8 +235,12 @@ fn apply_despawns(
     entity_map: &mut ServerEntityMap,
     replication_rules: &ReplicationRules,
     tick: RepliconTick,
+    stats: Option<&mut ClientStats>,
 ) -> Result<(), bincode::Error> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
+    if let Some(stats) = stats {
+        stats.despawns += entities_count as u32;
+    }
     for _ in 0..entities_count {
         // The entity might have already been despawned because of hierarchy or
         // with the last diff, but the server might not yet have received confirmation
