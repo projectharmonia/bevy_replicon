@@ -21,12 +21,12 @@ pub struct ClientStats {
     pub despawns: u32,
     /// Replication packets received.
     pub packets: u32,
-    /// Replication bytes received in packet payloads.
-    /// (not transport layer headers, etc)
+    /// Replication bytes received in packet payloads (without internal Renet data).
     pub bytes: u64,
 }
 
 /// Plugin to write Diagnostics every second.
+///
 /// Not added by default.
 #[derive(Default)]
 pub struct ClientDiagnosticsPlugin;
@@ -73,22 +73,22 @@ impl Plugin for ClientDiagnosticsPlugin {
 }
 
 impl ClientDiagnosticsPlugin {
-    /// How many entities modified per second by replication
+    /// How many entities modified per second by replication.
     pub const ENTITY_CHANGES: DiagnosticId =
         DiagnosticId::from_u128(87359945710349305342211647237348);
-    /// How many components modified per second by replication
+    /// How many components modified per second by replication.
     pub const COMPONENT_CHANGES: DiagnosticId =
         DiagnosticId::from_u128(36575095059706152186806005753628);
-    /// How many client-mappings added per second by replication
+    /// How many client-mappings added per second by replication.
     pub const MAPPINGS: DiagnosticId = DiagnosticId::from_u128(61564098061172206743744706749187);
-    /// How many despawns per second from replication
+    /// How many despawns per second from replication.
     pub const DESPAWNS: DiagnosticId = DiagnosticId::from_u128(11043323327351349675112378115868);
-    /// How many replication packets processed per second
+    /// How many replication packets processed per second.
     pub const PACKETS: DiagnosticId = DiagnosticId::from_u128(40094818756895929689855772983865);
-    /// How many bytes of replication packets payloads per second
+    /// How many bytes of replication packets payloads per second.
     pub const BYTES: DiagnosticId = DiagnosticId::from_u128(87998088176776397493423835383418);
 
-    /// Diagnostic max_history_length
+    /// Max diagnostic history length.
     pub const DIAGNOSTIC_HISTORY_LEN: usize = 60;
 
     fn diagnostic_system(mut stats: ResMut<ClientStats>, mut diagnostics: Diagnostics) {
