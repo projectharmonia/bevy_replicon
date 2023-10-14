@@ -376,7 +376,7 @@ fn collect_despawns(
         buffer.start_array();
     }
 
-    for &(entity, tick) in &despawn_tracker.despawns {
+    for &(entity, tick) in &despawn_tracker.0 {
         for buffer in &mut *buffers {
             if tick.is_newer_than(buffer.system_tick(), system_tick) {
                 buffer.write_despawn(entity)?;
