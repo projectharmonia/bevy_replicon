@@ -111,7 +111,7 @@ impl ClientPlugin {
                             &mut entity_map,
                             &replication_rules,
                             tick,
-                            &mut stats,
+                            stats.as_mut(),
                         )?;
                     }
 
@@ -235,7 +235,7 @@ fn apply_despawns(
     entity_map: &mut ServerEntityMap,
     replication_rules: &ReplicationRules,
     tick: RepliconTick,
-    stats: &mut Option<ClientStats>,
+    stats: Option<&mut ClientStats>,
 ) -> Result<(), bincode::Error> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
     if let Some(stats) = stats {
