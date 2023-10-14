@@ -65,7 +65,7 @@ impl ClientPlugin {
 
                         if let Some(stats) = &mut stats {
                             stats.packets += 1;
-                            stats.bytes += end_pos as u32;
+                            stats.bytes += end_pos;
                         }
 
                         let Some(tick) = apply_tick(&mut cursor, world)? else {

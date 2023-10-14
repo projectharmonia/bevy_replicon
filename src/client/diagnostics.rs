@@ -23,7 +23,7 @@ pub struct ClientStats {
     pub packets: u32,
     /// Replication bytes received in packet payloads.
     /// (not transport layer headers, etc)
-    pub bytes: u32,
+    pub bytes: u64,
 }
 
 /// Plugin to write Diagnostics every second.
