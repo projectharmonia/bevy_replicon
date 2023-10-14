@@ -1,7 +1,6 @@
 use bevy::{
     ecs::{component::Tick, system::SystemChangeTick},
     prelude::*,
-    utils::HashSet,
 };
 use bevy_renet::renet::RenetServer;
 
@@ -17,11 +16,7 @@ impl Plugin for DespawnTrackerPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DespawnTracker>().add_systems(
             PostUpdate,
-            (
-                Self::entity_tracking_system,
-                Self::cleanup_system,
-                Self::detection_system,
-            )
+            (Self::cleanup_system, Self::detection_system)
                 .before(ServerSet::Send)
                 .run_if(resource_exists::<RenetServer>()),
         );
@@ -29,15 +24,6 @@ impl Plugin for DespawnTrackerPlugin {
 }
 
 impl DespawnTrackerPlugin {
-    fn entity_tracking_system(
-        mut tracker: ResMut<DespawnTracker>,
-        new_replicated_entities: Query<Entity, Added<Replication>>,
-    ) {
-        for entity in &new_replicated_entities {
-            tracker.tracked_entities.insert(entity);
-        }
-    }
-
     /// Cleanups all acknowledged despawns.
     ///
     /// Cleans all despawns if [`AckedTicks`] is empty.
@@ -46,7 +32,7 @@ impl DespawnTrackerPlugin {
         mut despawn_tracker: ResMut<DespawnTracker>,
         acked_ticks: Res<AckedTicks>,
     ) {
-        despawn_tracker.despawns.retain(|(_, tick)| {
+        despawn_tracker.retain(|(_, tick)| {
             acked_ticks.clients.values().any(|acked_tick| {
                 let system_tick = *acked_ticks
                     .system_ticks
@@ -59,31 +45,18 @@ impl DespawnTrackerPlugin {
 
     fn detection_system(
         change_tick: SystemChangeTick,
-        mut tracker: ResMut<DespawnTracker>,
-        entities: Query<Entity>,
+        mut removed_replications: RemovedComponents<Replication>,
+        mut despawn_tracker: ResMut<DespawnTracker>,
     ) {
-        let DespawnTracker {
-            ref mut tracked_entities,
-            ref mut despawns,
-        } = *tracker;
-
-        tracked_entities.retain(|&entity| {
-            if entities.get(entity).is_err() {
-                despawns.push((entity, change_tick.this_run()));
-                false
-            } else {
-                true
-            }
-        });
+        for entity in &mut removed_replications {
+            despawn_tracker.push((entity, change_tick.this_run()));
+        }
     }
 }
 
-#[derive(Default, Resource)]
-pub(super) struct DespawnTracker {
-    tracked_entities: HashSet<Entity>,
-    /// Entities and ticks when they were despawned.
-    pub(super) despawns: Vec<(Entity, Tick)>,
-}
+/// Entities and ticks when they were despawned.
+#[derive(Default, Resource, Deref, DerefMut)]
+pub(super) struct DespawnTracker(pub(super) Vec<(Entity, Tick)>);
 
 #[cfg(test)]
 mod tests {
@@ -115,10 +88,7 @@ mod tests {
         app.update();
 
         let despawn_tracker = app.world.resource::<DespawnTracker>();
-        assert_eq!(despawn_tracker.despawns.len(), 1);
-        assert_eq!(
-            despawn_tracker.despawns.first().unwrap().0,
-            replicated_entity
-        );
+        assert_eq!(despawn_tracker.len(), 1);
+        assert_eq!(despawn_tracker.first().unwrap().0, replicated_entity);
     }
 }
