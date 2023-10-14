@@ -62,7 +62,6 @@ impl ClientPlugin {
                     while let Some(message) = client.receive_message(REPLICATION_CHANNEL_ID) {
                         let end_pos: u64 = message.len().try_into().unwrap();
                         let mut cursor = Cursor::new(message);
-
                         if let Some(stats) = &mut stats {
                             stats.packets += 1;
                             stats.bytes += end_pos;
@@ -71,13 +70,11 @@ impl ClientPlugin {
                         let Some(tick) = apply_tick(&mut cursor, world)? else {
                             continue;
                         };
-
                         if cursor.position() == end_pos {
                             continue;
                         }
 
                         apply_entity_mappings(&mut cursor, world, &mut entity_map, &mut stats)?;
-
                         if cursor.position() == end_pos {
                             continue;
                         }
@@ -117,9 +114,11 @@ impl ClientPlugin {
                             &mut stats,
                         )?;
                     }
+
                     if let Some(stats) = stats {
                         world.insert_resource(stats);
                     }
+
                     Ok(())
                 })
             })
