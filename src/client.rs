@@ -17,6 +17,7 @@ use crate::replicon_core::{
     replicon_tick::RepliconTick,
     REPLICATION_CHANNEL_ID,
 };
+use diagnostics::ClientStats;
 
 pub struct ClientPlugin;
 
