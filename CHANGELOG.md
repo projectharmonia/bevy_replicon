@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Optional `ClientDiagnosticsPlugin`, which writes diagnostics every second.
 
+### Changed
+
+- Optimize despawn tracking.
+
 ## [0.14.0] - 2023-10-05
 
 ### Added
