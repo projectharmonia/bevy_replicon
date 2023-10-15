@@ -87,13 +87,13 @@ fn mapping_and_sending_receiving() {
 }
 
 #[test]
-fn sending_receiving_seed() {
+fn sending_receiving_reflect() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((MinimalPlugins, ReplicationPlugins))
             .register_type::<ReflectedValue>()
-            .add_client_event_seed::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>(
+            .add_client_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>(
                 SendPolicy::Ordered,
                 );
     }
@@ -118,13 +118,13 @@ fn sending_receiving_seed() {
 }
 
 #[test]
-fn mapping_and_sending_receiving_seed() {
+fn mapping_and_sending_receiving_reflect() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((MinimalPlugins, ReplicationPlugins))
             .register_type::<ReflectedValue>()
-            .add_mapped_client_event_seed::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>(SendPolicy::Ordered);
+            .add_mapped_client_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>(SendPolicy::Ordered);
     }
 
     common::connect(&mut server_app, &mut client_app);

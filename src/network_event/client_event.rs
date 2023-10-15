@@ -38,9 +38,8 @@ pub trait ClientEventAppExt {
     /// Same as [`Self::add_client_event`], but the event will be serialized/deserialized using `S`/`D`
     /// with access to [`AppTypeRegistry`].
     ///
-    /// Needed to send events that implements deserialization via `DeserializeSeed`.
-    /// Could be used for sending events with `Box<dyn Reflect>`.
-    fn add_client_event_seed<T, S, D>(&mut self, policy: impl Into<SendType>) -> &mut Self
+    /// Needed to send events that contain things like `Box<dyn Reflect>`.
+    fn add_client_reflect_event<T, S, D>(&mut self, policy: impl Into<SendType>) -> &mut Self
     where
         T: Event + Debug,
         S: BuildEventSerializer<T> + 'static,
@@ -48,8 +47,11 @@ pub trait ClientEventAppExt {
         for<'a> S::EventSerializer<'a>: Serialize,
         for<'a, 'de> D::EventDeserializer<'a>: DeserializeSeed<'de, Value = T>;
 
-    /// Same as [`Self::add_client_event_seed`], but additionally maps client entities to server before sending.
-    fn add_mapped_client_event_seed<T, S, D>(&mut self, policy: impl Into<SendType>) -> &mut Self
+    /// Same as [`Self::add_client_reflect_event`], but additionally maps client entities to server before sending.
+    fn add_mapped_client_reflect_event<T, S, D>(
+        &mut self,
+        policy: impl Into<SendType>,
+    ) -> &mut Self
     where
         T: Event + Debug + MapNetworkEntities,
         S: BuildEventSerializer<T> + 'static,
@@ -87,7 +89,7 @@ impl ClientEventAppExt for App {
         )
     }
 
-    fn add_client_event_seed<T, S, D>(&mut self, policy: impl Into<SendType>) -> &mut Self
+    fn add_client_reflect_event<T, S, D>(&mut self, policy: impl Into<SendType>) -> &mut Self
     where
         T: Event + Debug,
         S: BuildEventSerializer<T> + 'static,
@@ -97,12 +99,12 @@ impl ClientEventAppExt for App {
     {
         self.add_client_event_with::<T, _, _>(
             policy,
-            sending_seed_system::<T, S>,
-            receiving_seed_system::<T, D>,
+            sending_reflect_system::<T, S>,
+            receiving_reflect_system::<T, D>,
         )
     }
 
-    fn add_mapped_client_event_seed<T, S, D>(&mut self, policy: impl Into<SendType>) -> &mut Self
+    fn add_mapped_client_reflect_event<T, S, D>(&mut self, policy: impl Into<SendType>) -> &mut Self
     where
         T: Event + Debug + MapNetworkEntities,
         S: BuildEventSerializer<T> + 'static,
@@ -112,8 +114,8 @@ impl ClientEventAppExt for App {
     {
         self.add_client_event_with::<T, _, _>(
             policy,
-            mapping_and_sending_seed_system::<T, S>,
-            receiving_seed_system::<T, D>,
+            mapping_and_sending_reflect_system::<T, S>,
+            receiving_reflect_system::<T, D>,
         )
     }
 
@@ -169,7 +171,7 @@ fn receiving_system<T: Event + DeserializeOwned + Debug>(
     }
 }
 
-fn receiving_seed_system<T, D>(
+fn receiving_reflect_system<T, D>(
     mut client_events: EventWriter<FromClient<T>>,
     mut server: ResMut<RenetServer>,
     channel: Res<EventChannel<T>>,
@@ -186,11 +188,11 @@ fn receiving_seed_system<T, D>(
                 bincode::Deserializer::from_slice(&message, DefaultOptions::new());
             match D::new(&registry).deserialize(&mut deserializer) {
                 Ok(event) => {
-                    debug!("received event {event:?} from client {client_id}");
+                    debug!("received reflect event {event:?} from client {client_id}");
                     client_events.send(FromClient { client_id, event });
                 }
                 Err(e) => {
-                    error!("unable to deserialize event from client {client_id}: {e}")
+                    error!("unable to deserialize reflect event from client {client_id}: {e}")
                 }
             }
         }
@@ -227,7 +229,7 @@ fn mapping_and_sending_system<T: Event + MapNetworkEntities + Serialize + Debug>
     }
 }
 
-fn sending_seed_system<T, S>(
+fn sending_reflect_system<T, S>(
     mut events: EventReader<T>,
     mut client: ResMut<RenetClient>,
     channel: Res<EventChannel<T>>,
@@ -242,13 +244,13 @@ fn sending_seed_system<T, S>(
         let serializer = S::new(event, &registry);
         let message = DefaultOptions::new()
             .serialize(&serializer)
-            .expect("client event should be serializable");
+            .expect("client reflect event should be serializable");
         client.send_message(channel.id, message);
-        debug!("sent client event {event:?}");
+        debug!("sent client reflect event {event:?}");
     }
 }
 
-fn mapping_and_sending_seed_system<T, S>(
+fn mapping_and_sending_reflect_system<T, S>(
     mut events: ResMut<Events<T>>,
     mut client: ResMut<RenetClient>,
     entity_map: Res<ServerEntityMap>,
@@ -265,9 +267,9 @@ fn mapping_and_sending_seed_system<T, S>(
         let serializer = S::new(&event, &registry);
         let message = DefaultOptions::new()
             .serialize(&serializer)
-            .expect("mapped client event should be serializable");
+            .expect("mapped client reflect event should be serializable");
         client.send_message(channel.id, message);
-        debug!("sent mapped client event {event:?}");
+        debug!("sent mapped client reflect event {event:?}");
     }
 }
 
