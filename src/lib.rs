@@ -285,7 +285,7 @@ for events that implements deserialization via `DeserializeSeed`. This could be 
 To serialize such event you need to write serializer and deserializer manually because for such types you need access to `AppTypeRegistry`.
 It's pretty straigtforward but requires some boilerplate. See [`BuildEventSerializer`], [`BuildEventDeserializer`] and module
 `common` module in integration tests as example.
-Don't forget to validate what inside every `Box<dyn Reflect>` from a client, it could be anything!
+Don't forget to validate the contents of every `Box<dyn Reflect>` from a client, it could be anything!
 
 ### From server to client
 
