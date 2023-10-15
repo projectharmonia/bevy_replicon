@@ -280,12 +280,12 @@ impl MapNetworkEntities for MappedEvent {
 }
 ```
 
-There is also [`ClientEventAppExt::add_client_reflect_event()`] and [`ClientEventAppExt::add_mapped_client_reflect_event()`]
-for events that require reflection for serialization and deserialization (for example, events that contain `Box<dyn Reflect>`).
+There is also [`ClientEventAppExt::add_client_event_seed()`] and [`ClientEventAppExt::add_mapped_client_event_seed()`]
+for events that implements deserialization via `DeserializeSeed`. This could be usedul for events contain `Box<dyn Reflect>`.
 To serialize such event you need to write serializer and deserializer manually because for such types you need access to `AppTypeRegistry`.
 It's pretty straigtforward but requires some boilerplate. See [`BuildEventSerializer`], [`BuildEventDeserializer`] and module
 `common` module in integration tests as example.
-Don't forget to check what inside every `Box<dyn Reflect>` from a client, it could be anything!
+Don't forget to validate what inside every `Box<dyn Reflect>` from a client, it could be anything!
 
 ### From server to client
 
@@ -325,7 +325,7 @@ struct DummyEvent;
 Just like with client events, if the event contains an entity, then
 [`ServerEventAppExt::add_mapped_server_event()`] should be used instead.
 
-And for events with `Box<dyn Reflect>` you can use [`ServerEventAppExt::add_server_reflect_event()`] and [`ServerEventAppExt::add_mapped_server_reflect_event()`].
+And for events that use `DeserializeSeed` you can use [`ServerEventAppExt::add_server_event_seed()`] and [`ServerEventAppExt::add_mapped_server_event_seed()`].
 
 ## Server and client creation
 

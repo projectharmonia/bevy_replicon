@@ -114,7 +114,7 @@ fn sending_receiving_and_mapping() {
 }
 
 #[test]
-fn sending_receiving_reflect() {
+fn sending_receiving_seed() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
@@ -123,7 +123,7 @@ fn sending_receiving_reflect() {
             ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
         ))
         .register_type::<ReflectedValue>()
-        .add_server_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>(
+        .add_server_event_seed::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>(
             SendPolicy::Ordered,
         );
     }
@@ -165,7 +165,7 @@ fn sending_receiving_reflect() {
 }
 
 #[test]
-fn sending_receiving_and_mapping_reflect() {
+fn sending_receiving_and_mapping_seed() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
@@ -174,7 +174,7 @@ fn sending_receiving_and_mapping_reflect() {
             ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
         ))
         .register_type::<ReflectedValue>()
-        .add_mapped_server_reflect_event::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>(SendPolicy::Ordered);
+        .add_mapped_server_event_seed::<ReflectEvent, ReflectEventSerializer, ReflectEventDeserializer>(SendPolicy::Ordered);
     }
 
     common::connect(&mut server_app, &mut client_app);
