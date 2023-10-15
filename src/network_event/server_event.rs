@@ -38,9 +38,8 @@ pub trait ServerEventAppExt {
     /// Same as [`Self::add_server_event`], but the event will be serialized/deserialized using `S`/`D`
     /// with access to [`AppTypeRegistry`].
     ///
-    /// Needed to send events that implements deserialization via `DeserializeSeed`.
-    /// Could be used for sending events with `Box<dyn Reflect>`.
-    fn add_server_event_seed<T, S, D>(&mut self, policy: impl Into<SendType>) -> &mut Self
+    /// Needed to send events that contain things like `Box<dyn Reflect>`.
+    fn add_server_reflect_event<T, S, D>(&mut self, policy: impl Into<SendType>) -> &mut Self
     where
         T: Event + Debug,
         S: BuildEventSerializer<T> + 'static,
@@ -48,8 +47,11 @@ pub trait ServerEventAppExt {
         for<'a> S::EventSerializer<'a>: Serialize,
         for<'a, 'de> D::EventDeserializer<'a>: DeserializeSeed<'de, Value = T>;
 
-    /// Same as [`Self::add_server_event_seed`], but additionally maps client entities to client after receiving.
-    fn add_mapped_server_event_seed<T, S, D>(&mut self, policy: impl Into<SendType>) -> &mut Self
+    /// Same as [`Self::add_server_reflect_event`], but additionally maps client entities to client after receiving.
+    fn add_mapped_server_reflect_event<T, S, D>(
+        &mut self,
+        policy: impl Into<SendType>,
+    ) -> &mut Self
     where
         T: Event + Debug + MapNetworkEntities,
         S: BuildEventSerializer<T> + 'static,
@@ -87,7 +89,7 @@ impl ServerEventAppExt for App {
         )
     }
 
-    fn add_server_event_seed<T, S, D>(&mut self, policy: impl Into<SendType>) -> &mut Self
+    fn add_server_reflect_event<T, S, D>(&mut self, policy: impl Into<SendType>) -> &mut Self
     where
         T: Event + Debug,
         S: BuildEventSerializer<T> + 'static,
@@ -97,12 +99,12 @@ impl ServerEventAppExt for App {
     {
         self.add_server_event_with::<T, _, _>(
             policy,
-            sending_seed_system::<T, S>,
-            receiving_seed_system::<T, D>,
+            sending_reflect_system::<T, S>,
+            receiving_reflect_system::<T, D>,
         )
     }
 
-    fn add_mapped_server_event_seed<T, S, D>(&mut self, policy: impl Into<SendType>) -> &mut Self
+    fn add_mapped_server_reflect_event<T, S, D>(&mut self, policy: impl Into<SendType>) -> &mut Self
     where
         T: Event + Debug + MapNetworkEntities,
         S: BuildEventSerializer<T> + 'static,
@@ -112,8 +114,8 @@ impl ServerEventAppExt for App {
     {
         self.add_server_event_with::<T, _, _>(
             policy,
-            sending_seed_system::<T, S>,
-            receiving_and_mapping_seed_system::<T, D>,
+            sending_reflect_system::<T, S>,
+            receiving_and_mapping_reflect_system::<T, D>,
         )
     }
 
@@ -181,7 +183,7 @@ fn receiving_and_mapping_system<T: Event + MapNetworkEntities + DeserializeOwned
     }
 }
 
-fn receiving_seed_system<T, D>(
+fn receiving_reflect_system<T, D>(
     mut server_events: EventWriter<T>,
     mut client: ResMut<RenetClient>,
     channel: Res<EventChannel<T>>,
@@ -196,13 +198,13 @@ fn receiving_seed_system<T, D>(
         let mut deserializer = bincode::Deserializer::from_slice(&message, DefaultOptions::new());
         let event = D::new(&registry)
             .deserialize(&mut deserializer)
-            .expect("server should send valid events");
-        debug!("received event {event:?} from server");
+            .expect("server should send valid reflect events");
+        debug!("received reflect event {event:?} from server");
         server_events.send(event);
     }
 }
 
-fn receiving_and_mapping_seed_system<T, D>(
+fn receiving_and_mapping_reflect_system<T, D>(
     mut server_events: EventWriter<T>,
     mut client: ResMut<RenetClient>,
     entity_map: Res<ServerEntityMap>,
@@ -218,8 +220,8 @@ fn receiving_and_mapping_seed_system<T, D>(
         let mut deserializer = bincode::Deserializer::from_slice(&message, DefaultOptions::new());
         let mut event = D::new(&registry)
             .deserialize(&mut deserializer)
-            .expect("server should send valid mapped events");
-        debug!("received mapped event {event:?} from server");
+            .expect("server should send valid mapped reflect events");
+        debug!("received mapped reflect event {event:?} from server");
         event.map_entities(&mut EventMapper(entity_map.to_client()));
         server_events.send(event);
     }
@@ -258,7 +260,7 @@ fn sending_system<T: Event + Serialize + Debug>(
     }
 }
 
-fn sending_seed_system<T, S>(
+fn sending_reflect_system<T, S>(
     mut server: ResMut<RenetServer>,
     mut server_events: EventReader<ToClients<T>>,
     channel: Res<EventChannel<T>>,
@@ -278,7 +280,7 @@ fn sending_seed_system<T, S>(
         match *mode {
             SendMode::Broadcast => {
                 server.broadcast_message(channel.id, message);
-                debug!("broadcasted server event {event:?}");
+                debug!("broadcasted server reflect event {event:?}");
             }
             SendMode::BroadcastExcept(client_id) => {
                 if client_id == SERVER_ID {
@@ -286,12 +288,12 @@ fn sending_seed_system<T, S>(
                 } else {
                     server.broadcast_message_except(client_id, channel.id, message);
                 }
-                debug!("broadcasted server event {event:?} except client {client_id}");
+                debug!("broadcasted server reflect event {event:?} except client {client_id}");
             }
             SendMode::Direct(client_id) => {
                 if client_id != SERVER_ID {
                     server.send_message(client_id, channel.id, message);
-                    debug!("sent direct server event {event:?} to client {client_id}");
+                    debug!("sent direct server reflect event {event:?} to client {client_id}");
                 }
             }
         }
