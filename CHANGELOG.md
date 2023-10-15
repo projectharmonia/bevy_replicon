@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Optimize despawn tracking.
+- Rename `reflect` event registration methods into `seed`. This is more correct because it can be used not only for reflection.
 
 ## [0.14.0] - 2023-10-05
 
