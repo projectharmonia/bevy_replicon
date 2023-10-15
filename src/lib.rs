@@ -281,7 +281,7 @@ impl MapNetworkEntities for MappedEvent {
 ```
 
 There is also [`ClientEventAppExt::add_client_event_seed()`] and [`ClientEventAppExt::add_mapped_client_event_seed()`]
-for events that implements deserialization via `DeserializeSeed`. This could be usedul for events contain `Box<dyn Reflect>`.
+for events that implements deserialization via `DeserializeSeed`. This could be useful for events contain `Box<dyn Reflect>`.
 To serialize such event you need to write serializer and deserializer manually because for such types you need access to `AppTypeRegistry`.
 It's pretty straigtforward but requires some boilerplate. See [`BuildEventSerializer`], [`BuildEventDeserializer`] and module
 `common` module in integration tests as example.
