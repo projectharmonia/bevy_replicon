@@ -9,9 +9,9 @@ use bevy_renet::renet::SendType;
 use crate::replicon_core::replication_rules::Mapper;
 
 /// Holds a channel ID for `T`.
-#[derive(Resource)]
+#[derive(Resource, Clone, Copy)]
 pub struct EventChannel<T> {
-    pub id: u8,
+    id: u8,
     marker: PhantomData<T>,
 }
 
