@@ -1,17 +1,9 @@
 use std::{
-    any,
-    fmt::{self, Formatter},
     net::{Ipv4Addr, SocketAddr, UdpSocket},
     time::SystemTime,
 };
 
-use bevy::{
-    prelude::*,
-    reflect::{
-        serde::{ReflectSerializer, UntypedReflectDeserializer},
-        TypeRegistryInternal,
-    },
-};
+use bevy::prelude::*;
 use bevy_renet::renet::{
     transport::{
         ClientAuthentication, NetcodeClientTransport, NetcodeServerTransport, ServerAuthentication,
@@ -20,12 +12,7 @@ use bevy_renet::renet::{
     ChannelConfig, ConnectionConfig, RenetClient, RenetServer,
 };
 use bevy_replicon::prelude::*;
-use serde::{
-    de::{self, DeserializeSeed, SeqAccess, Visitor},
-    ser::SerializeStruct,
-    Deserialize, Deserializer, Serialize, Serializer,
-};
-use strum::{EnumVariantNames, IntoStaticStr, VariantNames};
+use serde::{Deserialize, Serialize};
 
 pub(super) fn connect(server_app: &mut App, client_app: &mut App) {
     let server_channels = server_app
@@ -127,106 +114,11 @@ fn create_client(
     (client, transport)
 }
 
-#[derive(Debug, Deserialize, Event, Serialize)]
+#[derive(Deserialize, Event, Serialize)]
 pub(super) struct DummyEvent(pub(super) Entity);
 
 impl MapNetworkEntities for DummyEvent {
     fn map_entities<T: Mapper>(&mut self, mapper: &mut T) {
         self.0 = mapper.map(self.0);
-    }
-}
-
-#[derive(Reflect, Debug)]
-pub(super) struct ReflectedValue;
-
-#[derive(Debug, Event)]
-pub(super) struct ReflectEvent {
-    pub(super) entity: Entity,
-    pub(super) reflect: Box<dyn Reflect>,
-}
-
-impl MapNetworkEntities for ReflectEvent {
-    fn map_entities<T: Mapper>(&mut self, mapper: &mut T) {
-        self.entity = mapper.map(self.entity);
-    }
-}
-
-#[derive(IntoStaticStr, EnumVariantNames)]
-#[strum(serialize_all = "snake_case")]
-enum ReflectEventField {
-    Entity,
-    Reflect,
-}
-
-pub(super) struct ReflectEventSerializer<'a> {
-    registry: &'a TypeRegistryInternal,
-    event: &'a ReflectEvent,
-}
-
-impl BuildEventSerializer<ReflectEvent> for ReflectEventSerializer<'_> {
-    type EventSerializer<'a> = ReflectEventSerializer<'a>;
-
-    fn new<'a>(
-        event: &'a ReflectEvent,
-        registry: &'a TypeRegistryInternal,
-    ) -> Self::EventSerializer<'a> {
-        Self::EventSerializer { event, registry }
-    }
-}
-
-impl Serialize for ReflectEventSerializer<'_> {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut state = serializer.serialize_struct(
-            any::type_name::<ReflectEvent>(),
-            ReflectEventField::VARIANTS.len(),
-        )?;
-        state.serialize_field(ReflectEventField::Entity.into(), &self.event.entity)?;
-        state.serialize_field(
-            ReflectEventField::Entity.into(),
-            &ReflectSerializer::new(&*self.event.reflect, self.registry),
-        )?;
-        state.end()
-    }
-}
-
-pub(super) struct ReflectEventDeserializer<'a> {
-    registry: &'a TypeRegistryInternal,
-}
-
-impl BuildEventDeserializer for ReflectEventDeserializer<'_> {
-    type EventDeserializer<'a> = ReflectEventDeserializer<'a>;
-
-    fn new(registry: &TypeRegistryInternal) -> Self::EventDeserializer<'_> {
-        Self::EventDeserializer { registry }
-    }
-}
-
-impl<'de> DeserializeSeed<'de> for ReflectEventDeserializer<'_> {
-    type Value = ReflectEvent;
-
-    fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Self::Value, D::Error> {
-        deserializer.deserialize_struct(
-            any::type_name::<Self::Value>(),
-            ReflectEventField::VARIANTS,
-            self,
-        )
-    }
-}
-
-impl<'de> Visitor<'de> for ReflectEventDeserializer<'_> {
-    type Value = ReflectEvent;
-
-    fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
-        formatter.write_str(any::type_name::<Self::Value>())
-    }
-
-    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
-        let entity = seq
-            .next_element()?
-            .ok_or_else(|| de::Error::invalid_length(ReflectEventField::Entity as usize, &self))?;
-        let reflect = seq
-            .next_element_seed(UntypedReflectDeserializer::new(self.registry))?
-            .ok_or_else(|| de::Error::invalid_length(ReflectEventField::Reflect as usize, &self))?;
-        Ok(ReflectEvent { entity, reflect })
     }
 }

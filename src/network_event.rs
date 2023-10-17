@@ -3,7 +3,7 @@ pub mod server_event;
 
 use std::{marker::PhantomData, time::Duration};
 
-use bevy::{prelude::*, reflect::TypeRegistryInternal, utils::HashMap};
+use bevy::{prelude::*, utils::HashMap};
 use bevy_renet::renet::SendType;
 
 use crate::replicon_core::replication_rules::Mapper;
@@ -36,22 +36,6 @@ impl<T> From<EventChannel<T>> for u8 {
     fn from(value: EventChannel<T>) -> Self {
         value.id
     }
-}
-
-/// Creates a struct implements serialization for the event using [`TypeRegistryInternal`].
-pub trait BuildEventSerializer<T> {
-    type EventSerializer<'a>
-    where
-        T: 'a;
-
-    fn new<'a>(event: &'a T, registry: &'a TypeRegistryInternal) -> Self::EventSerializer<'a>;
-}
-
-/// Creates a struct implements deserialization for the event using [`TypeRegistryInternal`].
-pub trait BuildEventDeserializer {
-    type EventDeserializer<'a>;
-
-    fn new(registry: &TypeRegistryInternal) -> Self::EventDeserializer<'_>;
 }
 
 /// Event delivery guarantee.

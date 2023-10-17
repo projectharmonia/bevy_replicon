@@ -9,12 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `network_event::server_event::send` helper for server events in custom sending functions.
 - Optional `ClientDiagnosticsPlugin`, which writes diagnostics every second.
 
 ### Changed
 
 - Optimize despawn tracking.
 - Hide `id` field in `EventChannel` and add `Clone` and `Copy` impls for it.
+- Remove special functions for reflect events and advice users to write them manually instead. It's even easier because sometime you can directly use reflect serializers from Bevy directly instead of manually writing serde traits.
+
+### Removed
+
+- `Debug` requirement for events.
 
 ## [0.14.0] - 2023-10-05
 
