@@ -533,7 +533,7 @@ fn any_component_added<T: Component>() -> impl FnMut(Query<(), Added<T>>) -> boo
 
 const PORT: u16 = 5000;
 
-#[derive(Debug, Parser, PartialEq, Resource)]
+#[derive(Parser, PartialEq, Resource)]
 enum Cli {
     Hotseat,
     Server {
@@ -585,17 +585,7 @@ struct CurrentTurn(Symbol);
 
 /// A component that defines the symbol of a player or a filled cell.
 #[derive(
-    Clone,
-    Component,
-    Copy,
-    Debug,
-    Default,
-    Deserialize,
-    Display,
-    Eq,
-    PartialEq,
-    Serialize,
-    ValueEnum,
+    Clone, Component, Copy, Default, Deserialize, Display, Eq, PartialEq, Serialize, ValueEnum,
 )]
 #[strum(serialize_all = "kebab-case")]
 enum Symbol {
