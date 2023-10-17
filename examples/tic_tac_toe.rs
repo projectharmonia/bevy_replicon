@@ -2,6 +2,7 @@
 //! Run it with `--hotseat` to play locally or with `--client` / `--server`
 
 use std::{
+    fmt::{self, Formatter},
     net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket},
     time::SystemTime,
 };
@@ -21,7 +22,6 @@ use bevy_replicon::{
 };
 use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
-use strum::Display;
 
 fn main() {
     App::new()
@@ -584,10 +584,7 @@ enum GameState {
 struct CurrentTurn(Symbol);
 
 /// A component that defines the symbol of a player or a filled cell.
-#[derive(
-    Clone, Component, Copy, Default, Deserialize, Display, Eq, PartialEq, Serialize, ValueEnum,
-)]
-#[strum(serialize_all = "kebab-case")]
+#[derive(Clone, Component, Copy, Default, Deserialize, Eq, PartialEq, Serialize, ValueEnum)]
 enum Symbol {
     #[default]
     Cross,
@@ -613,6 +610,15 @@ impl Symbol {
         match self {
             Symbol::Cross => Symbol::Nought,
             Symbol::Nought => Symbol::Cross,
+        }
+    }
+}
+
+impl fmt::Display for Symbol {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Symbol::Cross => f.write_str("cross"),
+            Symbol::Nought => f.write_str("nought"),
         }
     }
 }
