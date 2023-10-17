@@ -93,10 +93,11 @@ If your component doesn't implement serde traits or you want to serialize it par
 you can use [`AppReplicationExt::replicate_with`]:
 
 ```
-# use std::io::Cursor;
-# use bevy::{ecs::world::EntityMut, prelude::*, ptr::Ptr};
-# use bevy_replicon::{prelude::*, renet::Bytes, replicon_core::replication_rules};
-# use serde::{Deserialize, Serialize};
+use std::io::Cursor;
+use bevy::{ecs::world::EntityMut, prelude::*, ptr::Ptr};
+use bevy_replicon::{prelude::*, renet::Bytes, replicon_core::replication_rules};
+use serde::{Deserialize, Serialize};
+
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
 app.replicate_with::<Transform>(serialize_transform, deserialize_transform, replication_rules::remove_component::<Transform>);
@@ -263,7 +264,7 @@ map it before sending it to the server.
 To do this, use [`ClientEventAppExt::add_mapped_client_event()`] and implement [`MapNetworkEntities`]:
 
 ```
-use bevy::prelude::*;
+# use bevy::prelude::*;
 # use bevy_replicon::prelude::*;
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
@@ -340,8 +341,9 @@ events and component replication. These channels should be obtained from the
 [`ConnectionConfig`](renet::ConnectionConfig) like this:
 
 ```
-# use bevy::prelude::*;
-# use bevy_replicon::{prelude::*, renet::ConnectionConfig};
+use bevy::prelude::*;
+use bevy_replicon::{prelude::*, renet::ConnectionConfig};
+
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
 let network_channels = app.world.resource::<NetworkChannels>();
