@@ -15,8 +15,7 @@ use bevy::prelude::*;
 use bevy_replicon::prelude::*;
 
 let mut app = App::new();
-app.add_plugins(MinimalPlugins)
-    .add_plugins(ReplicationPlugins);
+app.add_plugins((MinimalPlugins, ReplicationPlugins));
 ```
 
 This group contains necessary replication stuff and sets up the server and client
@@ -31,12 +30,13 @@ server to clients with [`ServerPlugin`]'s [`TickPolicy`].:
 # use bevy::prelude::*;
 # use bevy_replicon::prelude::*;
 # let mut app = App::new();
-app.add_plugins(MinimalPlugins).add_plugins(
+app.add_plugins((
+    MinimalPlugins,
     ReplicationPlugins
         .build()
         .disable::<ClientPlugin>()
         .set(ServerPlugin::new(TickPolicy::MaxTickRate(60))),
-);
+));
 ```
 
 The plugin handles Renet initialization, you don't need to add its plugins.

@@ -26,15 +26,18 @@ use serde::{Deserialize, Serialize};
 fn main() {
     App::new()
         .init_resource::<Cli>() // Parse CLI before creating window.
-        .add_plugins(DefaultPlugins.build().set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "Tic-Tac-Toe".into(),
-                resolution: (800.0, 600.0).into(),
+        .add_plugins((
+            DefaultPlugins.build().set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: "Tic-Tac-Toe".into(),
+                    resolution: (800.0, 600.0).into(),
+                    ..Default::default()
+                }),
                 ..Default::default()
             }),
-            ..Default::default()
-        }))
-        .add_plugins((ReplicationPlugins, TicTacToePlugin))
+            ReplicationPlugins,
+            TicTacToePlugin,
+        ))
         .run();
 }
 
