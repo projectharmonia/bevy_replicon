@@ -75,7 +75,7 @@ mapping. Therefore, to replicate such components properly, they need implement
 [`MapNetworkEntities`] and registered using [`AppReplicationExt::replicate_mapped()`]:
 
 ```
-# use bevy::{prelude::*, utils::HashMap};
+# use bevy::prelude::*;
 # use bevy_replicon::prelude::*;
 # use serde::{Deserialize, Serialize};
 #[derive(Component, Deserialize, Serialize)]
@@ -94,7 +94,7 @@ you can use [`AppReplicationExt::replicate_with`]:
 
 ```
 # use std::io::Cursor;
-# use bevy::{ecs::world::EntityMut, prelude::*, ptr::Ptr, utils::HashMap};
+# use bevy::{ecs::world::EntityMut, prelude::*, ptr::Ptr};
 # use bevy_replicon::{prelude::*, renet::Bytes, replicon_core::replication_rules};
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
@@ -167,7 +167,7 @@ your initialization systems to [`ClientSet::Receive`]:
 
 ```
 # use std::io::Cursor;
-# use bevy::{ecs::world::EntityMut, prelude::*, ptr::Ptr, utils::HashMap};
+# use bevy::{ecs::world::EntityMut, prelude::*, ptr::Ptr};
 # use bevy_replicon::{prelude::*, renet::Bytes, replicon_core::replication_rules};
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
@@ -263,7 +263,7 @@ map it before sending it to the server.
 To do this, use [`ClientEventAppExt::add_mapped_client_event()`] and implement [`MapNetworkEntities`]:
 
 ```
-use bevy::{prelude::*, utils::HashMap};
+use bevy::prelude::*;
 # use bevy_replicon::prelude::*;
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
