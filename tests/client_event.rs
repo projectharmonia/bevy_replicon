@@ -8,19 +8,23 @@ use common::DummyEvent;
 #[test]
 fn without_server_plugin() {
     let mut app = App::new();
-    app.add_plugins(MinimalPlugins)
-        .add_plugins(ReplicationPlugins.build().disable::<ServerPlugin>())
-        .add_client_event_with::<DummyEvent, _, _>(SendPolicy::Ordered, || {}, || {})
-        .update();
+    app.add_plugins((
+        MinimalPlugins,
+        ReplicationPlugins.build().disable::<ServerPlugin>(),
+    ))
+    .add_client_event_with::<DummyEvent, _, _>(SendPolicy::Ordered, || {}, || {})
+    .update();
 }
 
 #[test]
 fn without_client_plugin() {
     let mut app = App::new();
-    app.add_plugins(MinimalPlugins)
-        .add_plugins(ReplicationPlugins.build().disable::<ClientPlugin>())
-        .add_client_event_with::<DummyEvent, _, _>(SendPolicy::Ordered, || {}, || {})
-        .update();
+    app.add_plugins((
+        MinimalPlugins,
+        ReplicationPlugins.build().disable::<ClientPlugin>(),
+    ))
+    .add_client_event_with::<DummyEvent, _, _>(SendPolicy::Ordered, || {}, || {})
+    .update();
 }
 
 #[test]
