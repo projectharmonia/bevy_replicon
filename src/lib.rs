@@ -280,11 +280,8 @@ impl MapNetworkEntities for MappedEvent {
 }
 ```
 
-There is also [`ClientEventAppExt::add_client_reflect_event()`] and [`ClientEventAppExt::add_mapped_client_reflect_event()`]
-for events that require reflection for serialization and deserialization (for example, events that contain `Box<dyn Reflect>`).
-To serialize such event you need to write serializer and deserializer manually because for such types you need access to `AppTypeRegistry`.
-It's pretty straigtforward but requires some boilerplate. See [`BuildEventSerializer`], [`BuildEventDeserializer`] and module
-`common` module in integration tests as example.
+There is also [`ClientEventAppExt::add_client_event_with()`] to register an event with special sending and receiving functions.
+This could be used for sending events that contain `Box<dyn Reflect>`, which require access to the `AppTypeRegistry` resource.
 Don't forget to validate the contents of every `Box<dyn Reflect>` from a client, it could be anything!
 
 ### From server to client
@@ -325,7 +322,7 @@ struct DummyEvent;
 Just like with client events, if the event contains an entity, then
 [`ServerEventAppExt::add_mapped_server_event()`] should be used instead.
 
-And for events with `Box<dyn Reflect>` you can use [`ServerEventAppExt::add_server_reflect_event()`] and [`ServerEventAppExt::add_mapped_server_reflect_event()`].
+For events that require special sending and receiving functions you can use [`ServerEventAppExt::add_server_event_with()`].
 
 ## Server and client creation
 
@@ -397,7 +394,7 @@ pub mod prelude {
         network_event::{
             client_event::{ClientEventAppExt, FromClient},
             server_event::{SendMode, ServerEventAppExt, ToClients},
-            BuildEventDeserializer, BuildEventSerializer, EventMapper, SendPolicy,
+            EventChannel, EventMapper, SendPolicy,
         },
         parent_sync::{ParentSync, ParentSyncPlugin},
         renet::{RenetClient, RenetServer},

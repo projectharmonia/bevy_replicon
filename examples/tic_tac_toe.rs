@@ -2,6 +2,7 @@
 //! Run it with `--hotseat` to play locally or with `--client` / `--server`
 
 use std::{
+    fmt::{self, Formatter},
     net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket},
     time::SystemTime,
 };
@@ -21,7 +22,6 @@ use bevy_replicon::{
 };
 use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
-use strum::Display;
 
 fn main() {
     App::new()
@@ -533,7 +533,7 @@ fn any_component_added<T: Component>() -> impl FnMut(Query<(), Added<T>>) -> boo
 
 const PORT: u16 = 5000;
 
-#[derive(Debug, Parser, PartialEq, Resource)]
+#[derive(Parser, PartialEq, Resource)]
 enum Cli {
     Hotseat,
     Server {
@@ -584,20 +584,7 @@ enum GameState {
 struct CurrentTurn(Symbol);
 
 /// A component that defines the symbol of a player or a filled cell.
-#[derive(
-    Clone,
-    Component,
-    Copy,
-    Debug,
-    Default,
-    Deserialize,
-    Display,
-    Eq,
-    PartialEq,
-    Serialize,
-    ValueEnum,
-)]
-#[strum(serialize_all = "kebab-case")]
+#[derive(Clone, Component, Copy, Default, Deserialize, Eq, PartialEq, Serialize, ValueEnum)]
 enum Symbol {
     #[default]
     Cross,
@@ -623,6 +610,15 @@ impl Symbol {
         match self {
             Symbol::Cross => Symbol::Nought,
             Symbol::Nought => Symbol::Cross,
+        }
+    }
+}
+
+impl fmt::Display for Symbol {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Symbol::Cross => f.write_str("cross"),
+            Symbol::Nought => f.write_str("nought"),
         }
     }
 }
@@ -686,5 +682,5 @@ struct Player(u64);
 ///
 /// We don't replicate the whole UI, so we can't just send the picked entity because on server it may be different.
 /// So we send the cell location in grid and calculate the entity on server based on this.
-#[derive(Clone, Copy, Debug, Deserialize, Event, Serialize)]
+#[derive(Clone, Copy, Deserialize, Event, Serialize)]
 struct CellPick(usize);

@@ -219,7 +219,7 @@ impl SimpleBoxPlugin {
 const PORT: u16 = 5000;
 const PROTOCOL_ID: u64 = 0;
 
-#[derive(Debug, Parser, PartialEq, Resource)]
+#[derive(Parser, PartialEq, Resource)]
 enum Cli {
     SinglePlayer,
     Server {
