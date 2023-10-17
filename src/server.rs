@@ -532,8 +532,8 @@ server entities will synchronize with updating the client's [`ServerEntityMap`](
 ### Example:
 
 ```
-# use bevy::prelude::*;
-# use bevy_replicon::prelude::*;
+use bevy::prelude::*;
+use bevy_replicon::prelude::*;
 
 #[derive(Event)]
 struct SpawnBullet(Entity);
