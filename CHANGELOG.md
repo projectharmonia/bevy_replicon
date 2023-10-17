@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Optimize despawn tracking.
 - Hide `id` field in `EventChannel` and add `Clone` and `Copy` impls for it.
-- Remove special functions for reflect events and advice users to write them manually instead. It's even easier because sometime you can directly use reflect serializers from Bevy directly instead of manually writing serde traits.
+- Remove special functions for reflect events and advise users to write them manually instead. Reflect events are easier now because sometimes you can directly use reflect serializers from Bevy instead of manually writing serde traits.
 
 ### Removed
 

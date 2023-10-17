@@ -280,8 +280,8 @@ impl MapNetworkEntities for MappedEvent {
 }
 ```
 
-There is also [`ClientEventAppExt::add_client_event_with()`] to to register an event with special sending and receiving function.
-This could be used for sending events that contain `Box<dyn Reflect>` because it requires access to `AppTypeRegistry` resource.
+There is also [`ClientEventAppExt::add_client_event_with()`] to register an event with special sending and receiving functions.
+This could be used for sending events that contain `Box<dyn Reflect>`, which require access to the `AppTypeRegistry` resource.
 Don't forget to validate the contents of every `Box<dyn Reflect>` from a client, it could be anything!
 
 ### From server to client
@@ -322,7 +322,7 @@ struct DummyEvent;
 Just like with client events, if the event contains an entity, then
 [`ServerEventAppExt::add_mapped_server_event()`] should be used instead.
 
-And for events that require special sending and receiving function you can use [`ServerEventAppExt::add_server_event_with()`].
+For events that require special sending and receiving functions you can use [`ServerEventAppExt::add_server_event_with()`].
 
 ## Server and client creation
 

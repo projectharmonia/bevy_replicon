@@ -31,7 +31,7 @@ pub trait ClientEventAppExt {
     /**
     Same as [`Self::add_client_event`], but uses specified sending and receiving systems.
 
-    It's advised to not panic in receiving system because it runs on server.
+    It's advised to not panic in the receiving system because it runs on the server.
 
     # Examples
 

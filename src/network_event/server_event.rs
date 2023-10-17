@@ -196,7 +196,7 @@ fn sending_system<T: Event + Serialize>(
 
 /// Sends serialized `message` to clients.
 ///
-/// Helper for custom sending system.
+/// Helper for custom sending systems.
 /// See also [`ServerEventAppExt::add_server_event_with`]
 pub fn send<T>(
     server: &mut RenetServer,
