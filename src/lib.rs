@@ -10,7 +10,7 @@ library for the [Bevy game engine](https://bevyengine.org).
 
 You need to add [`ReplicationPlugins`] to your app:
 
-```rust
+```
 use bevy::prelude::*;
 use bevy_replicon::prelude::*;
 
@@ -27,7 +27,7 @@ If you are planning to separate client and server you can use
 [`ServerPlugin`]. You can also configure how often updates are sent from
 server to clients with [`ServerPlugin`]'s [`TickPolicy`].:
 
-```rust
+```
 # use bevy::prelude::*;
 # use bevy_replicon::prelude::*;
 # let mut app = App::new();
@@ -57,7 +57,7 @@ In other words you need two things to start replication :
 [`serde::Serialize`] and [`serde::Deserialize`].
 You can use [`AppReplicationExt::replicate()`] to register the component for replication:
 
-```rust
+```
 # use bevy::prelude::*;
 # use bevy_replicon::prelude::*;
 # use serde::{Deserialize, Serialize};
@@ -74,7 +74,7 @@ because entity IDs are different on server and client. The client should do the
 mapping. Therefore, to replicate such components properly, they need implement
 [`MapNetworkEntities`] and registered using [`AppReplicationExt::replicate_mapped()`]:
 
-```rust
+```
 # use bevy::{prelude::*, utils::HashMap};
 # use bevy_replicon::prelude::*;
 # use serde::{Deserialize, Serialize};
@@ -92,7 +92,7 @@ By default all components serialized with [`bincode`] using [`bincode::DefaultOp
 If your component doesn't implement serde traits or you want to serialize it partially
 you can use [`AppReplicationExt::replicate_with`]:
 
-```rust
+```
 # use std::io::Cursor;
 # use bevy::{ecs::world::EntityMut, prelude::*, ptr::Ptr, utils::HashMap};
 # use bevy_replicon::{prelude::*, renet::Bytes, replicon_core::replication_rules};
@@ -165,7 +165,7 @@ character with mesh, you can replicate only your `Player` component and insert
 necessary components after replication. If you want to avoid one frame delay, put
 your initialization systems to [`ClientSet::Receive`]:
 
-```rust
+```
 # use std::io::Cursor;
 # use bevy::{ecs::world::EntityMut, prelude::*, ptr::Ptr, utils::HashMap};
 # use bevy_replicon::{prelude::*, renet::Bytes, replicon_core::replication_rules};
@@ -235,7 +235,7 @@ Events include [`SendPolicy`] to configure delivery guarantees (reliability and
 ordering). You can alternatively pass in `SendType` from Renet directly if you
 need custom configuration for a reliable policy's `resend_time`.
 
-```rust
+```
 # use bevy::prelude::*;
 # use bevy_replicon::prelude::*;
 # use serde::{Deserialize, Serialize};
@@ -262,7 +262,7 @@ Just like components, if an event contains an entity, then the client should
 map it before sending it to the server.
 To do this, use [`ClientEventAppExt::add_mapped_client_event()`] and implement [`MapNetworkEntities`]:
 
-```rust
+```
 use bevy::{prelude::*, utils::HashMap};
 # use bevy_replicon::prelude::*;
 # use serde::{Deserialize, Serialize};
@@ -293,7 +293,7 @@ parameters and the event itself. Just like events sent from the client,
 they will be emitted locally on the server (if [`SERVER_ID`] is not excluded
 from the send list):
 
-```rust
+```
 # use bevy::prelude::*;
 # use bevy_replicon::prelude::*;
 # use serde::{Deserialize, Serialize};
@@ -339,7 +339,7 @@ events and component replication. These channels should be obtained from the
 [`NetworkChannels`] resource. So when creating server you need to initialize
 [`ConnectionConfig`](renet::ConnectionConfig) like this:
 
-```rust
+```
 # use bevy::prelude::*;
 # use bevy_replicon::{prelude::*, renet::ConnectionConfig};
 # let mut app = App::new();

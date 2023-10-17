@@ -531,7 +531,7 @@ server entities will synchronize with updating the client's [`ServerEntityMap`](
 
 ### Example:
 
-```rust
+```
 # use bevy::prelude::*;
 # use bevy_replicon::prelude::*;
 
