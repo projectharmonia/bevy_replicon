@@ -151,3 +151,38 @@ fn local_resending() {
         );
     }
 }
+
+#[test]
+fn event_queue() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+        ))
+        .add_server_event::<DummyEvent>(SendPolicy::Ordered);
+    }
+
+    common::connect(&mut server_app, &mut client_app);
+
+    // Simulate event that received two ticks earlier.
+    let mut tick = *server_app.world.resource::<RepliconTick>();
+    tick.increment_by(2);
+    client_app
+        .world
+        .resource_mut::<ServerEventQueue<DummyEvent>>()
+        .insert(tick, DummyEvent(Entity::PLACEHOLDER));
+
+    server_app.update();
+    client_app.update();
+
+    let dummy_events = client_app.world.resource::<Events<DummyEvent>>();
+    assert!(dummy_events.is_empty());
+
+    server_app.update();
+    client_app.update();
+
+    let dummy_events = client_app.world.resource::<Events<DummyEvent>>();
+    assert_eq!(dummy_events.len(), 1);
+}

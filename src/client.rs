@@ -54,7 +54,7 @@ impl Plugin for ClientPlugin {
 }
 
 impl ClientPlugin {
-    fn diff_receiving_system(world: &mut World) -> Result<(), bincode::Error> {
+    pub(super) fn diff_receiving_system(world: &mut World) -> Result<(), bincode::Error> {
         world.resource_scope(|world, mut client: Mut<RenetClient>| {
             world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
                 world.resource_scope(|world, replication_rules: Mut<ReplicationRules>| {
