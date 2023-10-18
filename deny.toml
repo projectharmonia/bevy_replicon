@@ -20,6 +20,7 @@ skip = [
   { name = "num_enum_derive", version = "0.5" },
   { name = "regex-automata", version = "0.1" },
   { name = "regex-syntax", version = "0.6" },
+  { name = "redox_syscall", version = "0.3" },
   { name = "syn", version = "1.0" },
   { name = "windows", version = "0.44" },
   { name = "windows-sys", version = "0.45" },

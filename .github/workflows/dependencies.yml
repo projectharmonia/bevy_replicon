@@ -1,8 +1,8 @@
 name: Dependencies
 on:
   push:
-    branches-ignore:
-      - "releases/**"
+    branches:
+      - master
     paths:
       - "Cargo.toml"
       - "Cargo.lock"
