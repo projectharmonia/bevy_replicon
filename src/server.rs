@@ -72,7 +72,7 @@ impl Plugin for ServerPlugin {
         .add_systems(
             PostUpdate,
             (
-                Self::diffs_sending_system
+                Self::replication_sending_system
                     .pipe(unwrap)
                     .in_set(ServerSet::Send)
                     .run_if(resource_exists::<RenetServer>()),
@@ -86,14 +86,14 @@ impl Plugin for ServerPlugin {
                 app.add_systems(
                     PostUpdate,
                     Self::increment_tick
-                        .before(Self::diffs_sending_system)
+                        .before(Self::replication_sending_system)
                         .run_if(on_timer(tick_time)),
                 );
             }
             TickPolicy::EveryFrame => {
                 app.add_systems(
                     PostUpdate,
-                    Self::increment_tick.before(Self::diffs_sending_system),
+                    Self::increment_tick.before(Self::replication_sending_system),
                 );
             }
             TickPolicy::Manual => (),
@@ -106,7 +106,7 @@ impl ServerPlugin {
         Self { tick_policy }
     }
 
-    /// Increments current server tick which causes the server to send a diff packet this frame.
+    /// Increments current server tick which causes the server to replicate this frame.
     pub fn increment_tick(mut tick: ResMut<RepliconTick>) {
         tick.increment();
     }
@@ -151,7 +151,7 @@ impl ServerPlugin {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn diffs_sending_system(
+    fn replication_sending_system(
         mut buffers: Local<Vec<ReplicationBuffer>>,
         change_tick: SystemChangeTick,
         mut set: ParamSet<(&World, ResMut<RenetServer>, ResMut<AckedTicks>)>,
@@ -555,7 +555,7 @@ fn confirm_bullet(
     mut commands: Commands,
     mut bullet_events: EventReader<FromClient<SpawnBullet>>,
     mut entity_map: ResMut<ClientEntityMap>,
-    replicon_tick: Res<RepliconTick>,
+    tick: Res<RepliconTick>,
 ) {
     for FromClient { client_id, event } in &mut bullet_events {
         let server_entity = commands.spawn(Bullet).id(); // You can insert more components, they will be sent to the client's entity correctly.
@@ -563,7 +563,7 @@ fn confirm_bullet(
         entity_map.insert(
             *client_id,
             ClientMapping {
-                tick: *replicon_tick,
+                tick: *tick,
                 server_entity,
                 client_entity: event.0,
             },
