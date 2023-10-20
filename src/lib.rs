@@ -395,7 +395,7 @@ pub mod prelude {
         },
         network_event::{
             client_event::{ClientEventAppExt, FromClient},
-            server_event::{SendMode, ServerEventAppExt, ToClients},
+            server_event::{SendMode, ServerEventAppExt, ServerEventQueue, ToClients},
             EventChannel, EventMapper, SendPolicy,
         },
         parent_sync::{ParentSync, ParentSyncPlugin},

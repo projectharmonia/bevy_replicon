@@ -62,7 +62,7 @@ pub trait ClientEventAppExt {
             let serializer = ReflectSerializer::new(&*event.0, &registry);
             let message = DefaultOptions::new()
                 .serialize(&serializer)
-                .expect("client reflect event should be serializable");
+                .expect("client event should be serializable");
 
             client.send_message(*channel, message);
         }
@@ -87,7 +87,7 @@ pub trait ClientEventAppExt {
                         });
                     }
                     Err(e) => {
-                        error!("unable to deserialize reflect event from client {client_id}: {e}")
+                        error!("unable to deserialize event from client {client_id}: {e}")
                     }
                 }
             }

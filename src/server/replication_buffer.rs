@@ -289,15 +289,13 @@ impl ReplicationBuffer {
         debug_assert_eq!(self.array_len, 0);
         debug_assert_eq!(self.entity_data_len, 0);
 
-        if self.arrays_with_data > 0 {
-            self.trim_empty_arrays();
+        self.trim_empty_arrays();
 
-            server.send_message(
-                self.client_id,
-                replication_channel_id,
-                Bytes::copy_from_slice(self.message.get_ref()),
-            );
-        }
+        server.send_message(
+            self.client_id,
+            replication_channel_id,
+            Bytes::copy_from_slice(self.message.get_ref()),
+        );
     }
 
     /// Crops empty arrays at the end.
