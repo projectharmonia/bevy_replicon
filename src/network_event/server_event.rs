@@ -177,7 +177,7 @@ impl ServerEventAppExt for App {
                 PreUpdate,
                 (queue_system::<T>, receiving_system)
                     .chain()
-                    .after(ClientPlugin::diff_receiving_system)
+                    .after(ClientPlugin::replication_receiving_system)
                     .in_set(ClientSet::Receive)
                     .run_if(client_connected()),
             )

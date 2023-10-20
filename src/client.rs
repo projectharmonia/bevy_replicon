@@ -36,7 +36,7 @@ impl Plugin for ClientPlugin {
             )
             .add_systems(
                 PreUpdate,
-                Self::diff_receiving_system
+                Self::replication_receiving_system
                     .pipe(unwrap)
                     .in_set(ClientSet::Receive)
                     .run_if(client_connected()),
@@ -54,7 +54,7 @@ impl Plugin for ClientPlugin {
 }
 
 impl ClientPlugin {
-    pub(super) fn diff_receiving_system(world: &mut World) -> Result<(), bincode::Error> {
+    pub(super) fn replication_receiving_system(world: &mut World) -> Result<(), bincode::Error> {
         world.resource_scope(|world, mut client: Mut<RenetClient>| {
             world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
                 world.resource_scope(|world, replication_rules: Mut<ReplicationRules>| {
@@ -79,27 +79,27 @@ impl ClientPlugin {
                             continue;
                         }
 
-                        apply_component_diffs(
+                        apply_components(
                             &mut cursor,
                             world,
                             &mut entity_map,
-                            &replication_rules,
-                            DiffKind::Change,
-                            tick,
                             stats.as_mut(),
+                            ComponentsKind::Change,
+                            &replication_rules,
+                            tick,
                         )?;
                         if cursor.position() == end_pos {
                             continue;
                         }
 
-                        apply_component_diffs(
+                        apply_components(
                             &mut cursor,
                             world,
                             &mut entity_map,
-                            &replication_rules,
-                            DiffKind::Removal,
-                            tick,
                             stats.as_mut(),
+                            ComponentsKind::Removal,
+                            &replication_rules,
+                            tick,
                         )?;
                         if cursor.position() == end_pos {
                             continue;
@@ -193,15 +193,15 @@ fn apply_entity_mappings(
     Ok(())
 }
 
-/// Deserializes component diffs of `diff_kind` and applies them to the `world`.
-fn apply_component_diffs(
+/// Deserializes replicated components of `components_kind` and applies them to the `world`.
+fn apply_components(
     cursor: &mut Cursor<Bytes>,
     world: &mut World,
     entity_map: &mut ServerEntityMap,
-    replication_rules: &ReplicationRules,
-    diff_kind: DiffKind,
-    tick: RepliconTick,
     mut stats: Option<&mut ClientStats>,
+    components_kind: ComponentsKind,
+    replication_rules: &ReplicationRules,
+    tick: RepliconTick,
 ) -> Result<(), bincode::Error> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..entities_count {
@@ -216,11 +216,11 @@ fn apply_component_diffs(
             let replication_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
             // SAFETY: server and client have identical `ReplicationRules` and server always sends valid IDs.
             let replication_info = unsafe { replication_rules.get_info_unchecked(replication_id) };
-            match diff_kind {
-                DiffKind::Change => {
+            match components_kind {
+                ComponentsKind::Change => {
                     (replication_info.deserialize)(&mut entity, entity_map, cursor, tick)?
                 }
-                DiffKind::Removal => (replication_info.remove)(&mut entity, tick),
+                ComponentsKind::Removal => (replication_info.remove)(&mut entity, tick),
             }
         }
     }
@@ -243,8 +243,8 @@ fn apply_despawns(
     }
     for _ in 0..entities_count {
         // The entity might have already been despawned because of hierarchy or
-        // with the last diff, but the server might not yet have received confirmation
-        // from the client and could include the deletion in the latest diff.
+        // with the last replication message, but the server might not yet have received confirmation
+        // from the client and could include the deletion in the this message.
         let server_entity = read_entity(cursor)?;
         if let Some(client_entity) = entity_map
             .remove_by_server(server_entity)
@@ -274,10 +274,10 @@ fn read_entity(cursor: &mut Cursor<Bytes>) -> Result<Entity, bincode::Error> {
     Ok(Entity::from_bits(bits))
 }
 
-/// Type of component change.
+/// Type of components replication.
 ///
-/// Parameter for [`apply_component_diffs`].
-enum DiffKind {
+/// Parameter for [`apply_components`].
+enum ComponentsKind {
     Change,
     Removal,
 }
