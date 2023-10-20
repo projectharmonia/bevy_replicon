@@ -50,6 +50,22 @@ jobs:
       - name: Rustdoc
         run: cargo rustdoc -- -D warnings
 
+  doctest:
+    name: Doctest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repo
+        uses: actions/checkout@v4
+
+      - name: Instal stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache crates
+        uses: Swatinem/rust-cache@v2
+
+      - name: Test doc
+        run: cargo test --doc
+
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -69,9 +85,6 @@ jobs:
       - name: Install Tarpaulin
         run: cargo install cargo-tarpaulin
 
-      - name: Test doc
-        run: cargo test --doc
-
       - name: Test
         run: cargo tarpaulin --engine llvm --out lcov
 
@@ -85,7 +98,7 @@ jobs:
   codecov:
     name: Upload to Codecov
     if: github.actor != 'dependabot[bot]'
-    needs: [test, lint, format]
+    needs: [format, lint, doctest, test]
     runs-on: ubuntu-latest
     steps:
       - name: Clone repo
