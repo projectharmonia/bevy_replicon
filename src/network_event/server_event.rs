@@ -11,11 +11,11 @@ use super::EventChannel;
 use crate::{
     client::{ClientSet, ServerEntityMap},
     network_event::EventMapper,
-    prelude::{ClientPlugin, LastRepliconTick},
+    prelude::{ClientPlugin, LastRepliconTick, ServerPlugin},
     replicon_core::{
         replication_rules::MapNetworkEntities, replicon_tick::RepliconTick, NetworkChannels,
     },
-    server::{has_authority, ServerSet, SERVER_ID},
+    server::{has_authority, MinRepliconTick, ServerSet, SERVER_ID},
 };
 
 /// An extension trait for [`App`] for creating server events.
@@ -185,10 +185,12 @@ impl ServerEventAppExt for App {
                 PostUpdate,
                 (
                     (
-                        sending_system.run_if(resource_exists::<RenetServer>()),
+                        (min_tick_update_system::<T>, sending_system)
+                            .run_if(resource_exists::<RenetServer>()),
                         local_resending_system::<T>.run_if(has_authority()),
                     )
                         .chain()
+                        .before(ServerPlugin::replication_sending_system)
                         .in_set(ServerSet::Send),
                     reset_system::<T>.run_if(resource_removed::<RenetClient>()),
                 ),
@@ -268,6 +270,20 @@ fn sending_system<T: Event + Serialize>(
             .expect("server event should be serializable");
 
         send(&mut server, *channel, *mode, message);
+    }
+}
+
+/// Updates [`MinRepliconTick`] to force server to send replication message even if there was no world changes.
+///
+/// Needed because events on a client won't be emitted until the client acknowledge the event tick.
+/// See also [`ServerEventQueue`].
+fn min_tick_update_system<T: Event>(
+    mut server_events: EventReader<ToClients<T>>,
+    mut min_tick: ResMut<MinRepliconTick>,
+    tick: Res<RepliconTick>,
+) {
+    if server_events.iter().count() > 0 {
+        **min_tick = *tick;
     }
 }
 

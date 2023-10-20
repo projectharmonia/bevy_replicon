@@ -13,7 +13,7 @@ use crate::replicon_core::{
 /// A reusable buffer with replicated data for a client.
 ///
 /// See also [Limits](../index.html#limits)
-pub(super) struct ReplicationBuffer {
+pub(crate) struct ReplicationBuffer {
     /// ID of a client for which this buffer is written.
     client_id: u64,
 
@@ -24,6 +24,11 @@ pub(super) struct ReplicationBuffer {
 
     /// Buffer with serialized data.
     message: Cursor<Vec<u8>>,
+
+    /// Send message even if it doesn't contain arrays.
+    ///
+    /// See also [`Self::send_to`]
+    send_empty: bool,
 
     /// Position of the array from last call of [`Self::start_array`].
     array_pos: u64,
@@ -54,6 +59,7 @@ impl ReplicationBuffer {
         client_id: u64,
         system_tick: Tick,
         replicon_tick: RepliconTick,
+        send_empty: bool,
     ) -> Result<Self, bincode::Error> {
         let mut message = Default::default();
         bincode::serialize_into(&mut message, &replicon_tick)?;
@@ -61,6 +67,7 @@ impl ReplicationBuffer {
             client_id,
             system_tick,
             message,
+            send_empty,
             array_pos: Default::default(),
             array_len: Default::default(),
             arrays_with_data: Default::default(),
@@ -90,11 +97,13 @@ impl ReplicationBuffer {
         client_id: u64,
         system_tick: Tick,
         replicon_tick: RepliconTick,
+        send_empty: bool,
     ) -> Result<(), bincode::Error> {
         self.client_id = client_id;
         self.system_tick = system_tick;
         self.message.set_position(0);
         self.message.get_mut().clear();
+        self.send_empty = send_empty;
         self.arrays_with_data = 0;
         self.trailing_empty_arrays = 0;
         bincode::serialize_into(&mut self.message, &replicon_tick)?;
@@ -289,13 +298,15 @@ impl ReplicationBuffer {
         debug_assert_eq!(self.array_len, 0);
         debug_assert_eq!(self.entity_data_len, 0);
 
-        self.trim_empty_arrays();
+        if self.arrays_with_data > 0 || self.send_empty {
+            self.trim_empty_arrays();
 
-        server.send_message(
-            self.client_id,
-            replication_channel_id,
-            Bytes::copy_from_slice(self.message.get_ref()),
-        );
+            server.send_message(
+                self.client_id,
+                replication_channel_id,
+                Bytes::copy_from_slice(self.message.get_ref()),
+            );
+        }
     }
 
     /// Crops empty arrays at the end.
@@ -315,7 +326,7 @@ mod tests {
 
     #[test]
     fn trim_empty_arrays() -> Result<(), bincode::Error> {
-        let mut buffer = ReplicationBuffer::new(0, Tick::new(0), RepliconTick(0))?;
+        let mut buffer = ReplicationBuffer::new(0, Tick::new(0), RepliconTick(0), false)?;
 
         let begin_len = buffer.message.get_ref().len();
         for _ in 0..3 {

@@ -32,7 +32,7 @@ fn acked_ticks_cleanup() {
 }
 
 #[test]
-fn tick_acks_receiving() {
+fn no_empty_messages() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
@@ -47,13 +47,13 @@ fn tick_acks_receiving() {
     client_app.update();
     server_app.update();
 
-    let acked_ticks = server_app.world.resource::<AckedTicks>();
     let client_id = client_app
         .world
         .resource::<NetcodeClientTransport>()
         .client_id();
+    let acked_ticks = server_app.world.resource::<AckedTicks>();
     let acked_tick = acked_ticks.acked_ticks()[&client_id];
-    assert_eq!(acked_tick.get(), 3);
+    assert_eq!(acked_tick.get(), 0);
 }
 
 #[test]
