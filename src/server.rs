@@ -464,12 +464,15 @@ impl AckedTicks {
     }
 }
 
-/// Contains minimal tick that should be acknowledged by a client.
+/// Contains the lowest replicon tick that should be acknowledged by clients.
 ///
-/// If a client has not acked this tick, then replication message with
-/// the tick will be sent even if it does not contain data.
+/// If a client has not acked this tick, then replication messages >= this tick
+/// will be sent even if they do not contain data.
 ///
-/// Used by events that rely on client to acknowledge tick they were emitted.
+/// Used to synchronize server-sent events with clients. A client cannot consume
+/// a server-sent event until it has acknowledged the tick where that event was
+/// created. This means we need to replicate ticks after a server-sent event is
+/// emitted to guarantee the client can eventually consume the event.
 #[derive(Clone, Copy, Debug, Default, Deref, DerefMut, Resource)]
 pub(super) struct MinRepliconTick(RepliconTick);
 

@@ -273,9 +273,9 @@ fn sending_system<T: Event + Serialize>(
     }
 }
 
-/// Updates [`MinRepliconTick`] to force server to send replication message even if there was no world changes.
+/// Updates [`MinRepliconTick`] to force server to send replication message even if there were no world changes.
 ///
-/// Needed because events on a client won't be emitted until the client acknowledge the event tick.
+/// Needed because events on a client won't be emitted until the client acknowledges the event tick.
 /// See also [`ServerEventQueue`].
 fn min_tick_update_system<T: Event>(
     mut server_events: EventReader<ToClients<T>>,
