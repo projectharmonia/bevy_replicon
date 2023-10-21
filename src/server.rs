@@ -451,12 +451,51 @@ impl AckedTicks {
     }
 }
 
-/// Fills scene with all replicated entities and their components.
-///
-/// # Panics
-///
-/// Panics if any replicated component is not registered using `register_type()`
-/// or missing `#[reflect(Component)]`.
+/**
+Fills scene with all replicated entities and their components.
+
+Entities won't have [`Replication`](crate::replicon_core::replication_rules::Replication) component.
+So on deserialization you need to insert it back if you want entities to continue to replcate.
+
+# Panics
+
+Panics if any replicated component is not registered using `register_type()`
+or missing `#[reflect(Component)]`.
+
+# Examples
+
+```
+use bevy::{prelude::*, scene::serde::SceneDeserializer};
+use bevy_replicon::{prelude::*, server};
+use serde::de::DeserializeSeed;
+# let mut world = World::new();
+# world.init_resource::<AppTypeRegistry>();
+# world.init_resource::<ReplicationRules>();
+
+// Serialization
+let registry = world.resource::<AppTypeRegistry>();
+let mut scene = DynamicScene::default();
+server::replicate_into_scene(&mut scene, &world);
+let scene = scene
+    .serialize_ron(&registry)
+    .expect("scene should be serialized");
+
+// Deserialization
+let scene_deserializer = SceneDeserializer {
+    type_registry: &registry.read(),
+};
+let mut deserializer =
+    ron::Deserializer::from_str(&scene).expect("scene should be serialized as valid ron");
+let mut scene = scene_deserializer
+    .deserialize(&mut deserializer)
+    .expect("ron should be convertible to scene");
+
+// All saved entities should have `Replication` component.
+for entity in &mut scene.entities {
+    entity.components.push(Replication.clone_value());
+}
+```
+*/
 pub fn replicate_into_scene(scene: &mut DynamicScene, world: &World) {
     let registry = world.resource::<AppTypeRegistry>();
     let replication_rules = world.resource::<ReplicationRules>();

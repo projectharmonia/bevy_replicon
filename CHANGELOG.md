@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `network_event::server_event::send` helper for server events in custom sending functions.
 - Optional `ClientDiagnosticsPlugin`, which writes diagnostics every second.
+- `Reflect` derive for `Replication`.
 
 ### Changed
 
