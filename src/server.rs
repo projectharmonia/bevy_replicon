@@ -464,7 +464,6 @@ impl AckedTicks {
     }
 }
 
-
 /// Contains the lowest replicon tick that should be acknowledged by clients.
 ///
 /// If a client has not acked this tick, then replication messages >= this tick
