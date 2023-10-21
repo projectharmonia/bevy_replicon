@@ -223,7 +223,7 @@ fn receiving_system<T: Event + DeserializeOwned>(
     last_tick: Res<LastRepliconTick>,
     channel: Res<EventChannel<T>>,
 ) {
-    while let Some(message) = client.receive_message(channel.id) {
+    while let Some(message) = client.receive_message(*channel) {
         let (tick, event) = DefaultOptions::new()
             .deserialize(&message)
             .expect("server should send valid events");
@@ -244,7 +244,7 @@ fn receiving_and_mapping_system<T: Event + MapNetworkEntities + DeserializeOwned
     entity_map: Res<ServerEntityMap>,
     channel: Res<EventChannel<T>>,
 ) {
-    while let Some(message) = client.receive_message(channel.id) {
+    while let Some(message) = client.receive_message(*channel) {
         let (tick, mut event): (_, T) = DefaultOptions::new()
             .deserialize(&message)
             .expect("server should send valid mapped events");
@@ -328,18 +328,18 @@ pub fn send<T>(
 ) {
     match mode {
         SendMode::Broadcast => {
-            server.broadcast_message(channel.id, message);
+            server.broadcast_message(channel, message);
         }
         SendMode::BroadcastExcept(client_id) => {
             if client_id == SERVER_ID {
-                server.broadcast_message(channel.id, message);
+                server.broadcast_message(channel, message);
             } else {
-                server.broadcast_message_except(client_id, channel.id, message);
+                server.broadcast_message_except(client_id, channel, message);
             }
         }
         SendMode::Direct(client_id) => {
             if client_id != SERVER_ID {
-                server.send_message(client_id, channel.id, message);
+                server.send_message(client_id, channel, message);
             }
         }
     }
