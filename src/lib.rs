@@ -205,7 +205,7 @@ You can use [`replicate_into_scene`](server::replicate_into_scene) to
 fill `DynamicScene` with replicated entities and their components.
 
 The mentioned [`Ignored<T>`] component is an exception.
-It needs to inserted before [`ServerSet::Send`] in `PostUpdate` if you running server.
+It needs to be inserted before [`ServerSet::Send`] in `PostUpdate` on the server.
 So you will need a separate initialization system for it.
 
 ### Component relations
