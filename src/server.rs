@@ -52,6 +52,7 @@ impl Plugin for ServerPlugin {
         ))
         .init_resource::<AckedTicks>()
         .init_resource::<RepliconTick>()
+        .init_resource::<MinRepliconTick>()
         .init_resource::<ClientEntityMap>()
         .configure_set(
             PreUpdate,
@@ -151,20 +152,26 @@ impl ServerPlugin {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn replication_sending_system(
+    pub(super) fn replication_sending_system(
         mut buffers: Local<Vec<ReplicationBuffer>>,
         change_tick: SystemChangeTick,
         mut set: ParamSet<(&World, ResMut<RenetServer>, ResMut<AckedTicks>)>,
         replication_rules: Res<ReplicationRules>,
         despawn_tracker: Res<DespawnTracker>,
         replicon_tick: Res<RepliconTick>,
+        min_replicon_tick: Res<MinRepliconTick>,
         removal_trackers: Query<(Entity, &RemovalTracker)>,
         entity_map: Res<ClientEntityMap>,
     ) -> Result<(), bincode::Error> {
         let mut acked_ticks = set.p2();
         acked_ticks.register_tick(*replicon_tick, change_tick.this_run());
 
-        let buffers = prepare_buffers(&mut buffers, &acked_ticks, *replicon_tick)?;
+        let buffers = prepare_buffers(
+            &mut buffers,
+            &acked_ticks,
+            *replicon_tick,
+            *min_replicon_tick,
+        )?;
 
         collect_mappings(buffers, &entity_map)?;
         collect_changes(
@@ -199,18 +206,24 @@ fn prepare_buffers<'a>(
     buffers: &'a mut Vec<ReplicationBuffer>,
     acked_ticks: &AckedTicks,
     replicon_tick: RepliconTick,
+    min_replicon_tick: MinRepliconTick,
 ) -> Result<&'a mut [ReplicationBuffer], bincode::Error> {
     buffers.reserve(acked_ticks.clients.len());
-    for (index, (&client_id, &tick)) in acked_ticks.clients.iter().enumerate() {
-        let system_tick = *acked_ticks.system_ticks.get(&tick).unwrap_or(&Tick::new(0));
+    for (index, (&client_id, &acked_tick)) in acked_ticks.clients.iter().enumerate() {
+        let system_tick = *acked_ticks
+            .system_ticks
+            .get(&acked_tick)
+            .unwrap_or(&Tick::new(0));
 
+        let send_empty = acked_tick < *min_replicon_tick;
         if let Some(buffer) = buffers.get_mut(index) {
-            buffer.reset(client_id, system_tick, replicon_tick)?;
+            buffer.reset(client_id, system_tick, replicon_tick, send_empty)?;
         } else {
             buffers.push(ReplicationBuffer::new(
                 client_id,
                 system_tick,
                 replicon_tick,
+                send_empty,
             )?);
         }
     }
@@ -450,6 +463,19 @@ impl AckedTicks {
         &self.clients
     }
 }
+
+
+/// Contains the lowest replicon tick that should be acknowledged by clients.
+///
+/// If a client has not acked this tick, then replication messages >= this tick
+/// will be sent even if they do not contain data.
+///
+/// Used to synchronize server-sent events with clients. A client cannot consume
+/// a server-sent event until it has acknowledged the tick where that event was
+/// created. This means we need to replicate ticks after a server-sent event is
+/// emitted to guarantee the client can eventually consume the event.
+#[derive(Clone, Copy, Debug, Default, Deref, DerefMut, Resource)]
+pub(super) struct MinRepliconTick(RepliconTick);
 
 /**
 Fills scene with all replicated entities and their components.

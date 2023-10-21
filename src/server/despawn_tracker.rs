@@ -56,7 +56,7 @@ impl DespawnTrackerPlugin {
 
 /// Entities and ticks when they were despawned.
 #[derive(Default, Resource, Deref, DerefMut)]
-pub(super) struct DespawnTracker(pub(super) Vec<(Entity, Tick)>);
+pub(crate) struct DespawnTracker(pub(super) Vec<(Entity, Tick)>);
 
 #[cfg(test)]
 mod tests {

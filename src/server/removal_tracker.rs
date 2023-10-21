@@ -80,7 +80,7 @@ impl RemovalTrackerPlugin {
 }
 
 #[derive(Component, Default, Deref, DerefMut)]
-pub(super) struct RemovalTracker(pub(super) HashMap<ReplicationId, Tick>);
+pub(crate) struct RemovalTracker(pub(super) HashMap<ReplicationId, Tick>);
 
 #[cfg(test)]
 mod tests {

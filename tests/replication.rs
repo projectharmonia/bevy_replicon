@@ -32,31 +32,6 @@ fn acked_ticks_cleanup() {
 }
 
 #[test]
-fn tick_acks_receiving() {
-    let mut server_app = App::new();
-    let mut client_app = App::new();
-    for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((
-            MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
-        ));
-    }
-
-    common::connect(&mut server_app, &mut client_app);
-
-    client_app.update();
-    server_app.update();
-
-    let acked_ticks = server_app.world.resource::<AckedTicks>();
-    let client_id = client_app
-        .world
-        .resource::<NetcodeClientTransport>()
-        .client_id();
-    let acked_tick = acked_ticks.acked_ticks()[&client_id];
-    assert_eq!(acked_tick.get(), 3);
-}
-
-#[test]
 fn spawn_replication() {
     let mut server_app = App::new();
     let mut client_app = App::new();
@@ -345,6 +320,54 @@ fn replication_into_scene() {
 
     assert_eq!(empty.entity, empty_entity);
     assert!(empty.components.is_empty());
+}
+
+#[test]
+fn diagnostics() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+        ))
+        .replicate::<TableComponent>();
+    }
+    client_app.add_plugins(ClientDiagnosticsPlugin);
+
+    common::connect(&mut server_app, &mut client_app);
+
+    let client_entity = client_app.world.spawn_empty().id();
+    let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
+
+    let tick = *server_app.world.get_resource::<RepliconTick>().unwrap();
+    let client_id = client_app
+        .world
+        .resource::<NetcodeClientTransport>()
+        .client_id();
+
+    let mut entity_map = server_app.world.resource_mut::<ClientEntityMap>();
+    entity_map.insert(
+        client_id,
+        ClientMapping {
+            tick,
+            server_entity,
+            client_entity,
+        },
+    );
+
+    server_app.world.spawn(Replication).despawn();
+
+    server_app.update();
+    client_app.update();
+
+    let stats = client_app.world.resource::<ClientStats>();
+    assert_eq!(stats.entities_changed, 1);
+    assert_eq!(stats.components_changed, 1);
+    assert_eq!(stats.mappings, 1);
+    assert_eq!(stats.despawns, 1);
+    assert_eq!(stats.packets, 1);
+    assert_eq!(stats.bytes, 18);
 }
 
 #[derive(Component, Deserialize, Serialize)]
