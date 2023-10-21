@@ -165,7 +165,7 @@ fn receiving_system<T: Event + DeserializeOwned>(
     channel: Res<EventChannel<T>>,
 ) {
     for client_id in server.clients_id() {
-        while let Some(message) = server.receive_message(client_id, channel.id) {
+        while let Some(message) = server.receive_message(client_id, *channel) {
             match DefaultOptions::new().deserialize(&message) {
                 Ok(event) => {
                     client_events.send(FromClient { client_id, event });
@@ -186,7 +186,7 @@ fn sending_system<T: Event + Serialize>(
             .serialize(&event)
             .expect("client event should be serializable");
 
-        client.send_message(channel.id, message);
+        client.send_message(*channel, message);
     }
 }
 
@@ -202,7 +202,7 @@ fn mapping_and_sending_system<T: Event + MapNetworkEntities + Serialize>(
             .serialize(&event)
             .expect("mapped client event should be serializable");
 
-        client.send_message(channel.id, message);
+        client.send_message(*channel, message);
     }
 }
 
