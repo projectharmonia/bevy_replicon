@@ -34,6 +34,7 @@ criterion = { version = "0.5", default-features = false, features = [
 spin_sleep = "1.1"
 anyhow = "1.0"
 clap = { version = "4.1", features = ["derive"] }
+ron = "0.8"
 bevy = { version = "0.11", default-features = false, features = [
   "bevy_asset",
   "bevy_core_pipeline",
