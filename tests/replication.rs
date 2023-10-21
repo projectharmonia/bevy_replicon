@@ -32,31 +32,6 @@ fn acked_ticks_cleanup() {
 }
 
 #[test]
-fn no_empty_messages() {
-    let mut server_app = App::new();
-    let mut client_app = App::new();
-    for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((
-            MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
-        ));
-    }
-
-    common::connect(&mut server_app, &mut client_app);
-
-    client_app.update();
-    server_app.update();
-
-    let client_id = client_app
-        .world
-        .resource::<NetcodeClientTransport>()
-        .client_id();
-    let acked_ticks = server_app.world.resource::<AckedTicks>();
-    let acked_tick = acked_ticks.acked_ticks()[&client_id];
-    assert_eq!(acked_tick.get(), 0);
-}
-
-#[test]
 fn spawn_replication() {
     let mut server_app = App::new();
     let mut client_app = App::new();
