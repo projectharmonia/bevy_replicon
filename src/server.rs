@@ -454,13 +454,13 @@ impl AckedTicks {
 /**
 Fills scene with all replicated entities and their components.
 
-Entities won't have [`Replication`](crate::replicon_core::replication_rules::Replication) component.
-So on deserialization you need to insert it back if you want entities to continue to replcate.
+Entities won't have the [`Replication`](crate::replicon_core::replication_rules::Replication) component.
+So on deserialization you need to insert it back if you want entities to continue to replicate.
 
 # Panics
 
 Panics if any replicated component is not registered using `register_type()`
-or missing `#[reflect(Component)]`.
+or `#[reflect(Component)]` is missing.
 
 # Examples
 
