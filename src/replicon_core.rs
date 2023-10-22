@@ -4,13 +4,14 @@ pub mod replicon_tick;
 use bevy::prelude::*;
 use bevy_renet::renet::{ChannelConfig, SendType};
 
-use replication_rules::ReplicationRules;
+use replication_rules::{Replication, ReplicationRules};
 
 pub struct RepliconCorePlugin;
 
 impl Plugin for RepliconCorePlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<NetworkChannels>()
+        app.register_type::<Replication>()
+            .init_resource::<NetworkChannels>()
             .init_resource::<ReplicationRules>();
     }
 }
