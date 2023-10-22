@@ -54,7 +54,7 @@ By default, no components are replicated. A component will be replicated if it h
 In other words you need two things to start replication :
 
 1. Register component type for replication. Component should implement
-[`serde::Serialize`] and [`serde::Deserialize`].
+[`Serialize`](serde::Serialize) and [`Deserialize`](serde::Deserialize).
 You can use [`AppReplicationExt::replicate()`] to register the component for replication:
 
 ```
@@ -88,7 +88,7 @@ impl MapNetworkEntities for MappedComponent {
 }
 ```
 
-By default all components serialized with [`bincode`] using [`bincode::DefaultOptions`].
+By default all components serialized with [`bincode`] using [`DefaultOptions`](bincode::DefaultOptions).
 If your component doesn't implement serde traits or you want to serialize it partially
 you can use [`AppReplicationExt::replicate_with`]:
 
