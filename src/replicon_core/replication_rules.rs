@@ -158,7 +158,7 @@ impl FromWorld for ReplicationRules {
 }
 
 /// Signature of component serialization functions.
-pub type SerializeFn = fn(Ptr, &mut Cursor<Vec<u8>>) -> Result<(), bincode::Error>;
+pub type SerializeFn = fn(Ptr, &mut Cursor<Vec<u8>>) -> bincode::Result<()>;
 
 /// Signature of component deserialization functions.
 pub type DeserializeFn = fn(
@@ -166,7 +166,7 @@ pub type DeserializeFn = fn(
     &mut ServerEntityMap,
     &mut Cursor<Bytes>,
     RepliconTick,
-) -> Result<(), bincode::Error>;
+) -> bincode::Result<()>;
 
 /// Signature of component removal functions.
 pub type RemoveComponentFn = fn(&mut EntityMut, RepliconTick);
@@ -225,7 +225,7 @@ pub trait Mapper {
 pub fn serialize_component<C: Component + Serialize>(
     component: Ptr,
     cursor: &mut Cursor<Vec<u8>>,
-) -> Result<(), bincode::Error> {
+) -> bincode::Result<()> {
     // SAFETY: Function called for registered `ComponentId`.
     let component: &C = unsafe { component.deref() };
     DefaultOptions::new().serialize_into(cursor, component)
@@ -237,7 +237,7 @@ pub fn deserialize_component<C: Component + DeserializeOwned>(
     _entity_map: &mut ServerEntityMap,
     cursor: &mut Cursor<Bytes>,
     _tick: RepliconTick,
-) -> Result<(), bincode::Error> {
+) -> bincode::Result<()> {
     let component: C = DefaultOptions::new().deserialize_from(cursor)?;
     entity.insert(component);
 
@@ -250,7 +250,7 @@ pub fn deserialize_mapped_component<C: Component + DeserializeOwned + MapNetwork
     entity_map: &mut ServerEntityMap,
     cursor: &mut Cursor<Bytes>,
     _tick: RepliconTick,
-) -> Result<(), bincode::Error> {
+) -> bincode::Result<()> {
     let mut component: C = DefaultOptions::new().deserialize_from(cursor)?;
 
     entity.world_scope(|world| {

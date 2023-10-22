@@ -106,7 +106,7 @@ app.replicate_with::<Transform>(serialize_transform, deserialize_transform, repl
 fn serialize_transform(
     component: Ptr,
     cursor: &mut Cursor<Vec<u8>>,
-) -> Result<(), bincode::Error> {
+) -> bincode::Result<()> {
     // SAFETY: Function called for registered `ComponentId`.
     let transform: &Transform = unsafe { component.deref() };
     bincode::serialize_into(cursor, &transform.translation)
@@ -118,7 +118,7 @@ fn deserialize_transform(
     _entity_map: &mut ServerEntityMap,
     cursor: &mut Cursor<Bytes>,
     _tick: RepliconTick,
-) -> Result<(), bincode::Error> {
+) -> bincode::Result<()> {
     let translation: Vec3 = bincode::deserialize_from(cursor)?;
     entity.insert(Transform::from_translation(translation));
 
@@ -196,8 +196,8 @@ fn player_init_system(
 
 #[derive(Component, Deserialize, Serialize)]
 struct Player;
-# fn serialize_transform(_: Ptr, _: &mut Cursor<Vec<u8>>) -> Result<(), bincode::Error> { unimplemented!() }
-# fn deserialize_transform(_: &mut EntityMut, _: &mut ServerEntityMap, _: &mut Cursor<Bytes>, _: RepliconTick) -> Result<(), bincode::Error> { unimplemented!() }
+# fn serialize_transform(_: Ptr, _: &mut Cursor<Vec<u8>>) -> bincode::Result<()> { unimplemented!() }
+# fn deserialize_transform(_: &mut EntityMut, _: &mut ServerEntityMap, _: &mut Cursor<Bytes>, _: RepliconTick) -> bincode::Result<()> { unimplemented!() }
 ```
 
 This pairs nicely with server state serialization and keeps saves clean.

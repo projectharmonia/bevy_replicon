@@ -162,7 +162,7 @@ impl ServerPlugin {
         min_replicon_tick: Res<MinRepliconTick>,
         removal_trackers: Query<(Entity, &RemovalTracker)>,
         entity_map: Res<ClientEntityMap>,
-    ) -> Result<(), bincode::Error> {
+    ) -> bincode::Result<()> {
         let mut acked_ticks = set.p2();
         acked_ticks.register_tick(*replicon_tick, change_tick.this_run());
 
@@ -207,7 +207,7 @@ fn prepare_buffers<'a>(
     acked_ticks: &AckedTicks,
     replicon_tick: RepliconTick,
     min_replicon_tick: MinRepliconTick,
-) -> Result<&'a mut [ReplicationBuffer], bincode::Error> {
+) -> bincode::Result<&'a mut [ReplicationBuffer]> {
     buffers.reserve(acked_ticks.clients.len());
     for (index, (&client_id, &acked_tick)) in acked_ticks.clients.iter().enumerate() {
         let system_tick = *acked_ticks
@@ -237,7 +237,7 @@ fn prepare_buffers<'a>(
 fn collect_mappings(
     buffers: &mut [ReplicationBuffer],
     entity_map: &ClientEntityMap,
-) -> Result<(), bincode::Error> {
+) -> bincode::Result<()> {
     for buffer in &mut *buffers {
         buffer.start_array();
 
@@ -258,7 +258,7 @@ fn collect_changes(
     world: &World,
     system_tick: Tick,
     replication_rules: &ReplicationRules,
-) -> Result<(), bincode::Error> {
+) -> bincode::Result<()> {
     for buffer in &mut *buffers {
         buffer.start_array();
     }
@@ -355,7 +355,7 @@ fn collect_removals(
     buffers: &mut [ReplicationBuffer],
     removal_trackers: &Query<(Entity, &RemovalTracker)>,
     system_tick: Tick,
-) -> Result<(), bincode::Error> {
+) -> bincode::Result<()> {
     for buffer in &mut *buffers {
         buffer.start_array();
     }
@@ -384,7 +384,7 @@ fn collect_despawns(
     buffers: &mut [ReplicationBuffer],
     despawn_tracker: &DespawnTracker,
     system_tick: Tick,
-) -> Result<(), bincode::Error> {
+) -> bincode::Result<()> {
     for buffer in &mut *buffers {
         buffer.start_array();
     }
