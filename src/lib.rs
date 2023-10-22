@@ -24,7 +24,7 @@ plugins to let you host and join games from the same application.
 If you are planning to separate client and server you can use
 `disable()` to disable [`ClientPlugin`] or
 [`ServerPlugin`]. You can also configure how often updates are sent from
-server to clients with [`ServerPlugin`]'s [`TickPolicy`].:
+server to clients with [`ServerPlugin`]'s [`TickPolicy`]:
 
 ```
 # use bevy::prelude::*;
