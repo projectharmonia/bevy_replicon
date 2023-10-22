@@ -52,13 +52,13 @@ pub trait ClientEventAppExt {
     );
 
     fn sending_reflect_system(
-        mut events: EventReader<ReflectEvent>,
+        mut reflect_events: EventReader<ReflectEvent>,
         mut client: ResMut<RenetClient>,
         channel: Res<EventChannel<ReflectEvent>>,
         registry: Res<AppTypeRegistry>,
     ) {
         let registry = registry.read();
-        for event in &mut events {
+        for event in &mut reflect_events {
             let serializer = ReflectSerializer::new(&*event.0, &registry);
             let message = DefaultOptions::new()
                 .serialize(&serializer)
@@ -69,7 +69,7 @@ pub trait ClientEventAppExt {
     }
 
     fn receiving_reflect_system(
-        mut client_events: EventWriter<FromClient<ReflectEvent>>,
+        mut reflect_events: EventWriter<FromClient<ReflectEvent>>,
         mut server: ResMut<RenetServer>,
         channel: Res<EventChannel<ReflectEvent>>,
         registry: Res<AppTypeRegistry>,
@@ -81,7 +81,7 @@ pub trait ClientEventAppExt {
                     bincode::Deserializer::from_slice(&message, DefaultOptions::new());
                 match UntypedReflectDeserializer::new(&registry).deserialize(&mut deserializer) {
                     Ok(reflect) => {
-                        client_events.send(FromClient {
+                        reflect_events.send(FromClient {
                             client_id,
                             event: ReflectEvent(reflect),
                         });

@@ -65,13 +65,13 @@ pub trait ServerEventAppExt {
 
     fn sending_reflect_system(
         mut server: ResMut<RenetServer>,
-        mut server_events: EventReader<ToClients<ReflectEvent>>,
+        mut reflect_events: EventReader<ToClients<ReflectEvent>>,
         tick: Res<RepliconTick>,
         channel: Res<EventChannel<ReflectEvent>>,
         registry: Res<AppTypeRegistry>,
     ) {
         let registry = registry.read();
-        for ToClients { event, mode } in &mut server_events {
+        for ToClients { event, mode } in &mut reflect_events {
             let message = serialize_reflect_event(*tick, &event, &registry)
                 .expect("server event should be serializable");
 
@@ -80,7 +80,7 @@ pub trait ServerEventAppExt {
     }
 
     fn receiving_reflect_system(
-        mut server_events: EventWriter<ReflectEvent>,
+        mut reflect_events: EventWriter<ReflectEvent>,
         mut client: ResMut<RenetClient>,
         mut event_queue: ResMut<ServerEventQueue<ReflectEvent>>,
         last_tick: Res<LastRepliconTick>,
@@ -94,7 +94,7 @@ pub trait ServerEventAppExt {
 
             // Event should be sent to the queue if replication message with its tick has not yet arrived.
             if tick <= **last_tick {
-                server_events.send(event);
+                reflect_events.send(event);
             } else {
                 event_queue.insert(tick, event);
             }
@@ -110,8 +110,8 @@ pub trait ServerEventAppExt {
         registry: &TypeRegistryInternal,
     ) -> bincode::Result<Vec<u8>> {
         let mut message = Vec::new();
-        let serializer = ReflectSerializer::new(&*event.0, &registry);
         DefaultOptions::new().serialize_into(&mut message, &tick)?;
+        let serializer = ReflectSerializer::new(&*event.0, registry);
         DefaultOptions::new().serialize_into(&mut message, &serializer)?;
 
         Ok(message)
@@ -122,10 +122,10 @@ pub trait ServerEventAppExt {
         registry: &TypeRegistryInternal,
     ) -> bincode::Result<(RepliconTick, ReflectEvent)> {
         let mut cursor = Cursor::new(message);
-        let tick = bincode::deserialize_from(&mut cursor)?;
+        let tick = DefaultOptions::new().deserialize_from(&mut cursor)?;
         let mut deserializer =
             bincode::Deserializer::with_reader(&mut cursor, DefaultOptions::new());
-        let reflect = UntypedReflectDeserializer::new(&registry).deserialize(&mut deserializer)?;
+        let reflect = UntypedReflectDeserializer::new(registry).deserialize(&mut deserializer)?;
 
         Ok((tick, ReflectEvent(reflect)))
     }

@@ -54,7 +54,7 @@ impl Plugin for ClientPlugin {
 }
 
 impl ClientPlugin {
-    pub(super) fn replication_receiving_system(world: &mut World) -> Result<(), bincode::Error> {
+    pub(super) fn replication_receiving_system(world: &mut World) -> bincode::Result<()> {
         world.resource_scope(|world, mut client: Mut<RenetClient>| {
             world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
                 world.resource_scope(|world, replication_rules: Mut<ReplicationRules>| {
@@ -146,7 +146,7 @@ impl ClientPlugin {
 fn apply_tick(
     cursor: &mut Cursor<Bytes>,
     world: &mut World,
-) -> Result<Option<RepliconTick>, bincode::Error> {
+) -> bincode::Result<Option<RepliconTick>> {
     let tick = bincode::deserialize_from(cursor)?;
 
     let mut last_tick = world.resource_mut::<LastRepliconTick>();
@@ -164,7 +164,7 @@ fn apply_entity_mappings(
     world: &mut World,
     entity_map: &mut ServerEntityMap,
     stats: Option<&mut ClientStats>,
-) -> Result<(), bincode::Error> {
+) -> bincode::Result<()> {
     let array_len: u16 = bincode::deserialize_from(&mut *cursor)?;
     if let Some(stats) = stats {
         stats.mappings += array_len as u32;
@@ -202,7 +202,7 @@ fn apply_components(
     components_kind: ComponentsKind,
     replication_rules: &ReplicationRules,
     tick: RepliconTick,
-) -> Result<(), bincode::Error> {
+) -> bincode::Result<()> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..entities_count {
         let entity = read_entity(cursor)?;
@@ -236,7 +236,7 @@ fn apply_despawns(
     replication_rules: &ReplicationRules,
     tick: RepliconTick,
     stats: Option<&mut ClientStats>,
-) -> Result<(), bincode::Error> {
+) -> bincode::Result<()> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
     if let Some(stats) = stats {
         stats.despawns += entities_count as u32;
@@ -260,7 +260,7 @@ fn apply_despawns(
 /// Deserializes `entity` from compressed index and generation.
 ///
 /// For details see [`ReplicationBuffer::write_entity`](crate::server::replication_buffer::ReplicationBuffer::write_entity).
-fn read_entity(cursor: &mut Cursor<Bytes>) -> Result<Entity, bincode::Error> {
+fn read_entity(cursor: &mut Cursor<Bytes>) -> bincode::Result<Entity> {
     let flagged_index: u64 = cursor.read_u64_varint()?;
     let has_generation = (flagged_index & 1) > 0;
     let generation = if has_generation {

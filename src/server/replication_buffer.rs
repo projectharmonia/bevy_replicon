@@ -60,7 +60,7 @@ impl ReplicationBuffer {
         system_tick: Tick,
         replicon_tick: RepliconTick,
         send_empty: bool,
-    ) -> Result<Self, bincode::Error> {
+    ) -> bincode::Result<Self> {
         let mut message = Default::default();
         bincode::serialize_into(&mut message, &replicon_tick)?;
         Ok(Self {
@@ -98,7 +98,7 @@ impl ReplicationBuffer {
         system_tick: Tick,
         replicon_tick: RepliconTick,
         send_empty: bool,
-    ) -> Result<(), bincode::Error> {
+    ) -> bincode::Result<()> {
         self.client_id = client_id;
         self.system_tick = system_tick;
         self.message.set_position(0);
@@ -127,7 +127,7 @@ impl ReplicationBuffer {
     /// Ends writing array by writing its length into the last remembered position.
     ///
     /// See also [`Self::start_array`].
-    pub(super) fn end_array(&mut self) -> Result<(), bincode::Error> {
+    pub(super) fn end_array(&mut self) -> bincode::Result<()> {
         if self.array_len != 0 {
             let previous_pos = self.message.position();
             self.message.set_position(self.array_pos);
@@ -156,7 +156,7 @@ impl ReplicationBuffer {
         &mut self,
         server_entity: Entity,
         client_entity: Entity,
-    ) -> Result<(), bincode::Error> {
+    ) -> bincode::Result<()> {
         self.write_entity(server_entity)?;
         self.write_entity(client_entity)?;
         self.array_len = self
@@ -184,7 +184,7 @@ impl ReplicationBuffer {
     /// Writes entity for current data and updates remembered position for it to write length later.
     ///
     /// Should be called only after first data write.
-    fn write_data_entity(&mut self) -> Result<(), bincode::Error> {
+    fn write_data_entity(&mut self) -> bincode::Result<()> {
         self.write_entity(self.data_entity)?;
         self.entity_data_pos = self.message.position();
         self.message
@@ -198,7 +198,7 @@ impl ReplicationBuffer {
     /// If the entity data is empty, nothing will be written.
     /// See also [`Self::start_array`], [`Self::write_current_entity`], [`Self::write_change`] and
     /// [`Self::write_removal`].
-    pub(super) fn end_entity_data(&mut self) -> Result<(), bincode::Error> {
+    pub(super) fn end_entity_data(&mut self) -> bincode::Result<()> {
         if self.entity_data_len != 0 {
             let previous_pos = self.message.position();
             self.message.set_position(self.entity_data_pos);
@@ -228,7 +228,7 @@ impl ReplicationBuffer {
         replication_info: &ReplicationInfo,
         replication_id: ReplicationId,
         ptr: Ptr,
-    ) -> Result<(), bincode::Error> {
+    ) -> bincode::Result<()> {
         if self.entity_data_len == 0 {
             self.write_data_entity()?;
         }
@@ -245,10 +245,7 @@ impl ReplicationBuffer {
     /// Should be called only inside entity data.
     /// Increases entity data length by 1.
     /// See also [`Self::start_entity_data`].
-    pub(super) fn write_removal(
-        &mut self,
-        replication_id: ReplicationId,
-    ) -> Result<(), bincode::Error> {
+    pub(super) fn write_removal(&mut self, replication_id: ReplicationId) -> bincode::Result<()> {
         if self.entity_data_len == 0 {
             self.write_data_entity()?;
         }
@@ -264,7 +261,7 @@ impl ReplicationBuffer {
     /// Should be called only inside array.
     /// Increases array length by 1.
     /// See also [`Self::start_array`].
-    pub(super) fn write_despawn(&mut self, entity: Entity) -> Result<(), bincode::Error> {
+    pub(super) fn write_despawn(&mut self, entity: Entity) -> bincode::Result<()> {
         self.write_entity(entity)?;
         self.array_len = self
             .array_len
@@ -278,7 +275,7 @@ impl ReplicationBuffer {
     ///
     /// The index is first prepended with a bit flag to indicate if the generation
     /// is serialized or not (it is not serialized if equal to zero).
-    fn write_entity(&mut self, entity: Entity) -> Result<(), bincode::Error> {
+    fn write_entity(&mut self, entity: Entity) -> bincode::Result<()> {
         let mut flagged_index = (entity.index() as u64) << 1;
         let flag = entity.generation() > 0;
         flagged_index |= flag as u64;
@@ -325,7 +322,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn trim_empty_arrays() -> Result<(), bincode::Error> {
+    fn trim_empty_arrays() -> bincode::Result<()> {
         let mut buffer = ReplicationBuffer::new(0, Tick::new(0), RepliconTick(0), false)?;
 
         let begin_len = buffer.message.get_ref().len();

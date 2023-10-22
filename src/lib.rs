@@ -24,7 +24,7 @@ plugins to let you host and join games from the same application.
 If you are planning to separate client and server you can use
 `disable()` to disable [`ClientPlugin`] or
 [`ServerPlugin`]. You can also configure how often updates are sent from
-server to clients with [`ServerPlugin`]'s [`TickPolicy`].:
+server to clients with [`ServerPlugin`]'s [`TickPolicy`]:
 
 ```
 # use bevy::prelude::*;
@@ -54,7 +54,7 @@ By default, no components are replicated. A component will be replicated if it h
 In other words you need two things to start replication :
 
 1. Register component type for replication. Component should implement
-[`serde::Serialize`] and [`serde::Deserialize`].
+[`Serialize`](serde::Serialize) and [`Deserialize`](serde::Deserialize).
 You can use [`AppReplicationExt::replicate()`] to register the component for replication:
 
 ```
@@ -88,7 +88,7 @@ impl MapNetworkEntities for MappedComponent {
 }
 ```
 
-By default all components serialized with [`bincode`] using [`bincode::DefaultOptions`].
+By default all components serialized with [`bincode`] using [`DefaultOptions`](bincode::DefaultOptions).
 If your component doesn't implement serde traits or you want to serialize it partially
 you can use [`AppReplicationExt::replicate_with`]:
 
@@ -106,7 +106,7 @@ app.replicate_with::<Transform>(serialize_transform, deserialize_transform, repl
 fn serialize_transform(
     component: Ptr,
     cursor: &mut Cursor<Vec<u8>>,
-) -> Result<(), bincode::Error> {
+) -> bincode::Result<()> {
     // SAFETY: Function called for registered `ComponentId`.
     let transform: &Transform = unsafe { component.deref() };
     bincode::serialize_into(cursor, &transform.translation)
@@ -118,7 +118,7 @@ fn deserialize_transform(
     _entity_map: &mut ServerEntityMap,
     cursor: &mut Cursor<Bytes>,
     _tick: RepliconTick,
-) -> Result<(), bincode::Error> {
+) -> bincode::Result<()> {
     let translation: Vec3 = bincode::deserialize_from(cursor)?;
     entity.insert(Transform::from_translation(translation));
 
@@ -196,8 +196,8 @@ fn player_init_system(
 
 #[derive(Component, Deserialize, Serialize)]
 struct Player;
-# fn serialize_transform(_: Ptr, _: &mut Cursor<Vec<u8>>) -> Result<(), bincode::Error> { unimplemented!() }
-# fn deserialize_transform(_: &mut EntityMut, _: &mut ServerEntityMap, _: &mut Cursor<Bytes>, _: RepliconTick) -> Result<(), bincode::Error> { unimplemented!() }
+# fn serialize_transform(_: Ptr, _: &mut Cursor<Vec<u8>>) -> bincode::Result<()> { unimplemented!() }
+# fn deserialize_transform(_: &mut EntityMut, _: &mut ServerEntityMap, _: &mut Cursor<Bytes>, _: RepliconTick) -> bincode::Result<()> { unimplemented!() }
 ```
 
 This pairs nicely with server state serialization and keeps saves clean.
