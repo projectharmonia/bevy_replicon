@@ -27,7 +27,6 @@ varint-rs = "2.2"
 ordered-multimap = "0.7"
 
 [dev-dependencies]
-serde_test = "1.0"
 criterion = { version = "0.5", default-features = false, features = [
   "cargo_bench_support",
 ] }
