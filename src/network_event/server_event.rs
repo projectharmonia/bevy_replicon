@@ -58,7 +58,7 @@ pub trait ServerEventAppExt {
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, ReplicationPlugins));
     app.add_server_event_with::<ReflectEvent, _, _>(
-        SendPolicy::Ordered,
+        EventType::Ordered,
         sending_reflect_system,
         receiving_reflect_system,
     );

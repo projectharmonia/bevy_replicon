@@ -39,25 +39,28 @@ impl<T> From<EventChannel<T>> for u8 {
 }
 
 /// Event delivery guarantee.
+///
+/// Mirrors [`SendType`] and can be converted into it with `resend_time` set to 300ms for reliable types.
+/// Provided for convenient defaults.
 #[derive(Clone, Copy, Debug)]
-pub enum SendPolicy {
-    /// Unreliable and unordered
+pub enum EventType {
+    /// Unreliable and unordered.
     Unreliable,
-    /// Reliable and unordered
+    /// Reliable and unordered.
     Unordered,
-    /// Reliable and ordered
+    /// Reliable and ordered.
     Ordered,
 }
 
-impl From<SendPolicy> for SendType {
-    fn from(policy: SendPolicy) -> Self {
+impl From<EventType> for SendType {
+    fn from(policy: EventType) -> Self {
         const RESEND_TIME: Duration = Duration::from_millis(300);
         match policy {
-            SendPolicy::Unreliable => SendType::Unreliable,
-            SendPolicy::Unordered => SendType::ReliableUnordered {
+            EventType::Unreliable => SendType::Unreliable,
+            EventType::Unordered => SendType::ReliableUnordered {
                 resend_time: RESEND_TIME,
             },
-            SendPolicy::Ordered => SendType::ReliableOrdered {
+            EventType::Ordered => SendType::ReliableOrdered {
                 resend_time: RESEND_TIME,
             },
         }

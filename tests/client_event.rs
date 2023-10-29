@@ -12,7 +12,7 @@ fn without_server_plugin() {
         MinimalPlugins,
         ReplicationPlugins.build().disable::<ServerPlugin>(),
     ))
-    .add_client_event_with::<DummyEvent, _, _>(SendPolicy::Ordered, || {}, || {})
+    .add_client_event_with::<DummyEvent, _, _>(EventType::Ordered, || {}, || {})
     .update();
 }
 
@@ -23,7 +23,7 @@ fn without_client_plugin() {
         MinimalPlugins,
         ReplicationPlugins.build().disable::<ClientPlugin>(),
     ))
-    .add_client_event_with::<DummyEvent, _, _>(SendPolicy::Ordered, || {}, || {})
+    .add_client_event_with::<DummyEvent, _, _>(EventType::Ordered, || {}, || {})
     .update();
 }
 
@@ -33,7 +33,7 @@ fn sending_receiving() {
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((MinimalPlugins, ReplicationPlugins))
-            .add_client_event::<DummyEvent>(SendPolicy::Ordered);
+            .add_client_event::<DummyEvent>(EventType::Ordered);
     }
 
     common::connect(&mut server_app, &mut client_app);
@@ -58,7 +58,7 @@ fn mapping_and_sending_receiving() {
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((MinimalPlugins, ReplicationPlugins))
-            .add_mapped_client_event::<DummyEvent>(SendPolicy::Ordered);
+            .add_mapped_client_event::<DummyEvent>(EventType::Ordered);
     }
 
     common::connect(&mut server_app, &mut client_app);
@@ -91,7 +91,7 @@ fn mapping_and_sending_receiving() {
 fn local_resending() {
     let mut app = App::new();
     app.add_plugins((TimePlugin, ReplicationPlugins))
-        .add_client_event::<DummyEvent>(SendPolicy::Ordered);
+        .add_client_event::<DummyEvent>(EventType::Ordered);
 
     app.world
         .resource_mut::<Events<DummyEvent>>()

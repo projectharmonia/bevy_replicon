@@ -13,7 +13,7 @@ fn without_server_plugin() {
         MinimalPlugins,
         ReplicationPlugins.build().disable::<ServerPlugin>(),
     ))
-    .add_server_event_with::<DummyEvent, _, _>(SendPolicy::Ordered, || {}, || {})
+    .add_server_event_with::<DummyEvent, _, _>(EventType::Ordered, || {}, || {})
     .update();
 }
 
@@ -24,7 +24,7 @@ fn without_client_plugin() {
         MinimalPlugins,
         ReplicationPlugins.build().disable::<ClientPlugin>(),
     ))
-    .add_server_event_with::<DummyEvent, _, _>(SendPolicy::Ordered, || {}, || {})
+    .add_server_event_with::<DummyEvent, _, _>(EventType::Ordered, || {}, || {})
     .update();
 }
 
@@ -37,7 +37,7 @@ fn sending_receiving() {
             MinimalPlugins,
             ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
         ))
-        .add_server_event::<DummyEvent>(SendPolicy::Ordered);
+        .add_server_event::<DummyEvent>(EventType::Ordered);
     }
 
     common::connect(&mut server_app, &mut client_app);
@@ -82,7 +82,7 @@ fn sending_receiving_and_mapping() {
             MinimalPlugins,
             ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
         ))
-        .add_mapped_server_event::<DummyEvent>(SendPolicy::Ordered);
+        .add_mapped_server_event::<DummyEvent>(EventType::Ordered);
     }
 
     common::connect(&mut server_app, &mut client_app);
@@ -121,7 +121,7 @@ fn local_resending() {
         TimePlugin,
         ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
     ))
-    .add_server_event::<DummyEvent>(SendPolicy::Ordered);
+    .add_server_event::<DummyEvent>(EventType::Ordered);
 
     const DUMMY_CLIENT_ID: u64 = 1;
     for (mode, events_count) in [
@@ -161,7 +161,7 @@ fn event_queue() {
             MinimalPlugins,
             ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
         ))
-        .add_server_event::<DummyEvent>(SendPolicy::Ordered);
+        .add_server_event::<DummyEvent>(EventType::Ordered);
     }
 
     common::connect(&mut server_app, &mut client_app);

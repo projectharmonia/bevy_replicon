@@ -236,9 +236,9 @@ contains sender ID and the sent event. We consider the authority machine
 This way your game logic will work the same on client, server and in
 single-player session.
 
-Events include [`SendPolicy`] to configure delivery guarantees (reliability and
+Events include [`EventType`] to configure delivery guarantees (reliability and
 ordering). You can alternatively pass in `SendType` from Renet directly if you
-need custom configuration for a reliable policy's `resend_time`.
+need to configure resend time.
 
 ```
 # use bevy::prelude::*;
@@ -246,7 +246,7 @@ need custom configuration for a reliable policy's `resend_time`.
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
-app.add_client_event::<DummyEvent>(SendPolicy::Ordered)
+app.add_client_event::<DummyEvent>(EventType::Ordered)
     .add_systems(Update, event_sending_system);
 
 fn event_sending_system(mut dummy_events: EventWriter<DummyEvent>) {
@@ -273,7 +273,7 @@ To do this, use [`ClientEventAppExt::add_mapped_client_event()`] and implement [
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
-app.add_mapped_client_event::<MappedEvent>(SendPolicy::Ordered);
+app.add_mapped_client_event::<MappedEvent>(EventType::Ordered);
 
 #[derive(Debug, Deserialize, Event, Serialize)]
 struct MappedEvent(Entity);
@@ -304,7 +304,7 @@ from the send list):
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
-app.add_server_event::<DummyEvent>(SendPolicy::Ordered)
+app.add_server_event::<DummyEvent>(EventType::Ordered)
     .add_systems(Update, event_sending_system);
 
 fn event_sending_system(mut dummy_events: EventWriter<ToClients<DummyEvent>>) {
@@ -400,7 +400,7 @@ pub mod prelude {
         network_event::{
             client_event::{ClientEventAppExt, FromClient},
             server_event::{SendMode, ServerEventAppExt, ServerEventQueue, ToClients},
-            EventChannel, EventMapper, SendPolicy,
+            EventChannel, EventMapper, EventType,
         },
         parent_sync::{ParentSync, ParentSyncPlugin},
         renet::{RenetClient, RenetServer},
