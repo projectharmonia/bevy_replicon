@@ -35,7 +35,7 @@ impl Plugin for SimpleBoxPlugin {
     fn build(&self, app: &mut App) {
         app.replicate::<PlayerPosition>()
             .replicate::<PlayerColor>()
-            .add_client_event::<MoveDirection>(SendPolicy::Ordered)
+            .add_client_event::<MoveDirection>(EventType::Ordered)
             .add_systems(
                 Startup,
                 (
