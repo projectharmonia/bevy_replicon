@@ -65,8 +65,8 @@ impl SimpleBoxPlugin {
                 commands.spawn(PlayerBundle::new(SERVER_ID, Vec2::ZERO, Color::GREEN));
             }
             Cli::Server { port } => {
-                let server_channels_config = network_channels.server_channels();
-                let client_channels_config = network_channels.client_channels();
+                let server_channels_config = network_channels.get_server_configs();
+                let client_channels_config = network_channels.get_client_configs();
 
                 let server = RenetServer::new(ConnectionConfig {
                     server_channels_config,
@@ -99,8 +99,8 @@ impl SimpleBoxPlugin {
                 commands.spawn(PlayerBundle::new(SERVER_ID, Vec2::ZERO, Color::GREEN));
             }
             Cli::Client { port, ip } => {
-                let server_channels_config = network_channels.server_channels();
-                let client_channels_config = network_channels.client_channels();
+                let server_channels_config = network_channels.get_server_configs();
+                let client_channels_config = network_channels.get_client_configs();
 
                 let client = RenetClient::new(ConnectionConfig {
                     server_channels_config,

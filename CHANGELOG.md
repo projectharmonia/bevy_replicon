@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- API to configure max channel usage bytes in `NetworkChannels`.
+
 ### Changed
 
 - Rename `SendPolicy` into `EventType`.
+- Rename `NetworkChannels::server_channels` into `NetworkChannels::get_server_configs`.
+- Rename `NetworkChannels::client_channels` into `NetworkChannels::get_client_configs`.
 
 ## [0.15.1] - 2023-10-22
 
