@@ -19,13 +19,13 @@ pub trait ClientEventAppExt {
     /// Registers [`FromClient<T>`] event that will be emitted on server after sending `T` event on client.
     fn add_client_event<T: Event + Serialize + DeserializeOwned>(
         &mut self,
-        policy: impl Into<SendType>,
+        send_type: impl Into<SendType>,
     ) -> &mut Self;
 
     /// Same as [`Self::add_client_event`], but additionally maps client entities to server before sending.
     fn add_mapped_client_event<T: Event + Serialize + DeserializeOwned + MapNetworkEntities>(
         &mut self,
-        policy: impl Into<SendType>,
+        send_type: impl Into<SendType>,
     ) -> &mut Self;
 
     /**
@@ -100,7 +100,7 @@ pub trait ClientEventAppExt {
     */
     fn add_client_event_with<T: Event, Marker1, Marker2>(
         &mut self,
-        policy: impl Into<SendType>,
+        send_type: impl Into<SendType>,
         sending_system: impl IntoSystemConfigs<Marker1>,
         receiving_system: impl IntoSystemConfigs<Marker2>,
     ) -> &mut Self;
@@ -109,17 +109,17 @@ pub trait ClientEventAppExt {
 impl ClientEventAppExt for App {
     fn add_client_event<T: Event + Serialize + DeserializeOwned>(
         &mut self,
-        policy: impl Into<SendType>,
+        send_type: impl Into<SendType>,
     ) -> &mut Self {
-        self.add_client_event_with::<T, _, _>(policy, sending_system::<T>, receiving_system::<T>)
+        self.add_client_event_with::<T, _, _>(send_type, sending_system::<T>, receiving_system::<T>)
     }
 
     fn add_mapped_client_event<T: Event + Serialize + DeserializeOwned + MapNetworkEntities>(
         &mut self,
-        policy: impl Into<SendType>,
+        send_type: impl Into<SendType>,
     ) -> &mut Self {
         self.add_client_event_with::<T, _, _>(
-            policy,
+            send_type,
             mapping_and_sending_system::<T>,
             receiving_system::<T>,
         )
@@ -127,14 +127,14 @@ impl ClientEventAppExt for App {
 
     fn add_client_event_with<T: Event, Marker1, Marker2>(
         &mut self,
-        policy: impl Into<SendType>,
+        send_type: impl Into<SendType>,
         sending_system: impl IntoSystemConfigs<Marker1>,
         receiving_system: impl IntoSystemConfigs<Marker2>,
     ) -> &mut Self {
         let channel_id = self
             .world
             .resource_mut::<NetworkChannels>()
-            .create_client_channel(policy.into());
+            .create_client_channel(send_type.into());
 
         self.add_event::<T>()
             .init_resource::<Events<FromClient<T>>>()
