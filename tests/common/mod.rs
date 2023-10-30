@@ -9,28 +9,30 @@ use bevy_renet::renet::{
         ClientAuthentication, NetcodeClientTransport, NetcodeServerTransport, ServerAuthentication,
         ServerConfig,
     },
-    ChannelConfig, ConnectionConfig, RenetClient, RenetServer,
+    ConnectionConfig, RenetClient, RenetServer,
 };
 use bevy_replicon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 pub(super) fn connect(server_app: &mut App, client_app: &mut App) {
-    let server_channels = server_app
-        .world
-        .resource_mut::<NetworkChannels>()
-        .server_channels();
-    let client_channels = client_app
-        .world
-        .resource_mut::<NetworkChannels>()
-        .client_channels();
+    let network_channels = server_app.world.resource::<NetworkChannels>();
 
-    let (server, server_transport) =
-        create_server(server_channels.clone(), client_channels.clone());
-    let (client, client_transport) = create_client(
-        server_transport.addr().port(),
-        server_channels,
-        client_channels,
-    );
+    let server_channels_config = network_channels.get_server_configs();
+    let client_channels_config = network_channels.get_client_configs();
+
+    let server = RenetServer::new(ConnectionConfig {
+        server_channels_config: server_channels_config.clone(),
+        client_channels_config: client_channels_config.clone(),
+        ..Default::default()
+    });
+    let client = RenetClient::new(ConnectionConfig {
+        server_channels_config,
+        client_channels_config,
+        ..Default::default()
+    });
+
+    let server_transport = create_server_transport();
+    let client_transport = create_client_transport(server_transport.addr().port());
 
     server_app
         .insert_resource(server)
@@ -55,16 +57,7 @@ pub(super) fn connect(server_app: &mut App, client_app: &mut App) {
 
 const PROTOCOL_ID: u64 = 0;
 
-fn create_server(
-    server_channels_config: Vec<ChannelConfig>,
-    client_channels_config: Vec<ChannelConfig>,
-) -> (RenetServer, NetcodeServerTransport) {
-    let server = RenetServer::new(ConnectionConfig {
-        server_channels_config,
-        client_channels_config,
-        ..Default::default()
-    });
-
+fn create_server_transport() -> NetcodeServerTransport {
     let current_time = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap();
@@ -80,22 +73,10 @@ fn create_server(
         authentication: ServerAuthentication::Unsecure,
     };
 
-    let transport = NetcodeServerTransport::new(current_time, server_config, socket).unwrap();
-
-    (server, transport)
+    NetcodeServerTransport::new(current_time, server_config, socket).unwrap()
 }
 
-fn create_client(
-    port: u16,
-    server_channels_config: Vec<ChannelConfig>,
-    client_channels_config: Vec<ChannelConfig>,
-) -> (RenetClient, NetcodeClientTransport) {
-    let client = RenetClient::new(ConnectionConfig {
-        server_channels_config,
-        client_channels_config,
-        ..Default::default()
-    });
-
+fn create_client_transport(port: u16) -> NetcodeClientTransport {
     let current_time = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap();
@@ -109,9 +90,8 @@ fn create_client(
         server_addr,
         user_data: None,
     };
-    let transport = NetcodeClientTransport::new(current_time, authentication, socket).unwrap();
 
-    (client, transport)
+    NetcodeClientTransport::new(current_time, authentication, socket).unwrap()
 }
 
 #[derive(Deserialize, Event, Serialize)]

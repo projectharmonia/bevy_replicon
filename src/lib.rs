@@ -352,8 +352,8 @@ use bevy_replicon::{prelude::*, renet::ConnectionConfig};
 # app.add_plugins(ReplicationPlugins);
 let network_channels = app.world.resource::<NetworkChannels>();
 let connection_config = ConnectionConfig {
-    server_channels_config: network_channels.server_channels(),
-    client_channels_config: network_channels.client_channels(),
+    server_channels_config: network_channels.get_server_configs(),
+    client_channels_config: network_channels.get_client_configs(),
     ..Default::default()
 };
 ```
@@ -410,7 +410,7 @@ pub mod prelude {
                 ReplicationRules,
             },
             replicon_tick::RepliconTick,
-            NetworkChannels, RepliconCorePlugin,
+            NetworkChannels, RepliconCorePlugin, REPLICATION_CHANNEL_ID,
         },
         server::{
             has_authority, AckedTicks, ClientEntityMap, ClientMapping, ServerPlugin, ServerSet,
