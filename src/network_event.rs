@@ -53,9 +53,9 @@ pub enum EventType {
 }
 
 impl From<EventType> for SendType {
-    fn from(policy: EventType) -> Self {
+    fn from(event_type: EventType) -> Self {
         const RESEND_TIME: Duration = Duration::from_millis(300);
-        match policy {
+        match event_type {
             EventType::Unreliable => SendType::Unreliable,
             EventType::Unordered => SendType::ReliableUnordered {
                 resend_time: RESEND_TIME,
