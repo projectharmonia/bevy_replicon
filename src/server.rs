@@ -110,6 +110,7 @@ impl ServerPlugin {
     /// Increments current server tick which causes the server to replicate this frame.
     pub fn increment_tick(mut tick: ResMut<RepliconTick>) {
         tick.increment();
+        trace!("incremented {tick:?}");
     }
 
     fn acks_receiving_system(
@@ -125,6 +126,7 @@ impl ServerPlugin {
                         if *acked_tick < tick {
                             *acked_tick = tick;
                             entity_map.cleanup_acked(client_id, *acked_tick);
+                            trace!("client {client_id} acknowledged {tick:?}");
                         }
                     }
                     Err(e) => error!("unable to deserialize tick from client {client_id}: {e}"),

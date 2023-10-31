@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Tracing for replication messages.
+- `Debug` derive for `LastRepliconTick`.
+
 ## [0.16.0] - 2023-10-30
 
 ### Added
