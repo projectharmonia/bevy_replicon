@@ -14,7 +14,7 @@ See also [examples](https://github.com/lifescapegame/bevy_replicon/tree/master/e
 
 ## Related Crates
 
-- [bevy_timewrap](https://github.com/RJ/bevy_timewarp) - a rollback library that buffers component state. See [this](https://github.com/RJ/bevy_timewarp/blob/main/REPLICON_INTEGRATION.md) instruction about how to integrate.
+- [bevy_timewarp](https://github.com/RJ/bevy_timewarp) - a rollback library that buffers component state. See [this](https://github.com/RJ/bevy_timewarp/blob/main/REPLICON_INTEGRATION.md) instruction about how to integrate.
 - [bevy_replicon_snap](https://github.com/Bendzae/bevy_replicon_snap) - a snapshot interpolation plugin.
 
 ## Bevy compatibility
