@@ -151,9 +151,11 @@ fn apply_tick(
 
     let mut last_tick = world.resource_mut::<LastRepliconTick>();
     if last_tick.0 < tick {
+        trace!("applying {tick:?} over {last_tick:?}");
         last_tick.0 = tick;
         Ok(Some(tick))
     } else {
+        trace!("discarding {tick:?}, which is older then {last_tick:?}");
         Ok(None)
     }
 }
@@ -285,7 +287,7 @@ enum ComponentsKind {
 /// Last received tick from server.
 ///
 /// Used only on clients, sent to the server in last replicon ack message.
-#[derive(Default, Resource, Deref)]
+#[derive(Debug, Default, Deref, Resource)]
 pub struct LastRepliconTick(pub(super) RepliconTick);
 
 /// Set with replication and event systems related to client.

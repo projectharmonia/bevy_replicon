@@ -298,11 +298,14 @@ impl ReplicationBuffer {
         if self.arrays_with_data > 0 || self.send_empty {
             self.trim_empty_arrays();
 
+            trace!("sending replication message to client {}", self.client_id);
             server.send_message(
                 self.client_id,
                 replication_channel_id,
                 Bytes::copy_from_slice(self.message.get_ref()),
             );
+        } else {
+            trace!("nothing to send for client {}", self.client_id);
         }
     }
 
