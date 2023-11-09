@@ -418,7 +418,7 @@ impl TicTacToePlugin {
 
             if !players
                 .iter()
-                .any(|(player, &symbol)| player.0 == client_id.raw() && symbol == current_turn.0)
+                .any(|(player, &symbol)| player.0 == client_id && symbol == current_turn.0)
             {
                 error!("player {client_id} chose cell {:?} at wrong turn", event.0);
                 continue;
@@ -523,7 +523,7 @@ fn local_player_turn(
 
         players
             .iter()
-            .any(|(player, &symbol)| player.0 == client_id.raw() && symbol == current_turn.0)
+            .any(|(player, &symbol)| player.0 == client_id && symbol == current_turn.0)
     }
 }
 
@@ -662,9 +662,9 @@ struct PlayerBundle {
 }
 
 impl PlayerBundle {
-    fn new(id: ClientId, symbol: Symbol) -> Self {
+    fn new(client_id: ClientId, symbol: Symbol) -> Self {
         Self {
-            player: Player(id.raw()),
+            player: Player(client_id),
             symbol,
             replication: Replication,
         }
@@ -677,7 +677,7 @@ impl PlayerBundle {
 }
 
 #[derive(Component, Serialize, Deserialize)]
-struct Player(u64);
+struct Player(ClientId);
 
 /// An event that indicates a symbol pick.
 ///

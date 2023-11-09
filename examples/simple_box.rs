@@ -206,7 +206,7 @@ impl SimpleBoxPlugin {
         for FromClient { client_id, event } in move_events.read() {
             info!("received event {event:?} from client {client_id}");
             for (player, mut position) in &mut players {
-                if client_id.raw() == player.0 {
+                if *client_id == player.0 {
                     **position += event.0 * time.delta_seconds() * MOVE_SPEED;
                 }
             }
@@ -248,9 +248,9 @@ struct PlayerBundle {
 }
 
 impl PlayerBundle {
-    fn new(id: ClientId, position: Vec2, color: Color) -> Self {
+    fn new(client_id: ClientId, position: Vec2, color: Color) -> Self {
         Self {
-            player: Player(id.raw()),
+            player: Player(client_id),
             position: PlayerPosition(position),
             color: PlayerColor(color),
             replication: Replication,
@@ -260,7 +260,7 @@ impl PlayerBundle {
 
 /// Contains the client ID of the player.
 #[derive(Component, Serialize, Deserialize)]
-struct Player(u64);
+struct Player(ClientId);
 
 #[derive(Component, Deserialize, Serialize, Deref, DerefMut)]
 struct PlayerPosition(Vec2);
