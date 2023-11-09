@@ -107,7 +107,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((RepliconCorePlugin, ParentSyncPlugin));
 
-        let child_entity = app.world.spawn(VisibilityBundle::default()).id();
+        let child_entity = app.world.spawn_empty().id();
         app.world.spawn_empty().add_child(child_entity);
 
         app.add_systems(Update, move |mut commands: Commands| {
