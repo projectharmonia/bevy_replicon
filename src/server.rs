@@ -54,8 +54,8 @@ impl Plugin for ServerPlugin {
         .init_resource::<RepliconTick>()
         .init_resource::<MinRepliconTick>()
         .init_resource::<ClientEntityMap>()
-        .configure_set(PreUpdate, ServerSet::Receive.after(RenetReceive))
-        .configure_set(
+        .configure_sets(PreUpdate, ServerSet::Receive.after(RenetReceive))
+        .configure_sets(
             PostUpdate,
             ServerSet::Send
                 .before(RenetSend)
@@ -71,7 +71,7 @@ impl Plugin for ServerPlugin {
             PostUpdate,
             (
                 Self::replication_sending_system
-                    .pipe(unwrap)
+                    .map(Result::unwrap)
                     .in_set(ServerSet::Send)
                     .run_if(resource_exists::<RenetServer>()),
                 Self::reset_system.run_if(resource_removed::<RenetServer>()),

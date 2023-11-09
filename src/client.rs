@@ -3,7 +3,6 @@ pub mod diagnostics;
 use std::io::Cursor;
 
 use bevy::{
-    ecs::world::EntityMut,
     prelude::*,
     utils::{Entry, HashMap},
 };
@@ -26,18 +25,18 @@ impl Plugin for ClientPlugin {
         app.add_plugins((RenetClientPlugin, NetcodeClientPlugin))
             .init_resource::<LastRepliconTick>()
             .init_resource::<ServerEntityMap>()
-            .configure_set(
+            .configure_sets(
                 PreUpdate,
                 ClientSet::Receive.after(NetcodeClientPlugin::update_system),
             )
-            .configure_set(
+            .configure_sets(
                 PostUpdate,
                 ClientSet::Send.before(NetcodeClientPlugin::send_packets),
             )
             .add_systems(
                 PreUpdate,
                 Self::replication_receiving_system
-                    .pipe(unwrap)
+                    .map(Result::unwrap)
                     .in_set(ClientSet::Receive)
                     .run_if(client_connected()),
             )

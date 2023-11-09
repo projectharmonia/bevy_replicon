@@ -38,10 +38,7 @@ impl Plugin for SimpleBoxPlugin {
             .add_client_event::<MoveDirection>(EventType::Ordered)
             .add_systems(
                 Startup,
-                (
-                    Self::cli_system.pipe(system_adapter::unwrap),
-                    Self::init_system,
-                ),
+                (Self::cli_system.map(Result::unwrap), Self::init_system),
             )
             .add_systems(
                 Update,
