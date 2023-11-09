@@ -620,7 +620,7 @@ fn confirm_bullet(
     mut entity_map: ResMut<ClientEntityMap>,
     tick: Res<RepliconTick>,
 ) {
-    for FromClient { client_id, event } in &mut bullet_events {
+    for FromClient { client_id, event } in bullet_events.read() {
         let server_entity = commands.spawn(Bullet).id(); // You can insert more components, they will be sent to the client's entity correctly.
 
         entity_map.insert(

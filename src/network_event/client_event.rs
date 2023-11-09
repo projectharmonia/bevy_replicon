@@ -58,7 +58,7 @@ pub trait ClientEventAppExt {
         registry: Res<AppTypeRegistry>,
     ) {
         let registry = registry.read();
-        for event in &mut reflect_events {
+        for event in reflect_events.read() {
             let serializer = ReflectSerializer::new(&*event.0, &registry);
             let message = DefaultOptions::new()
                 .serialize(&serializer)
@@ -82,7 +82,7 @@ pub trait ClientEventAppExt {
                 match UntypedReflectDeserializer::new(&registry).deserialize(&mut deserializer) {
                     Ok(reflect) => {
                         reflect_events.send(FromClient {
-                            client_id,
+                            client_id: client_id.raw(),
                             event: ReflectEvent(reflect),
                         });
                     }

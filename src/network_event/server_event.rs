@@ -49,7 +49,7 @@ pub trait ServerEventAppExt {
         prelude::*,
         reflect::{
             serde::{ReflectSerializer, UntypedReflectDeserializer},
-            TypeRegistryInternal,
+            TypeRegistry,
         },
     };
     use bevy_replicon::{network_event::server_event, prelude::*};
@@ -72,7 +72,7 @@ pub trait ServerEventAppExt {
         registry: Res<AppTypeRegistry>,
     ) {
         let registry = registry.read();
-        for ToClients { event, mode } in &mut reflect_events {
+        for ToClients { event, mode } in reflect_events.read() {
             let message = serialize_reflect_event(*tick, &event, &registry)
                 .expect("server event should be serializable");
 
@@ -108,7 +108,7 @@ pub trait ServerEventAppExt {
     fn serialize_reflect_event(
         tick: RepliconTick,
         event: &ReflectEvent,
-        registry: &TypeRegistryInternal,
+        registry: &TypeRegistry,
     ) -> bincode::Result<Vec<u8>> {
         let mut message = Vec::new();
         DefaultOptions::new().serialize_into(&mut message, &tick)?;
@@ -120,7 +120,7 @@ pub trait ServerEventAppExt {
 
     fn deserialize_reflect_event(
         message: &[u8],
-        registry: &TypeRegistryInternal,
+        registry: &TypeRegistry,
     ) -> bincode::Result<(RepliconTick, ReflectEvent)> {
         let mut cursor = Cursor::new(message);
         let tick = DefaultOptions::new().deserialize_from(&mut cursor)?;

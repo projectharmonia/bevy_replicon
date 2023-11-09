@@ -55,10 +55,7 @@ impl Plugin for TicTacToePlugin {
             .insert_resource(ClearColor(BACKGROUND_COLOR))
             .add_systems(
                 Startup,
-                (
-                    Self::ui_setup_system,
-                    Self::cli_system.pipe(system_adapter::unwrap),
-                ),
+                (Self::ui_setup_system, Self::cli_system.map(Result::unwrap)),
             )
             .add_systems(
                 OnEnter(GameState::InGame),
@@ -412,7 +409,7 @@ impl TicTacToePlugin {
         current_turn: Res<CurrentTurn>,
         players: Query<(&Player, &Symbol)>,
     ) {
-        for FromClient { client_id, event } in pick_events.iter().copied() {
+        for FromClient { client_id, event } in pick_events.read().copied() {
             // It's good to check the received data, client could be cheating.
             if event.0 > GRID_SIZE * GRID_SIZE {
                 error!("received invalid cell index {:?}", event.0);
