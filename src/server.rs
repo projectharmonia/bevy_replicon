@@ -15,6 +15,7 @@ use bevy::{
     time::common_conditions::on_timer,
     utils::HashMap,
 };
+use bevy_renet::renet::ClientId;
 use bevy_renet::{
     renet::{RenetClient, RenetServer, ServerEvent},
     transport::NetcodeServerPlugin,
@@ -28,7 +29,7 @@ use despawn_tracker::{DespawnTracker, DespawnTrackerPlugin};
 use removal_tracker::{RemovalTracker, RemovalTrackerPlugin};
 use replication_buffer::ReplicationBuffer;
 
-pub const SERVER_ID: u64 = 0;
+pub const SERVER_ID: ClientId = ClientId::from_raw(0);
 
 pub struct ServerPlugin {
     tick_policy: TickPolicy,
@@ -119,10 +120,10 @@ impl ServerPlugin {
             while let Some(message) = server.receive_message(client_id, REPLICATION_CHANNEL_ID) {
                 match bincode::deserialize::<RepliconTick>(&message) {
                     Ok(tick) => {
-                        let acked_tick = acked_ticks.clients.entry(client_id.raw()).or_default();
+                        let acked_tick = acked_ticks.clients.entry(client_id).or_default();
                         if *acked_tick < tick {
                             *acked_tick = tick;
-                            entity_map.cleanup_acked(client_id.raw(), *acked_tick);
+                            entity_map.cleanup_acked(client_id, *acked_tick);
                             trace!("client {client_id} acknowledged {tick:?}");
                         }
                     }
@@ -141,10 +142,10 @@ impl ServerPlugin {
         for event in server_events.read() {
             match event {
                 ServerEvent::ClientDisconnected { client_id, .. } => {
-                    acked_ticks.clients.remove(&client_id.raw());
+                    acked_ticks.clients.remove(client_id);
                 }
                 ServerEvent::ClientConnected { client_id } => {
-                    acked_ticks.clients.entry(client_id.raw()).or_default();
+                    acked_ticks.clients.entry(*client_id).or_default();
                 }
             }
         }
@@ -438,7 +439,7 @@ pub enum TickPolicy {
 #[derive(Resource, Default)]
 pub struct AckedTicks {
     /// Last acknowledged server ticks for all clients.
-    clients: HashMap<u64, RepliconTick>,
+    clients: HashMap<ClientId, RepliconTick>,
 
     /// Stores mapping from server ticks to system change ticks.
     system_ticks: HashMap<RepliconTick, Tick>,
@@ -458,7 +459,7 @@ impl AckedTicks {
 
     /// Returns last acknowledged server ticks for all clients.
     #[inline]
-    pub fn acked_ticks(&self) -> &HashMap<u64, RepliconTick> {
+    pub fn acked_ticks(&self) -> &HashMap<ClientId, RepliconTick> {
         &self.clients
     }
 }
@@ -644,18 +645,18 @@ If client's original entity is not found, a new entity will be spawned on the cl
 just the same as when no client entity is provided.
 **/
 #[derive(Resource, Debug, Default, Deref)]
-pub struct ClientEntityMap(HashMap<u64, Vec<ClientMapping>>);
+pub struct ClientEntityMap(HashMap<ClientId, Vec<ClientMapping>>);
 
 impl ClientEntityMap {
     /// Registers `mapping` for a client entity pre-spawned by the specified client.
     ///
     /// This will be sent as part of replication data and added to the client's [`ServerEntityMap`](crate::client::ServerEntityMap).
-    pub fn insert(&mut self, client_id: u64, mapping: ClientMapping) {
+    pub fn insert(&mut self, client_id: ClientId, mapping: ClientMapping) {
         self.0.entry(client_id).or_default().push(mapping);
     }
 
     /// Removes acknowledged mappings.
-    fn cleanup_acked(&mut self, client_id: u64, acked_tick: RepliconTick) {
+    fn cleanup_acked(&mut self, client_id: ClientId, acked_tick: RepliconTick) {
         if let Some(mappings) = self.0.get_mut(&client_id) {
             mappings.retain(|mapping| mapping.tick > acked_tick);
         }

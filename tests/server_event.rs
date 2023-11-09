@@ -1,7 +1,7 @@
 mod common;
 
 use bevy::{ecs::event::Events, prelude::*, time::TimePlugin};
-use bevy_renet::renet::transport::NetcodeClientTransport;
+use bevy_renet::renet::{transport::NetcodeClientTransport, ClientId};
 use bevy_replicon::prelude::*;
 
 use common::DummyEvent;
@@ -42,10 +42,13 @@ fn sending_receiving() {
 
     common::connect(&mut server_app, &mut client_app);
 
-    let client_id = client_app
-        .world
-        .resource::<NetcodeClientTransport>()
-        .client_id();
+    let client_id = ClientId::from_raw(
+        client_app
+            .world
+            .resource::<NetcodeClientTransport>()
+            .client_id(),
+    );
+
     for (mode, events_count) in [
         (SendMode::Broadcast, 1),
         (SendMode::Direct(SERVER_ID), 0),
@@ -123,7 +126,7 @@ fn local_resending() {
     ))
     .add_server_event::<DummyEvent>(EventType::Ordered);
 
-    const DUMMY_CLIENT_ID: u64 = 1;
+    const DUMMY_CLIENT_ID: ClientId = ClientId::from_raw(1);
     for (mode, events_count) in [
         (SendMode::Broadcast, 1),
         (SendMode::Direct(SERVER_ID), 1),

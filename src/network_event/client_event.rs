@@ -1,4 +1,5 @@
 use bevy::{ecs::event::Event, prelude::*};
+use bevy_renet::renet::ClientId;
 use bevy_renet::{
     client_connected,
     renet::{RenetClient, RenetServer, SendType},
@@ -169,7 +170,7 @@ fn receiving_system<T: Event + DeserializeOwned>(
             match DefaultOptions::new().deserialize(&message) {
                 Ok(event) => {
                     client_events.send(FromClient {
-                        client_id: client_id.raw(),
+                        client_id,
                         event,
                     });
                 }
@@ -227,6 +228,6 @@ fn local_resending_system<T: Event>(
 /// Emited only on server.
 #[derive(Clone, Copy, Event)]
 pub struct FromClient<T> {
-    pub client_id: u64,
+    pub client_id: ClientId,
     pub event: T,
 }

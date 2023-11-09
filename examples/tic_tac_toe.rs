@@ -9,6 +9,7 @@ use std::{
 
 use anyhow::Result;
 use bevy::prelude::*;
+use bevy_renet::renet::ClientId;
 use bevy_replicon::{
     client_connected,
     prelude::*,
@@ -356,7 +357,7 @@ impl TicTacToePlugin {
             match event {
                 ServerEvent::ClientConnected { client_id } => {
                     let server_symbol = players.single();
-                    commands.spawn(PlayerBundle::new(client_id.raw(), server_symbol.next()));
+                    commands.spawn(PlayerBundle::new(*client_id, server_symbol.next()));
                     game_state.set(GameState::InGame);
                 }
                 ServerEvent::ClientDisconnected { .. } => {
@@ -418,7 +419,7 @@ impl TicTacToePlugin {
 
             if !players
                 .iter()
-                .any(|(player, &symbol)| player.0 == client_id && symbol == current_turn.0)
+                .any(|(player, &symbol)| player.0 == client_id.raw() && symbol == current_turn.0)
             {
                 error!("player {client_id} chose cell {:?} at wrong turn", event.0);
                 continue;
@@ -518,12 +519,12 @@ fn local_player_turn(
 {
     |current_turn, client_transport, players| {
         let client_id = client_transport
-            .map(|client| client.client_id())
+            .map(|client| ClientId::from_raw(client.client_id()))
             .unwrap_or(SERVER_ID);
 
         players
             .iter()
-            .any(|(player, &symbol)| player.0 == client_id && symbol == current_turn.0)
+            .any(|(player, &symbol)| player.0 == client_id.raw() && symbol == current_turn.0)
     }
 }
 
@@ -662,9 +663,9 @@ struct PlayerBundle {
 }
 
 impl PlayerBundle {
-    fn new(id: u64, symbol: Symbol) -> Self {
+    fn new(id: ClientId, symbol: Symbol) -> Self {
         Self {
-            player: Player(id),
+            player: Player(id.raw()),
             symbol,
             replication: Replication,
         }

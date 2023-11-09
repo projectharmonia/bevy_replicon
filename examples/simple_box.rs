@@ -8,6 +8,7 @@ use std::{
 };
 
 use bevy::prelude::*;
+use bevy_renet::renet::ClientId;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 
@@ -150,7 +151,7 @@ impl SimpleBoxPlugin {
                     let g = ((client_id.raw() % 27) as f32) / 27.0;
                     let b = ((client_id.raw() % 39) as f32) / 39.0;
                     commands.spawn(PlayerBundle::new(
-                        client_id.raw(),
+                        *client_id,
                         Vec2::ZERO,
                         Color::rgb(r, g, b),
                     ));
@@ -206,7 +207,7 @@ impl SimpleBoxPlugin {
         for FromClient { client_id, event } in move_events.read() {
             info!("received event {event:?} from client {client_id}");
             for (player, mut position) in &mut players {
-                if *client_id == player.0 {
+                if client_id.raw() == player.0 {
                     **position += event.0 * time.delta_seconds() * MOVE_SPEED;
                 }
             }
@@ -248,9 +249,9 @@ struct PlayerBundle {
 }
 
 impl PlayerBundle {
-    fn new(id: u64, position: Vec2, color: Color) -> Self {
+    fn new(id: ClientId, position: Vec2, color: Color) -> Self {
         Self {
-            player: Player(id),
+            player: Player(id.raw()),
             position: PlayerPosition(position),
             color: PlayerColor(color),
             replication: Replication,

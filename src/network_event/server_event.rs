@@ -335,12 +335,12 @@ pub fn send<T>(
             if client_id == SERVER_ID {
                 server.broadcast_message(channel, message);
             } else {
-                server.broadcast_message_except(ClientId::from_raw(client_id), channel, message);
+                server.broadcast_message_except(client_id, channel, message);
             }
         }
         SendMode::Direct(client_id) => {
             if client_id != SERVER_ID {
-                server.send_message(ClientId::from_raw(client_id), channel, message);
+                server.send_message(client_id, channel, message);
             }
         }
     }
@@ -357,8 +357,8 @@ pub struct ToClients<T> {
 #[derive(Clone, Copy, Debug)]
 pub enum SendMode {
     Broadcast,
-    BroadcastExcept(u64),
-    Direct(u64),
+    BroadcastExcept(ClientId),
+    Direct(ClientId),
 }
 
 /// Stores all received events from server that arrived earlier then replication message with their tick.

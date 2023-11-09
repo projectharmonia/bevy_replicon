@@ -3,7 +3,7 @@ mod common;
 use bevy::prelude::*;
 use bevy_replicon::{prelude::*, server};
 
-use bevy_renet::renet::transport::NetcodeClientTransport;
+use bevy_renet::renet::{transport::NetcodeClientTransport, ClientId};
 use serde::{Deserialize, Serialize};
 
 #[test]
@@ -21,7 +21,7 @@ fn acked_ticks_cleanup() {
 
     let mut client_transport = client_app.world.resource_mut::<NetcodeClientTransport>();
     client_transport.disconnect();
-    let client_id = client_transport.client_id();
+    let client_id = ClientId::from_raw(client_transport.client_id());
 
     client_app.update();
     server_app.update();
@@ -101,7 +101,7 @@ fn client_spawn_replication() {
 
     let mut entity_map = server_app.world.resource_mut::<ClientEntityMap>();
     entity_map.insert(
-        client_id,
+        ClientId::from_raw(client_id),
         ClientMapping {
             tick,
             server_entity,
@@ -348,7 +348,7 @@ fn diagnostics() {
 
     let mut entity_map = server_app.world.resource_mut::<ClientEntityMap>();
     entity_map.insert(
-        client_id,
+        ClientId::from_raw(client_id),
         ClientMapping {
             tick,
             server_entity,
