@@ -1,14 +1,13 @@
 use bevy::{ecs::event::Event, prelude::*};
 use bevy_renet::{
     client_connected,
-    renet::{RenetClient, RenetServer, SendType},
+    renet::{ClientId, RenetClient, RenetServer, SendType},
 };
 use bincode::{DefaultOptions, Options};
 use ordered_multimap::ListOrderedMultimap;
 use serde::{de::DeserializeOwned, Serialize};
 
 use super::EventChannel;
-use crate::renet::ClientId;
 use crate::{
     client::{ClientSet, ServerEntityMap},
     network_event::EventMapper,

@@ -9,7 +9,6 @@ use std::{
 
 use anyhow::Result;
 use bevy::prelude::*;
-use bevy_renet::renet::ClientId;
 use bevy_replicon::{
     client_connected,
     prelude::*,
@@ -18,7 +17,7 @@ use bevy_replicon::{
             ClientAuthentication, NetcodeClientTransport, NetcodeServerTransport,
             ServerAuthentication, ServerConfig,
         },
-        ConnectionConfig, ServerEvent,
+        ClientId, ConnectionConfig, ServerEvent,
     },
 };
 use clap::{Parser, ValueEnum};

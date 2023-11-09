@@ -8,7 +8,6 @@ use std::{
 };
 
 use bevy::prelude::*;
-use bevy_renet::renet::ClientId;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 
@@ -19,7 +18,7 @@ use bevy_replicon::{
             ClientAuthentication, NetcodeClientTransport, NetcodeServerTransport,
             ServerAuthentication, ServerConfig,
         },
-        ConnectionConfig, ServerEvent,
+        ClientId, ConnectionConfig, ServerEvent,
     },
 };
 

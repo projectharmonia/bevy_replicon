@@ -15,9 +15,8 @@ use bevy::{
     time::common_conditions::on_timer,
     utils::HashMap,
 };
-use bevy_renet::renet::ClientId;
 use bevy_renet::{
-    renet::{RenetClient, RenetServer, ServerEvent},
+    renet::{ClientId, RenetClient, RenetServer, ServerEvent},
     transport::NetcodeServerPlugin,
     RenetReceive, RenetSend, RenetServerPlugin,
 };
