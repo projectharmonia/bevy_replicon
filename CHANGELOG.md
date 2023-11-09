@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tracing for replication messages.
 - `Debug` derive for `LastRepliconTick`.
 
+### Changed
+
+- Add support for bevy 0.12
+    - Use `.read()` for iterating events
+    - Replace `EntityMut` with `EntityWorldMut`
+
 ## [0.16.0] - 2023-10-30
 
 ### Added
@@ -42,7 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Optimize despawn tracking.
 - Hide `id` field in `EventChannel` and add `Clone` and `Copy` impls for it.
-- Remove special functions for reflect events and advise users to write them manually instead. Reflect events are easier now because sometimes you can directly use reflect serializers from Bevy instead of manually writing serde traits.
+- Remove special functions for reflect events and advise users to write them manually instead. Reflect events are easier
+  now because sometimes you can directly use reflect serializers from Bevy instead of manually writing serde traits.
 - Do no trigger server events before world update arrival.
 
 ### Removed
@@ -100,19 +107,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rename `ReplicationRules::replication_id` into `ReplicationRules::replication_marker_id`.
 - Use serialization buffer cache per client for replication.
 - Correctly handle old values on packet reordering.
-- Bevy's `Tick` was replaced with dedicated type `NetworkTick` that increments on server update, so it can be used to provide information about time. `AckedTick` was replaced with `ServerTicks` that also contains mappings from `NetworkTick` to Bevy's `Tick` and current `NetworkTick`.
-- Functions in `AppReplicationExt::replicate_with` now accept bytes cursor for memory reuse and return serialization errors.
+- Bevy's `Tick` was replaced with dedicated type `NetworkTick` that increments on server update, so it can be used to
+  provide information about time. `AckedTick` was replaced with `ServerTicks` that also contains mappings
+  from `NetworkTick` to Bevy's `Tick` and current `NetworkTick`.
+- Functions in `AppReplicationExt::replicate_with` now accept bytes cursor for memory reuse and return serialization
+  errors.
 - Rename `ReplicationCore` into `RepliconCore` with its module for clarity.
-- `MapNetworkEntities` now accepts generic `Mapper` and doesn't have error handling and deserialiation functions now accept `NetworkEntityMap`. This allowed us to lazily map entities on client without extra allocation.
+- `MapNetworkEntities` now accepts generic `Mapper` and doesn't have error handling and deserialiation functions now
+  accept `NetworkEntityMap`. This allowed us to lazily map entities on client without extra allocation.
 - Make `LastTick` public.
 
 ## [0.10.0] - 2023-09-13
 
 ### Changed
 
-- `MapEventEntities` was renamed into `MapNetworkEntities` and now used for both components and events. Built-in `MapEntities` trait from Bevy is not suited for network case for now.
+- `MapEventEntities` was renamed into `MapNetworkEntities` and now used for both components and events.
+  Built-in `MapEntities` trait from Bevy is not suited for network case for now.
 - `AppReplicationExt::not_replicate_with` was replaced with component marker `Ignored<T>`.
-- Reflection was replaced with plain serialization. Now components need to implement serde traits and no longer need any reflection. This reduced reduced message sizes a lot. Because of this mapped components now need to be registered with `AppReplicationExt::replicate_mapped`.
+- Reflection was replaced with plain serialization. Now components need to implement serde traits and no longer need any
+  reflection. This reduced reduced message sizes a lot. Because of this mapped components now need to be registered
+  with `AppReplicationExt::replicate_mapped`.
 - Derive `Clone` and `Copy` for `Replication`.
 - Make `ServerPlugin` fields private and add `ServerPlugin::new`.
 - Make `AckedTicks` public.
@@ -156,7 +170,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- `ClientState` and `ServerState`, use conditions from `bevy_renet` and `resource_added()` / `resource_exists()` / `resource_removed()`.
+- `ClientState` and `ServerState`, use conditions from `bevy_renet`
+  and `resource_added()` / `resource_exists()` / `resource_removed()`.
 - `ServerSet::Authority`, use `has_authority()` instead.
 
 ## [0.6.1] - 2023-07-09
@@ -241,26 +256,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Initial release after separation from [lifescape](https://github.com/lifescapegame/lifescape).
 
 [unreleased]: https://github.com/lifescapegame/bevy_replicon/compare/v0.16.0...HEAD
+
 [0.16.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.15.1...v0.16.0
+
 [0.15.1]: https://github.com/lifescapegame/bevy_replicon/compare/v0.15.0...v0.15.1
+
 [0.15.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.14.0...v0.15.0
+
 [0.14.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.13.0...v0.14.0
+
 [0.13.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.12.0...v0.13.0
+
 [0.12.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.11.0...v0.12.0
+
 [0.11.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.10.0...v0.11.0
+
 [0.10.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.9.1...v0.10.0
+
 [0.9.1]: https://github.com/lifescapegame/bevy_replicon/compare/v0.9.0...v0.9.1
+
 [0.9.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.8.0...v0.9.0
+
 [0.8.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.7.1...v0.8.0
+
 [0.7.1]: https://github.com/lifescapegame/bevy_replicon/compare/v0.7.0...v0.7.1
+
 [0.7.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.6.1...v0.7.0
+
 [0.6.1]: https://github.com/lifescapegame/bevy_replicon/compare/v0.6.0...v0.6.1
+
 [0.6.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.5.0...v0.6.0
+
 [0.5.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.4.0...v0.5.0
+
 [0.4.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.3.0...v0.4.0
+
 [0.3.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.2.3...v0.3.0
+
 [0.2.3]: https://github.com/lifescapegame/bevy_replicon/compare/v0.2.2...v0.2.3
+
 [0.2.2]: https://github.com/lifescapegame/bevy_replicon/compare/v0.2.1...v0.2.2
+
 [0.2.1]: https://github.com/lifescapegame/bevy_replicon/compare/v0.2.0...v0.2.1
+
 [0.2.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.1.0...v0.2.0
+
 [0.1.0]: https://github.com/lifescapegame/bevy_replicon/releases/tag/v0.1.0
