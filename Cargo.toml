@@ -45,6 +45,7 @@ bevy = { version = "0.12", default-features = false, features = [
   "x11",
   "default_font",
 ] }
+
 [[bench]]
 name = "replication"
 harness = false
