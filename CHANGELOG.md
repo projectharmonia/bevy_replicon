@@ -14,9 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Add support for bevy 0.12
-    - Use `.read()` for iterating events
-    - Replace `EntityMut` with `EntityWorldMut`
+- Update to Bevy 0.12
 
 ## [0.16.0] - 2023-10-30
 
