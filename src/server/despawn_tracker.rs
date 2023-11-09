@@ -48,7 +48,7 @@ impl DespawnTrackerPlugin {
         mut removed_replications: RemovedComponents<Replication>,
         mut despawn_tracker: ResMut<DespawnTracker>,
     ) {
-        for entity in &mut removed_replications {
+        for entity in removed_replications.read() {
             despawn_tracker.push((entity, change_tick.this_run()));
         }
     }

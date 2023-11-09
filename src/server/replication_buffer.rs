@@ -1,7 +1,7 @@
 use std::{io::Cursor, mem};
 
 use bevy::{ecs::component::Tick, prelude::*, ptr::Ptr};
-use bevy_renet::renet::{Bytes, RenetServer};
+use bevy_renet::renet::{Bytes, ClientId, RenetServer};
 use bincode::{DefaultOptions, Options};
 use varint_rs::VarintWriter;
 
@@ -300,7 +300,7 @@ impl ReplicationBuffer {
 
             trace!("sending replication message to client {}", self.client_id);
             server.send_message(
-                self.client_id,
+                ClientId::from_raw(self.client_id),
                 replication_channel_id,
                 Bytes::copy_from_slice(self.message.get_ref()),
             );

@@ -32,7 +32,8 @@ pub(super) fn connect(server_app: &mut App, client_app: &mut App) {
     });
 
     let server_transport = create_server_transport();
-    let client_transport = create_client_transport(server_transport.addr().port());
+    let client_transport =
+        create_client_transport(server_transport.addresses().first().unwrap().port());
 
     server_app
         .insert_resource(server)
@@ -45,11 +46,7 @@ pub(super) fn connect(server_app: &mut App, client_app: &mut App) {
     loop {
         client_app.update();
         server_app.update();
-        if client_app
-            .world
-            .resource::<NetcodeClientTransport>()
-            .is_connected()
-        {
+        if client_app.world.resource::<RenetClient>().is_connected() {
             break;
         }
     }
@@ -67,13 +64,14 @@ fn create_server_transport() -> NetcodeServerTransport {
         .local_addr()
         .expect("socket should autodetect local address");
     let server_config = ServerConfig {
+        current_time,
         max_clients: 1,
         protocol_id: PROTOCOL_ID,
-        public_addr,
+        public_addresses: vec![public_addr],
         authentication: ServerAuthentication::Unsecure,
     };
 
-    NetcodeServerTransport::new(current_time, server_config, socket).unwrap()
+    NetcodeServerTransport::new(server_config, socket).unwrap()
 }
 
 fn create_client_transport(port: u16) -> NetcodeClientTransport {

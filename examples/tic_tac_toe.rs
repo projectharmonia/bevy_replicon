@@ -10,6 +10,7 @@ use std::{
 use anyhow::Result;
 use bevy::prelude::*;
 use bevy_replicon::{
+    client_connected,
     prelude::*,
     renet::{
         transport::{
@@ -18,7 +19,6 @@ use bevy_replicon::{
         },
         ConnectionConfig, ServerEvent,
     },
-    transport::client_connected,
 };
 use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
@@ -267,12 +267,13 @@ impl TicTacToePlugin {
                 let public_addr = SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port);
                 let socket = UdpSocket::bind(public_addr)?;
                 let server_config = ServerConfig {
+                    current_time,
                     max_clients: 1,
                     protocol_id: PROTOCOL_ID,
-                    public_addr,
                     authentication: ServerAuthentication::Unsecure,
+                    public_addresses: vec![public_addr],
                 };
-                let transport = NetcodeServerTransport::new(current_time, server_config, socket)?;
+                let transport = NetcodeServerTransport::new(server_config, socket)?;
 
                 commands.insert_resource(server);
                 commands.insert_resource(transport);
@@ -354,11 +355,11 @@ impl TicTacToePlugin {
         mut game_state: ResMut<NextState<GameState>>,
         players: Query<&Symbol, With<Player>>,
     ) {
-        for event in &mut server_event {
+        for event in server_event.read() {
             match event {
                 ServerEvent::ClientConnected { client_id } => {
                     let server_symbol = players.single();
-                    commands.spawn(PlayerBundle::new(*client_id, server_symbol.next()));
+                    commands.spawn(PlayerBundle::new(client_id.raw(), server_symbol.next()));
                     game_state.set(GameState::InGame);
                 }
                 ServerEvent::ClientDisconnected { .. } => {

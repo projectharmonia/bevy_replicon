@@ -1,7 +1,7 @@
 use bevy::{ecs::event::Event, prelude::*};
 use bevy_renet::{
+    client_connected,
     renet::{RenetClient, RenetServer, SendType},
-    transport::client_connected,
 };
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Serialize};
@@ -168,7 +168,10 @@ fn receiving_system<T: Event + DeserializeOwned>(
         while let Some(message) = server.receive_message(client_id, *channel) {
             match DefaultOptions::new().deserialize(&message) {
                 Ok(event) => {
-                    client_events.send(FromClient { client_id, event });
+                    client_events.send(FromClient {
+                        client_id: client_id.raw(),
+                        event,
+                    });
                 }
                 Err(e) => error!("unable to deserialize event from client {client_id}: {e}"),
             }
@@ -181,7 +184,7 @@ fn sending_system<T: Event + Serialize>(
     mut client: ResMut<RenetClient>,
     channel: Res<EventChannel<T>>,
 ) {
-    for event in &mut events {
+    for event in events.read() {
         let message = DefaultOptions::new()
             .serialize(&event)
             .expect("client event should be serializable");

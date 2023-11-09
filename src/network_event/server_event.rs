@@ -1,13 +1,14 @@
 use bevy::{ecs::event::Event, prelude::*};
 use bevy_renet::{
+    client_connected,
     renet::{RenetClient, RenetServer, SendType},
-    transport::client_connected,
 };
 use bincode::{DefaultOptions, Options};
 use ordered_multimap::ListOrderedMultimap;
 use serde::{de::DeserializeOwned, Serialize};
 
 use super::EventChannel;
+use crate::renet::ClientId;
 use crate::{
     client::{ClientSet, ServerEntityMap},
     network_event::EventMapper,
@@ -264,7 +265,7 @@ fn sending_system<T: Event + Serialize>(
     tick: Res<RepliconTick>,
     channel: Res<EventChannel<T>>,
 ) {
-    for ToClients { event, mode } in &mut server_events {
+    for ToClients { event, mode } in server_events.read() {
         let message = DefaultOptions::new()
             .serialize(&(*tick, event))
             .expect("server event should be serializable");
@@ -282,7 +283,7 @@ fn min_tick_update_system<T: Event>(
     mut min_tick: ResMut<MinRepliconTick>,
     tick: Res<RepliconTick>,
 ) {
-    if server_events.iter().count() > 0 {
+    if server_events.read().count() > 0 {
         **min_tick = *tick;
     }
 }
@@ -334,12 +335,12 @@ pub fn send<T>(
             if client_id == SERVER_ID {
                 server.broadcast_message(channel, message);
             } else {
-                server.broadcast_message_except(client_id, channel, message);
+                server.broadcast_message_except(ClientId::from_raw(client_id), channel, message);
             }
         }
         SendMode::Direct(client_id) => {
             if client_id != SERVER_ID {
-                server.send_message(client_id, channel, message);
+                server.send_message(ClientId::from_raw(client_id), channel, message);
             }
         }
     }

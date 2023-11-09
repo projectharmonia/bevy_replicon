@@ -18,7 +18,7 @@ use bevy::{
 use bevy_renet::{
     renet::{RenetClient, RenetServer, ServerEvent},
     transport::NetcodeServerPlugin,
-    RenetServerPlugin,
+    RenetReceive, RenetSend, RenetServerPlugin,
 };
 
 use crate::replicon_core::{
@@ -54,14 +54,11 @@ impl Plugin for ServerPlugin {
         .init_resource::<RepliconTick>()
         .init_resource::<MinRepliconTick>()
         .init_resource::<ClientEntityMap>()
-        .configure_set(
-            PreUpdate,
-            ServerSet::Receive.after(NetcodeServerPlugin::update_system),
-        )
+        .configure_set(PreUpdate, ServerSet::Receive.after(RenetReceive))
         .configure_set(
             PostUpdate,
             ServerSet::Send
-                .before(NetcodeServerPlugin::send_packets)
+                .before(RenetSend)
                 .run_if(resource_changed::<RepliconTick>()),
         )
         .add_systems(
@@ -122,10 +119,10 @@ impl ServerPlugin {
             while let Some(message) = server.receive_message(client_id, REPLICATION_CHANNEL_ID) {
                 match bincode::deserialize::<RepliconTick>(&message) {
                     Ok(tick) => {
-                        let acked_tick = acked_ticks.clients.entry(client_id).or_default();
+                        let acked_tick = acked_ticks.clients.entry(client_id.raw()).or_default();
                         if *acked_tick < tick {
                             *acked_tick = tick;
-                            entity_map.cleanup_acked(client_id, *acked_tick);
+                            entity_map.cleanup_acked(client_id.raw(), *acked_tick);
                             trace!("client {client_id} acknowledged {tick:?}");
                         }
                     }
@@ -141,13 +138,13 @@ impl ServerPlugin {
         mut server_events: EventReader<ServerEvent>,
         mut acked_ticks: ResMut<AckedTicks>,
     ) {
-        for event in &mut server_events {
+        for event in server_events.read() {
             match event {
                 ServerEvent::ClientDisconnected { client_id, .. } => {
-                    acked_ticks.clients.remove(client_id);
+                    acked_ticks.clients.remove(&client_id.raw());
                 }
                 ServerEvent::ClientConnected { client_id } => {
-                    acked_ticks.clients.entry(*client_id).or_default();
+                    acked_ticks.clients.entry(client_id.raw()).or_default();
                 }
             }
         }

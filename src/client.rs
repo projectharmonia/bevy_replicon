@@ -7,7 +7,7 @@ use bevy::{
     prelude::*,
     utils::{Entry, HashMap},
 };
-use bevy_renet::{renet::Bytes, transport::client_connected};
+use bevy_renet::{client_connected, renet::Bytes};
 use bevy_renet::{renet::RenetClient, transport::NetcodeClientPlugin, RenetClientPlugin};
 use bincode::{DefaultOptions, Options};
 use varint_rs::VarintReader;
@@ -323,7 +323,7 @@ impl ServerEntityMap {
         &mut self,
         world: &'a mut World,
         server_entity: Entity,
-    ) -> EntityMut<'a> {
+    ) -> EntityWorldMut<'a> {
         match self.server_to_client.entry(server_entity) {
             Entry::Occupied(entry) => world.entity_mut(*entry.get()),
             Entry::Vacant(entry) => {

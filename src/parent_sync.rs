@@ -62,7 +62,7 @@ impl ParentSyncPlugin {
         mut removed_parents: RemovedComponents<Parent>,
         mut hierarchy: Query<&mut ParentSync>,
     ) {
-        for entity in &mut removed_parents {
+        for entity in removed_parents.read() {
             if let Ok(mut parent_sync) = hierarchy.get_mut(entity) {
                 parent_sync.0 = None;
             }
