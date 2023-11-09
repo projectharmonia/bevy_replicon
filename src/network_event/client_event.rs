@@ -83,7 +83,7 @@ pub trait ClientEventAppExt {
                 match UntypedReflectDeserializer::new(&registry).deserialize(&mut deserializer) {
                     Ok(reflect) => {
                         reflect_events.send(FromClient {
-                            client_id: client_id.raw(),
+                            client_id,
                             event: ReflectEvent(reflect),
                         });
                     }
@@ -169,10 +169,7 @@ fn receiving_system<T: Event + DeserializeOwned>(
         while let Some(message) = server.receive_message(client_id, *channel) {
             match DefaultOptions::new().deserialize(&message) {
                 Ok(event) => {
-                    client_events.send(FromClient {
-                        client_id,
-                        event,
-                    });
+                    client_events.send(FromClient { client_id, event });
                 }
                 Err(e) => error!("unable to deserialize event from client {client_id}: {e}"),
             }
