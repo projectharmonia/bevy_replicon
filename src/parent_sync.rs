@@ -205,7 +205,7 @@ mod tests {
         let mut scenes = app.world.resource_mut::<Assets<DynamicScene>>();
         let scene_handle = scenes.add(dynamic_scene);
         let mut scene_spawner = app.world.resource_mut::<SceneSpawner>();
-        scene_spawner.spawn_dynamic(scene_handle);
+        scene_spawner.spawn_dynamic(scene_handle.clone());
 
         app.update();
         app.update();
