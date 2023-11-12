@@ -21,6 +21,6 @@ See also [examples](https://github.com/lifescapegame/bevy_replicon/tree/master/e
 
 | bevy   | bevy_replicon |
 |--------|---------------|
-| 0.11.0 | 0.6-0.16      |
+| 0.11.0 | 0.6-0.17      |
 | 0.10.1 | 0.2-0.6       |
 | 0.10.0 | 0.1           |
