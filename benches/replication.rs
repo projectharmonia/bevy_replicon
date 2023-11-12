@@ -3,7 +3,7 @@ mod common;
 
 use std::time::{Duration, Instant};
 
-use bevy::{app::MainScheduleOrder, ecs::schedule::ExecutorKind, prelude::*};
+use bevy::prelude::*;
 use bevy_replicon::prelude::*;
 use criterion::{criterion_group, criterion_main, Criterion};
 use serde::{Deserialize, Serialize};
@@ -26,7 +26,11 @@ fn replication(c: &mut Criterion) {
                 let mut server_app = App::new();
                 let mut client_app = App::new();
                 for app in [&mut server_app, &mut client_app] {
-                    setup_app(app);
+                    app.add_plugins((
+                        MinimalPlugins,
+                        ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+                    ))
+                    .replicate::<DummyComponent>();
                 }
                 common::connect(&mut server_app, &mut client_app);
 
@@ -54,7 +58,11 @@ fn replication(c: &mut Criterion) {
                 let mut server_app = App::new();
                 let mut client_app = App::new();
                 for app in [&mut server_app, &mut client_app] {
-                    setup_app(app);
+                    app.add_plugins((
+                        MinimalPlugins,
+                        ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+                    ))
+                    .replicate::<DummyComponent>();
                 }
                 common::connect(&mut server_app, &mut client_app);
 
@@ -81,7 +89,11 @@ fn replication(c: &mut Criterion) {
             let mut server_app = App::new();
             let mut client_app = App::new();
             for app in [&mut server_app, &mut client_app] {
-                setup_app(app);
+                app.add_plugins((
+                    MinimalPlugins,
+                    ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+                ))
+                .replicate::<DummyComponent>();
             }
             common::connect(&mut server_app, &mut client_app);
 
@@ -120,7 +132,11 @@ fn replication(c: &mut Criterion) {
             let mut server_app = App::new();
             let mut client_app = App::new();
             for app in [&mut server_app, &mut client_app] {
-                setup_app(app);
+                app.add_plugins((
+                    MinimalPlugins,
+                    ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+                ))
+                .replicate::<DummyComponent>();
             }
             common::connect(&mut server_app, &mut client_app);
 
@@ -152,22 +168,6 @@ fn replication(c: &mut Criterion) {
             elapsed
         })
     });
-}
-
-fn setup_app(app: &mut App) {
-    app.add_plugins((
-        MinimalPlugins,
-        ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
-    ))
-    .replicate::<DummyComponent>();
-
-    // TODO 0.12: Probably won't be needed since `multi-threaded` feature will be disabled by default.
-    let labels = app.world.resource::<MainScheduleOrder>().labels.clone();
-    for label in labels {
-        app.edit_schedule(label, |schedule| {
-            schedule.set_executor_kind(ExecutorKind::SingleThreaded);
-        });
-    }
 }
 
 criterion_group! {
