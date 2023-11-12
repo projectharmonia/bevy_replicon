@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tracing for replication messages.
 - `Debug` derive for `LastRepliconTick`.
 
+### Changed
+
+- Update to Bevy 0.12
+
 ## [0.16.0] - 2023-10-30
 
 ### Added

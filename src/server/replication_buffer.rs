@@ -1,7 +1,7 @@
 use std::{io::Cursor, mem};
 
 use bevy::{ecs::component::Tick, prelude::*, ptr::Ptr};
-use bevy_renet::renet::{Bytes, RenetServer};
+use bevy_renet::renet::{Bytes, ClientId, RenetServer};
 use bincode::{DefaultOptions, Options};
 use varint_rs::VarintWriter;
 
@@ -15,7 +15,7 @@ use crate::replicon_core::{
 /// See also [Limits](../index.html#limits)
 pub(crate) struct ReplicationBuffer {
     /// ID of a client for which this buffer is written.
-    client_id: u64,
+    client_id: ClientId,
 
     /// Last system tick acknowledged by the client.
     ///
@@ -56,7 +56,7 @@ impl ReplicationBuffer {
     /// Creates a new buffer with assigned client ID and acknowledged system tick
     /// and writes current server tick into buffer data.
     pub(super) fn new(
-        client_id: u64,
+        client_id: ClientId,
         system_tick: Tick,
         replicon_tick: RepliconTick,
         send_empty: bool,
@@ -79,7 +79,7 @@ impl ReplicationBuffer {
     }
 
     /// Returns buffer's written client ID.
-    pub(super) fn client_id(&self) -> u64 {
+    pub(super) fn client_id(&self) -> ClientId {
         self.client_id
     }
 
@@ -94,7 +94,7 @@ impl ReplicationBuffer {
     /// Keeps allocated capacity of the buffer data.
     pub(super) fn reset(
         &mut self,
-        client_id: u64,
+        client_id: ClientId,
         system_tick: Tick,
         replicon_tick: RepliconTick,
         send_empty: bool,
@@ -326,7 +326,8 @@ mod tests {
 
     #[test]
     fn trim_empty_arrays() -> bincode::Result<()> {
-        let mut buffer = ReplicationBuffer::new(0, Tick::new(0), RepliconTick(0), false)?;
+        let mut buffer =
+            ReplicationBuffer::new(ClientId::from_raw(0), Tick::new(0), RepliconTick(0), false)?;
 
         let begin_len = buffer.message.get_ref().len();
         for _ in 0..3 {

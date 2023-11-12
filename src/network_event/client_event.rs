@@ -1,7 +1,7 @@
 use bevy::{ecs::event::Event, prelude::*};
 use bevy_renet::{
-    renet::{RenetClient, RenetServer, SendType},
-    transport::client_connected,
+    client_connected,
+    renet::{ClientId, RenetClient, RenetServer, SendType},
 };
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Serialize};
@@ -58,7 +58,7 @@ pub trait ClientEventAppExt {
         registry: Res<AppTypeRegistry>,
     ) {
         let registry = registry.read();
-        for event in &mut reflect_events {
+        for event in reflect_events.read() {
             let serializer = ReflectSerializer::new(&*event.0, &registry);
             let message = DefaultOptions::new()
                 .serialize(&serializer)
@@ -181,7 +181,7 @@ fn sending_system<T: Event + Serialize>(
     mut client: ResMut<RenetClient>,
     channel: Res<EventChannel<T>>,
 ) {
-    for event in &mut events {
+    for event in events.read() {
         let message = DefaultOptions::new()
             .serialize(&event)
             .expect("client event should be serializable");
@@ -224,6 +224,6 @@ fn local_resending_system<T: Event>(
 /// Emited only on server.
 #[derive(Clone, Copy, Event)]
 pub struct FromClient<T> {
-    pub client_id: u64,
+    pub client_id: ClientId,
     pub event: T,
 }

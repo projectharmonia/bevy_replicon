@@ -62,7 +62,7 @@ impl ParentSyncPlugin {
         mut removed_parents: RemovedComponents<Parent>,
         mut hierarchy: Query<&mut ParentSync>,
     ) {
-        for entity in &mut removed_parents {
+        for entity in removed_parents.read() {
             if let Ok(mut parent_sync) = hierarchy.get_mut(entity) {
                 parent_sync.0 = None;
             }
@@ -205,7 +205,7 @@ mod tests {
         let mut scenes = app.world.resource_mut::<Assets<DynamicScene>>();
         let scene_handle = scenes.add(dynamic_scene);
         let mut scene_spawner = app.world.resource_mut::<SceneSpawner>();
-        scene_spawner.spawn_dynamic(scene_handle);
+        scene_spawner.spawn_dynamic(scene_handle.clone()); // Needs to be cloned to avoid dropping: https://github.com/bevyengine/bevy/issues/10482.
 
         app.update();
         app.update();

@@ -10,15 +10,15 @@ use std::{
 use anyhow::Result;
 use bevy::prelude::*;
 use bevy_replicon::{
+    client_connected,
     prelude::*,
     renet::{
         transport::{
             ClientAuthentication, NetcodeClientTransport, NetcodeServerTransport,
             ServerAuthentication, ServerConfig,
         },
-        ConnectionConfig, ServerEvent,
+        ClientId, ConnectionConfig, ServerEvent,
     },
-    transport::client_connected,
 };
 use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
@@ -55,10 +55,7 @@ impl Plugin for TicTacToePlugin {
             .insert_resource(ClearColor(BACKGROUND_COLOR))
             .add_systems(
                 Startup,
-                (
-                    Self::ui_setup_system,
-                    Self::cli_system.pipe(system_adapter::unwrap),
-                ),
+                (Self::ui_setup_system, Self::cli_system.map(Result::unwrap)),
             )
             .add_systems(
                 OnEnter(GameState::InGame),
@@ -267,12 +264,13 @@ impl TicTacToePlugin {
                 let public_addr = SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port);
                 let socket = UdpSocket::bind(public_addr)?;
                 let server_config = ServerConfig {
+                    current_time,
                     max_clients: 1,
                     protocol_id: PROTOCOL_ID,
-                    public_addr,
                     authentication: ServerAuthentication::Unsecure,
+                    public_addresses: vec![public_addr],
                 };
-                let transport = NetcodeServerTransport::new(current_time, server_config, socket)?;
+                let transport = NetcodeServerTransport::new(server_config, socket)?;
 
                 commands.insert_resource(server);
                 commands.insert_resource(transport);
@@ -354,7 +352,7 @@ impl TicTacToePlugin {
         mut game_state: ResMut<NextState<GameState>>,
         players: Query<&Symbol, With<Player>>,
     ) {
-        for event in &mut server_event {
+        for event in server_event.read() {
             match event {
                 ServerEvent::ClientConnected { client_id } => {
                     let server_symbol = players.single();
@@ -411,7 +409,7 @@ impl TicTacToePlugin {
         current_turn: Res<CurrentTurn>,
         players: Query<(&Player, &Symbol)>,
     ) {
-        for FromClient { client_id, event } in pick_events.iter().copied() {
+        for FromClient { client_id, event } in pick_events.read().copied() {
             // It's good to check the received data, client could be cheating.
             if event.0 > GRID_SIZE * GRID_SIZE {
                 error!("received invalid cell index {:?}", event.0);
@@ -520,7 +518,7 @@ fn local_player_turn(
 {
     |current_turn, client_transport, players| {
         let client_id = client_transport
-            .map(|client| client.client_id())
+            .map(|client| ClientId::from_raw(client.client_id()))
             .unwrap_or(SERVER_ID);
 
         players
@@ -664,9 +662,9 @@ struct PlayerBundle {
 }
 
 impl PlayerBundle {
-    fn new(id: u64, symbol: Symbol) -> Self {
+    fn new(client_id: ClientId, symbol: Symbol) -> Self {
         Self {
-            player: Player(id),
+            player: Player(client_id),
             symbol,
             replication: Replication,
         }
@@ -679,7 +677,7 @@ impl PlayerBundle {
 }
 
 #[derive(Component, Serialize, Deserialize)]
-struct Player(u64);
+struct Player(ClientId);
 
 /// An event that indicates a symbol pick.
 ///

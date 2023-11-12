@@ -1,7 +1,7 @@
 use bevy::{ecs::event::Event, prelude::*};
 use bevy_renet::{
-    renet::{RenetClient, RenetServer, SendType},
-    transport::client_connected,
+    client_connected,
+    renet::{ClientId, RenetClient, RenetServer, SendType},
 };
 use bincode::{DefaultOptions, Options};
 use ordered_multimap::ListOrderedMultimap;
@@ -48,7 +48,7 @@ pub trait ServerEventAppExt {
         prelude::*,
         reflect::{
             serde::{ReflectSerializer, UntypedReflectDeserializer},
-            TypeRegistryInternal,
+            TypeRegistry,
         },
     };
     use bevy_replicon::{network_event::server_event, prelude::*};
@@ -71,7 +71,7 @@ pub trait ServerEventAppExt {
         registry: Res<AppTypeRegistry>,
     ) {
         let registry = registry.read();
-        for ToClients { event, mode } in &mut reflect_events {
+        for ToClients { event, mode } in reflect_events.read() {
             let message = serialize_reflect_event(*tick, &event, &registry)
                 .expect("server event should be serializable");
 
@@ -107,7 +107,7 @@ pub trait ServerEventAppExt {
     fn serialize_reflect_event(
         tick: RepliconTick,
         event: &ReflectEvent,
-        registry: &TypeRegistryInternal,
+        registry: &TypeRegistry,
     ) -> bincode::Result<Vec<u8>> {
         let mut message = Vec::new();
         DefaultOptions::new().serialize_into(&mut message, &tick)?;
@@ -119,7 +119,7 @@ pub trait ServerEventAppExt {
 
     fn deserialize_reflect_event(
         message: &[u8],
-        registry: &TypeRegistryInternal,
+        registry: &TypeRegistry,
     ) -> bincode::Result<(RepliconTick, ReflectEvent)> {
         let mut cursor = Cursor::new(message);
         let tick = DefaultOptions::new().deserialize_from(&mut cursor)?;
@@ -264,7 +264,7 @@ fn sending_system<T: Event + Serialize>(
     tick: Res<RepliconTick>,
     channel: Res<EventChannel<T>>,
 ) {
-    for ToClients { event, mode } in &mut server_events {
+    for ToClients { event, mode } in server_events.read() {
         let message = DefaultOptions::new()
             .serialize(&(*tick, event))
             .expect("server event should be serializable");
@@ -282,7 +282,7 @@ fn min_tick_update_system<T: Event>(
     mut min_tick: ResMut<MinRepliconTick>,
     tick: Res<RepliconTick>,
 ) {
-    if server_events.iter().count() > 0 {
+    if server_events.read().count() > 0 {
         **min_tick = *tick;
     }
 }
@@ -356,8 +356,8 @@ pub struct ToClients<T> {
 #[derive(Clone, Copy, Debug)]
 pub enum SendMode {
     Broadcast,
-    BroadcastExcept(u64),
-    Direct(u64),
+    BroadcastExcept(ClientId),
+    Direct(ClientId),
 }
 
 /// Stores all received events from server that arrived earlier then replication message with their tick.

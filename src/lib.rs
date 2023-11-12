@@ -94,7 +94,7 @@ you can use [`AppReplicationExt::replicate_with`]:
 
 ```
 use std::io::Cursor;
-use bevy::{ecs::world::EntityMut, prelude::*, ptr::Ptr};
+use bevy::{prelude::*, ptr::Ptr};
 use bevy_replicon::{prelude::*, renet::Bytes, replicon_core::replication_rules};
 use serde::{Deserialize, Serialize};
 
@@ -114,7 +114,7 @@ fn serialize_transform(
 
 /// Deserializes translation and creates [`Transform`] from it.
 fn deserialize_transform(
-    entity: &mut EntityMut,
+    entity: &mut EntityWorldMut,
     _entity_map: &mut ServerEntityMap,
     cursor: &mut Cursor<Bytes>,
     _tick: RepliconTick,
@@ -168,7 +168,7 @@ your initialization systems to [`ClientSet::Receive`]:
 
 ```
 # use std::io::Cursor;
-# use bevy::{ecs::world::EntityMut, prelude::*, ptr::Ptr};
+# use bevy::{prelude::*, ptr::Ptr};
 # use bevy_replicon::{prelude::*, renet::Bytes, replicon_core::replication_rules};
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
@@ -186,8 +186,7 @@ fn player_init_system(
     for entity in &spawned_players {
         commands.entity(entity).insert((
             GlobalTransform::default(),
-            Visibility::default(),
-            ComputedVisibility::default(),
+            VisibilityBundle::default(),
             meshes.add(Mesh::from(shape::Capsule::default())),
             materials.add(Color::AZURE.into()),
         ));
@@ -197,7 +196,7 @@ fn player_init_system(
 #[derive(Component, Deserialize, Serialize)]
 struct Player;
 # fn serialize_transform(_: Ptr, _: &mut Cursor<Vec<u8>>) -> bincode::Result<()> { unimplemented!() }
-# fn deserialize_transform(_: &mut EntityMut, _: &mut ServerEntityMap, _: &mut Cursor<Bytes>, _: RepliconTick) -> bincode::Result<()> { unimplemented!() }
+# fn deserialize_transform(_: &mut EntityWorldMut, _: &mut ServerEntityMap, _: &mut Cursor<Bytes>, _: RepliconTick) -> bincode::Result<()> { unimplemented!() }
 ```
 
 This pairs nicely with server state serialization and keeps saves clean.
@@ -254,7 +253,7 @@ fn event_sending_system(mut dummy_events: EventWriter<DummyEvent>) {
 }
 
 fn event_receiving_system(mut dummy_events: EventReader<FromClient<DummyEvent>>) {
-    for FromClient { client_id, event } in &mut dummy_events {
+    for FromClient { client_id, event } in dummy_events.read() {
         info!("received event {event:?} from client {client_id}");
     }
 }
@@ -315,7 +314,7 @@ fn event_sending_system(mut dummy_events: EventWriter<ToClients<DummyEvent>>) {
 }
 
 fn event_receiving_system(mut dummy_events: EventReader<DummyEvent>) {
-    for event in &mut dummy_events {
+    for event in dummy_events.read() {
         info!("received event {event:?} from server");
     }
 }

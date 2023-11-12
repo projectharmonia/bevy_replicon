@@ -1,11 +1,6 @@
 use std::{io::Cursor, marker::PhantomData};
 
-use bevy::{
-    ecs::{component::ComponentId, world::EntityMut},
-    prelude::*,
-    ptr::Ptr,
-    utils::HashMap,
-};
+use bevy::{ecs::component::ComponentId, prelude::*, ptr::Ptr, utils::HashMap};
 use bevy_renet::renet::Bytes;
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -162,17 +157,17 @@ pub type SerializeFn = fn(Ptr, &mut Cursor<Vec<u8>>) -> bincode::Result<()>;
 
 /// Signature of component deserialization functions.
 pub type DeserializeFn = fn(
-    &mut EntityMut,
+    &mut EntityWorldMut,
     &mut ServerEntityMap,
     &mut Cursor<Bytes>,
     RepliconTick,
 ) -> bincode::Result<()>;
 
 /// Signature of component removal functions.
-pub type RemoveComponentFn = fn(&mut EntityMut, RepliconTick);
+pub type RemoveComponentFn = fn(&mut EntityWorldMut, RepliconTick);
 
 /// Signature of the entity despawn function.
-pub type EntityDespawnFn = fn(EntityMut, RepliconTick);
+pub type EntityDespawnFn = fn(EntityWorldMut, RepliconTick);
 
 /// Stores meta information about replicated component.
 pub(crate) struct ReplicationInfo {
@@ -182,10 +177,10 @@ pub(crate) struct ReplicationInfo {
     /// Function that serializes component into bytes.
     pub(crate) serialize: SerializeFn,
 
-    /// Function that deserializes component from bytes and inserts it to [`EntityMut`].
+    /// Function that deserializes component from bytes and inserts it to [`EntityWorldMut`].
     pub(crate) deserialize: DeserializeFn,
 
-    /// Function that removes specific component from [`EntityMut`].
+    /// Function that removes specific component from [`EntityWorldMut`].
     pub(crate) remove: RemoveComponentFn,
 }
 
@@ -234,7 +229,7 @@ pub fn serialize_component<C: Component + Serialize>(
 
 /// Default deserialization function.
 pub fn deserialize_component<C: Component + DeserializeOwned>(
-    entity: &mut EntityMut,
+    entity: &mut EntityWorldMut,
     _entity_map: &mut ServerEntityMap,
     cursor: &mut Cursor<Bytes>,
     _tick: RepliconTick,
@@ -247,7 +242,7 @@ pub fn deserialize_component<C: Component + DeserializeOwned>(
 
 /// Like [`deserialize_component`], but also maps entities before insertion.
 pub fn deserialize_mapped_component<C: Component + DeserializeOwned + MapNetworkEntities>(
-    entity: &mut EntityMut,
+    entity: &mut EntityWorldMut,
     entity_map: &mut ServerEntityMap,
     cursor: &mut Cursor<Bytes>,
     _tick: RepliconTick,
@@ -264,11 +259,11 @@ pub fn deserialize_mapped_component<C: Component + DeserializeOwned + MapNetwork
 }
 
 /// Default component removal function.
-pub fn remove_component<C: Component>(entity: &mut EntityMut, _tick: RepliconTick) {
+pub fn remove_component<C: Component>(entity: &mut EntityWorldMut, _tick: RepliconTick) {
     entity.remove::<C>();
 }
 
 /// Default entity despawn function.
-pub fn despawn_recursive(entity: EntityMut, _tick: RepliconTick) {
+pub fn despawn_recursive(entity: EntityWorldMut, _tick: RepliconTick) {
     entity.despawn_recursive();
 }

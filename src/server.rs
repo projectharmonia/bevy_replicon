@@ -16,9 +16,9 @@ use bevy::{
     utils::HashMap,
 };
 use bevy_renet::{
-    renet::{RenetClient, RenetServer, ServerEvent},
+    renet::{ClientId, RenetClient, RenetServer, ServerEvent},
     transport::NetcodeServerPlugin,
-    RenetServerPlugin,
+    RenetReceive, RenetSend, RenetServerPlugin,
 };
 
 use crate::replicon_core::{
@@ -28,7 +28,7 @@ use despawn_tracker::{DespawnTracker, DespawnTrackerPlugin};
 use removal_tracker::{RemovalTracker, RemovalTrackerPlugin};
 use replication_buffer::ReplicationBuffer;
 
-pub const SERVER_ID: u64 = 0;
+pub const SERVER_ID: ClientId = ClientId::from_raw(0);
 
 pub struct ServerPlugin {
     tick_policy: TickPolicy,
@@ -54,14 +54,11 @@ impl Plugin for ServerPlugin {
         .init_resource::<RepliconTick>()
         .init_resource::<MinRepliconTick>()
         .init_resource::<ClientEntityMap>()
-        .configure_set(
-            PreUpdate,
-            ServerSet::Receive.after(NetcodeServerPlugin::update_system),
-        )
-        .configure_set(
+        .configure_sets(PreUpdate, ServerSet::Receive.after(RenetReceive))
+        .configure_sets(
             PostUpdate,
             ServerSet::Send
-                .before(NetcodeServerPlugin::send_packets)
+                .before(RenetSend)
                 .run_if(resource_changed::<RepliconTick>()),
         )
         .add_systems(
@@ -74,7 +71,7 @@ impl Plugin for ServerPlugin {
             PostUpdate,
             (
                 Self::replication_sending_system
-                    .pipe(unwrap)
+                    .map(Result::unwrap)
                     .in_set(ServerSet::Send)
                     .run_if(resource_exists::<RenetServer>()),
                 Self::reset_system.run_if(resource_removed::<RenetServer>()),
@@ -141,7 +138,7 @@ impl ServerPlugin {
         mut server_events: EventReader<ServerEvent>,
         mut acked_ticks: ResMut<AckedTicks>,
     ) {
-        for event in &mut server_events {
+        for event in server_events.read() {
             match event {
                 ServerEvent::ClientDisconnected { client_id, .. } => {
                     acked_ticks.clients.remove(client_id);
@@ -441,7 +438,7 @@ pub enum TickPolicy {
 #[derive(Resource, Default)]
 pub struct AckedTicks {
     /// Last acknowledged server ticks for all clients.
-    clients: HashMap<u64, RepliconTick>,
+    clients: HashMap<ClientId, RepliconTick>,
 
     /// Stores mapping from server ticks to system change ticks.
     system_ticks: HashMap<RepliconTick, Tick>,
@@ -461,7 +458,7 @@ impl AckedTicks {
 
     /// Returns last acknowledged server ticks for all clients.
     #[inline]
-    pub fn acked_ticks(&self) -> &HashMap<u64, RepliconTick> {
+    pub fn acked_ticks(&self) -> &HashMap<ClientId, RepliconTick> {
         &self.clients
     }
 }
@@ -623,7 +620,7 @@ fn confirm_bullet(
     mut entity_map: ResMut<ClientEntityMap>,
     tick: Res<RepliconTick>,
 ) {
-    for FromClient { client_id, event } in &mut bullet_events {
+    for FromClient { client_id, event } in bullet_events.read() {
         let server_entity = commands.spawn(Bullet).id(); // You can insert more components, they will be sent to the client's entity correctly.
 
         entity_map.insert(
@@ -647,18 +644,18 @@ If client's original entity is not found, a new entity will be spawned on the cl
 just the same as when no client entity is provided.
 **/
 #[derive(Resource, Debug, Default, Deref)]
-pub struct ClientEntityMap(HashMap<u64, Vec<ClientMapping>>);
+pub struct ClientEntityMap(HashMap<ClientId, Vec<ClientMapping>>);
 
 impl ClientEntityMap {
     /// Registers `mapping` for a client entity pre-spawned by the specified client.
     ///
     /// This will be sent as part of replication data and added to the client's [`ServerEntityMap`](crate::client::ServerEntityMap).
-    pub fn insert(&mut self, client_id: u64, mapping: ClientMapping) {
+    pub fn insert(&mut self, client_id: ClientId, mapping: ClientMapping) {
         self.0.entry(client_id).or_default().push(mapping);
     }
 
     /// Removes acknowledged mappings.
-    fn cleanup_acked(&mut self, client_id: u64, acked_tick: RepliconTick) {
+    fn cleanup_acked(&mut self, client_id: ClientId, acked_tick: RepliconTick) {
         if let Some(mappings) = self.0.get_mut(&client_id) {
             mappings.retain(|mapping| mapping.tick > acked_tick);
         }

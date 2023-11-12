@@ -48,7 +48,7 @@ impl DespawnTrackerPlugin {
         mut removed_replications: RemovedComponents<Replication>,
         mut despawn_tracker: ResMut<DespawnTracker>,
     ) {
-        for entity in &mut removed_replications {
+        for entity in removed_replications.read() {
             despawn_tracker.push((entity, change_tick.this_run()));
         }
     }
@@ -60,6 +60,8 @@ pub(crate) struct DespawnTracker(pub(super) Vec<(Entity, Tick)>);
 
 #[cfg(test)]
 mod tests {
+    use bevy_renet::renet::ClientId;
+
     use super::*;
     use crate::server::RepliconTick;
 
@@ -73,7 +75,7 @@ mod tests {
         app.update();
 
         // To avoid cleanup.
-        const DUMMY_CLIENT_ID: u64 = 0;
+        const DUMMY_CLIENT_ID: ClientId = ClientId::from_raw(0);
         app.world
             .resource_mut::<AckedTicks>()
             .clients

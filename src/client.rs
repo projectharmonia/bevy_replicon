@@ -3,11 +3,10 @@ pub mod diagnostics;
 use std::io::Cursor;
 
 use bevy::{
-    ecs::world::EntityMut,
     prelude::*,
     utils::{Entry, HashMap},
 };
-use bevy_renet::{renet::Bytes, transport::client_connected};
+use bevy_renet::{client_connected, renet::Bytes};
 use bevy_renet::{renet::RenetClient, transport::NetcodeClientPlugin, RenetClientPlugin};
 use bincode::{DefaultOptions, Options};
 use varint_rs::VarintReader;
@@ -26,18 +25,18 @@ impl Plugin for ClientPlugin {
         app.add_plugins((RenetClientPlugin, NetcodeClientPlugin))
             .init_resource::<LastRepliconTick>()
             .init_resource::<ServerEntityMap>()
-            .configure_set(
+            .configure_sets(
                 PreUpdate,
                 ClientSet::Receive.after(NetcodeClientPlugin::update_system),
             )
-            .configure_set(
+            .configure_sets(
                 PostUpdate,
                 ClientSet::Send.before(NetcodeClientPlugin::send_packets),
             )
             .add_systems(
                 PreUpdate,
                 Self::replication_receiving_system
-                    .pipe(unwrap)
+                    .map(Result::unwrap)
                     .in_set(ClientSet::Receive)
                     .run_if(client_connected()),
             )
@@ -323,7 +322,7 @@ impl ServerEntityMap {
         &mut self,
         world: &'a mut World,
         server_entity: Entity,
-    ) -> EntityMut<'a> {
+    ) -> EntityWorldMut<'a> {
         match self.server_to_client.entry(server_entity) {
             Entry::Occupied(entry) => world.entity_mut(*entry.get()),
             Entry::Vacant(entry) => {

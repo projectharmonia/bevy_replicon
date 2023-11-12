@@ -3,7 +3,7 @@ mod common;
 use bevy::prelude::*;
 use bevy_replicon::{prelude::*, server};
 
-use bevy_renet::renet::transport::NetcodeClientTransport;
+use bevy_renet::renet::{transport::NetcodeClientTransport, ClientId};
 use serde::{Deserialize, Serialize};
 
 #[test]
@@ -21,7 +21,7 @@ fn acked_ticks_cleanup() {
 
     let mut client_transport = client_app.world.resource_mut::<NetcodeClientTransport>();
     client_transport.disconnect();
-    let client_id = client_transport.client_id();
+    let client_id = ClientId::from_raw(client_transport.client_id());
 
     client_app.update();
     server_app.update();
@@ -94,10 +94,8 @@ fn client_spawn_replication() {
     let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
 
     let tick = *server_app.world.get_resource::<RepliconTick>().unwrap();
-    let client_id = client_app
-        .world
-        .resource::<NetcodeClientTransport>()
-        .client_id();
+    let client_transport = client_app.world.resource::<NetcodeClientTransport>();
+    let client_id = ClientId::from_raw(client_transport.client_id());
 
     let mut entity_map = server_app.world.resource_mut::<ClientEntityMap>();
     entity_map.insert(
@@ -341,10 +339,8 @@ fn diagnostics() {
     let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
 
     let tick = *server_app.world.get_resource::<RepliconTick>().unwrap();
-    let client_id = client_app
-        .world
-        .resource::<NetcodeClientTransport>()
-        .client_id();
+    let client_transport = client_app.world.resource::<NetcodeClientTransport>();
+    let client_id = ClientId::from_raw(client_transport.client_id());
 
     let mut entity_map = server_app.world.resource_mut::<ClientEntityMap>();
     entity_map.insert(

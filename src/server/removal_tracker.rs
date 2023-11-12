@@ -84,6 +84,7 @@ pub(crate) struct RemovalTracker(pub(super) HashMap<ReplicationId, Tick>);
 
 #[cfg(test)]
 mod tests {
+    use bevy_renet::renet::ClientId;
     use serde::{Deserialize, Serialize};
 
     use super::*;
@@ -101,7 +102,7 @@ mod tests {
         app.update();
 
         // To avoid cleanup.
-        const DUMMY_CLIENT_ID: u64 = 0;
+        const DUMMY_CLIENT_ID: ClientId = ClientId::from_raw(0);
         app.world
             .resource_mut::<AckedTicks>()
             .clients
