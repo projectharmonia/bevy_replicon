@@ -172,7 +172,7 @@ fn replication(c: &mut Criterion) {
 
 criterion_group! {
     name = benches;
-    config = Criterion::default().sample_size(50);
+    config = Criterion::default().sample_size(20);
     targets = replication
 }
 criterion_main!(benches);
