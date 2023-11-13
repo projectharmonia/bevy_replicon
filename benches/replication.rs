@@ -25,13 +25,7 @@ fn replication(c: &mut Criterion) {
             for _ in 0..iter {
                 let mut server_app = App::new();
                 let mut client_app = App::new();
-                for app in [&mut server_app, &mut client_app] {
-                    app.add_plugins((
-                        MinimalPlugins,
-                        ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
-                    ))
-                    .replicate::<DummyComponent>();
-                }
+                setup_apps(&mut server_app, &mut client_app);
                 common::connect(&mut server_app, &mut client_app);
 
                 server_app
@@ -57,13 +51,7 @@ fn replication(c: &mut Criterion) {
             for _ in 0..iter {
                 let mut server_app = App::new();
                 let mut client_app = App::new();
-                for app in [&mut server_app, &mut client_app] {
-                    app.add_plugins((
-                        MinimalPlugins,
-                        ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
-                    ))
-                    .replicate::<DummyComponent>();
-                }
+                setup_apps(&mut server_app, &mut client_app);
                 common::connect(&mut server_app, &mut client_app);
 
                 server_app
@@ -88,13 +76,7 @@ fn replication(c: &mut Criterion) {
             let mut elapsed = Duration::ZERO;
             let mut server_app = App::new();
             let mut client_app = App::new();
-            for app in [&mut server_app, &mut client_app] {
-                app.add_plugins((
-                    MinimalPlugins,
-                    ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
-                ))
-                .replicate::<DummyComponent>();
-            }
+            setup_apps(&mut server_app, &mut client_app);
             common::connect(&mut server_app, &mut client_app);
 
             server_app
@@ -131,13 +113,7 @@ fn replication(c: &mut Criterion) {
             let mut elapsed = Duration::ZERO;
             let mut server_app = App::new();
             let mut client_app = App::new();
-            for app in [&mut server_app, &mut client_app] {
-                app.add_plugins((
-                    MinimalPlugins,
-                    ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
-                ))
-                .replicate::<DummyComponent>();
-            }
+            setup_apps(&mut server_app, &mut client_app);
             common::connect(&mut server_app, &mut client_app);
 
             server_app
@@ -168,6 +144,16 @@ fn replication(c: &mut Criterion) {
             elapsed
         })
     });
+}
+
+fn setup_apps(server_app: &mut App, client_app: &mut App) {
+    for app in [server_app, client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+        ))
+        .replicate::<DummyComponent>();
+    }
 }
 
 criterion_group! {
