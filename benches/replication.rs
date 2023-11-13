@@ -73,7 +73,6 @@ fn replication(c: &mut Criterion) {
 
     c.bench_function("entities update send", |b| {
         b.iter_custom(|iter| {
-            let mut elapsed = Duration::ZERO;
             let mut server_app = App::new();
             let mut client_app = App::new();
             setup_apps(&mut server_app, &mut client_app);
@@ -89,6 +88,7 @@ fn replication(c: &mut Criterion) {
             client_app.update();
             assert_eq!(client_app.world.entities().len(), ENTITIES);
 
+            let mut elapsed = Duration::ZERO;
             for _ in 0..iter {
                 for mut dummy_component in query.iter_mut(&mut server_app.world) {
                     dummy_component.0 += 1;
@@ -110,7 +110,6 @@ fn replication(c: &mut Criterion) {
 
     c.bench_function("entities update receive", |b| {
         b.iter_custom(|iter| {
-            let mut elapsed = Duration::ZERO;
             let mut server_app = App::new();
             let mut client_app = App::new();
             setup_apps(&mut server_app, &mut client_app);
@@ -126,6 +125,7 @@ fn replication(c: &mut Criterion) {
             client_app.update();
             assert_eq!(client_app.world.entities().len(), ENTITIES);
 
+            let mut elapsed = Duration::ZERO;
             for _ in 0..iter {
                 for mut dummy_component in query.iter_mut(&mut server_app.world) {
                     dummy_component.0 += 1;
