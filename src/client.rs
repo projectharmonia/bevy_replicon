@@ -4,7 +4,7 @@ use std::io::Cursor;
 
 use bevy::{
     prelude::*,
-    utils::{Entry, HashMap},
+    utils::{hashbrown::hash_map::Entry, EntityHashMap},
 };
 use bevy_renet::{client_connected, renet::Bytes};
 use bevy_renet::{renet::RenetClient, transport::NetcodeClientPlugin, RenetClientPlugin};
@@ -307,8 +307,8 @@ pub enum ClientSet {
 /// Used only on client.
 #[derive(Default, Resource)]
 pub struct ServerEntityMap {
-    server_to_client: HashMap<Entity, Entity>,
-    client_to_server: HashMap<Entity, Entity>,
+    server_to_client: EntityHashMap<Entity, Entity>,
+    client_to_server: EntityHashMap<Entity, Entity>,
 }
 
 impl ServerEntityMap {
@@ -344,12 +344,12 @@ impl ServerEntityMap {
     }
 
     #[inline]
-    pub fn to_client(&self) -> &HashMap<Entity, Entity> {
+    pub fn to_client(&self) -> &EntityHashMap<Entity, Entity> {
         &self.server_to_client
     }
 
     #[inline]
-    pub fn to_server(&self) -> &HashMap<Entity, Entity> {
+    pub fn to_server(&self) -> &EntityHashMap<Entity, Entity> {
         &self.client_to_server
     }
 
@@ -364,8 +364,8 @@ impl ServerEntityMap {
 /// Spawns new client entity if a mapping doesn't exists.
 pub struct ClientMapper<'a> {
     world: &'a mut World,
-    server_to_client: &'a mut HashMap<Entity, Entity>,
-    client_to_server: &'a mut HashMap<Entity, Entity>,
+    server_to_client: &'a mut EntityHashMap<Entity, Entity>,
+    client_to_server: &'a mut EntityHashMap<Entity, Entity>,
 }
 
 impl<'a> ClientMapper<'a> {

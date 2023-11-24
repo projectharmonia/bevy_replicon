@@ -3,7 +3,7 @@ pub mod server_event;
 
 use std::{marker::PhantomData, time::Duration};
 
-use bevy::{prelude::*, utils::HashMap};
+use bevy::{prelude::*, utils::EntityHashMap};
 use bevy_renet::renet::SendType;
 
 use crate::replicon_core::replication_rules::Mapper;
@@ -70,7 +70,7 @@ impl From<EventType> for SendType {
 /// Maps server entities into client entities inside events.
 ///
 /// Panics if a mapping doesn't exists.
-pub struct EventMapper<'a>(pub &'a HashMap<Entity, Entity>);
+pub struct EventMapper<'a>(pub &'a EntityHashMap<Entity, Entity>);
 
 impl Mapper for EventMapper<'_> {
     fn map(&mut self, entity: Entity) -> Entity {
