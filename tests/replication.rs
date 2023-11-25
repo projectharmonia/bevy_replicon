@@ -1,7 +1,7 @@
 mod common;
 
 use bevy::prelude::*;
-use bevy_replicon::{prelude::*, server};
+use bevy_replicon::{prelude::*, scene};
 
 use bevy_renet::renet::{transport::NetcodeClientTransport, ClientId};
 use serde::{Deserialize, Serialize};
@@ -305,7 +305,7 @@ fn replication_into_scene() {
         .id();
 
     let mut scene = DynamicScene::default();
-    server::replicate_into_scene(&mut scene, &app.world);
+    scene::replicate_into(&mut scene, &app.world);
 
     assert!(scene.resources.is_empty());
 
