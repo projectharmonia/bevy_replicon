@@ -200,7 +200,7 @@ struct Player;
 ```
 
 This pairs nicely with server state serialization and keeps saves clean.
-You can use [`replicate_into_scene`](server::replicate_into_scene) to
+You can use [`replicate_into`](scene::replicate_into) to
 fill `DynamicScene` with replicated entities and their components.
 
 The mentioned [`Ignored<T>`] component is an exception.
@@ -388,6 +388,7 @@ pub mod client;
 pub mod network_event;
 pub mod parent_sync;
 pub mod replicon_core;
+pub mod scene;
 pub mod server;
 
 pub mod prelude {
