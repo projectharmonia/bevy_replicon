@@ -182,7 +182,7 @@ impl ServerPlugin {
         collect_despawns(buffers, &despawn_tracker, change_tick.this_run())?;
 
         for buffer in buffers {
-            buffer.send_to(&mut set.p1(), REPLICATION_CHANNEL_ID);
+            buffer.send_to(&mut set.p1());
         }
 
         Ok(())
@@ -215,12 +215,12 @@ fn prepare_buffers<'a>(
 
         let send_empty = acked_tick < *min_replicon_tick;
         if let Some(buffer) = buffers.get_mut(index) {
-            buffer.reset(client_id, system_tick, replicon_tick, send_empty)?;
+            buffer.reset(replicon_tick, client_id, system_tick, send_empty)?;
         } else {
             buffers.push(ReplicationBuffer::new(
+                replicon_tick,
                 client_id,
                 system_tick,
-                replicon_tick,
                 send_empty,
             )?);
         }
@@ -241,7 +241,7 @@ fn collect_mappings(
 
         if let Some(mappings) = entity_map.get(&buffer.client_id()) {
             for mapping in mappings {
-                buffer.write_entity_mapping(mapping.server_entity, mapping.client_entity)?;
+                buffer.write_client_mapping(mapping)?;
             }
         }
 
@@ -307,7 +307,11 @@ fn collect_changes(
 
                         for buffer in &mut *buffers {
                             if ticks.is_changed(buffer.system_tick(), system_tick) {
-                                buffer.write_change(replication_info, replication_id, component)?;
+                                buffer.write_component(
+                                    replication_info,
+                                    replication_id,
+                                    component,
+                                )?;
                             }
                         }
                     }
@@ -328,7 +332,11 @@ fn collect_changes(
 
                         for buffer in &mut *buffers {
                             if ticks.is_changed(buffer.system_tick(), system_tick) {
-                                buffer.write_change(replication_info, replication_id, component)?;
+                                buffer.write_component(
+                                    replication_info,
+                                    replication_id,
+                                    component,
+                                )?;
                             }
                         }
                     }
@@ -363,7 +371,7 @@ fn collect_removals(
             buffer.start_entity_data(entity);
             for (&replication_id, &tick) in &removal_tracker.0 {
                 if tick.is_newer_than(buffer.system_tick(), system_tick) {
-                    buffer.write_removal(replication_id)?;
+                    buffer.write_replication_id(replication_id)?;
                 }
             }
             buffer.end_entity_data()?;
@@ -390,7 +398,7 @@ fn collect_despawns(
     for &(entity, tick) in &despawn_tracker.0 {
         for buffer in &mut *buffers {
             if tick.is_newer_than(buffer.system_tick(), system_tick) {
-                buffer.write_despawn(entity)?;
+                buffer.write_entity(entity)?;
             }
         }
     }

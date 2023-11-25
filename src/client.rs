@@ -171,8 +171,8 @@ fn apply_entity_mappings(
         stats.mappings += array_len as u32;
     }
     for _ in 0..array_len {
-        let server_entity = read_entity(cursor)?;
-        let client_entity = read_entity(cursor)?;
+        let server_entity = deserialize_entity(cursor)?;
+        let client_entity = deserialize_entity(cursor)?;
 
         if let Some(entry) = entity_map.to_client().get(&server_entity) {
             // It's possible to receive the same mappings in multiple packets if the server has not
@@ -206,7 +206,7 @@ fn apply_components(
 ) -> bincode::Result<()> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..entities_count {
-        let entity = read_entity(cursor)?;
+        let entity = deserialize_entity(cursor)?;
         let mut entity = entity_map.get_by_server_or_spawn(world, entity);
         let components_count: u8 = bincode::deserialize_from(&mut *cursor)?;
         if let Some(stats) = &mut stats {
@@ -246,7 +246,7 @@ fn apply_despawns(
         // The entity might have already been despawned because of hierarchy or
         // with the last replication message, but the server might not yet have received confirmation
         // from the client and could include the deletion in the this message.
-        let server_entity = read_entity(cursor)?;
+        let server_entity = deserialize_entity(cursor)?;
         if let Some(client_entity) = entity_map
             .remove_by_server(server_entity)
             .and_then(|entity| world.get_entity_mut(entity))
@@ -261,7 +261,7 @@ fn apply_despawns(
 /// Deserializes `entity` from compressed index and generation.
 ///
 /// For details see [`ReplicationBuffer::write_entity`](crate::server::replication_buffer::ReplicationBuffer::write_entity).
-fn read_entity(cursor: &mut Cursor<Bytes>) -> bincode::Result<Entity> {
+fn deserialize_entity(cursor: &mut Cursor<Bytes>) -> bincode::Result<Entity> {
     let flagged_index: u64 = cursor.read_u64_varint()?;
     let has_generation = (flagged_index & 1) > 0;
     let generation = if has_generation {
