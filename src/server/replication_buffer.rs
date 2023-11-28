@@ -1,7 +1,6 @@
 use std::{io::Cursor, mem};
 
-use bevy::{ecs::component::Tick, prelude::*, ptr::Ptr};
-use bevy_renet::renet::{Bytes, ClientId, RenetServer};
+use bevy::{prelude::*, ptr::Ptr};
 use bincode::{DefaultOptions, Options};
 use varint_rs::VarintWriter;
 
@@ -9,26 +8,10 @@ use super::ClientMapping;
 use crate::replicon_core::{
     replication_rules::{ReplicationId, ReplicationInfo},
     replicon_tick::RepliconTick,
-    REPLICATION_CHANNEL_ID,
 };
 
-/// A reusable buffer with replicated data for a client.
-///
-/// See also [Limits](../index.html#limits)
+/// A reusable buffer with replicated data.
 pub(crate) struct ReplicationBuffer {
-    /// ID of a client for which this buffer is written.
-    client_id: ClientId,
-
-    /// Last system tick acknowledged by the client.
-    ///
-    /// Used for changes preparation.
-    system_tick: Tick,
-
-    /// Send buffer data even if it doesn't contain replication data.
-    ///
-    /// See also [`Self::send_to`]
-    send_empty: bool,
-
     /// Serialized data.
     cursor: Cursor<Vec<u8>>,
 
@@ -55,29 +38,12 @@ pub(crate) struct ReplicationBuffer {
 }
 
 impl ReplicationBuffer {
-    /// Creates a new buffer with assigned client ID.
-    ///
-    /// `replicon_tick` is the current tick that will be written into
-    ///  the buffer to read by client on receive.
-    ///
-    /// `system_tick` is the last acknowledged system tick for this client.
-    ///  Changes since this tick should be written into the buffer.
-    ///
-    /// If `send_empty` is set to `true`, then [`Self::send_to`]
-    /// will send the buffer data even if it contains only replicon tick.
-    pub(super) fn new(
-        replicon_tick: RepliconTick,
-        client_id: ClientId,
-        system_tick: Tick,
-        send_empty: bool,
-    ) -> bincode::Result<Self> {
+    /// Creates a new buffer and writes `replicon_tick` into it.
+    pub(super) fn new(replicon_tick: RepliconTick) -> bincode::Result<Self> {
         let mut cursor = Default::default();
         bincode::serialize_into(&mut cursor, &replicon_tick)?;
 
         Ok(Self {
-            client_id,
-            system_tick,
-            send_empty,
             cursor,
             array_pos: Default::default(),
             array_len: Default::default(),
@@ -89,19 +55,10 @@ impl ReplicationBuffer {
         })
     }
 
-    /// Clears the buffer and assigns it to a different client ID.
+    /// Clears the buffer and writes `replicon_tick` into it.
     ///
     /// Keeps allocated capacity of the buffer.
-    pub(super) fn reset(
-        &mut self,
-        replicon_tick: RepliconTick,
-        client_id: ClientId,
-        system_tick: Tick,
-        send_empty: bool,
-    ) -> bincode::Result<()> {
-        self.client_id = client_id;
-        self.system_tick = system_tick;
-        self.send_empty = send_empty;
+    pub(super) fn reset(&mut self, replicon_tick: RepliconTick) -> bincode::Result<()> {
         self.cursor.set_position(0);
         self.cursor.get_mut().clear();
         self.arrays_with_data = 0;
@@ -111,14 +68,14 @@ impl ReplicationBuffer {
         Ok(())
     }
 
-    /// Returns the designated client ID.
-    pub(super) fn client_id(&self) -> ClientId {
-        self.client_id
+    /// Returns `true` if the buffer contains at least one non-empty array.
+    pub(super) fn contains_data(&self) -> bool {
+        self.arrays_with_data != 0
     }
 
-    /// Returns the last acknowledged system tick for the designated client.
-    pub(super) fn system_tick(&self) -> Tick {
-        self.system_tick
+    /// Returns a slice containing  array.
+    pub(super) fn as_slice(&self) -> &[u8] {
+        self.cursor.get_ref()
     }
 
     /// Starts writing array by remembering its position to write length after.
@@ -280,32 +237,14 @@ impl ReplicationBuffer {
         Ok(())
     }
 
-    /// Sends the buffer data to the designated client.
-    ///
-    /// [`Self::reset`] should be called after it to use this buffer again.
-    pub(super) fn send_to(&mut self, server: &mut RenetServer) {
-        debug_assert_eq!(self.array_len, 0);
-        debug_assert_eq!(self.entity_data_len, 0);
-
-        if self.arrays_with_data > 0 || self.send_empty {
-            self.trim_empty_arrays();
-
-            trace!("sending replication message to client {}", self.client_id);
-            server.send_message(
-                self.client_id,
-                REPLICATION_CHANNEL_ID,
-                Bytes::copy_from_slice(self.cursor.get_ref()),
-            );
-        } else {
-            trace!("no changes to send for client {}", self.client_id);
-        }
-    }
-
     /// Crops empty arrays at the end.
     ///
     /// Should only be called after all arrays have been written, because
     /// removed array somewhere the middle cannot be detected during deserialization.
-    fn trim_empty_arrays(&mut self) {
+    pub(super) fn trim_empty_arrays(&mut self) {
+        debug_assert_eq!(self.array_len, 0);
+        debug_assert_eq!(self.entity_data_len, 0);
+
         let used_len = self.cursor.get_ref().len()
             - self.trailing_empty_arrays * mem::size_of_val(&self.array_len);
         self.cursor.get_mut().truncate(used_len);
@@ -335,8 +274,7 @@ mod tests {
 
     #[test]
     fn trimming_arrays() -> bincode::Result<()> {
-        let mut buffer =
-            ReplicationBuffer::new(RepliconTick(0), ClientId::from_raw(0), Tick::new(0), false)?;
+        let mut buffer = ReplicationBuffer::new(RepliconTick(0))?;
 
         let begin_len = buffer.cursor.get_ref().len();
         for _ in 0..3 {
