@@ -125,7 +125,7 @@ impl ReplicationBuffer {
     ///
     /// Arrays can contain entity data or despawns inside.
     /// Length will be increased automatically after writing data.
-    /// See also [`Self::end_array`], [`Self::start_entity_data`] and [`Self::write_despawn`].
+    /// See also [`Self::end_array`], [`Self::write_client_mapping`], [`Self::write_entity`] and [`Self::start_entity_data`].
     pub(super) fn start_array(&mut self) {
         debug_assert_eq!(self.array_len, 0);
 
@@ -188,23 +188,13 @@ impl ReplicationBuffer {
         Ok(())
     }
 
-    /// Crops empty arrays at the end.
+    /// Starts writing entity and its data as an array element.
     ///
-    /// Should only be called after all arrays have been written, because
-    /// removed array somewhere the middle cannot be detected during deserialization.
-    fn trim_empty_arrays(&mut self) {
-        let used_len = self.cursor.get_ref().len()
-            - self.trailing_empty_arrays * mem::size_of_val(&self.array_len);
-        self.cursor.get_mut().truncate(used_len);
-    }
-
-    /// Starts writing entity and its data by remembering `entity`.
-    ///
-    /// Arrays can contain component changes or removals inside.
+    /// Data can contain components with their IDs or only IDs.
     /// Length will be increased automatically after writing data.
     /// Entity will be written lazily after first data write and its position will be remembered to write length later.
-    /// See also [`Self::end_entity_data`], [`Self::write_current_entity`], [`Self::write_change`]
-    /// and [`Self::write_removal`].
+    /// See also [`Self::end_entity_data`], [`Self::write_component`]
+    /// and [`Self::write_component_id`].
     pub(super) fn start_entity_data(&mut self, entity: Entity) {
         debug_assert_eq!(self.entity_data_len, 0);
 
@@ -227,8 +217,8 @@ impl ReplicationBuffer {
     /// Ends writing entity data by writing its length into the last remembered position.
     ///
     /// If the entity data is empty, nothing will be written.
-    /// See also [`Self::start_array`], [`Self::write_current_entity`], [`Self::write_change`] and
-    /// [`Self::write_removal`].
+    /// See also [`Self::start_array`], [`Self::write_component`] and
+    /// [`Self::write_component_id`].
     pub(super) fn end_entity_data(&mut self) -> bincode::Result<()> {
         if self.entity_data_len != 0 {
             let previous_pos = self.cursor.position();
@@ -309,6 +299,16 @@ impl ReplicationBuffer {
         } else {
             trace!("no changes to send for client {}", self.client_id);
         }
+    }
+
+    /// Crops empty arrays at the end.
+    ///
+    /// Should only be called after all arrays have been written, because
+    /// removed array somewhere the middle cannot be detected during deserialization.
+    fn trim_empty_arrays(&mut self) {
+        let used_len = self.cursor.get_ref().len()
+            - self.trailing_empty_arrays * mem::size_of_val(&self.array_len);
+        self.cursor.get_mut().truncate(used_len);
     }
 }
 
