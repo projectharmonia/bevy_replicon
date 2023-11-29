@@ -95,7 +95,7 @@ you can use [`AppReplicationExt::replicate_with`]:
 ```
 use std::io::Cursor;
 use bevy::{prelude::*, ptr::Ptr};
-use bevy_replicon::{prelude::*, renet::Bytes, replicon_core::replication_rules};
+use bevy_replicon::{prelude::*, replicon_core::replication_rules};
 use serde::{Deserialize, Serialize};
 
 # let mut app = App::new();
@@ -116,7 +116,7 @@ fn serialize_transform(
 fn deserialize_transform(
     entity: &mut EntityWorldMut,
     _entity_map: &mut ServerEntityMap,
-    cursor: &mut Cursor<Bytes>,
+    cursor: &mut Cursor<&[u8]>,
     _tick: RepliconTick,
 ) -> bincode::Result<()> {
     let translation: Vec3 = bincode::deserialize_from(cursor)?;
@@ -169,7 +169,7 @@ your initialization systems to [`ClientSet::Receive`]:
 ```
 # use std::io::Cursor;
 # use bevy::{prelude::*, ptr::Ptr};
-# use bevy_replicon::{prelude::*, renet::Bytes, replicon_core::replication_rules};
+# use bevy_replicon::{prelude::*, replicon_core::replication_rules};
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
@@ -196,7 +196,7 @@ fn player_init_system(
 #[derive(Component, Deserialize, Serialize)]
 struct Player;
 # fn serialize_transform(_: Ptr, _: &mut Cursor<Vec<u8>>) -> bincode::Result<()> { unimplemented!() }
-# fn deserialize_transform(_: &mut EntityWorldMut, _: &mut ServerEntityMap, _: &mut Cursor<Bytes>, _: RepliconTick) -> bincode::Result<()> { unimplemented!() }
+# fn deserialize_transform(_: &mut EntityWorldMut, _: &mut ServerEntityMap, _: &mut Cursor<&[u8]>, _: RepliconTick) -> bincode::Result<()> { unimplemented!() }
 ```
 
 This pairs nicely with server state serialization and keeps saves clean.

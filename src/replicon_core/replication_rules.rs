@@ -1,7 +1,6 @@
 use std::{io::Cursor, marker::PhantomData};
 
 use bevy::{ecs::component::ComponentId, prelude::*, ptr::Ptr, utils::HashMap};
-use bevy_renet::renet::Bytes;
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
@@ -159,7 +158,7 @@ pub type SerializeFn = fn(Ptr, &mut Cursor<Vec<u8>>) -> bincode::Result<()>;
 pub type DeserializeFn = fn(
     &mut EntityWorldMut,
     &mut ServerEntityMap,
-    &mut Cursor<Bytes>,
+    &mut Cursor<&[u8]>,
     RepliconTick,
 ) -> bincode::Result<()>;
 
@@ -231,7 +230,7 @@ pub fn serialize_component<C: Component + Serialize>(
 pub fn deserialize_component<C: Component + DeserializeOwned>(
     entity: &mut EntityWorldMut,
     _entity_map: &mut ServerEntityMap,
-    cursor: &mut Cursor<Bytes>,
+    cursor: &mut Cursor<&[u8]>,
     _tick: RepliconTick,
 ) -> bincode::Result<()> {
     let component: C = DefaultOptions::new().deserialize_from(cursor)?;
@@ -244,7 +243,7 @@ pub fn deserialize_component<C: Component + DeserializeOwned>(
 pub fn deserialize_mapped_component<C: Component + DeserializeOwned + MapNetworkEntities>(
     entity: &mut EntityWorldMut,
     entity_map: &mut ServerEntityMap,
-    cursor: &mut Cursor<Bytes>,
+    cursor: &mut Cursor<&[u8]>,
     _tick: RepliconTick,
 ) -> bincode::Result<()> {
     let mut component: C = DefaultOptions::new().deserialize_from(cursor)?;

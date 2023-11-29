@@ -6,7 +6,7 @@ use bevy::{
     prelude::*,
     utils::{hashbrown::hash_map::Entry, EntityHashMap},
 };
-use bevy_renet::{client_connected, renet::Bytes};
+use bevy_renet::client_connected;
 use bevy_renet::{renet::RenetClient, transport::NetcodeClientPlugin, RenetClientPlugin};
 use bincode::{DefaultOptions, Options};
 use varint_rs::VarintReader;
@@ -60,7 +60,7 @@ impl ClientPlugin {
                     let mut stats = world.remove_resource::<ClientStats>();
                     while let Some(message) = client.receive_message(REPLICATION_CHANNEL_ID) {
                         let end_pos: u64 = message.len().try_into().unwrap();
-                        let mut cursor = Cursor::new(message);
+                        let mut cursor = Cursor::new(&*message);
                         if let Some(stats) = &mut stats {
                             stats.packets += 1;
                             stats.bytes += end_pos;
@@ -143,7 +143,7 @@ impl ClientPlugin {
 ///
 /// Returns the tick if [`LastTick`] has been updated.
 fn apply_tick(
-    cursor: &mut Cursor<Bytes>,
+    cursor: &mut Cursor<&[u8]>,
     world: &mut World,
 ) -> bincode::Result<Option<RepliconTick>> {
     let tick = bincode::deserialize_from(cursor)?;
@@ -161,7 +161,7 @@ fn apply_tick(
 
 /// Applies received server mappings from client's pre-spawned entities.
 fn apply_entity_mappings(
-    cursor: &mut Cursor<Bytes>,
+    cursor: &mut Cursor<&[u8]>,
     world: &mut World,
     entity_map: &mut ServerEntityMap,
     stats: Option<&mut ClientStats>,
@@ -196,7 +196,7 @@ fn apply_entity_mappings(
 
 /// Deserializes replicated components of `components_kind` and applies them to the `world`.
 fn apply_components(
-    cursor: &mut Cursor<Bytes>,
+    cursor: &mut Cursor<&[u8]>,
     world: &mut World,
     entity_map: &mut ServerEntityMap,
     mut stats: Option<&mut ClientStats>,
@@ -231,7 +231,7 @@ fn apply_components(
 
 /// Deserializes despawns and applies them to the `world`.
 fn apply_despawns(
-    cursor: &mut Cursor<Bytes>,
+    cursor: &mut Cursor<&[u8]>,
     world: &mut World,
     entity_map: &mut ServerEntityMap,
     replication_rules: &ReplicationRules,
@@ -261,7 +261,7 @@ fn apply_despawns(
 /// Deserializes `entity` from compressed index and generation.
 ///
 /// For details see [`ReplicationBuffer::write_entity`](crate::server::replication_buffer::ReplicationBuffer::write_entity).
-fn deserialize_entity(cursor: &mut Cursor<Bytes>) -> bincode::Result<Entity> {
+fn deserialize_entity(cursor: &mut Cursor<&[u8]>) -> bincode::Result<Entity> {
     let flagged_index: u64 = cursor.read_u64_varint()?;
     let has_generation = (flagged_index & 1) > 0;
     let generation = if has_generation {
