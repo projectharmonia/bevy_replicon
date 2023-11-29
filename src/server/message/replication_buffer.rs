@@ -4,10 +4,12 @@ use bevy::{prelude::*, ptr::Ptr};
 use bincode::{DefaultOptions, Options};
 use varint_rs::VarintWriter;
 
-use super::ClientMapping;
-use crate::replicon_core::{
-    replication_rules::{ReplicationId, ReplicationInfo},
-    replicon_tick::RepliconTick,
+use crate::{
+    replicon_core::{
+        replication_rules::{ReplicationId, ReplicationInfo},
+        replicon_tick::RepliconTick,
+    },
+    server::ClientMapping,
 };
 
 /// A reusable buffer with replicated data.
@@ -87,7 +89,7 @@ impl ReplicationBuffer {
     /// Arrays can contain entity data or despawns inside.
     /// Length will be increased automatically after writing data.
     /// See also [`Self::end_array`], [`Self::write_client_mapping`], [`Self::write_entity`] and [`Self::start_entity_data`].
-    pub(super) fn start_array(&mut self) {
+    pub(crate) fn start_array(&mut self) {
         debug_assert_eq!(self.array_len, 0);
 
         self.array_pos = self.cursor.position();
@@ -98,7 +100,7 @@ impl ReplicationBuffer {
     /// Ends writing array by writing its length into the last remembered position.
     ///
     /// See also [`Self::start_array`].
-    pub(super) fn end_array(&mut self) -> bincode::Result<()> {
+    pub(crate) fn end_array(&mut self) -> bincode::Result<()> {
         if self.array_len != 0 {
             let previous_pos = self.cursor.position();
             self.cursor.set_position(self.array_pos);
@@ -123,7 +125,7 @@ impl ReplicationBuffer {
     /// Should be called only inside array.
     /// Increases array length by 1.
     /// See also [`Self::start_array`].
-    pub(super) fn write_client_mapping(&mut self, mapping: &ClientMapping) -> bincode::Result<()> {
+    pub(crate) fn write_client_mapping(&mut self, mapping: &ClientMapping) -> bincode::Result<()> {
         serialize_entity(&mut self.cursor, mapping.server_entity)?;
         serialize_entity(&mut self.cursor, mapping.client_entity)?;
         self.array_len = self
@@ -139,7 +141,7 @@ impl ReplicationBuffer {
     /// Should be called only inside array.
     /// Increases array length by 1.
     /// See also [`Self::start_array`].
-    pub(super) fn write_entity(&mut self, entity: Entity) -> bincode::Result<()> {
+    pub(crate) fn write_entity(&mut self, entity: Entity) -> bincode::Result<()> {
         serialize_entity(&mut self.cursor, entity)?;
         self.array_len = self
             .array_len
@@ -156,7 +158,7 @@ impl ReplicationBuffer {
     /// Entity will be written lazily after first data write.
     /// See also [`Self::end_entity_data`], [`Self::write_component`]
     /// and [`Self::write_component_id`].
-    pub(super) fn start_entity_data(&mut self, entity: Entity) {
+    pub(crate) fn start_entity_data(&mut self, entity: Entity) {
         debug_assert_eq!(self.entity_data_len, 0);
 
         self.data_entity = entity;
@@ -181,7 +183,7 @@ impl ReplicationBuffer {
     /// If the entity data is empty, nothing will be written.
     /// See also [`Self::start_array`], [`Self::write_component`] and
     /// [`Self::write_component_id`].
-    pub(super) fn end_entity_data(&mut self) -> bincode::Result<()> {
+    pub(crate) fn end_entity_data(&mut self) -> bincode::Result<()> {
         if self.entity_data_len != 0 {
             let previous_pos = self.cursor.position();
             self.cursor.set_position(self.entity_data_len_pos);
@@ -206,7 +208,7 @@ impl ReplicationBuffer {
     /// Should be called only inside entity data.
     /// Increases entity data length by 1.
     /// See also [`Self::start_entity_data`].
-    pub(super) fn write_component(
+    pub(crate) fn write_component(
         &mut self,
         replication_info: &ReplicationInfo,
         replication_id: ReplicationId,
@@ -228,7 +230,7 @@ impl ReplicationBuffer {
     /// Should be called only inside entity data.
     /// Increases entity data length by 1.
     /// See also [`Self::start_entity_data`].
-    pub(super) fn write_replication_id(
+    pub(crate) fn write_replication_id(
         &mut self,
         replication_id: ReplicationId,
     ) -> bincode::Result<()> {
