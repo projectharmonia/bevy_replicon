@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Use `EntityHashMap` instead of `HashMap` with entities as keys.
+- Use `Cursor<&[u8]>` instead of `Cursor<Bytes>`.
 - Rename `replicate_into_scene` into `replicate_into` and move it to `scene` module.
 
 ## [0.17.0] - 2023-11-13
