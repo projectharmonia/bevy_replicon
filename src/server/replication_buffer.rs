@@ -147,7 +147,7 @@ impl ReplicationBuffer {
 
     /// Starts writing entity and its data as an array element.
     ///
-    /// Data can contain components with their IDs or only IDs.
+    /// Data can contain components with their IDs or IDs only.
     /// Length will be increased automatically after writing data.
     /// Entity will be written lazily after first data write and its position will be remembered to write length later.
     /// See also [`Self::end_entity_data`], [`Self::write_component`]
