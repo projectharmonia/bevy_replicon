@@ -505,18 +505,19 @@ impl ReplicationMessage {
 
     /// Sends the message to the designated client.
     fn send_to(&mut self, server: &mut RenetServer) {
-        if self.buffer.contains_data() || self.send_empty {
-            self.buffer.trim_empty_arrays();
-
-            trace!("sending replication message to client {}", self.client_id);
-            server.send_message(
-                self.client_id,
-                REPLICATION_CHANNEL_ID,
-                Bytes::copy_from_slice(self.buffer.as_slice()),
-            );
-        } else {
+        if !self.buffer.contains_data() && !self.send_empty {
             trace!("no changes to send for client {}", self.client_id);
+            return;
         }
+
+        self.buffer.trim_empty_arrays();
+
+        trace!("sending replication message to client {}", self.client_id);
+        server.send_message(
+            self.client_id,
+            REPLICATION_CHANNEL_ID,
+            Bytes::copy_from_slice(self.buffer.as_slice()),
+        );
     }
 }
 

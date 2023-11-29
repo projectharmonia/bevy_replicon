@@ -73,7 +73,7 @@ impl ReplicationBuffer {
         self.arrays_with_data != 0
     }
 
-    /// Returns a slice containing  array.
+    /// Returns the buffer as a byte array.
     pub(super) fn as_slice(&self) -> &[u8] {
         self.cursor.get_ref()
     }
