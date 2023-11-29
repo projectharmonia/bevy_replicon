@@ -15,7 +15,7 @@ use bevy::{
     utils::HashMap,
 };
 use bevy_renet::{
-    renet::{ClientId, RenetClient, RenetServer, ServerEvent},
+    renet::{Bytes, ClientId, RenetClient, RenetServer, ServerEvent},
     transport::NetcodeServerPlugin,
     RenetReceive, RenetSend, RenetServerPlugin,
 };
@@ -151,7 +151,7 @@ impl ServerPlugin {
 
     #[allow(clippy::too_many_arguments)]
     pub(super) fn replication_sending_system(
-        mut buffers: Local<Vec<ReplicationBuffer>>,
+        mut messages: Local<Vec<ReplicationMessage>>,
         change_tick: SystemChangeTick,
         mut set: ParamSet<(&World, ResMut<RenetServer>, ResMut<AckedTicks>)>,
         replication_rules: Res<ReplicationRules>,
@@ -164,25 +164,25 @@ impl ServerPlugin {
         let mut acked_ticks = set.p2();
         acked_ticks.register_tick(*replicon_tick, change_tick.this_run());
 
-        let buffers = prepare_buffers(
-            &mut buffers,
+        let messages = prepare_messages(
+            &mut messages,
             &acked_ticks,
             *replicon_tick,
             *min_replicon_tick,
         )?;
 
-        collect_mappings(buffers, &entity_map)?;
+        collect_mappings(messages, &entity_map)?;
         collect_changes(
-            buffers,
+            messages,
             set.p0(),
             change_tick.this_run(),
             &replication_rules,
         )?;
-        collect_removals(buffers, &removal_trackers, change_tick.this_run())?;
-        collect_despawns(buffers, &despawn_tracker, change_tick.this_run())?;
+        collect_removals(messages, &removal_trackers, change_tick.this_run())?;
+        collect_despawns(messages, &despawn_tracker, change_tick.this_run())?;
 
-        for buffer in buffers {
-            buffer.send_to(&mut set.p1());
+        for messages in messages {
+            messages.send_to(&mut set.p1());
         }
 
         Ok(())
@@ -194,19 +194,19 @@ impl ServerPlugin {
     }
 }
 
-/// Initializes buffer for each client and returns it as mutable slice.
+/// Initializes message for each client and returns it as mutable slice.
 ///
-/// Reuses already allocated buffers.
-/// Creates new buffers if number of clients is bigger then the number of allocated buffers.
-/// If there are more buffers than the number of clients, then the extra buffers remain untouched
+/// Reuses already allocated messages.
+/// Creates new messages if number of clients is bigger then the number of allocated messages.
+/// If there are more messages than the number of clients, then the extra messages remain untouched
 /// and the returned slice will not include them.
-fn prepare_buffers<'a>(
-    buffers: &'a mut Vec<ReplicationBuffer>,
+fn prepare_messages<'a>(
+    messages: &'a mut Vec<ReplicationMessage>,
     acked_ticks: &AckedTicks,
     replicon_tick: RepliconTick,
     min_replicon_tick: MinRepliconTick,
-) -> bincode::Result<&'a mut [ReplicationBuffer]> {
-    buffers.reserve(acked_ticks.clients.len());
+) -> bincode::Result<&'a mut [ReplicationMessage]> {
+    messages.reserve(acked_ticks.clients.len());
     for (index, (&client_id, &acked_tick)) in acked_ticks.clients.iter().enumerate() {
         let system_tick = *acked_ticks
             .system_ticks
@@ -214,10 +214,10 @@ fn prepare_buffers<'a>(
             .unwrap_or(&Tick::new(0));
 
         let send_empty = acked_tick < *min_replicon_tick;
-        if let Some(buffer) = buffers.get_mut(index) {
-            buffer.reset(replicon_tick, client_id, system_tick, send_empty)?;
+        if let Some(message) = messages.get_mut(index) {
+            message.reset(replicon_tick, client_id, system_tick, send_empty)?;
         } else {
-            buffers.push(ReplicationBuffer::new(
+            messages.push(ReplicationMessage::new(
                 replicon_tick,
                 client_id,
                 system_tick,
@@ -226,39 +226,39 @@ fn prepare_buffers<'a>(
         }
     }
 
-    Ok(&mut buffers[..acked_ticks.clients.len()])
+    Ok(&mut messages[..acked_ticks.clients.len()])
 }
 
-/// Collect and write any new entity mappings into buffers since last acknowledged tick.
+/// Collect and write any new entity mappings into messages since last acknowledged tick.
 ///
 /// Mappings will be processed first, so all referenced entities after it will behave correctly.
 fn collect_mappings(
-    buffers: &mut [ReplicationBuffer],
+    messages: &mut [ReplicationMessage],
     entity_map: &ClientEntityMap,
 ) -> bincode::Result<()> {
-    for buffer in &mut *buffers {
-        buffer.start_array();
+    for message in &mut *messages {
+        message.start_array();
 
-        if let Some(mappings) = entity_map.get(&buffer.client_id()) {
+        if let Some(mappings) = entity_map.get(&message.client_id) {
             for mapping in mappings {
-                buffer.write_client_mapping(mapping)?;
+                message.write_client_mapping(mapping)?;
             }
         }
 
-        buffer.end_array()?;
+        message.end_array()?;
     }
     Ok(())
 }
 
-/// Collect component changes into buffers based on last acknowledged tick.
+/// Collect component changes into messages based on last acknowledged tick.
 fn collect_changes(
-    buffers: &mut [ReplicationBuffer],
+    messages: &mut [ReplicationMessage],
     world: &World,
     system_tick: Tick,
     replication_rules: &ReplicationRules,
 ) -> bincode::Result<()> {
-    for buffer in &mut *buffers {
-        buffer.start_array();
+    for message in &mut *messages {
+        message.start_array();
     }
 
     for archetype in world
@@ -275,8 +275,8 @@ fn collect_changes(
             .expect("archetype should be valid");
 
         for archetype_entity in archetype.entities() {
-            for buffer in &mut *buffers {
-                buffer.start_entity_data(archetype_entity.entity());
+            for message in &mut *messages {
+                message.start_entity_data(archetype_entity.entity());
             }
 
             for component_id in archetype.components() {
@@ -305,9 +305,9 @@ fn collect_changes(
                         let component =
                             unsafe { column.get_data_unchecked(archetype_entity.table_row()) };
 
-                        for buffer in &mut *buffers {
-                            if ticks.is_changed(buffer.system_tick(), system_tick) {
-                                buffer.write_component(
+                        for message in &mut *messages {
+                            if ticks.is_changed(message.system_tick, system_tick) {
+                                message.write_component(
                                     replication_info,
                                     replication_id,
                                     component,
@@ -330,9 +330,9 @@ fn collect_changes(
                             .get(entity)
                             .unwrap_or_else(|| panic!("{entity:?} should have {component_id:?}"));
 
-                        for buffer in &mut *buffers {
-                            if ticks.is_changed(buffer.system_tick(), system_tick) {
-                                buffer.write_component(
+                        for message in &mut *messages {
+                            if ticks.is_changed(message.system_tick, system_tick) {
+                                message.write_component(
                                     replication_info,
                                     replication_id,
                                     component,
@@ -343,68 +343,68 @@ fn collect_changes(
                 }
             }
 
-            for buffer in &mut *buffers {
-                buffer.end_entity_data()?;
+            for message in &mut *messages {
+                message.end_entity_data()?;
             }
         }
     }
 
-    for buffer in &mut *buffers {
-        buffer.end_array()?;
+    for message in &mut *messages {
+        message.end_array()?;
     }
 
     Ok(())
 }
 
-/// Collect component removals into buffers based on last acknowledged tick.
+/// Collect component removals into messages based on last acknowledged tick.
 fn collect_removals(
-    buffers: &mut [ReplicationBuffer],
+    messages: &mut [ReplicationMessage],
     removal_trackers: &Query<(Entity, &RemovalTracker)>,
     system_tick: Tick,
 ) -> bincode::Result<()> {
-    for buffer in &mut *buffers {
-        buffer.start_array();
+    for message in &mut *messages {
+        message.start_array();
     }
 
     for (entity, removal_tracker) in removal_trackers {
-        for buffer in &mut *buffers {
-            buffer.start_entity_data(entity);
+        for message in &mut *messages {
+            message.start_entity_data(entity);
             for (&replication_id, &tick) in &removal_tracker.0 {
-                if tick.is_newer_than(buffer.system_tick(), system_tick) {
-                    buffer.write_replication_id(replication_id)?;
+                if tick.is_newer_than(message.system_tick, system_tick) {
+                    message.write_replication_id(replication_id)?;
                 }
             }
-            buffer.end_entity_data()?;
+            message.end_entity_data()?;
         }
     }
 
-    for buffer in &mut *buffers {
-        buffer.end_array()?;
+    for message in &mut *messages {
+        message.end_array()?;
     }
 
     Ok(())
 }
 
-/// Collect entity despawns into buffers based on last acknowledged tick.
+/// Collect entity despawns into messages based on last acknowledged tick.
 fn collect_despawns(
-    buffers: &mut [ReplicationBuffer],
+    messages: &mut [ReplicationMessage],
     despawn_tracker: &DespawnTracker,
     system_tick: Tick,
 ) -> bincode::Result<()> {
-    for buffer in &mut *buffers {
-        buffer.start_array();
+    for message in &mut *messages {
+        message.start_array();
     }
 
     for &(entity, tick) in &despawn_tracker.0 {
-        for buffer in &mut *buffers {
-            if tick.is_newer_than(buffer.system_tick(), system_tick) {
-                buffer.write_entity(entity)?;
+        for message in &mut *messages {
+            if tick.is_newer_than(message.system_tick, system_tick) {
+                message.write_entity(entity)?;
             }
         }
     }
 
-    for buffer in &mut *buffers {
-        buffer.end_array()?;
+    for message in &mut *messages {
+        message.end_array()?;
     }
 
     Ok(())
@@ -437,6 +437,88 @@ pub enum TickPolicy {
     EveryFrame,
     /// [`ServerSet::Send`] should be manually configured.
     Manual,
+}
+
+/// A reusable message with replicated data for a client.
+///
+/// See also [Limits](../index.html#limits)
+#[derive(Deref, DerefMut)]
+pub(crate) struct ReplicationMessage {
+    /// ID of a client for which this message is written.
+    client_id: ClientId,
+
+    /// Last system tick acknowledged by the client.
+    ///
+    /// Used for changes preparation.
+    system_tick: Tick,
+
+    /// Send message even if it doesn't contain replication data.
+    ///
+    /// See also [`Self::send_to`]
+    send_empty: bool,
+
+    /// Message data.
+    #[deref]
+    buffer: ReplicationBuffer,
+}
+
+impl ReplicationMessage {
+    /// Creates a new message with assigned client ID.
+    ///
+    /// `replicon_tick` is the current tick that will be written into
+    ///  the message to read by client on receive.
+    ///
+    /// `system_tick` is the last acknowledged system tick for this client.
+    ///  Changes since this tick should be written into the message.
+    ///
+    /// If `send_empty` is set to `true`, then [`Self::send_to`]
+    /// will send the message even if it doesn't contain any data.
+    fn new(
+        replicon_tick: RepliconTick,
+        client_id: ClientId,
+        system_tick: Tick,
+        send_empty: bool,
+    ) -> bincode::Result<Self> {
+        Ok(Self {
+            client_id,
+            system_tick,
+            send_empty,
+            buffer: ReplicationBuffer::new(replicon_tick)?,
+        })
+    }
+
+    /// Clears the message and assigns it to a different client ID.
+    ///
+    /// Keeps allocated capacity of the buffer.
+    fn reset(
+        &mut self,
+        replicon_tick: RepliconTick,
+        client_id: ClientId,
+        system_tick: Tick,
+        send_empty: bool,
+    ) -> bincode::Result<()> {
+        self.client_id = client_id;
+        self.system_tick = system_tick;
+        self.send_empty = send_empty;
+        self.buffer.reset(replicon_tick)
+    }
+
+    /// Sends the message to the designated client.
+    fn send_to(&mut self, server: &mut RenetServer) {
+        if !self.buffer.contains_data() && !self.send_empty {
+            trace!("no changes to send for client {}", self.client_id);
+            return;
+        }
+
+        self.buffer.trim_empty_arrays();
+
+        trace!("sending replication message to client {}", self.client_id);
+        server.send_message(
+            self.client_id,
+            REPLICATION_CHANNEL_ID,
+            Bytes::copy_from_slice(self.buffer.as_slice()),
+        );
+    }
 }
 
 /// Stores information about ticks.
