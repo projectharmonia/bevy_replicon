@@ -27,8 +27,11 @@ pub(crate) struct ReplicationBuffer {
     /// The number of empty arrays at the end. Can be removed using [`Self::trim_empty_arrays`]
     trailing_empty_arrays: usize,
 
-    /// Position of entity after [`Self::start_entity_data`] or its data after [`Self::write_data_entity`].
+    /// Position of entity from last call of [`Self::start_entity_data`].
     entity_data_pos: u64,
+
+    /// Position of entity data length from last call of [`Self::write_data_entity`].
+    entity_data_len_pos: u64,
 
     /// Length of the data for entity that updated automatically after writing data.
     entity_data_len: u8,
@@ -50,6 +53,7 @@ impl ReplicationBuffer {
             arrays_with_data: Default::default(),
             trailing_empty_arrays: Default::default(),
             entity_data_pos: Default::default(),
+            entity_data_len_pos: Default::default(),
             entity_data_len: Default::default(),
             data_entity: Entity::PLACEHOLDER,
         })
@@ -149,7 +153,7 @@ impl ReplicationBuffer {
     ///
     /// Data can contain components with their IDs or IDs only.
     /// Length will be increased automatically after writing data.
-    /// Entity will be written lazily after first data write and its position will be remembered to write length later.
+    /// Entity will be written lazily after first data write.
     /// See also [`Self::end_entity_data`], [`Self::write_component`]
     /// and [`Self::write_component_id`].
     pub(super) fn start_entity_data(&mut self, entity: Entity) {
@@ -159,14 +163,15 @@ impl ReplicationBuffer {
         self.entity_data_pos = self.cursor.position();
     }
 
-    /// Writes entity for current data and updates remembered position for it to write length later.
+    /// Writes entity for the current data and remembers the position after it to write length later.
     ///
     /// Should be called only after first data write.
     fn write_data_entity(&mut self) -> bincode::Result<()> {
         serialize_entity(&mut self.cursor, self.data_entity)?;
-        self.entity_data_pos = self.cursor.position();
-        self.cursor
-            .set_position(self.entity_data_pos + mem::size_of_val(&self.entity_data_len) as u64);
+        self.entity_data_len_pos = self.cursor.position();
+        self.cursor.set_position(
+            self.entity_data_len_pos + mem::size_of_val(&self.entity_data_len) as u64,
+        );
 
         Ok(())
     }
@@ -179,7 +184,7 @@ impl ReplicationBuffer {
     pub(super) fn end_entity_data(&mut self) -> bincode::Result<()> {
         if self.entity_data_len != 0 {
             let previous_pos = self.cursor.position();
-            self.cursor.set_position(self.entity_data_pos);
+            self.cursor.set_position(self.entity_data_len_pos);
 
             bincode::serialize_into(&mut self.cursor, &self.entity_data_len)?;
 
