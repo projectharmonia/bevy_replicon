@@ -50,7 +50,6 @@ impl Plugin for ServerPlugin {
             DespawnTrackerPlugin,
         ))
         .init_resource::<AckedTicks>()
-        .init_resource::<RepliconTick>()
         .init_resource::<MinRepliconTick>()
         .init_resource::<ClientEntityMap>()
         .configure_sets(PreUpdate, ServerSet::Receive.after(RenetReceive))

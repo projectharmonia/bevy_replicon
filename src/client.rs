@@ -23,7 +23,6 @@ pub struct ClientPlugin;
 impl Plugin for ClientPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((RenetClientPlugin, NetcodeClientPlugin))
-            .init_resource::<LastRepliconTick>()
             .init_resource::<ServerEntityMap>()
             .configure_sets(
                 PreUpdate,
@@ -78,17 +77,17 @@ impl ClientPlugin {
         })
     }
 
-    fn ack_sending_system(last_tick: Res<LastRepliconTick>, mut client: ResMut<RenetClient>) {
-        let message = bincode::serialize(&last_tick.0)
+    fn ack_sending_system(replicon_tick: Res<RepliconTick>, mut client: ResMut<RenetClient>) {
+        let message = bincode::serialize(&*replicon_tick)
             .unwrap_or_else(|e| panic!("client ack should be serialized: {e}"));
         client.send_message(REPLICATION_CHANNEL_ID, message);
     }
 
     fn reset_system(
-        mut last_tick: ResMut<LastRepliconTick>,
+        mut replicon_tick: ResMut<RepliconTick>,
         mut entity_map: ResMut<ServerEntityMap>,
     ) {
-        last_tick.0 = Default::default();
+        *replicon_tick = Default::default();
         entity_map.clear();
     }
 }
@@ -166,13 +165,13 @@ fn apply_tick(
 ) -> bincode::Result<Option<RepliconTick>> {
     let tick = bincode::deserialize_from(cursor)?;
 
-    let mut last_tick = world.resource_mut::<LastRepliconTick>();
-    if last_tick.0 < tick {
-        trace!("applying {tick:?} over {last_tick:?}");
-        last_tick.0 = tick;
+    let mut replicon_tick = world.resource_mut::<RepliconTick>();
+    if *replicon_tick < tick {
+        trace!("applying {tick:?} over {replicon_tick:?}");
+        *replicon_tick = tick;
         Ok(Some(tick))
     } else {
-        trace!("discarding {tick:?}, which is older then {last_tick:?}");
+        trace!("discarding {tick:?}, which is older then {replicon_tick:?}");
         Ok(None)
     }
 }
@@ -300,12 +299,6 @@ enum ComponentsKind {
     Change,
     Removal,
 }
-
-/// Last received tick from server.
-///
-/// Used only on clients, sent to the server in last replicon ack message.
-#[derive(Debug, Default, Deref, Resource)]
-pub struct LastRepliconTick(pub(super) RepliconTick);
 
 /// Set with replication and event systems related to client.
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone, Copy)]

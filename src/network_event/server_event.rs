@@ -11,7 +11,7 @@ use super::EventChannel;
 use crate::{
     client::{ClientSet, ServerEntityMap},
     network_event::EventMapper,
-    prelude::{ClientPlugin, LastRepliconTick, ServerPlugin},
+    prelude::{ClientPlugin, ServerPlugin},
     replicon_core::{
         replication_rules::MapNetworkEntities, replicon_tick::RepliconTick, NetworkChannels,
     },
@@ -83,7 +83,7 @@ pub trait ServerEventAppExt {
         mut reflect_events: EventWriter<ReflectEvent>,
         mut client: ResMut<RenetClient>,
         mut event_queue: ResMut<ServerEventQueue<ReflectEvent>>,
-        last_tick: Res<LastRepliconTick>,
+        replicon_tick: Res<RepliconTick>,
         channel: Res<EventChannel<ReflectEvent>>,
         registry: Res<AppTypeRegistry>,
     ) {
@@ -93,7 +93,7 @@ pub trait ServerEventAppExt {
                 .expect("server should send valid events");
 
             // Event should be sent to the queue if replication message with its tick has not yet arrived.
-            if tick <= **last_tick {
+            if tick <= *replicon_tick {
                 reflect_events.send(event);
             } else {
                 event_queue.insert(tick, event);
@@ -200,15 +200,15 @@ impl ServerEventAppExt for App {
     }
 }
 
-/// Applies all queued events if their tick is less or equal to [`LastRepliconTick`].
+/// Applies all queued events if their tick is less or equal to [`RepliconTick`].
 fn queue_system<T: Event>(
-    last_tick: Res<LastRepliconTick>,
+    replicon_tick: Res<RepliconTick>,
     mut server_events: EventWriter<T>,
     mut event_queue: ResMut<ServerEventQueue<T>>,
 ) {
     while event_queue
         .front()
-        .filter(|(&tick, _)| tick <= **last_tick)
+        .filter(|(&tick, _)| tick <= *replicon_tick)
         .is_some()
     {
         let (_, event) = event_queue.pop_front().unwrap();
@@ -220,7 +220,7 @@ fn receiving_system<T: Event + DeserializeOwned>(
     mut server_events: EventWriter<T>,
     mut client: ResMut<RenetClient>,
     mut event_queue: ResMut<ServerEventQueue<T>>,
-    last_tick: Res<LastRepliconTick>,
+    replicon_tick: Res<RepliconTick>,
     channel: Res<EventChannel<T>>,
 ) {
     while let Some(message) = client.receive_message(*channel) {
@@ -228,7 +228,7 @@ fn receiving_system<T: Event + DeserializeOwned>(
             .deserialize(&message)
             .expect("server should send valid events");
 
-        if tick <= **last_tick {
+        if tick <= *replicon_tick {
             server_events.send(event);
         } else {
             event_queue.insert(tick, event);
@@ -240,7 +240,7 @@ fn receiving_and_mapping_system<T: Event + MapNetworkEntities + DeserializeOwned
     mut server_events: EventWriter<T>,
     mut client: ResMut<RenetClient>,
     mut event_queue: ResMut<ServerEventQueue<T>>,
-    last_tick: Res<LastRepliconTick>,
+    replicon_tick: Res<RepliconTick>,
     entity_map: Res<ServerEntityMap>,
     channel: Res<EventChannel<T>>,
 ) {
@@ -250,7 +250,7 @@ fn receiving_and_mapping_system<T: Event + MapNetworkEntities + DeserializeOwned
             .expect("server should send valid mapped events");
 
         event.map_entities(&mut EventMapper(entity_map.to_client()));
-        if tick <= **last_tick {
+        if tick <= *replicon_tick {
             server_events.send(event);
         } else {
             event_queue.insert(tick, event);

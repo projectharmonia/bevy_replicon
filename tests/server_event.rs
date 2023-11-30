@@ -185,9 +185,9 @@ fn event_queue() {
     server_app.update();
     client_app.update();
 
-    let dummy_events = client_app.world.resource::<Events<DummyEvent>>();
+    let mut dummy_events = client_app.world.resource_mut::<Events<DummyEvent>>();
     assert_eq!(
-        dummy_events.len(),
+        dummy_events.drain().count(),
         1,
         "should emit only single event for current tick"
     );
