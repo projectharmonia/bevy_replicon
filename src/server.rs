@@ -188,7 +188,8 @@ impl ServerPlugin {
         Ok(())
     }
 
-    fn reset_system(mut acked_ticks: ResMut<AckedTicks>) {
+    fn reset_system(mut replicon_tick: ResMut<RepliconTick>, mut acked_ticks: ResMut<AckedTicks>) {
+        *replicon_tick = Default::default();
         acked_ticks.clients.clear();
         acked_ticks.system_ticks.clear();
     }
