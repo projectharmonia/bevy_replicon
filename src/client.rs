@@ -59,58 +59,12 @@ impl ClientPlugin {
                 world.resource_scope(|world, replication_rules: Mut<ReplicationRules>| {
                     let mut stats = world.remove_resource::<ClientStats>();
                     while let Some(message) = client.receive_message(REPLICATION_CHANNEL_ID) {
-                        let end_pos: u64 = message.len().try_into().unwrap();
-                        let mut cursor = Cursor::new(&*message);
-                        if let Some(stats) = &mut stats {
-                            stats.packets += 1;
-                            stats.bytes += end_pos;
-                        }
-
-                        let Some(tick) = apply_tick(&mut cursor, world)? else {
-                            continue;
-                        };
-                        if cursor.position() == end_pos {
-                            continue;
-                        }
-
-                        apply_entity_mappings(&mut cursor, world, &mut entity_map, stats.as_mut())?;
-                        if cursor.position() == end_pos {
-                            continue;
-                        }
-
-                        apply_components(
-                            &mut cursor,
+                        apply_message(
+                            &message,
                             world,
                             &mut entity_map,
                             stats.as_mut(),
-                            ComponentsKind::Change,
                             &replication_rules,
-                            tick,
-                        )?;
-                        if cursor.position() == end_pos {
-                            continue;
-                        }
-
-                        apply_components(
-                            &mut cursor,
-                            world,
-                            &mut entity_map,
-                            stats.as_mut(),
-                            ComponentsKind::Removal,
-                            &replication_rules,
-                            tick,
-                        )?;
-                        if cursor.position() == end_pos {
-                            continue;
-                        }
-
-                        apply_despawns(
-                            &mut cursor,
-                            world,
-                            &mut entity_map,
-                            &replication_rules,
-                            tick,
-                            stats.as_mut(),
                         )?;
                     }
 
@@ -137,6 +91,70 @@ impl ClientPlugin {
         last_tick.0 = Default::default();
         entity_map.clear();
     }
+}
+
+fn apply_message(
+    message: &[u8],
+    world: &mut World,
+    entity_map: &mut ServerEntityMap,
+    mut stats: Option<&mut ClientStats>,
+    replication_rules: &ReplicationRules,
+) -> bincode::Result<()> {
+    let end_pos: u64 = message.len().try_into().unwrap();
+    let mut cursor = Cursor::new(message);
+    if let Some(stats) = &mut stats {
+        stats.packets += 1;
+        stats.bytes += end_pos;
+    }
+
+    let Some(tick) = apply_tick(&mut cursor, world)? else {
+        return Ok(());
+    };
+    if cursor.position() == end_pos {
+        return Ok(());
+    }
+
+    apply_entity_mappings(&mut cursor, world, entity_map, stats.as_deref_mut())?;
+    if cursor.position() == end_pos {
+        return Ok(());
+    }
+
+    apply_components(
+        &mut cursor,
+        world,
+        entity_map,
+        stats.as_deref_mut(),
+        ComponentsKind::Change,
+        replication_rules,
+        tick,
+    )?;
+    if cursor.position() == end_pos {
+        return Ok(());
+    }
+
+    apply_components(
+        &mut cursor,
+        world,
+        entity_map,
+        stats.as_deref_mut(),
+        ComponentsKind::Removal,
+        replication_rules,
+        tick,
+    )?;
+    if cursor.position() == end_pos {
+        return Ok(());
+    }
+
+    apply_despawns(
+        &mut cursor,
+        world,
+        entity_map,
+        replication_rules,
+        tick,
+        stats,
+    )?;
+
+    Ok(())
 }
 
 /// Deserializes server tick and applies it to [`LastTick`] if it is newer.
