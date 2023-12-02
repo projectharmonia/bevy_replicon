@@ -5,7 +5,7 @@ use bevy::{
 };
 use bevy_renet::renet::RenetServer;
 
-use super::{AckedTicks, ServerSet};
+use super::{AckedTicks, ServerSet, TicksMap};
 use crate::replicon_core::replication_rules::{Replication, ReplicationId, ReplicationRules};
 
 /// Stores component removals in [`RemovalTracker`] component to make them persistent across ticks.
@@ -42,15 +42,13 @@ impl RemovalTrackerPlugin {
     fn cleanup_system(
         change_tick: SystemChangeTick,
         acked_ticks: Res<AckedTicks>,
+        ticks_map: Res<TicksMap>,
         mut removal_trackers: Query<&mut RemovalTracker>,
     ) {
         for mut removal_tracker in &mut removal_trackers {
             removal_tracker.retain(|_, tick| {
-                acked_ticks.clients.values().any(|acked_tick| {
-                    let system_tick = *acked_ticks
-                        .system_ticks
-                        .get(acked_tick)
-                        .unwrap_or(&Tick::new(0));
+                acked_ticks.values().any(|acked_tick| {
+                    let system_tick = *ticks_map.get(acked_tick).unwrap_or(&Tick::new(0));
                     tick.is_newer_than(system_tick, change_tick.this_run())
                 })
             });
@@ -96,6 +94,7 @@ mod tests {
         app.add_plugins(RemovalTrackerPlugin)
             .insert_resource(RenetServer::new(Default::default()))
             .init_resource::<AckedTicks>()
+            .init_resource::<TicksMap>()
             .init_resource::<ReplicationRules>()
             .replicate::<DummyComponent>();
 
@@ -105,7 +104,7 @@ mod tests {
         const DUMMY_CLIENT_ID: ClientId = ClientId::from_raw(0);
         app.world
             .resource_mut::<AckedTicks>()
-            .clients
+            .0
             .insert(DUMMY_CLIENT_ID, RepliconTick(0));
 
         let replicated_entity = app.world.spawn((DummyComponent, Replication)).id();

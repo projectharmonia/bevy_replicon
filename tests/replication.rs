@@ -28,7 +28,7 @@ fn acked_ticks_cleanup() {
     server_app.update();
 
     let acked_ticks = server_app.world.resource::<AckedTicks>();
-    assert!(!acked_ticks.acked_ticks().contains_key(&client_id));
+    assert!(!acked_ticks.contains_key(&client_id));
 }
 
 #[test]

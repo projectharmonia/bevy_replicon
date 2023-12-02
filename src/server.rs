@@ -50,6 +50,7 @@ impl Plugin for ServerPlugin {
             DespawnTrackerPlugin,
         ))
         .init_resource::<AckedTicks>()
+        .init_resource::<TicksMap>()
         .init_resource::<MinRepliconTick>()
         .init_resource::<ClientEntityMap>()
         .configure_sets(PreUpdate, ServerSet::Receive.after(RenetReceive))
@@ -110,6 +111,7 @@ impl ServerPlugin {
 
     fn acks_receiving_system(
         mut acked_ticks: ResMut<AckedTicks>,
+        mut ticks_map: ResMut<TicksMap>,
         mut server: ResMut<RenetServer>,
         mut entity_map: ResMut<ClientEntityMap>,
     ) {
@@ -117,7 +119,7 @@ impl ServerPlugin {
             while let Some(message) = server.receive_message(client_id, REPLICATION_CHANNEL_ID) {
                 match bincode::deserialize::<RepliconTick>(&message) {
                     Ok(tick) => {
-                        let acked_tick = acked_ticks.clients.entry(client_id).or_default();
+                        let acked_tick = acked_ticks.0.entry(client_id).or_default();
                         if *acked_tick < tick {
                             *acked_tick = tick;
                             entity_map.cleanup_acked(client_id, *acked_tick);
@@ -129,7 +131,7 @@ impl ServerPlugin {
             }
         }
 
-        acked_ticks.cleanup_system_ticks();
+        ticks_map.cleanup_acked(&acked_ticks)
     }
 
     fn acks_cleanup_system(
@@ -139,10 +141,10 @@ impl ServerPlugin {
         for event in server_events.read() {
             match event {
                 ServerEvent::ClientDisconnected { client_id, .. } => {
-                    acked_ticks.clients.remove(client_id);
+                    acked_ticks.0.remove(client_id);
                 }
                 ServerEvent::ClientConnected { client_id } => {
-                    acked_ticks.clients.entry(*client_id).or_default();
+                    acked_ticks.0.entry(*client_id).or_default();
                 }
             }
         }
@@ -152,7 +154,8 @@ impl ServerPlugin {
     pub(super) fn replication_sending_system(
         mut messages: Local<Vec<ReplicationMessage>>,
         change_tick: SystemChangeTick,
-        mut set: ParamSet<(&World, ResMut<RenetServer>, ResMut<AckedTicks>)>,
+        mut set: ParamSet<(&World, ResMut<TicksMap>, ResMut<RenetServer>)>,
+        acked_ticks: Res<AckedTicks>,
         replication_rules: Res<ReplicationRules>,
         despawn_tracker: Res<DespawnTracker>,
         replicon_tick: Res<RepliconTick>,
@@ -160,12 +163,12 @@ impl ServerPlugin {
         removal_trackers: Query<(Entity, &RemovalTracker)>,
         entity_map: Res<ClientEntityMap>,
     ) -> bincode::Result<()> {
-        let mut acked_ticks = set.p2();
-        acked_ticks.register_tick(*replicon_tick, change_tick.this_run());
+        set.p1().0.insert(*replicon_tick, change_tick.this_run());
 
         let messages = prepare_messages(
             &mut messages,
             &acked_ticks,
+            &set.p1(),
             *replicon_tick,
             *min_replicon_tick,
         )?;
@@ -181,16 +184,20 @@ impl ServerPlugin {
         collect_despawns(messages, &despawn_tracker, change_tick.this_run())?;
 
         for messages in messages {
-            messages.send(&mut set.p1());
+            messages.send(&mut set.p2());
         }
 
         Ok(())
     }
 
-    fn reset_system(mut replicon_tick: ResMut<RepliconTick>, mut acked_ticks: ResMut<AckedTicks>) {
+    fn reset_system(
+        mut replicon_tick: ResMut<RepliconTick>,
+        mut acked_ticks: ResMut<AckedTicks>,
+        mut ticks_map: ResMut<TicksMap>,
+    ) {
         *replicon_tick = Default::default();
-        acked_ticks.clients.clear();
-        acked_ticks.system_ticks.clear();
+        acked_ticks.0.clear();
+        ticks_map.0.clear();
     }
 }
 
@@ -203,15 +210,13 @@ impl ServerPlugin {
 fn prepare_messages<'a>(
     messages: &'a mut Vec<ReplicationMessage>,
     acked_ticks: &AckedTicks,
+    ticks_map: &TicksMap,
     replicon_tick: RepliconTick,
     min_replicon_tick: MinRepliconTick,
 ) -> bincode::Result<&'a mut [ReplicationMessage]> {
-    messages.reserve(acked_ticks.clients.len());
-    for (index, (&client_id, &acked_tick)) in acked_ticks.clients.iter().enumerate() {
-        let system_tick = *acked_ticks
-            .system_ticks
-            .get(&acked_tick)
-            .unwrap_or(&Tick::new(0));
+    messages.reserve(acked_ticks.len());
+    for (index, (&client_id, &acked_tick)) in acked_ticks.iter().enumerate() {
+        let system_tick = *ticks_map.get(&acked_tick).unwrap_or(&Tick::new(0));
 
         let send_empty = acked_tick < *min_replicon_tick;
         if let Some(message) = messages.get_mut(index) {
@@ -226,7 +231,7 @@ fn prepare_messages<'a>(
         }
     }
 
-    Ok(&mut messages[..acked_ticks.clients.len()])
+    Ok(&mut messages[..acked_ticks.len()])
 }
 
 /// Collect and write any new entity mappings into messages since last acknowledged tick.
@@ -439,36 +444,24 @@ pub enum TickPolicy {
     Manual,
 }
 
-/// Stores information about ticks.
+/// Stores mapping from server ticks to system change ticks.
 ///
 /// Used only on server.
-#[derive(Resource, Default)]
-pub struct AckedTicks {
-    /// Last acknowledged server ticks for all clients.
-    clients: HashMap<ClientId, RepliconTick>,
+#[derive(Default, Deref, Resource)]
+pub struct TicksMap(HashMap<RepliconTick, Tick>);
 
-    /// Stores mapping from server ticks to system change ticks.
-    system_ticks: HashMap<RepliconTick, Tick>,
-}
-
-impl AckedTicks {
-    /// Stores mapping between `replicon_tick` and the current `system_tick`.
-    fn register_tick(&mut self, replicon_tick: RepliconTick, system_tick: Tick) {
-        self.system_ticks.insert(replicon_tick, system_tick);
-    }
-
-    /// Removes system tick mappings for acks that was acknowledged by everyone.
-    fn cleanup_system_ticks(&mut self) {
-        self.system_ticks
-            .retain(|tick, _| self.clients.values().any(|acked_tick| acked_tick <= tick));
-    }
-
-    /// Returns last acknowledged server ticks for all clients.
-    #[inline]
-    pub fn acked_ticks(&self) -> &HashMap<ClientId, RepliconTick> {
-        &self.clients
+impl TicksMap {
+    fn cleanup_acked(&mut self, acked_ticks: &AckedTicks) {
+        self.0
+            .retain(|tick, _| acked_ticks.values().any(|acked_tick| acked_tick <= tick));
     }
 }
+
+/// Last acknowledged server ticks for all clients.
+///
+/// Used only on server.
+#[derive(Default, Deref, Resource)]
+pub struct AckedTicks(HashMap<ClientId, RepliconTick>);
 
 /// Contains the lowest replicon tick that should be acknowledged by clients.
 ///
