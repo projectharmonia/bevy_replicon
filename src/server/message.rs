@@ -46,11 +46,14 @@ impl ReplicationMessage {
         system_tick: Tick,
         send_empty: bool,
     ) -> bincode::Result<Self> {
+        let mut buffer = ReplicationBuffer::default();
+        buffer.write(&replicon_tick)?;
+
         Ok(Self {
             client_id,
             system_tick,
             send_empty,
-            buffer: ReplicationBuffer::new(replicon_tick)?,
+            buffer,
         })
     }
 
@@ -67,7 +70,8 @@ impl ReplicationMessage {
         self.client_id = client_id;
         self.system_tick = system_tick;
         self.send_empty = send_empty;
-        self.buffer.reset(replicon_tick)
+        self.buffer.reset();
+        self.buffer.write(&replicon_tick)
     }
 
     /// Sends the message to the designated client.
