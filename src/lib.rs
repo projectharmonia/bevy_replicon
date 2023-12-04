@@ -117,7 +117,7 @@ fn deserialize_transform(
     entity: &mut EntityWorldMut,
     _entity_map: &mut ServerEntityMap,
     cursor: &mut Cursor<&[u8]>,
-    _tick: RepliconTick,
+    _replicon_tick: RepliconTick,
 ) -> bincode::Result<()> {
     let translation: Vec3 = bincode::deserialize_from(cursor)?;
     entity.insert(Transform::from_translation(translation));
@@ -379,7 +379,8 @@ creation / connection systems and corresponding UI.
 
 To reduce packet size there are the following limits per replication update:
 
-- Up to [`u16::MAX`] entities that have changed/added components with up to [`u8::MAX`] such components.
+- Up to [`u16::MAX`] entities that have added components with up to [`u8::MAX`] such components.
+- Up to [`u16::MAX`] entities that have changed components with up to [`u8::MAX`] such components.
 - Up to [`u16::MAX`] entities that have removed components with up to [`u8::MAX`] such components.
 - Up to [`u16::MAX`] entities that were despawned.
 */
@@ -395,7 +396,7 @@ pub mod prelude {
     pub use super::{
         client::{
             diagnostics::{ClientDiagnosticsPlugin, ClientStats},
-            ClientMapper, ClientPlugin, ClientSet, ServerEntityMap,
+            ClientMapper, ClientPlugin, ClientSet, ServerEntityMap, ServerEntityTicks,
         },
         network_event::{
             client_event::{ClientEventAppExt, FromClient},
@@ -410,10 +411,10 @@ pub mod prelude {
                 ReplicationRules,
             },
             replicon_tick::RepliconTick,
-            NetworkChannels, RepliconCorePlugin, REPLICATION_CHANNEL_ID,
+            NetworkChannels, ReplicationChannel, RepliconCorePlugin,
         },
         server::{
-            has_authority, AckedTicks, ClientEntityMap, ClientMapping, ServerPlugin, ServerSet,
+            has_authority, ClientEntityMap, ClientMapping, LastChangeTick, ServerPlugin, ServerSet,
             TickPolicy, SERVER_ID,
         },
         ReplicationPlugins,

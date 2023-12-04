@@ -231,7 +231,7 @@ pub fn deserialize_component<C: Component + DeserializeOwned>(
     entity: &mut EntityWorldMut,
     _entity_map: &mut ServerEntityMap,
     cursor: &mut Cursor<&[u8]>,
-    _tick: RepliconTick,
+    _replicon_tick: RepliconTick,
 ) -> bincode::Result<()> {
     let component: C = DefaultOptions::new().deserialize_from(cursor)?;
     entity.insert(component);
@@ -244,7 +244,7 @@ pub fn deserialize_mapped_component<C: Component + DeserializeOwned + MapNetwork
     entity: &mut EntityWorldMut,
     entity_map: &mut ServerEntityMap,
     cursor: &mut Cursor<&[u8]>,
-    _tick: RepliconTick,
+    _replicon_tick: RepliconTick,
 ) -> bincode::Result<()> {
     let mut component: C = DefaultOptions::new().deserialize_from(cursor)?;
 
@@ -258,11 +258,11 @@ pub fn deserialize_mapped_component<C: Component + DeserializeOwned + MapNetwork
 }
 
 /// Default component removal function.
-pub fn remove_component<C: Component>(entity: &mut EntityWorldMut, _tick: RepliconTick) {
+pub fn remove_component<C: Component>(entity: &mut EntityWorldMut, _replicon_tick: RepliconTick) {
     entity.remove::<C>();
 }
 
 /// Default entity despawn function.
-pub fn despawn_recursive(entity: EntityWorldMut, _tick: RepliconTick) {
+pub fn despawn_recursive(entity: EntityWorldMut, _replicon_tick: RepliconTick) {
     entity.despawn_recursive();
 }

@@ -7,7 +7,7 @@ use bevy_renet::renet::{transport::NetcodeClientTransport, ClientId};
 use serde::{Deserialize, Serialize};
 
 #[test]
-fn acked_ticks_cleanup() {
+fn reset() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
@@ -19,16 +19,29 @@ fn acked_ticks_cleanup() {
 
     common::connect(&mut server_app, &mut client_app);
 
-    let mut client_transport = client_app.world.resource_mut::<NetcodeClientTransport>();
-    client_transport.disconnect();
-    let client_id = ClientId::from_raw(client_transport.client_id());
+    client_app
+        .world
+        .resource_mut::<NetcodeClientTransport>()
+        .disconnect();
 
     client_app.update();
     server_app.update();
-    server_app.update();
 
-    let acked_ticks = server_app.world.resource::<AckedTicks>();
-    assert!(!acked_ticks.contains_key(&client_id));
+    client_app.world.remove_resource::<RenetClient>();
+    server_app.world.remove_resource::<RenetServer>();
+
+    server_app.update();
+    client_app.update();
+
+    assert_eq!(server_app.world.resource::<RepliconTick>().get(), 0);
+    assert!(server_app.world.resource::<ClientEntityMap>().is_empty());
+
+    assert_eq!(client_app.world.resource::<RepliconTick>().get(), 0);
+    assert!(client_app.world.resource::<ServerEntityTicks>().is_empty());
+
+    let server_entity_map = client_app.world.resource::<ServerEntityMap>();
+    assert!(server_entity_map.to_client().is_empty());
+    assert!(server_entity_map.to_server().is_empty());
 }
 
 #[test]
@@ -93,7 +106,6 @@ fn client_spawn_replication() {
     let client_entity = client_app.world.spawn_empty().id();
     let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
 
-    let tick = *server_app.world.get_resource::<RepliconTick>().unwrap();
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
     let client_id = ClientId::from_raw(client_transport.client_id());
 
@@ -101,7 +113,6 @@ fn client_spawn_replication() {
     entity_map.insert(
         client_id,
         ClientMapping {
-            tick,
             server_entity,
             client_entity,
         },
@@ -338,7 +349,6 @@ fn diagnostics() {
     let client_entity = client_app.world.spawn_empty().id();
     let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
 
-    let tick = *server_app.world.get_resource::<RepliconTick>().unwrap();
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
     let client_id = ClientId::from_raw(client_transport.client_id());
 
@@ -346,7 +356,6 @@ fn diagnostics() {
     entity_map.insert(
         client_id,
         ClientMapping {
-            tick,
             server_entity,
             client_entity,
         },
@@ -362,7 +371,7 @@ fn diagnostics() {
     assert_eq!(stats.components_changed, 1);
     assert_eq!(stats.mappings, 1);
     assert_eq!(stats.despawns, 1);
-    assert_eq!(stats.packets, 1);
+    assert_eq!(stats.init_messages, 1);
     assert_eq!(stats.bytes, 18);
 }
 

@@ -9,16 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `TicksMap` with mapping from server ticks to system change ticks.
+- `ServerEntityTicks` with ticks for each entity on client.
 
 ### Changed
 
+- Send all component mappings, inserts, removals and despawns over reliable channel in form of deltas and component updates over unreliable channel packed by packet size. This will significantly reduce packet loss.
+- Packets in client diagnostics was replaced with init and update messages (it was actually number of messages before).
+- `ClientMapping` no longer contains `tick` field.
+- Replace `REPLICATION_CHANNEL_ID` with `ReplicationChannel` enum. The previous constant corresponded to the unreliable channel.
 - Use `EntityHashMap` instead of `HashMap` with entities as keys.
 - Use `Cursor<&[u8]>` instead of `Cursor<Bytes>`.
 - Replace `LastRepliconTick` with `RepliconTick` on client.
-- `AckedTicks` now returns the map via `deref` instead of via separate method.
 - Fix missing reset of `RepliconTick` on server disconnect.
 - Rename `replicate_into_scene` into `replicate_into` and move it to `scene` module.
+
+### Removed
+
+- `AckedTicks` resource.
+- `TicksMap` resource.
 
 ## [0.17.0] - 2023-11-13
 

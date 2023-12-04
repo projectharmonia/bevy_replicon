@@ -5,7 +5,7 @@ use bevy::{
 };
 use bevy_renet::renet::RenetServer;
 
-use super::{AckedTicks, ServerSet, TicksMap};
+use super::ServerSet;
 use crate::replicon_core::replication_rules::{Replication, ReplicationId, ReplicationRules};
 
 /// Stores component removals in [`RemovalTracker`] component to make them persistent across ticks.
@@ -19,7 +19,6 @@ impl Plugin for RemovalTrackerPlugin {
             PostUpdate,
             (
                 Self::insertion_system,
-                Self::cleanup_system,
                 Self::detection_system.run_if(resource_exists::<RenetServer>()),
             )
                 .before(ServerSet::Send)
@@ -35,23 +34,6 @@ impl RemovalTrackerPlugin {
     ) {
         for entity in &new_replicated_entities {
             commands.entity(entity).insert(RemovalTracker::default());
-        }
-    }
-
-    /// Cleanups all acknowledged despawns.
-    fn cleanup_system(
-        change_tick: SystemChangeTick,
-        acked_ticks: Res<AckedTicks>,
-        ticks_map: Res<TicksMap>,
-        mut removal_trackers: Query<&mut RemovalTracker>,
-    ) {
-        for mut removal_tracker in &mut removal_trackers {
-            removal_tracker.retain(|_, tick| {
-                acked_ticks.values().any(|acked_tick| {
-                    let system_tick = *ticks_map.get(acked_tick).unwrap_or(&Tick::new(0));
-                    tick.is_newer_than(system_tick, change_tick.this_run())
-                })
-            });
         }
     }
 
@@ -82,30 +64,20 @@ pub(crate) struct RemovalTracker(pub(super) HashMap<ReplicationId, Tick>);
 
 #[cfg(test)]
 mod tests {
-    use bevy_renet::renet::ClientId;
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::{replicon_core::replication_rules::AppReplicationExt, server::RepliconTick};
+    use crate::replicon_core::replication_rules::AppReplicationExt;
 
     #[test]
     fn detection() {
         let mut app = App::new();
         app.add_plugins(RemovalTrackerPlugin)
             .insert_resource(RenetServer::new(Default::default()))
-            .init_resource::<AckedTicks>()
-            .init_resource::<TicksMap>()
             .init_resource::<ReplicationRules>()
             .replicate::<DummyComponent>();
 
         app.update();
-
-        // To avoid cleanup.
-        const DUMMY_CLIENT_ID: ClientId = ClientId::from_raw(0);
-        app.world
-            .resource_mut::<AckedTicks>()
-            .0
-            .insert(DUMMY_CLIENT_ID, RepliconTick(0));
 
         let replicated_entity = app.world.spawn((DummyComponent, Replication)).id();
 

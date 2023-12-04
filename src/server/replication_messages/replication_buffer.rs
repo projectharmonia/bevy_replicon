@@ -51,9 +51,28 @@ impl ReplicationBuffer {
         self.trailing_empty_arrays = 0;
     }
 
-    /// Returns `true` if the buffer contains at least one non-empty array.
-    pub(super) fn contains_data(&self) -> bool {
-        self.arrays_with_data != 0
+    /// Returns the number of arrays excluding trailing empty arrays.
+    pub(super) fn arrays_with_data(&self) -> usize {
+        self.arrays_with_data
+    }
+
+    /// Returns position from the last [`Self::start_entity_data`] call.
+    pub(super) fn entity_data_pos(&self) -> usize {
+        self.entity_data_pos as usize
+    }
+
+    /// Returns length of the current entity data.
+    ///
+    /// See also [`Self::start_entity_data`] and [`Self::end_entity_data`].
+    pub(super) fn entity_data_len(&self) -> u8 {
+        self.entity_data_len
+    }
+
+    /// Returns entity from last call of [`Self::start_entity_data`].
+    ///
+    /// See also [`Self::start_entity_data`] and [`Self::end_entity_data`].
+    pub(super) fn data_entity(&self) -> Entity {
+        self.data_entity
     }
 
     /// Returns the buffer as a byte array.
