@@ -173,32 +173,14 @@ fn event_queue() {
         .resource_mut::<ServerEventQueue<DummyEvent>>()
         .insert(tick, DummyEvent(Entity::PLACEHOLDER));
 
-    // Send another event to trigger world update.
-    server_app
-        .world
-        .resource_mut::<Events<ToClients<DummyEvent>>>()
-        .send(ToClients {
-            mode: SendMode::Broadcast,
-            event: DummyEvent(Entity::PLACEHOLDER),
-        });
-
-    server_app.update();
     client_app.update();
 
-    let mut dummy_events = client_app.world.resource_mut::<Events<DummyEvent>>();
-    assert_eq!(
-        dummy_events.drain().count(),
-        1,
-        "should emit only single event for current tick"
-    );
+    assert!(client_app.world.resource::<Events<DummyEvent>>().is_empty());
 
-    server_app.update();
+    client_app.insert_resource(tick);
+
     client_app.update();
 
     let dummy_events = client_app.world.resource::<Events<DummyEvent>>();
-    assert_eq!(
-        dummy_events.len(),
-        1,
-        "should emit another event received earlier"
-    );
+    assert_eq!(dummy_events.len(), 1);
 }

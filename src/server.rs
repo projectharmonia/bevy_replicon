@@ -56,12 +56,7 @@ impl Plugin for ServerPlugin {
         .init_resource::<LastChangeTick>()
         .init_resource::<ClientEntityMap>()
         .configure_sets(PreUpdate, ServerSet::Receive.after(RenetReceive))
-        .configure_sets(
-            PostUpdate,
-            ServerSet::Send
-                .before(RenetSend)
-                .run_if(resource_changed::<RepliconTick>()),
-        )
+        .configure_sets(PostUpdate, ServerSet::Send.before(RenetSend))
         .add_systems(
             PreUpdate,
             (Self::acks_receiving_system, Self::disconnect_cleanup_system)
@@ -74,7 +69,8 @@ impl Plugin for ServerPlugin {
                 Self::replication_sending_system
                     .map(Result::unwrap)
                     .in_set(ServerSet::Send)
-                    .run_if(resource_exists::<RenetServer>()),
+                    .run_if(resource_exists::<RenetServer>())
+                    .run_if(resource_changed::<RepliconTick>()),
                 Self::reset_system.run_if(resource_removed::<RenetServer>()),
             ),
         );
@@ -86,6 +82,7 @@ impl Plugin for ServerPlugin {
                     PostUpdate,
                     Self::increment_tick
                         .before(Self::replication_sending_system)
+                        .run_if(resource_exists::<RenetServer>())
                         .run_if(on_timer(tick_time)),
                 );
             }

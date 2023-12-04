@@ -189,7 +189,7 @@ impl ServerEventAppExt for App {
                         local_resending_system::<T>.run_if(has_authority()),
                     )
                         .chain()
-                        .before(ServerPlugin::replication_sending_system)
+                        .after(ServerPlugin::replication_sending_system)
                         .in_set(ServerSet::Send),
                     reset_system::<T>.run_if(resource_removed::<RenetClient>()),
                 ),
