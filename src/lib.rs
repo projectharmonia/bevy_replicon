@@ -375,6 +375,15 @@ They rarely used for gameplay systems (since you write the same logic for
 multiplayer and single-player!), but could be used for server
 creation / connection systems and corresponding UI.
 
+## Guarantees
+
+Replicon maintains valid state of the world even with packet loss. All events, inserts,
+removals and despawns will be applied in the same order as on the server.
+
+Only component value changes per entity could arrive in any order and partially. But they will
+be applied when the tick on which they changed also arrives. So if your component references another entity,
+it will be applied only when this entity being spawned.
+
 ## Limits
 
 To reduce packet size there are the following limits per replication update:
