@@ -239,7 +239,7 @@ fn update_replication() {
         .query::<&BoolComponent>()
         .iter(&client_app.world)
     {
-        assert_eq!(component.0, true);
+        assert!(component.0);
     }
 }
 
