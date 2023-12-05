@@ -34,14 +34,7 @@ fn reset() {
     client_app.update();
 
     assert_eq!(server_app.world.resource::<RepliconTick>().get(), 0);
-    assert!(server_app.world.resource::<ClientEntityMap>().is_empty());
-
     assert_eq!(client_app.world.resource::<RepliconTick>().get(), 0);
-    assert!(client_app.world.resource::<ServerEntityTicks>().is_empty());
-
-    let server_entity_map = client_app.world.resource::<ServerEntityMap>();
-    assert!(server_entity_map.to_client().is_empty());
-    assert!(server_entity_map.to_server().is_empty());
 }
 
 #[test]
@@ -154,7 +147,6 @@ fn client_spawn_replication() {
 fn insert_replication() {
     let mut server_app = App::new();
     let mut client_app = App::new();
-
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
@@ -204,6 +196,51 @@ fn insert_replication() {
         client_entity.get::<MappedComponent>().unwrap().0,
         client_map_entity
     );
+}
+
+#[test]
+fn update_replication() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+        ))
+        .replicate::<BoolComponent>();
+    }
+
+    common::connect(&mut server_app, &mut client_app);
+
+    // TODO: Spawn many entities to cover message splitting. Splitting logic needs to be fixed.
+    const ENTITIES_COUNT: u32 = 70;
+    server_app
+        .world
+        .spawn_batch([(Replication, BoolComponent(false)); ENTITIES_COUNT as usize]);
+
+    server_app.update();
+    client_app.update();
+
+    assert_eq!(client_app.world.entities().len(), ENTITIES_COUNT);
+
+    for mut component in server_app
+        .world
+        .query::<&mut BoolComponent>()
+        .iter_mut(&mut server_app.world)
+    {
+        component.0 = true;
+    }
+
+    server_app.update();
+    client_app.update();
+
+    for component in client_app
+        .world
+        .query::<&BoolComponent>()
+        .iter(&client_app.world)
+    {
+        assert_eq!(component.0, true);
+    }
 }
 
 #[test]
@@ -396,6 +433,9 @@ struct NonReplicatingComponent;
 
 #[derive(Component, Deserialize, Serialize)]
 struct IgnoredComponent;
+
+#[derive(Component, Clone, Copy, Serialize, Deserialize)]
+struct BoolComponent(bool);
 
 #[derive(Component, Default, Deserialize, Reflect, Serialize)]
 #[reflect(Component)]

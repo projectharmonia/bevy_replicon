@@ -387,6 +387,9 @@ fn collect_removals(
         message.start_array();
     }
 
+    // PERF: Unfortunately, removed components are grouped by type, not by entity.
+    // This is why we need an intermediate container. But in practice users rarely
+    // remove a lot of components in the same tick, so it's probably fine.
     let mut removals: EntityHashMap<_, Vec<_>> = Default::default();
     for (&component_id, &replication_id) in replication_rules.get_ids() {
         for entity in remove_events

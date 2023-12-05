@@ -83,7 +83,7 @@ impl ReplicationMessages {
         replicon_tick: RepliconTick,
     ) -> bincode::Result<(LastChangeTick, Vec<ClientInfo>)> {
         if let Some((init_message, _)) = self.data.last() {
-            if init_message.arrays_with_data() > 1 {
+            if init_message.arrays_with_data() != 0 {
                 last_change_tick.0 = replicon_tick;
             }
         }
@@ -95,7 +95,7 @@ impl ReplicationMessages {
             .zip(&mut self.clients_info)
         {
             init_message.send(server, client_info.id);
-            update_message.send(server, client_info)?;
+            update_message.send(server, client_info, last_change_tick)?;
         }
 
         Ok((last_change_tick, mem::take(&mut self.clients_info)))
@@ -173,9 +173,6 @@ pub(super) struct UpdateMessage {
     /// Tick until which updates are collected.
     tick: Tick,
 
-    /// Part of the message that will be inserted into each splitted part.
-    header: Vec<u8>,
-
     /// Message data.
     #[deref]
     buffer: ReplicationBuffer,
@@ -188,7 +185,6 @@ impl UpdateMessage {
     fn new(tick: Tick) -> bincode::Result<Self> {
         Ok(Self {
             tick,
-            header: Default::default(),
             entities: Default::default(),
             buffer: Default::default(),
         })
@@ -199,7 +195,6 @@ impl UpdateMessage {
     /// Keeps allocated capacity of the buffer.
     fn reset(&mut self) -> bincode::Result<()> {
         self.entities.clear();
-        self.header.clear();
         self.buffer.reset();
 
         Ok(())
@@ -211,7 +206,7 @@ impl UpdateMessage {
     /// Should be called before [`ReplicationBuffer::end_entity_data`].
     pub(super) fn register_entity(&mut self) {
         if self.buffer.entity_data_len() != 0 {
-            let data_size = self.buffer.entity_data_pos() - self.buffer.as_slice().len();
+            let data_size = self.buffer.as_slice().len() - self.buffer.entity_data_pos() as usize;
             self.entities.push((self.buffer.data_entity(), data_size));
         }
     }
@@ -223,6 +218,7 @@ impl UpdateMessage {
         &mut self,
         server: &mut RenetServer,
         client_info: &mut ClientInfo,
+        last_change_tick: LastChangeTick,
     ) -> bincode::Result<()> {
         if self.buffer.arrays_with_data() == 0 {
             trace!("no updates to send for client {}", client_info.id);
@@ -230,45 +226,47 @@ impl UpdateMessage {
         }
 
         trace!("sending update message(s) to client {}", client_info.id);
-        const MAX_PACKET_SIZE: usize = 1200; // https://github.com/lucaspoffo/renet/blob/acee8b470e34c70d35700d96c00fb233d9cf6919/renet/src/packet.rs#L7
-        let tick_pos = self.header.len(); // Remember position of the written tick to ovewrite next changes later.
+        const TICK_SIZE: usize = mem::size_of::<RepliconTick>();
+        let mut header = [0; TICK_SIZE + mem::size_of::<u16>()];
+        bincode::serialize_into(&mut header[..], &*last_change_tick)?;
+
         let mut slice = self.buffer.as_slice();
         let mut entities = Vec::new();
         let mut message_size = 0;
         for &(entity, data_size) in &self.entities {
-            if message_size + data_size + self.header.len() > MAX_PACKET_SIZE {
+            const MAX_PACKET_SIZE: usize = 1200; // https://github.com/lucaspoffo/renet/blob/acee8b470e34c70d35700d96c00fb233d9cf6919/renet/src/packet.rs#L7
+            if message_size + data_size + header.len() > MAX_PACKET_SIZE {
                 let (message, remaining) = slice.split_at(message_size);
                 slice = remaining;
                 message_size = data_size;
 
                 let update_index = client_info.register_update(self.tick, entities.clone());
-                bincode::serialize_into(&mut self.header, &update_index)?;
+                bincode::serialize_into(&mut header[TICK_SIZE..], &update_index)?;
 
                 server.send_message(
                     client_info.id,
                     ReplicationChannel::Unreliable,
-                    Bytes::from_iter(self.header.iter().copied().chain(message.iter().copied())),
+                    Bytes::from_iter(header.into_iter().chain(message.iter().copied())),
                 );
 
-                self.header.truncate(tick_pos);
                 entities.clear();
             } else {
                 entities.push(entity);
+                println!("{message_size} increase by {data_size}");
                 message_size += data_size;
             }
         }
 
         if !slice.is_empty() {
-            let update_index = client_info.register_update(self.tick, entities.clone());
-            bincode::serialize_into(&mut self.header, &update_index)?;
+            println!("sending more data");
+            let update_index = client_info.register_update(self.tick, entities);
+            bincode::serialize_into(&mut header[TICK_SIZE..], &update_index)?;
 
             server.send_message(
                 client_info.id,
                 ReplicationChannel::Unreliable,
-                Bytes::from_iter(self.header.iter().copied().chain(slice.iter().copied())),
+                Bytes::from_iter(header.into_iter().chain(slice.iter().copied())),
             );
-
-            self.header.truncate(tick_pos);
         }
 
         Ok(())

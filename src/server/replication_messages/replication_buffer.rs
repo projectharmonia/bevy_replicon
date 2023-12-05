@@ -21,7 +21,7 @@ pub(crate) struct ReplicationBuffer {
     /// Length of the array that updated automatically after writing data.
     array_len: u16,
 
-    /// The number of arrays excluding trailing empty arrays.
+    /// The number of arrays excluding empty arrays.
     arrays_with_data: usize,
 
     /// The number of empty arrays at the end. Can be removed using [`Self::trim_empty_arrays`]
@@ -51,14 +51,14 @@ impl ReplicationBuffer {
         self.trailing_empty_arrays = 0;
     }
 
-    /// Returns the number of arrays excluding trailing empty arrays.
+    /// Returns the number of arrays excluding empty arrays.
     pub(super) fn arrays_with_data(&self) -> usize {
         self.arrays_with_data
     }
 
     /// Returns position from the last [`Self::start_entity_data`] call.
-    pub(super) fn entity_data_pos(&self) -> usize {
-        self.entity_data_pos as usize
+    pub(super) fn entity_data_pos(&self) -> u64 {
+        self.entity_data_pos
     }
 
     /// Returns length of the current entity data.

@@ -246,7 +246,7 @@ fn apply_update_message(
     }
 
     let (tick, update_index) = bincode::deserialize_from(&mut cursor)?;
-    if tick < replicon_tick {
+    if tick > replicon_tick {
         buffered_updates.push(BufferedUpdate {
             tick,
             position: cursor.position(),
@@ -325,7 +325,7 @@ fn apply_components(
                 let Some(tick) = entity_ticks.0.get_mut(&entity.id()) else {
                     continue; // Update arrived arrive after a despawn from init message.
                 };
-                if *tick >= replicon_tick {
+                if *tick > replicon_tick {
                     continue; // Update for this entity is outdated.
                 }
                 *tick = replicon_tick;
