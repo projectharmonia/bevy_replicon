@@ -114,13 +114,12 @@ impl ClientPlugin {
                                 let mut cursor = Cursor::new(&*update.message);
                                 cursor.set_position(update.position);
 
-                                apply_components(
+                                apply_update_components(
                                     &mut cursor,
                                     world,
                                     &mut entity_map,
                                     &mut entity_ticks,
                                     stats.as_mut(),
-                                    ComponentsKind::Update,
                                     &replication_rules,
                                     replicon_tick,
                                 )?;
@@ -180,7 +179,7 @@ fn apply_init_message(
         return Ok(());
     }
 
-    apply_components(
+    apply_init_components(
         &mut cursor,
         world,
         entity_map,
@@ -194,7 +193,7 @@ fn apply_init_message(
         return Ok(());
     }
 
-    apply_components(
+    apply_init_components(
         &mut cursor,
         world,
         entity_map,
@@ -255,13 +254,12 @@ fn apply_update_message(
         return Ok(update_index);
     }
 
-    apply_components(
+    apply_update_components(
         &mut cursor,
         world,
         entity_map,
         entity_ticks,
         stats,
-        ComponentsKind::Update,
         replication_rules,
         tick,
     )?;
@@ -306,7 +304,7 @@ fn apply_entity_mappings(
 
 /// Deserializes replicated components of `components_kind` and applies them to the `world`.
 #[allow(clippy::too_many_arguments)]
-fn apply_components(
+fn apply_init_components(
     cursor: &mut Cursor<&[u8]>,
     world: &mut World,
     entity_map: &mut ServerEntityMap,
@@ -320,20 +318,7 @@ fn apply_components(
     for _ in 0..entities_count {
         let entity = deserialize_entity(cursor)?;
         let mut entity = entity_map.get_by_server_or_spawn(world, entity);
-        match components_kind {
-            ComponentsKind::Update => {
-                let Some(tick) = entity_ticks.0.get_mut(&entity.id()) else {
-                    continue; // Update arrived arrive after a despawn from init message.
-                };
-                if *tick > replicon_tick {
-                    continue; // Update for this entity is outdated.
-                }
-                *tick = replicon_tick;
-            }
-            ComponentsKind::Insert | ComponentsKind::Removal => {
-                entity_ticks.0.insert(entity.id(), replicon_tick);
-            }
-        }
+        entity_ticks.0.insert(entity.id(), replicon_tick);
 
         let components_count: u8 = bincode::deserialize_from(&mut *cursor)?;
         if let Some(stats) = &mut stats {
@@ -345,7 +330,7 @@ fn apply_components(
             // SAFETY: server and client have identical `ReplicationRules` and server always sends valid IDs.
             let replication_info = unsafe { replication_rules.get_info_unchecked(replication_id) };
             match components_kind {
-                ComponentsKind::Insert | ComponentsKind::Update => {
+                ComponentsKind::Insert => {
                     (replication_info.deserialize)(&mut entity, entity_map, cursor, replicon_tick)?
                 }
                 ComponentsKind::Removal => (replication_info.remove)(&mut entity, replicon_tick),
@@ -387,6 +372,47 @@ fn apply_despawns(
     Ok(())
 }
 
+/// Deserializes replicated components of `components_kind` and applies them to the `world`.
+fn apply_update_components(
+    cursor: &mut Cursor<&[u8]>,
+    world: &mut World,
+    entity_map: &mut ServerEntityMap,
+    entity_ticks: &mut ServerEntityTicks,
+    mut stats: Option<&mut ClientStats>,
+    replication_rules: &ReplicationRules,
+    replicon_tick: RepliconTick,
+) -> bincode::Result<()> {
+    loop {
+        let entity = deserialize_entity(cursor)?;
+        let mut entity = entity_map.get_by_server_or_spawn(world, entity);
+        let Some(tick) = entity_ticks.0.get_mut(&entity.id()) else {
+            continue; // Update arrived arrive after a despawn from init message.
+        };
+        if *tick > replicon_tick {
+            continue; // Update for this entity is outdated.
+        }
+        *tick = replicon_tick;
+
+        let components_count: u8 = bincode::deserialize_from(&mut *cursor)?;
+        if let Some(stats) = &mut stats {
+            stats.entities_changed += 1;
+            stats.components_changed += components_count as u32;
+        }
+        for _ in 0..components_count {
+            let replication_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
+            // SAFETY: server and client have identical `ReplicationRules` and server always sends valid IDs.
+            let replication_info = unsafe { replication_rules.get_info_unchecked(replication_id) };
+            (replication_info.deserialize)(&mut entity, entity_map, cursor, replicon_tick)?
+        }
+
+        if cursor.position() as usize == cursor.get_ref().len() {
+            break;
+        }
+    }
+
+    Ok(())
+}
+
 /// Deserializes `entity` from compressed index and generation.
 ///
 /// For details see [`ReplicationBuffer::write_entity`](crate::server::replication_message::replication_buffer::write_entity).
@@ -409,7 +435,6 @@ fn deserialize_entity(cursor: &mut Cursor<&[u8]>) -> bincode::Result<Entity> {
 /// Parameter for [`apply_components`].
 enum ComponentsKind {
     Insert,
-    Update,
     Removal,
 }
 

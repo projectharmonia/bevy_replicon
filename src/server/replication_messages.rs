@@ -201,7 +201,7 @@ impl UpdateMessage {
         last_change_tick: LastChangeTick,
         tick: Tick,
     ) -> bincode::Result<()> {
-        if self.buffer.arrays_with_data() == 0 {
+        if self.buffer.as_slice().is_empty() {
             trace!("no updates to send for client {}", client_info.id);
             return Ok(());
         }
@@ -233,13 +233,11 @@ impl UpdateMessage {
                 entities.clear();
             } else {
                 entities.push(entity);
-                println!("{message_size} increase by {data_size}");
                 message_size += data_size;
             }
         }
 
         if !slice.is_empty() {
-            println!("sending more data");
             let update_index = client_info.register_update(tick, entities);
             bincode::serialize_into(&mut header[TICK_SIZE..], &update_index)?;
 

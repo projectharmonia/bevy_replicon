@@ -245,9 +245,8 @@ fn collect_changes(
     change_tick: &SystemChangeTick,
     replication_rules: &ReplicationRules,
 ) -> bincode::Result<()> {
-    for (init_message, update_message) in messages.iter_mut() {
+    for (init_message, _) in messages.iter_mut() {
         init_message.start_array();
-        update_message.start_array();
     }
 
     for archetype in world
@@ -341,9 +340,8 @@ fn collect_changes(
         }
     }
 
-    for (init_message, update_message) in messages.iter_mut() {
+    for (init_message, _) in messages.iter_mut() {
         init_message.end_array()?;
-        update_message.end_array()?;
     }
 
     Ok(())

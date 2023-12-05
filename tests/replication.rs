@@ -212,8 +212,8 @@ fn update_replication() {
 
     common::connect(&mut server_app, &mut client_app);
 
-    // TODO: Spawn many entities to cover message splitting. Splitting logic needs to be fixed.
-    const ENTITIES_COUNT: u32 = 70;
+    // Spawn many entities to cover message splitting.
+    const ENTITIES_COUNT: u32 = 300;
     server_app
         .world
         .spawn_batch([(Replication, BoolComponent(false)); ENTITIES_COUNT as usize]);

@@ -15,6 +15,9 @@ pub(crate) struct ReplicationBuffer {
     /// Serialized data.
     cursor: Cursor<Vec<u8>>,
 
+    /// An indicator of whether the array is currently writing.
+    inside_array: bool,
+
     /// Position of the array from last call of [`Self::start_array`].
     array_pos: u64,
 
@@ -85,6 +88,7 @@ impl ReplicationBuffer {
     /// Should happen outside of array or entity data and the buffer shouldn't contain trailing empty arrays.
     /// See also [`Self::start_array`] and [`Self::start_entity_data`].
     pub(super) fn write(&mut self, value: &impl Serialize) -> bincode::Result<()> {
+        debug_assert!(!self.inside_array);
         debug_assert_eq!(self.array_len, 0);
         debug_assert_eq!(self.entity_data_len, 0);
         debug_assert_eq!(self.trailing_empty_arrays, 0);
@@ -99,8 +103,10 @@ impl ReplicationBuffer {
     /// See also [`Self::end_array`], [`Self::write_client_mapping`], [`Self::write_entity`] and [`Self::start_entity_data`].
     pub(crate) fn start_array(&mut self) {
         debug_assert_eq!(self.array_len, 0);
+        debug_assert!(!self.inside_array);
 
         self.array_pos = self.cursor.position();
+        self.inside_array = true;
         self.cursor
             .set_position(self.array_pos + mem::size_of_val(&self.array_len) as u64);
     }
@@ -109,6 +115,8 @@ impl ReplicationBuffer {
     ///
     /// See also [`Self::start_array`].
     pub(crate) fn end_array(&mut self) -> bincode::Result<()> {
+        debug_assert!(self.inside_array);
+
         if self.array_len != 0 {
             let previous_pos = self.cursor.position();
             self.cursor.set_position(self.array_pos);
@@ -124,6 +132,7 @@ impl ReplicationBuffer {
             self.cursor.set_position(self.array_pos);
             bincode::serialize_into(&mut self.cursor, &self.array_len)?;
         }
+        self.inside_array = false;
 
         Ok(())
     }
@@ -134,6 +143,8 @@ impl ReplicationBuffer {
     /// Increases array length by 1.
     /// See also [`Self::start_array`].
     pub(crate) fn write_client_mapping(&mut self, mapping: &ClientMapping) -> bincode::Result<()> {
+        debug_assert!(self.inside_array);
+
         serialize_entity(&mut self.cursor, mapping.server_entity)?;
         serialize_entity(&mut self.cursor, mapping.client_entity)?;
         self.array_len = self
@@ -150,6 +161,8 @@ impl ReplicationBuffer {
     /// Increases array length by 1.
     /// See also [`Self::start_array`].
     pub(crate) fn write_entity(&mut self, entity: Entity) -> bincode::Result<()> {
+        debug_assert!(self.inside_array);
+
         serialize_entity(&mut self.cursor, entity)?;
         self.array_len = self
             .array_len
@@ -159,11 +172,12 @@ impl ReplicationBuffer {
         Ok(())
     }
 
-    /// Starts writing entity and its data as an array element.
+    /// Starts writing entity and its data.
     ///
     /// Data can contain components with their IDs or IDs only.
     /// Length will be increased automatically after writing data.
     /// Entity will be written lazily after first data write.
+    /// Can be called inside and outside of the array.
     /// See also [`Self::end_entity_data`], [`Self::write_component`]
     /// and [`Self::write_component_id`].
     pub(crate) fn start_entity_data(&mut self, entity: Entity) {
@@ -189,6 +203,7 @@ impl ReplicationBuffer {
     /// Ends writing entity data by writing its length into the last remembered position.
     ///
     /// If the entity data is empty, nothing will be written.
+    /// Increases array length if writing is done inside the array.
     /// See also [`Self::start_array`], [`Self::write_component`] and
     /// [`Self::write_component_id`].
     pub(crate) fn end_entity_data(&mut self) -> bincode::Result<()> {
@@ -200,10 +215,12 @@ impl ReplicationBuffer {
 
             self.cursor.set_position(previous_pos);
             self.entity_data_len = 0;
-            self.array_len = self
-                .array_len
-                .checked_add(1)
-                .ok_or(bincode::ErrorKind::SizeLimit)?;
+            if self.inside_array {
+                self.array_len = self
+                    .array_len
+                    .checked_add(1)
+                    .ok_or(bincode::ErrorKind::SizeLimit)?;
+            }
         } else {
             self.cursor.set_position(self.entity_data_pos);
         }
@@ -257,6 +274,7 @@ impl ReplicationBuffer {
     /// Should only be called after all arrays have been written, because
     /// removed array somewhere the middle cannot be detected during deserialization.
     pub(super) fn trim_empty_arrays(&mut self) {
+        debug_assert!(!self.inside_array);
         debug_assert_eq!(self.array_len, 0);
         debug_assert_eq!(self.entity_data_len, 0);
 
@@ -272,6 +290,7 @@ impl Default for ReplicationBuffer {
             cursor: Default::default(),
             array_pos: Default::default(),
             array_len: Default::default(),
+            inside_array: Default::default(),
             arrays_with_data: Default::default(),
             trailing_empty_arrays: Default::default(),
             entity_data_pos: Default::default(),
