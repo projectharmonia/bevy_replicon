@@ -408,7 +408,7 @@ fn diagnostics() {
     assert_eq!(stats.components_changed, 1);
     assert_eq!(stats.mappings, 1);
     assert_eq!(stats.despawns, 1);
-    assert_eq!(stats.init_messages, 1);
+    assert_eq!(stats.packets, 1);
     assert_eq!(stats.bytes, 18);
 }
 

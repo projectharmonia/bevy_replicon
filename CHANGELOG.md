@@ -22,7 +22,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Use `EntityHashMap` instead of `HashMap` with entities as keys.
 - Use `Cursor<&[u8]>` instead of `Cursor<Bytes>`.
 - Replace `LastRepliconTick` with `RepliconTick` on client.
-- Replace Packets in client diagnostics with init and update messages (it was never actually a number of packets).
 - Fix missing reset of `RepliconTick` on server disconnect.
 - Rename `replicate_into_scene` into `replicate_into` and move it to `scene` module.
 

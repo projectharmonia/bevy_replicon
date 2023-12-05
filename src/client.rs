@@ -163,7 +163,7 @@ fn apply_init_message(
     let end_pos: u64 = message.len().try_into().unwrap();
     let mut cursor = Cursor::new(message);
     if let Some(stats) = &mut stats {
-        stats.init_messages += 1;
+        stats.packets += 1;
         stats.bytes += end_pos;
     }
 
@@ -240,7 +240,7 @@ fn apply_update_message(
     let end_pos: u64 = message.len().try_into().unwrap();
     let mut cursor = Cursor::new(&*message);
     if let Some(stats) = &mut stats {
-        stats.update_messages += 1;
+        stats.packets += 1;
         stats.bytes += end_pos;
     }
 

@@ -19,10 +19,8 @@ pub struct ClientStats {
     pub mappings: u32,
     /// Incremented per entity despawn.
     pub despawns: u32,
-    /// Init messages received.
-    pub init_messages: u32,
-    /// Update messages received.
-    pub update_messages: u32,
+    /// Replication packets received.
+    pub packets: u32,
     /// Replication bytes received in packet payloads (without internal Renet data).
     pub bytes: u64,
 }
@@ -60,7 +58,7 @@ impl Plugin for ClientDiagnosticsPlugin {
             Self::DIAGNOSTIC_HISTORY_LEN,
         ))
         .register_diagnostic(Diagnostic::new(
-            Self::INIT_MESSAGES,
+            Self::PACKETS,
             "packets per second",
             Self::DIAGNOSTIC_HISTORY_LEN,
         ))
@@ -83,12 +81,8 @@ impl ClientDiagnosticsPlugin {
     pub const MAPPINGS: DiagnosticId = DiagnosticId::from_u128(61564098061172206743744706749187);
     /// How many despawns per second from replication.
     pub const DESPAWNS: DiagnosticId = DiagnosticId::from_u128(11043323327351349675112378115868);
-    /// How many init messages processed per second.
-    pub const INIT_MESSAGES: DiagnosticId =
-        DiagnosticId::from_u128(40094818756895929689855772983865);
-    /// How many update messages processed per second.
-    pub const UPDATE_MESSAGES: DiagnosticId =
-        DiagnosticId::from_u128(40094818756895929689855772983865);
+    /// How many replication packets processed per second.
+    pub const PACKETS: DiagnosticId = DiagnosticId::from_u128(40094818756895929689855772983865);
     /// How many bytes of replication packets payloads per second.
     pub const BYTES: DiagnosticId = DiagnosticId::from_u128(87998088176776397493423835383418);
 
@@ -97,42 +91,41 @@ impl ClientDiagnosticsPlugin {
 
     fn diagnostic_system(mut stats: ResMut<ClientStats>, mut diagnostics: Diagnostics) {
         diagnostics.add_measurement(Self::ENTITY_CHANGES, || {
-            if stats.init_messages == 0 {
+            if stats.packets == 0 {
                 0_f64
             } else {
-                stats.entities_changed as f64 / stats.init_messages as f64
+                stats.entities_changed as f64 / stats.packets as f64
             }
         });
         diagnostics.add_measurement(Self::COMPONENT_CHANGES, || {
-            if stats.init_messages == 0 {
+            if stats.packets == 0 {
                 0_f64
             } else {
-                stats.components_changed as f64 / stats.init_messages as f64
+                stats.components_changed as f64 / stats.packets as f64
             }
         });
         diagnostics.add_measurement(Self::MAPPINGS, || {
-            if stats.init_messages == 0 {
+            if stats.packets == 0 {
                 0_f64
             } else {
-                stats.mappings as f64 / stats.init_messages as f64
+                stats.mappings as f64 / stats.packets as f64
             }
         });
         diagnostics.add_measurement(Self::DESPAWNS, || {
-            if stats.init_messages == 0 {
+            if stats.packets == 0 {
                 0_f64
             } else {
-                stats.despawns as f64 / stats.init_messages as f64
+                stats.despawns as f64 / stats.packets as f64
             }
         });
         diagnostics.add_measurement(Self::BYTES, || {
-            if stats.init_messages == 0 {
+            if stats.packets == 0 {
                 0_f64
             } else {
-                stats.bytes as f64 / stats.init_messages as f64
+                stats.bytes as f64 / stats.packets as f64
             }
         });
-        diagnostics.add_measurement(Self::INIT_MESSAGES, || stats.init_messages as f64);
-        diagnostics.add_measurement(Self::UPDATE_MESSAGES, || stats.init_messages as f64);
+        diagnostics.add_measurement(Self::PACKETS, || stats.packets as f64);
         *stats = ClientStats::default();
     }
 }
