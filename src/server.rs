@@ -179,21 +179,25 @@ impl ServerPlugin {
         replicon_tick: Res<RepliconTick>,
     ) -> bincode::Result<()> {
         let clients_info = mem::take(&mut set.p1().0); // Take ownership to avoid borrowing issues.
-        messages.prepare(clients_info, *replicon_tick, change_tick.this_run())?;
+        messages.prepare(clients_info, *replicon_tick)?;
 
         collect_mappings(&mut messages, &mut set.p2())?;
         collect_changes(&mut messages, set.p0(), &change_tick, &replication_rules)?;
         collect_removals(
             &mut messages,
             remove_events,
-            &change_tick,
+            change_tick.this_run(),
             &replication_rules,
         )?;
         collect_despawns(&mut messages, &mut removed_replication)?;
 
         let last_change_tick = *set.p4();
-        let (last_change_tick, clients_info) =
-            messages.send(&mut set.p3(), last_change_tick, *replicon_tick)?;
+        let (last_change_tick, clients_info) = messages.send(
+            &mut set.p3(),
+            last_change_tick,
+            *replicon_tick,
+            change_tick.this_run(),
+        )?;
 
         // Return borrowed data back.
         **set.p1() = clients_info;
@@ -380,7 +384,7 @@ fn collect_component_change(
 fn collect_removals(
     messages: &mut ReplicationMessages,
     remove_events: &RemovedComponentEvents,
-    change_tick: &SystemChangeTick,
+    tick: Tick,
     replication_rules: &ReplicationRules,
 ) -> bincode::Result<()> {
     for (message, _) in messages.iter_mut() {
@@ -406,7 +410,7 @@ fn collect_removals(
         for (message, _, client_info) in messages.iter_mut_with_info() {
             message.start_entity_data(entity);
             for &replication_id in &components {
-                client_info.ticks.insert(entity, change_tick.this_run());
+                client_info.ticks.insert(entity, tick);
                 message.write_replication_id(replication_id)?;
             }
             message.end_entity_data()?;

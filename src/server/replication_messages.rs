@@ -25,8 +25,6 @@ pub(crate) struct ReplicationMessages {
 impl ReplicationMessages {
     /// Initializes messages for each client.
     ///
-    /// `replicon_tick` and `tick` are current ticks.
-    ///
     /// Reuses already allocated messages.
     /// Creates new messages if number of clients is bigger then the number of allocated messages.
     /// If there are more messages than the number of clients, then the extra messages remain untouched
@@ -35,7 +33,6 @@ impl ReplicationMessages {
         &mut self,
         clients_info: Vec<ClientInfo>,
         replicon_tick: RepliconTick,
-        tick: Tick,
     ) -> bincode::Result<()> {
         self.clients_count = clients_info.len();
 
@@ -46,9 +43,8 @@ impl ReplicationMessages {
                 init_message.reset(replicon_tick)?;
                 update_message.reset()?;
             } else {
-                let init_message = InitMessage::new(replicon_tick)?;
-                let update_message = UpdateMessage::new(tick)?;
-                self.data.push((init_message, update_message));
+                self.data
+                    .push((InitMessage::new(replicon_tick)?, UpdateMessage::default()));
             }
         }
 
@@ -81,6 +77,7 @@ impl ReplicationMessages {
         server: &mut RenetServer,
         mut last_change_tick: LastChangeTick,
         replicon_tick: RepliconTick,
+        tick: Tick,
     ) -> bincode::Result<(LastChangeTick, Vec<ClientInfo>)> {
         if let Some((init_message, _)) = self.data.last() {
             if init_message.arrays_with_data() != 0 {
@@ -95,7 +92,7 @@ impl ReplicationMessages {
             .zip(&mut self.clients_info)
         {
             init_message.send(server, client_info.id);
-            update_message.send(server, client_info, last_change_tick)?;
+            update_message.send(server, client_info, last_change_tick, tick)?;
         }
 
         Ok((last_change_tick, mem::take(&mut self.clients_info)))
@@ -118,9 +115,6 @@ pub(super) struct InitMessage {
 
 impl InitMessage {
     /// Creates a new message for the specified tick.
-    ///
-    /// `tick` is the current tick that will be written into
-    ///  the message to read by client on receive.
     fn new(replicon_tick: RepliconTick) -> bincode::Result<Self> {
         let mut buffer = ReplicationBuffer::default();
         buffer.write(&replicon_tick)?;
@@ -128,7 +122,7 @@ impl InitMessage {
         Ok(Self { buffer })
     }
 
-    /// Clears the message and assigns `tick` to it.
+    /// Clears the message and assigns tick to it.
     ///
     /// Keeps allocated capacity of the buffer.
     fn reset(&mut self, replicon_tick: RepliconTick) -> bincode::Result<()> {
@@ -165,13 +159,10 @@ impl InitMessage {
 /// Sent over [`ReplicationChannel::Unreliable`] channel.
 ///
 /// See also [Limits](../index.html#limits)
-#[derive(Deref, DerefMut)]
+#[derive(Deref, DerefMut, Default)]
 pub(super) struct UpdateMessage {
     /// Entities and their data sizes.
     entities: Vec<(Entity, usize)>,
-
-    /// Tick until which updates are collected.
-    tick: Tick,
 
     /// Message data.
     #[deref]
@@ -179,17 +170,6 @@ pub(super) struct UpdateMessage {
 }
 
 impl UpdateMessage {
-    /// Creates a new message for the specified tick.
-    ///
-    /// `system_tick` is the current Bevy's tick.
-    fn new(tick: Tick) -> bincode::Result<Self> {
-        Ok(Self {
-            tick,
-            entities: Default::default(),
-            buffer: Default::default(),
-        })
-    }
-
     /// Clears the message.
     ///
     /// Keeps allocated capacity of the buffer.
@@ -219,6 +199,7 @@ impl UpdateMessage {
         server: &mut RenetServer,
         client_info: &mut ClientInfo,
         last_change_tick: LastChangeTick,
+        tick: Tick,
     ) -> bincode::Result<()> {
         if self.buffer.arrays_with_data() == 0 {
             trace!("no updates to send for client {}", client_info.id);
@@ -240,7 +221,7 @@ impl UpdateMessage {
                 slice = remaining;
                 message_size = data_size;
 
-                let update_index = client_info.register_update(self.tick, entities.clone());
+                let update_index = client_info.register_update(tick, entities.clone());
                 bincode::serialize_into(&mut header[TICK_SIZE..], &update_index)?;
 
                 server.send_message(
@@ -259,7 +240,7 @@ impl UpdateMessage {
 
         if !slice.is_empty() {
             println!("sending more data");
-            let update_index = client_info.register_update(self.tick, entities);
+            let update_index = client_info.register_update(tick, entities);
             bincode::serialize_into(&mut header[TICK_SIZE..], &update_index)?;
 
             server.send_message(
