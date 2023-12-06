@@ -1,5 +1,7 @@
 mod common;
 
+use std::ops::DerefMut;
+
 use bevy::prelude::*;
 use bevy_replicon::{prelude::*, scene};
 
@@ -388,7 +390,6 @@ fn diagnostics() {
 
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
     let client_id = ClientId::from_raw(client_transport.client_id());
-
     let mut entity_map = server_app.world.resource_mut::<ClientEntityMap>();
     entity_map.insert(
         client_id,
@@ -403,13 +404,23 @@ fn diagnostics() {
     server_app.update();
     client_app.update();
 
+    // Trigger change detection.
+    server_app
+        .world
+        .get_mut::<TableComponent>(server_entity)
+        .unwrap()
+        .deref_mut();
+
+    server_app.update();
+    client_app.update();
+
     let stats = client_app.world.resource::<ClientStats>();
-    assert_eq!(stats.entities_changed, 1);
-    assert_eq!(stats.components_changed, 1);
+    assert_eq!(stats.entities_changed, 2);
+    assert_eq!(stats.components_changed, 2);
     assert_eq!(stats.mappings, 1);
     assert_eq!(stats.despawns, 1);
-    assert_eq!(stats.packets, 1);
-    assert_eq!(stats.bytes, 18);
+    assert_eq!(stats.packets, 2);
+    assert_eq!(stats.bytes, 27);
 }
 
 #[derive(Component, Deserialize, Serialize)]
