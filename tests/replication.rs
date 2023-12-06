@@ -246,6 +246,61 @@ fn update_replication() {
 }
 
 #[test]
+fn update_replication_buffering() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+        ))
+        .replicate::<BoolComponent>();
+    }
+
+    common::connect(&mut server_app, &mut client_app);
+
+    // Spawn many entities to cover message splitting.
+    let server_entity = server_app
+        .world
+        .spawn((Replication, BoolComponent(false)))
+        .id();
+
+    let old_tick = *server_app.world.resource::<RepliconTick>();
+
+    server_app.update();
+    client_app.update();
+
+    // Artificially rollback the client by 1 tick to force next received update to be buffered.
+    *client_app.world.resource_mut::<RepliconTick>() = old_tick;
+    let mut component = server_app
+        .world
+        .get_mut::<BoolComponent>(server_entity)
+        .unwrap();
+    component.0 = true;
+
+    server_app.update();
+    client_app.update();
+
+    let (client_entity, component) = client_app
+        .world
+        .query::<(Entity, &BoolComponent)>()
+        .single(&client_app.world);
+    assert!(!component.0, "client should buffer the update");
+
+    // Move tick forward to let the buffered update apply.
+    client_app.world.resource_mut::<RepliconTick>().increment();
+
+    server_app.update();
+    client_app.update();
+
+    let component = client_app
+        .world
+        .get::<BoolComponent>(client_entity)
+        .unwrap();
+    assert!(component.0, "buffered update should be applied");
+}
+
+#[test]
 fn removal_replication() {
     let mut server_app = App::new();
     let mut client_app = App::new();

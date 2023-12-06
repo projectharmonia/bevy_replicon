@@ -109,7 +109,7 @@ impl ClientPlugin {
                         retain_buffer.clear();
                         retain_buffer.reserve(old_buffers);
                         for update in buffered_updates.iter().take(old_buffers) {
-                            let retain = update.tick < replicon_tick;
+                            let retain = update.tick <= replicon_tick;
                             if retain {
                                 let mut cursor = Cursor::new(&*update.message);
                                 cursor.set_position(update.position);
