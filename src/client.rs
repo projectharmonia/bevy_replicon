@@ -109,7 +109,7 @@ impl ClientPlugin {
                         retain_buffer.clear();
                         retain_buffer.reserve(old_buffers);
                         for update in buffered_updates.iter().take(old_buffers) {
-                            let retain = update.tick <= replicon_tick;
+                            let retain = update.message_tick <= replicon_tick;
                             if retain {
                                 let mut cursor = Cursor::new(&*update.message);
                                 cursor.set_position(update.position);
@@ -121,7 +121,7 @@ impl ClientPlugin {
                                     &mut entity_ticks,
                                     stats.as_mut(),
                                     &replication_rules,
-                                    replicon_tick,
+                                    update.message_tick,
                                 )?;
                             }
                             retain_buffer.push(retain);
@@ -244,10 +244,10 @@ fn apply_update_message(
         stats.bytes += end_pos;
     }
 
-    let (tick, update_index) = bincode::deserialize_from(&mut cursor)?;
-    if tick > replicon_tick {
+    let (message_tick, update_index) = bincode::deserialize_from(&mut cursor)?;
+    if message_tick > replicon_tick {
         buffered_updates.push(BufferedUpdate {
-            tick,
+            message_tick,
             position: cursor.position(),
             message,
         });
@@ -261,7 +261,7 @@ fn apply_update_message(
         entity_ticks,
         stats,
         replication_rules,
-        tick,
+        message_tick,
     )?;
 
     Ok(update_index)
@@ -380,18 +380,18 @@ fn apply_update_components(
     entity_ticks: &mut ServerEntityTicks,
     mut stats: Option<&mut ClientStats>,
     replication_rules: &ReplicationRules,
-    replicon_tick: RepliconTick,
+    message_tick: RepliconTick,
 ) -> bincode::Result<()> {
     loop {
         let entity = deserialize_entity(cursor)?;
         let mut entity = entity_map.get_by_server_or_spawn(world, entity);
-        let Some(tick) = entity_ticks.0.get_mut(&entity.id()) else {
+        let Some(entity_tick) = entity_ticks.0.get_mut(&entity.id()) else {
             continue; // Update arrived arrive after a despawn from init message.
         };
-        if *tick > replicon_tick {
+        if *entity_tick > message_tick {
             continue; // Update for this entity is outdated.
         }
-        *tick = replicon_tick;
+        *entity_tick = message_tick;
 
         let components_count: u8 = bincode::deserialize_from(&mut *cursor)?;
         if let Some(stats) = &mut stats {
@@ -402,7 +402,7 @@ fn apply_update_components(
             let replication_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
             // SAFETY: server and client have identical `ReplicationRules` and server always sends valid IDs.
             let replication_info = unsafe { replication_rules.get_info_unchecked(replication_id) };
-            (replication_info.deserialize)(&mut entity, entity_map, cursor, replicon_tick)?
+            (replication_info.deserialize)(&mut entity, entity_map, cursor, message_tick)?
         }
 
         if cursor.position() as usize == cursor.get_ref().len() {
@@ -546,7 +546,7 @@ pub struct ServerEntityTicks(EntityHashMap<Entity, RepliconTick>);
 /// then the required init message with this tick.
 pub(super) struct BufferedUpdate {
     /// Required tick to wait for.
-    tick: RepliconTick,
+    message_tick: RepliconTick,
     /// Position of the message data.
     position: u64,
     /// Update data.
