@@ -109,7 +109,7 @@ impl ClientPlugin {
                         retain_buffer.clear();
                         retain_buffer.reserve(old_buffers);
                         for update in buffered_updates.iter().take(old_buffers) {
-                            let retain = update.message_tick <= replicon_tick;
+                            let retain = update.last_change_tick <= replicon_tick;
                             if retain {
                                 let mut cursor = Cursor::new(&*update.message);
                                 cursor.set_position(update.position);
@@ -244,9 +244,10 @@ fn apply_update_message(
         stats.bytes += end_pos;
     }
 
-    let (message_tick, update_index) = bincode::deserialize_from(&mut cursor)?;
-    if message_tick > replicon_tick {
+    let (last_change_tick, message_tick, update_index) = bincode::deserialize_from(&mut cursor)?;
+    if last_change_tick > replicon_tick {
         buffered_updates.push(BufferedUpdate {
+            last_change_tick,
             message_tick,
             position: cursor.position(),
             message,
@@ -388,7 +389,7 @@ fn apply_update_components(
         let Some(entity_tick) = entity_ticks.0.get_mut(&entity.id()) else {
             continue; // Update arrived arrive after a despawn from init message.
         };
-        if *entity_tick > message_tick {
+        if *entity_tick >= message_tick {
             continue; // Update for this entity is outdated.
         }
         *entity_tick = message_tick;
@@ -542,13 +543,22 @@ impl Mapper for ClientMapper<'_> {
 #[derive(Default, Deref, Resource)]
 pub struct ServerEntityTicks(EntityHashMap<Entity, RepliconTick>);
 
-/// Caches buffer with deserialized tick that we received earlier
+/// Caches buffer with deserialized ticks that was received earlier
 /// then the required init message with this tick.
+///
+/// See also [`crate::server::replication_messages::UpdateMessage`].
 pub(super) struct BufferedUpdate {
     /// Required tick to wait for.
+    ///
+    /// See also [`crate::server::LastChangeTick`].
+    last_change_tick: RepliconTick,
+
+    /// The tick this update corresponds to.
     message_tick: RepliconTick,
-    /// Position of the message data.
+
+    /// The offset from which the data begins.
     position: u64,
+
     /// Update data.
     message: Bytes,
 }

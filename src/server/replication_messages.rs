@@ -92,7 +92,7 @@ impl ReplicationMessages {
             .zip(&mut self.clients_info)
         {
             init_message.send(server, client_info.id);
-            update_message.send(server, client_info, last_change_tick, tick)?;
+            update_message.send(server, client_info, last_change_tick, replicon_tick, tick)?;
         }
 
         Ok((last_change_tick, mem::take(&mut self.clients_info)))
@@ -152,8 +152,8 @@ impl InitMessage {
 
 /// A reusable message with component updates.
 ///
-/// Contains tick and component updates since the last tick until this tick for each entity.
-/// Requires init message with the same tick to be applied to keep the world in valid state.
+/// Contains last change tick, current tick and component updates since the last acknowledged tick for each entity.
+/// Requires init message with the same tick as last change tick to be applied to keep the world in valid state.
 /// The message will be manually split into packets up to max size that can be applied independently.
 /// Splits will happen per-entity to avoid weird behavior of partially changed entity.
 /// Sent over [`ReplicationChannel::Unreliable`] channel.
@@ -199,6 +199,7 @@ impl UpdateMessage {
         server: &mut RenetServer,
         client_info: &mut ClientInfo,
         last_change_tick: LastChangeTick,
+        replicon_tick: RepliconTick,
         tick: Tick,
     ) -> bincode::Result<()> {
         if self.buffer.as_slice().is_empty() {
@@ -207,9 +208,9 @@ impl UpdateMessage {
         }
 
         trace!("sending update message(s) to client {}", client_info.id);
-        const TICK_SIZE: usize = mem::size_of::<RepliconTick>();
-        let mut header = [0; TICK_SIZE + mem::size_of::<u16>()];
-        bincode::serialize_into(&mut header[..], &*last_change_tick)?;
+        const TICKS_SIZE: usize = 2 * mem::size_of::<RepliconTick>();
+        let mut header = [0; TICKS_SIZE + mem::size_of::<u16>()];
+        bincode::serialize_into(&mut header[..], &(*last_change_tick, replicon_tick))?;
 
         let mut slice = self.buffer.as_slice();
         let mut entities = Vec::new();
@@ -222,7 +223,7 @@ impl UpdateMessage {
                 message_size = data_size;
 
                 let update_index = client_info.register_update(tick, entities.clone());
-                bincode::serialize_into(&mut header[TICK_SIZE..], &update_index)?;
+                bincode::serialize_into(&mut header[TICKS_SIZE..], &update_index)?;
 
                 server.send_message(
                     client_info.id,
@@ -239,7 +240,7 @@ impl UpdateMessage {
 
         if !slice.is_empty() {
             let update_index = client_info.register_update(tick, entities);
-            bincode::serialize_into(&mut header[TICK_SIZE..], &update_index)?;
+            bincode::serialize_into(&mut header[TICKS_SIZE..], &update_index)?;
 
             server.send_message(
                 client_info.id,
