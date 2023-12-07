@@ -185,12 +185,12 @@ pub(crate) struct ReplicationInfo {
 }
 
 /// Marks entity for replication.
-#[derive(Component, Clone, Copy, Default, Reflect)]
+#[derive(Component, Clone, Copy, Default, Reflect, Debug)]
 #[reflect(Component)]
 pub struct Replication;
 
 /// Replication will be ignored for `T` if this component is present on the same entity.
-#[derive(Component)]
+#[derive(Component, Debug)]
 pub struct Ignored<T>(PhantomData<T>);
 
 impl<T> Default for Ignored<T> {
