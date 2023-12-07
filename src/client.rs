@@ -111,11 +111,8 @@ impl ClientPlugin {
                         for update in buffered_updates.iter().take(old_buffers) {
                             let retain = update.last_change_tick <= replicon_tick;
                             if retain {
-                                let mut cursor = Cursor::new(&*update.message);
-                                cursor.set_position(update.position);
-
                                 apply_update_components(
-                                    &mut cursor,
+                                    &mut Cursor::new(&*update.message),
                                     world,
                                     &mut entity_map,
                                     &mut entity_ticks,
@@ -249,8 +246,7 @@ fn apply_update_message(
         buffered_updates.push(BufferedUpdate {
             last_change_tick,
             message_tick,
-            position: cursor.position(),
-            message,
+            message: message.slice(cursor.position() as usize..),
         });
         return Ok(update_index);
     }
@@ -555,9 +551,6 @@ pub(super) struct BufferedUpdate {
 
     /// The tick this update corresponds to.
     message_tick: RepliconTick,
-
-    /// The offset from which the data begins.
-    position: u64,
 
     /// Update data.
     message: Bytes,
