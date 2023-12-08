@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `AckedTicks` now returns the map via `deref` instead of via separate method.
 - Fix missing reset of `RepliconTick` on server disconnect.
 - Rename `replicate_into_scene` into `replicate_into` and move it to `scene` module.
+- Derive `Debug` for `Replication` and `Ignored<T>`.
 
 ## [0.17.0] - 2023-11-13
 
