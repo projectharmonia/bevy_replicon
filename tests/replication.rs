@@ -259,7 +259,6 @@ fn update_replication_buffering() {
 
     common::connect(&mut server_app, &mut client_app);
 
-    // Spawn many entities to cover message splitting.
     let server_entity = server_app
         .world
         .spawn((Replication, BoolComponent(false)))
