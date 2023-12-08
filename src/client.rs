@@ -64,7 +64,6 @@ impl ClientPlugin {
     pub(super) fn replication_receiving_system(
         world: &mut World,
         mut buffered_updates: Local<Vec<BufferedUpdate>>,
-        mut retain_buffer: Local<Vec<bool>>,
     ) -> bincode::Result<()> {
         world.resource_scope(|world, mut client: Mut<RenetClient>| {
             world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
@@ -84,7 +83,6 @@ impl ClientPlugin {
                             )?;
                         }
 
-                        let old_buffers = buffered_updates.len();
                         let replicon_tick = *world.resource::<RepliconTick>();
                         while let Some(message) =
                             client.receive_message(ReplicationChannel::Unreliable)
@@ -106,25 +104,26 @@ impl ClientPlugin {
                             )
                         }
 
-                        retain_buffer.clear();
-                        retain_buffer.reserve(old_buffers);
-                        for update in buffered_updates.iter().take(old_buffers) {
-                            let retain = update.last_change_tick <= replicon_tick;
-                            if retain {
-                                apply_update_components(
-                                    &mut Cursor::new(&*update.message),
-                                    world,
-                                    &mut entity_map,
-                                    &mut entity_ticks,
-                                    stats.as_mut(),
-                                    &replication_rules,
-                                    update.message_tick,
-                                )?;
+                        let mut result = Ok(());
+                        buffered_updates.retain(|update| {
+                            if update.last_change_tick > replicon_tick {
+                                return true;
                             }
-                            retain_buffer.push(retain);
-                        }
-                        let mut iter = retain_buffer.iter();
-                        buffered_updates.retain(|_| *iter.next().unwrap_or(&true));
+                            if let Err(e) = apply_update_components(
+                                &mut Cursor::new(&*update.message),
+                                world,
+                                &mut entity_map,
+                                &mut entity_ticks,
+                                stats.as_mut(),
+                                &replication_rules,
+                                update.message_tick,
+                            ) {
+                                result = Err(e);
+                            }
+
+                            false
+                        });
+                        result?;
 
                         if let Some(stats) = stats {
                             world.insert_resource(stats);
