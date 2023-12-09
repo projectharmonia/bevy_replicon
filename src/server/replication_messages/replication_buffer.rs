@@ -52,7 +52,6 @@ impl ReplicationBuffer {
     /// Keeps allocated capacity.
     pub(super) fn reset(&mut self) {
         self.cursor.set_position(0);
-        self.cursor.get_mut().clear();
         self.arrays_with_data = 0;
         self.trailing_empty_arrays = 0;
     }
@@ -83,7 +82,9 @@ impl ReplicationBuffer {
 
     /// Returns the buffer as a byte array.
     pub(super) fn as_slice(&self) -> &[u8] {
-        self.cursor.get_ref()
+        let slice = self.cursor.get_ref();
+        let position = self.cursor.position() as usize;
+        &slice[..position]
     }
 
     /// Writes the `value` into the buffer.
@@ -278,11 +279,10 @@ impl ReplicationBuffer {
     /// See also [`Self::start_entity_data`] and [`Self::end_entity_data`].
     pub(crate) fn take_entity_data(&mut self, other: &mut Self) {
         if other.entity_data_len != 0 {
-            let slice = other.cursor.get_ref();
+            let slice = other.as_slice();
             let offset =
                 other.entity_data_len_pos as usize + mem::size_of_val(&other.entity_data_len);
-            let pos = other.cursor.position() as usize;
-            self.cursor.write_all(&slice[offset..pos]).unwrap();
+            self.cursor.write_all(&slice[offset..]).unwrap();
             self.entity_data_len += other.entity_data_len;
 
             other.entity_data_len = 0;
@@ -300,9 +300,9 @@ impl ReplicationBuffer {
         debug_assert_eq!(self.array_len, 0);
         debug_assert_eq!(self.entity_data_len, 0);
 
-        let used_len = self.cursor.get_ref().len()
-            - self.trailing_empty_arrays * mem::size_of_val(&self.array_len);
-        self.cursor.get_mut().truncate(used_len);
+        let extra_len = self.trailing_empty_arrays * mem::size_of_val(&self.array_len);
+        self.cursor
+            .set_position(self.cursor.position() - extra_len as u64);
     }
 }
 
@@ -348,7 +348,6 @@ mod tests {
     fn trimming_arrays() -> bincode::Result<()> {
         let mut buffer = ReplicationBuffer::default();
 
-        let begin_len = buffer.cursor.get_ref().len();
         for _ in 0..3 {
             buffer.start_array();
             buffer.end_array()?;
@@ -356,7 +355,7 @@ mod tests {
 
         buffer.trim_empty_arrays();
 
-        assert_eq!(buffer.cursor.get_ref().len(), begin_len);
+        assert!(buffer.as_slice().is_empty());
 
         Ok(())
     }

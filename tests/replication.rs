@@ -246,6 +246,43 @@ fn update_replication() {
 }
 
 #[test]
+fn insert_update_replication() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+        ))
+        .replicate::<BoolComponent>()
+        .replicate::<TableComponent>();
+    }
+
+    common::connect(&mut server_app, &mut client_app);
+
+    let server_entity = server_app
+        .world
+        .spawn((Replication, BoolComponent(false)))
+        .id();
+
+    server_app.update();
+    client_app.update();
+
+    let mut server_entity = server_app.world.entity_mut(server_entity);
+    server_entity.get_mut::<BoolComponent>().unwrap().0 = true;
+    server_entity.insert(TableComponent);
+
+    server_app.update();
+    client_app.update();
+
+    let component = client_app
+        .world
+        .query_filtered::<&BoolComponent, With<TableComponent>>()
+        .single(&client_app.world);
+    assert!(component.0, "init messages should contain the update");
+}
+
+#[test]
 fn update_replication_buffering() {
     let mut server_app = App::new();
     let mut client_app = App::new();

@@ -197,7 +197,8 @@ impl UpdateMessage {
         replicon_tick: RepliconTick,
         tick: Tick,
     ) -> bincode::Result<()> {
-        if self.buffer.as_slice().is_empty() {
+        let mut slice = self.buffer.as_slice();
+        if slice.is_empty() {
             trace!("no updates to send for client {}", client_info.id);
             return Ok(());
         }
@@ -207,7 +208,6 @@ impl UpdateMessage {
         let mut header = [0; TICKS_SIZE + mem::size_of::<u16>()];
         bincode::serialize_into(&mut header[..], &(*last_change_tick, replicon_tick))?;
 
-        let mut slice = self.buffer.as_slice();
         let mut entities = Vec::new();
         let mut message_size = 0;
         for &(entity, data_size) in &self.entities {
