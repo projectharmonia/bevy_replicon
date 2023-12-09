@@ -387,7 +387,7 @@ fn apply_update_components(
         let Some(entity_tick) = entity_ticks.get_mut(&entity.id()) else {
             continue; // Update arrived after a despawn from init message.
         };
-        if *entity_tick >= message_tick {
+        if message_tick < *entity_tick {
             continue; // Update for this entity is outdated.
         }
         *entity_tick = message_tick;
