@@ -109,6 +109,8 @@ impl ClientPlugin {
                             if update.last_change_tick > replicon_tick {
                                 return true;
                             }
+
+                            trace!("applying buffered update message for {replicon_tick:?}");
                             if let Err(e) = apply_update_components(
                                 &mut Cursor::new(&*update.message),
                                 world,
@@ -164,7 +166,7 @@ fn apply_init_message(
     }
 
     let replicon_tick = bincode::deserialize_from(&mut cursor)?;
-    trace!("applying {replicon_tick:?}");
+    trace!("applying init message for {replicon_tick:?}");
     *world.resource_mut::<RepliconTick>() = replicon_tick;
 
     apply_entity_mappings(&mut cursor, world, entity_map, stats.as_deref_mut())?;
@@ -239,6 +241,7 @@ fn apply_update_message(
 
     let (last_change_tick, message_tick, update_index) = bincode::deserialize_from(&mut cursor)?;
     if last_change_tick > replicon_tick {
+        trace!("buffering update message for {replicon_tick:?}");
         buffered_updates.push(BufferedUpdate {
             last_change_tick,
             message_tick,
@@ -247,6 +250,7 @@ fn apply_update_message(
         return Ok(update_index);
     }
 
+    trace!("applying update message for {replicon_tick:?}");
     apply_update_components(
         &mut cursor,
         world,
