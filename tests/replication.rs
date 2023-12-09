@@ -21,10 +21,10 @@ fn reset() {
 
     common::connect(&mut server_app, &mut client_app);
 
-    client_app
-        .world
-        .resource_mut::<NetcodeClientTransport>()
-        .disconnect();
+    client_app.world.resource_mut::<RenetClient>().disconnect();
+
+    client_app.update();
+    server_app.update();
 
     client_app.update();
     server_app.update();
