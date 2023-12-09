@@ -166,9 +166,6 @@ fn apply_init_message(
     let replicon_tick = bincode::deserialize_from(&mut cursor)?;
     trace!("applying {replicon_tick:?}");
     *world.resource_mut::<RepliconTick>() = replicon_tick;
-    if cursor.position() == end_pos {
-        return Ok(());
-    }
 
     apply_entity_mappings(&mut cursor, world, entity_map, stats.as_deref_mut())?;
     if cursor.position() == end_pos {
