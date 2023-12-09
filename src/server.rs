@@ -332,10 +332,20 @@ fn collect_changes(
                 }
             }
 
-            for (init_message, update_message) in messages.iter_mut() {
+            for (init_message, update_message, client_info) in messages.iter_mut_with_info() {
+                if init_message.entity_data_len() != 0 {
+                    // If there is any insertion, include all updates into init message
+                    // and bump the last acknowledged tick to keep entity updates atomic.
+                    init_message.take_entity_data(update_message);
+                    client_info
+                        .ticks
+                        .insert(archetype_entity.entity(), change_tick.this_run());
+                } else {
+                    update_message.register_entity();
+                    update_message.end_entity_data()?;
+                }
+
                 init_message.end_entity_data()?;
-                update_message.register_entity();
-                update_message.end_entity_data()?;
             }
         }
     }
@@ -362,7 +372,6 @@ fn collect_component_change(
 ) -> bincode::Result<()> {
     for (init_message, update_message, client_info) in messages.iter_mut_with_info() {
         if ticks.is_added(change_tick.last_run(), change_tick.this_run()) {
-            client_info.ticks.insert(entity, change_tick.this_run());
             init_message.write_component(replication_info, replication_id, component)?;
         } else {
             let tick = *client_info

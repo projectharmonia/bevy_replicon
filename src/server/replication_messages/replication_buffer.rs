@@ -1,4 +1,7 @@
-use std::{io::Cursor, mem};
+use std::{
+    io::{Cursor, Write},
+    mem,
+};
 
 use bevy::{prelude::*, ptr::Ptr};
 use bincode::{DefaultOptions, Options};
@@ -67,7 +70,7 @@ impl ReplicationBuffer {
     /// Returns length of the current entity data.
     ///
     /// See also [`Self::start_entity_data`] and [`Self::end_entity_data`].
-    pub(super) fn entity_data_len(&self) -> u8 {
+    pub(crate) fn entity_data_len(&self) -> u8 {
         self.entity_data_len
     }
 
@@ -267,6 +270,25 @@ impl ReplicationBuffer {
         self.entity_data_len += 1;
 
         Ok(())
+    }
+
+    /// Removes entity data elements from `other` copies it.
+    ///
+    /// Ends entity data for `other`.
+    /// See also [`Self::start_entity_data`] and [`Self::end_entity_data`].
+    pub(crate) fn take_entity_data(&mut self, other: &mut Self) {
+        if other.entity_data_len != 0 {
+            let slice = other.cursor.get_ref();
+            let offset =
+                other.entity_data_len_pos as usize + mem::size_of_val(&other.entity_data_len);
+            let pos = other.cursor.position() as usize;
+            self.cursor.write_all(&slice[offset..pos]).unwrap();
+            self.entity_data_len += other.entity_data_len;
+
+            other.entity_data_len = 0;
+        }
+
+        other.cursor.set_position(other.entity_data_pos);
     }
 
     /// Crops empty arrays at the end.

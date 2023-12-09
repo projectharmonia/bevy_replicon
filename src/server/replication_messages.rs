@@ -180,15 +180,10 @@ impl UpdateMessage {
         Ok(())
     }
 
-    /// Registers entity from buffer's entity data for possible splitting.
-    ///
-    /// Ignores the entity if data length is 0.
-    /// Should be called before [`ReplicationBuffer::end_entity_data`].
+    /// Registers entity from buffer's entity data and its size for possible splitting.
     pub(super) fn register_entity(&mut self) {
-        if self.buffer.entity_data_len() != 0 {
-            let data_size = self.buffer.as_slice().len() - self.buffer.entity_data_pos() as usize;
-            self.entities.push((self.buffer.data_entity(), data_size));
-        }
+        let data_size = self.buffer.as_slice().len() - self.buffer.entity_data_pos() as usize;
+        self.entities.push((self.buffer.data_entity(), data_size));
     }
 
     /// Splits message according to `entities` and sends it to the specified client.
