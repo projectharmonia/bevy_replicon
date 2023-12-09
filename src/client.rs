@@ -381,7 +381,9 @@ fn apply_update_components(
 ) -> bincode::Result<()> {
     loop {
         let entity = deserialize_entity(cursor)?;
-        let mut entity = entity_map.get_by_server_or_spawn(world, entity);
+        let mut entity = entity_map
+            .get_by_server(world, entity)
+            .expect("updates should be applied only on spawned entities");
         let Some(entity_tick) = entity_ticks.get_mut(&entity.id()) else {
             continue; // Update arrived arrive after a despawn from init message.
         };
@@ -477,6 +479,16 @@ impl ServerEntityMap {
                 client_entity
             }
         }
+    }
+
+    pub(super) fn get_by_server<'a>(
+        &mut self,
+        world: &'a mut World,
+        server_entity: Entity,
+    ) -> Option<EntityWorldMut<'a>> {
+        self.server_to_client
+            .get(&server_entity)
+            .map(|&entity| world.entity_mut(entity))
     }
 
     pub(super) fn remove_by_server(&mut self, server_entity: Entity) -> Option<Entity> {
