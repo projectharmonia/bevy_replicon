@@ -385,7 +385,7 @@ fn apply_update_components(
             .get_by_server(world, entity)
             .expect("updates should be applied only on spawned entities");
         let Some(entity_tick) = entity_ticks.get_mut(&entity.id()) else {
-            continue; // Update arrived arrive after a despawn from init message.
+            continue; // Update arrived after a despawn from init message.
         };
         if *entity_tick >= message_tick {
             continue; // Update for this entity is outdated.
