@@ -143,7 +143,7 @@ impl ClientPlugin {
     ) {
         *replicon_tick = Default::default();
         entity_map.clear();
-        entity_ticks.0.clear();
+        entity_ticks.clear();
     }
 }
 
@@ -314,7 +314,7 @@ fn apply_init_components(
     for _ in 0..entities_count {
         let entity = deserialize_entity(cursor)?;
         let mut entity = entity_map.get_by_server_or_spawn(world, entity);
-        entity_ticks.0.insert(entity.id(), replicon_tick);
+        entity_ticks.insert(entity.id(), replicon_tick);
 
         let components_count: u8 = bincode::deserialize_from(&mut *cursor)?;
         if let Some(stats) = &mut stats {
@@ -360,7 +360,7 @@ fn apply_despawns(
             .remove_by_server(server_entity)
             .and_then(|entity| world.get_entity_mut(entity))
         {
-            entity_ticks.0.remove(&client_entity.id());
+            entity_ticks.remove(&client_entity.id());
             (replication_rules.despawn_fn)(client_entity, replicon_tick);
         }
     }
@@ -381,7 +381,7 @@ fn apply_update_components(
     loop {
         let entity = deserialize_entity(cursor)?;
         let mut entity = entity_map.get_by_server_or_spawn(world, entity);
-        let Some(entity_tick) = entity_ticks.0.get_mut(&entity.id()) else {
+        let Some(entity_tick) = entity_ticks.get_mut(&entity.id()) else {
             continue; // Update arrived arrive after a despawn from init message.
         };
         if *entity_tick >= message_tick {
@@ -535,8 +535,8 @@ impl Mapper for ClientMapper<'_> {
 /// Last received tick for each entity.
 ///
 /// Used to avoid applying old updates.
-#[derive(Default, Deref, Resource)]
-pub struct ServerEntityTicks(EntityHashMap<Entity, RepliconTick>);
+#[derive(Default, Deref, DerefMut, Resource)]
+pub(super) struct ServerEntityTicks(EntityHashMap<Entity, RepliconTick>);
 
 /// Caches buffer with deserialized ticks that was received earlier
 /// then the required init message with this tick.
