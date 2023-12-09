@@ -359,7 +359,7 @@ fn collect_changes(
 
 /// Collects the component if it has been changed.
 ///
-/// If the component has been changed in this tick, it will be collected into init buffer and last entity tick will be bumped.
+/// If the component has been changed in this tick, it will be collected into init buffer.
 /// Otherwise if the component has been changed since the last entity tick for a client - it will be collected into update message.
 fn collect_component_change(
     messages: &mut ReplicationMessages,

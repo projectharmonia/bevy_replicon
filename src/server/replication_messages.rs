@@ -130,7 +130,7 @@ impl InitMessage {
         self.buffer.write(&replicon_tick)
     }
 
-    /// Trims empty arrays from message and sends it to the specified client.
+    /// Trims empty arrays from the message and sends it to the specified client.
     ///
     /// Does nothing if there is no data to send.
     fn send(&mut self, server: &mut RenetServer, client_id: ClientId) {
@@ -186,7 +186,7 @@ impl UpdateMessage {
         self.entities.push((self.buffer.data_entity(), data_size));
     }
 
-    /// Splits message according to `entities` and sends it to the specified client.
+    /// Splits message according to entities inside it and sends it to the specified client.
     ///
     /// Does nothing if there is no data to send.
     fn send(

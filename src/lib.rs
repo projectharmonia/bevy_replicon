@@ -375,14 +375,17 @@ They rarely used for gameplay systems (since you write the same logic for
 multiplayer and single-player!), but could be used for server
 creation / connection systems and corresponding UI.
 
-## Guarantees
+## Eventual consistency
 
-Replicon maintains valid state of the world even with packet loss. All events, inserts,
-removals and despawns will be applied in the same order as on the server.
+All events, inserts, removals and despawns never replicated partially and will be applied in the same order as on the server.
 
-Only component value changes per entity could arrive in any order and partially. But they will
-be applied when the tick on which they changed also arrives. So if your component references another entity,
-it will be applied only when this entity being spawned.
+Component value changes could be applies partially. So clients could receive changes for some entities and miss for other.
+But changes are grouped by entity, so client will never receive entity update partially.
+Also updates will be applied only when the tick with other data on which they changed also arrives.
+So if your component references another entity, it will be applied only when this entity being spawned.
+
+In other words clients should never assume that it's world state is the same as the server's on any given tick value-wise.
+World state on the client is only "eventually consistent" with the server's.
 
 ## Limits
 

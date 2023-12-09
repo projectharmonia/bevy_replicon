@@ -181,7 +181,7 @@ impl ReplicationBuffer {
     /// Data can contain components with their IDs or IDs only.
     /// Length will be increased automatically after writing data.
     /// Entity will be written lazily after first data write.
-    /// Can be called inside and outside of the array.
+    /// Can be called inside and outside of an array.
     /// See also [`Self::end_entity_data`], [`Self::write_component`]
     /// and [`Self::write_component_id`].
     pub(crate) fn start_entity_data(&mut self, entity: Entity) {
@@ -273,7 +273,7 @@ impl ReplicationBuffer {
         Ok(())
     }
 
-    /// Removes entity data elements from `other` copies it.
+    /// Removes entity data elements from `other` and copies it.
     ///
     /// Ends entity data for `other`.
     /// See also [`Self::start_entity_data`] and [`Self::end_entity_data`].
