@@ -12,7 +12,7 @@ use bevy::{
     prelude::*,
     ptr::Ptr,
     time::common_conditions::on_timer,
-    utils::{hashbrown::hash_map::Entry, EntityHashMap, HashMap},
+    utils::{EntityHashMap, HashMap},
 };
 use bevy_renet::{
     renet::{ClientId, RenetClient, RenetServer, ServerEvent},
@@ -124,17 +124,15 @@ impl ServerPlugin {
                         };
 
                         for entity in entities {
-                            match client_info.ticks.entry(entity) {
-                                Entry::Occupied(mut entry) => {
-                                    // Received tick could be outdated because we bump it
-                                    // if we detect any insertion on the entity in `collect_changes`.
-                                    if !entry.get().is_newer_than(tick, change_tick.this_run()) {
-                                        *entry.get_mut() = tick;
-                                    }
-                                }
-                                Entry::Vacant(entry) => {
-                                    entry.insert(tick);
-                                }
+                            let last_tick = client_info
+                                .ticks
+                                .get_mut(&entity)
+                                .expect("ticks should be added on insertion");
+
+                            // Received tick could be outdated because we bump it
+                            // if we detect any insertion on the entity in `collect_changes`.
+                            if !last_tick.is_newer_than(tick, change_tick.this_run()) {
+                                *last_tick = tick;
                             }
                         }
                         trace!(
