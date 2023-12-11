@@ -127,7 +127,7 @@ impl ServerPlugin {
                             let last_tick = client_info
                                 .ticks
                                 .get_mut(&entity)
-                                .expect("ticks should be added on insertion");
+                                .expect("tick should be inserted on any component insertion");
 
                             // Received tick could be outdated because we bump it
                             // if we detect any insertion on the entity in `collect_changes`.
