@@ -12,7 +12,7 @@ use bevy::{
     prelude::*,
     ptr::Ptr,
     time::common_conditions::on_timer,
-    utils::{EntityHashMap, HashMap},
+    utils::{hashbrown::hash_map::Entry, EntityHashMap, HashMap},
 };
 use bevy_renet::{
     renet::{ClientId, RenetClient, RenetServer, ServerEvent},
@@ -103,6 +103,7 @@ impl ServerPlugin {
     }
 
     fn acks_receiving_system(
+        change_tick: SystemChangeTick,
         mut server: ResMut<RenetServer>,
         mut clients_info: ResMut<ClientsInfo>,
     ) {
@@ -123,7 +124,18 @@ impl ServerPlugin {
                         };
 
                         for entity in entities {
-                            client_info.ticks.insert(entity, tick);
+                            match client_info.ticks.entry(entity) {
+                                Entry::Occupied(mut entry) => {
+                                    // Received tick could be outdated because we bump it
+                                    // if we detect any insertion on the entity in `collect_changes`.
+                                    if !entry.get().is_newer_than(tick, change_tick.this_run()) {
+                                        *entry.get_mut() = tick;
+                                    }
+                                }
+                                Entry::Vacant(entry) => {
+                                    entry.insert(tick);
+                                }
+                            }
                         }
                         trace!(
                             "client {} acknowledged an update with {tick:?}",
