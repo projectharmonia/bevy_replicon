@@ -302,14 +302,6 @@ fn apply_entity_mappings(
         let server_entity = deserialize_entity(cursor)?;
         let client_entity = deserialize_entity(cursor)?;
 
-        if let Some(entry) = entity_map.to_client().get(&server_entity) {
-            // It's possible to receive the same mappings in multiple packets if the server has not
-            // yet received an ack from the client for the tick when the mapping was created.
-            if *entry != client_entity {
-                panic!("received mapping from {server_entity:?} to {client_entity:?}, but already mapped to {entry:?}");
-            }
-        }
-
         if let Some(mut entity) = world.get_entity_mut(client_entity) {
             debug!("received mapping from {server_entity:?} to {client_entity:?}");
             entity.insert(Replication);
@@ -480,9 +472,16 @@ pub struct ServerEntityMap {
 }
 
 impl ServerEntityMap {
+    /// Inserts a server-client pair into the map.
+    ///
+    /// # Panics
+    ///
+    /// Panics if this mapping is already present.
     #[inline]
     pub fn insert(&mut self, server_entity: Entity, client_entity: Entity) {
-        self.server_to_client.insert(server_entity, client_entity);
+        if let Some(existing_entity) = self.server_to_client.insert(server_entity, client_entity) {
+            panic!("mapping {server_entity:?} to {client_entity:?}, but it's already mapped to {existing_entity:?}");
+        }
         self.client_to_server.insert(client_entity, server_entity);
     }
 
