@@ -50,15 +50,18 @@ impl Plugin for ClientPlugin {
 impl ClientPlugin {
     /// Receives and applies replication messages from the server.
     ///
-    /// Init messages applied first to ensure the valid state.
+    /// Tick init messages are sent over the [`ReplicationChannel::Reliable`] and are applied first to ensure valid state
+    /// for entity updates.
     ///
-    /// Then update messages will be applied only if an init message with their tick has arrived.
-    /// If an update message received before the required init message, then they will be buffered until then.
-    /// Since they could arrive in any order, entities will be updated only if the received update requires a more recent tick.
+    /// Entity update messages are sent over [`ReplicationChannel::Unreliable`], which means they may appear
+    /// ahead-of or behind init messages from the same server tick. An update will only be applied if its
+    /// change tick has already appeared in an init message, otherwise it will be buffered while waiting.
+    /// Since entity updates can arrive in any order, updates will only be applied if they correspond to a more
+    /// recent server tick than the last acked server tick for each entity.
     ///
-    /// And then the buffered messages from the last run are processed.
+    /// Buffered entity update messages are processed last.
     ///
-    /// Sends acknowledgments back for update messages.
+    /// Acknowledgments for received entity update messages are sent back to the server.
     ///
     /// See also [`ReplicationMessages`](crate::server::replication_messages::ReplicationMessages).
     pub(super) fn replication_receiving_system(
@@ -369,7 +372,9 @@ fn apply_despawns(
     Ok(())
 }
 
-/// Deserializes replicated components of `components_kind` and applies them to the `world`.
+///  Deserializes replicated component updates and applies them to the `world`.
+///
+/// Consumes all remaining bytes in the cursor.
 fn apply_update_components(
     cursor: &mut Cursor<&[u8]>,
     world: &mut World,
@@ -551,8 +556,7 @@ impl Mapper for ClientMapper<'_> {
 #[derive(Default, Deref, DerefMut, Resource)]
 pub(super) struct ServerEntityTicks(EntityHashMap<Entity, RepliconTick>);
 
-/// Caches buffer with deserialized ticks that was received earlier
-/// then the required init message with this tick.
+/// Caches a partially-deserialized entity update message that is waiting for its tick to appear in an init message.
 ///
 /// See also [`crate::server::replication_messages::UpdateMessage`].
 pub(super) struct BufferedUpdate {
