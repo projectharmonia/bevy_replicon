@@ -384,7 +384,8 @@ fn apply_update_components(
     replication_rules: &ReplicationRules,
     message_tick: RepliconTick,
 ) -> bincode::Result<()> {
-    loop {
+    let len = cursor.get_ref().len() as u64;
+    while cursor.position() < len {
         let entity = deserialize_entity(cursor)?;
         let mut entity = entity_map
             .get_by_server(world, entity)
@@ -407,10 +408,6 @@ fn apply_update_components(
             // SAFETY: server and client have identical `ReplicationRules` and server always sends valid IDs.
             let replication_info = unsafe { replication_rules.get_info_unchecked(replication_id) };
             (replication_info.deserialize)(&mut entity, entity_map, cursor, message_tick)?
-        }
-
-        if cursor.position() as usize == cursor.get_ref().len() {
-            break;
         }
     }
 
