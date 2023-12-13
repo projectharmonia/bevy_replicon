@@ -25,6 +25,7 @@ impl Plugin for ClientPlugin {
         app.add_plugins((RenetClientPlugin, NetcodeClientPlugin))
             .init_resource::<ServerEntityMap>()
             .init_resource::<ServerEntityTicks>()
+            .init_resource::<BufferedUpdates>()
             .configure_sets(
                 PreUpdate,
                 ClientSet::Receive.after(NetcodeClientPlugin::update_system),
@@ -64,77 +65,29 @@ impl ClientPlugin {
     /// Acknowledgments for received entity update messages are sent back to the server.
     ///
     /// See also [`ReplicationMessages`](crate::server::replication_messages::ReplicationMessages).
-    pub(super) fn replication_receiving_system(
-        world: &mut World,
-        mut buffered_updates: Local<Vec<BufferedUpdate>>,
-    ) -> bincode::Result<()> {
+    pub(super) fn replication_receiving_system(world: &mut World) -> bincode::Result<()> {
         world.resource_scope(|world, mut client: Mut<RenetClient>| {
             world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
                 world.resource_scope(|world, mut entity_ticks: Mut<ServerEntityTicks>| {
-                    world.resource_scope(|world, replication_rules: Mut<ReplicationRules>| {
-                        let mut stats = world.remove_resource::<ClientStats>();
-                        while let Some(message) =
-                            client.receive_message(ReplicationChannel::Reliable)
-                        {
-                            apply_init_message(
-                                &message,
+                    world.resource_scope(|world, mut buffered_updates: Mut<BufferedUpdates>| {
+                        world.resource_scope(|world, replication_rules: Mut<ReplicationRules>| {
+                            let mut stats = world.remove_resource::<ClientStats>();
+                            apply_replication(
                                 world,
-                                &mut entity_map,
-                                &mut entity_ticks,
-                                stats.as_mut(),
-                                &replication_rules,
-                            )?;
-                        }
-
-                        let replicon_tick = *world.resource::<RepliconTick>();
-                        while let Some(message) =
-                            client.receive_message(ReplicationChannel::Unreliable)
-                        {
-                            let index = apply_update_message(
-                                message,
-                                world,
+                                &mut client,
                                 &mut entity_map,
                                 &mut entity_ticks,
                                 &mut buffered_updates,
                                 stats.as_mut(),
                                 &replication_rules,
-                                replicon_tick,
                             )?;
 
-                            client.send_message(
-                                ReplicationChannel::Reliable,
-                                bincode::serialize(&index)?,
-                            )
-                        }
-
-                        let mut result = Ok(());
-                        buffered_updates.retain(|update| {
-                            if update.last_change_tick > replicon_tick {
-                                return true;
+                            if let Some(stats) = stats {
+                                world.insert_resource(stats);
                             }
 
-                            trace!("applying buffered update message for {replicon_tick:?}");
-                            if let Err(e) = apply_update_components(
-                                &mut Cursor::new(&*update.message),
-                                world,
-                                &mut entity_map,
-                                &mut entity_ticks,
-                                stats.as_mut(),
-                                &replication_rules,
-                                update.message_tick,
-                            ) {
-                                result = Err(e);
-                            }
-
-                            false
-                        });
-                        result?;
-
-                        if let Some(stats) = stats {
-                            world.insert_resource(stats);
-                        }
-
-                        Ok(())
+                            Ok(())
+                        })
                     })
                 })
             })
@@ -145,11 +98,78 @@ impl ClientPlugin {
         mut replicon_tick: ResMut<RepliconTick>,
         mut entity_map: ResMut<ServerEntityMap>,
         mut entity_ticks: ResMut<ServerEntityTicks>,
+        mut buffered_updates: ResMut<BufferedUpdates>,
     ) {
         *replicon_tick = Default::default();
         entity_map.clear();
         entity_ticks.clear();
+        buffered_updates.clear();
     }
+}
+
+/// Reads all received messages and applies them.
+///
+/// Sends acknowledgments for update messages back.
+fn apply_replication(
+    world: &mut World,
+    client: &mut RenetClient,
+    entity_map: &mut ServerEntityMap,
+    entity_ticks: &mut ServerEntityTicks,
+    buffered_updates: &mut BufferedUpdates,
+    mut stats: Option<&mut ClientStats>,
+    replication_rules: &ReplicationRules,
+) -> Result<(), Box<bincode::ErrorKind>> {
+    while let Some(message) = client.receive_message(ReplicationChannel::Reliable) {
+        apply_init_message(
+            &message,
+            world,
+            entity_map,
+            entity_ticks,
+            stats.as_deref_mut(),
+            replication_rules,
+        )?;
+    }
+
+    let replicon_tick = *world.resource::<RepliconTick>();
+    while let Some(message) = client.receive_message(ReplicationChannel::Unreliable) {
+        let index = apply_update_message(
+            message,
+            world,
+            entity_map,
+            entity_ticks,
+            buffered_updates,
+            stats.as_deref_mut(),
+            replication_rules,
+            replicon_tick,
+        )?;
+
+        client.send_message(ReplicationChannel::Reliable, bincode::serialize(&index)?)
+    }
+
+    let mut result = Ok(());
+    buffered_updates.retain(|update| {
+        if update.last_change_tick > replicon_tick {
+            return true;
+        }
+
+        trace!("applying buffered update message for {replicon_tick:?}");
+        if let Err(e) = apply_update_components(
+            &mut Cursor::new(&*update.message),
+            world,
+            entity_map,
+            entity_ticks,
+            stats.as_deref_mut(),
+            replication_rules,
+            update.message_tick,
+        ) {
+            result = Err(e);
+        }
+
+        false
+    });
+    result?;
+
+    Ok(())
 }
 
 /// Applies [`InitMessage`](crate::server::replication_messages::InitMessage).
@@ -230,7 +250,7 @@ fn apply_update_message(
     world: &mut World,
     entity_map: &mut ServerEntityMap,
     entity_ticks: &mut ServerEntityTicks,
-    buffered_updates: &mut Vec<BufferedUpdate>,
+    buffered_updates: &mut BufferedUpdates,
     mut stats: Option<&mut ClientStats>,
     replication_rules: &ReplicationRules,
     replicon_tick: RepliconTick,
@@ -552,6 +572,9 @@ impl Mapper for ClientMapper<'_> {
 /// Used to avoid applying old updates.
 #[derive(Default, Deref, DerefMut, Resource)]
 pub(super) struct ServerEntityTicks(EntityHashMap<Entity, RepliconTick>);
+
+#[derive(Default, Deref, DerefMut, Resource)]
+pub(super) struct BufferedUpdates(Vec<BufferedUpdate>);
 
 /// Caches a partially-deserialized entity update message that is waiting for its tick to appear in an init message.
 ///
