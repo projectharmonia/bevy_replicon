@@ -191,6 +191,7 @@ fn apply_init_message(
     let replicon_tick = bincode::deserialize_from(&mut cursor)?;
     trace!("applying init message for {replicon_tick:?}");
     *world.resource_mut::<RepliconTick>() = replicon_tick;
+    debug_assert_eq!(cursor.position(), end_pos, "init message can't be empty");
 
     apply_entity_mappings(&mut cursor, world, entity_map, stats.as_deref_mut())?;
     if cursor.position() == end_pos {
