@@ -81,7 +81,7 @@ impl ReplicationMessages {
         tick: Tick,
     ) -> bincode::Result<(LastChangeTick, Vec<ClientInfo>)> {
         if let Some((init_message, _)) = self.data.first() {
-            if init_message.arrays_with_data() != 0 {
+            if init_message.is_sendable() {
                 last_change_tick.0 = replicon_tick;
             }
         }
@@ -131,11 +131,16 @@ impl InitMessage {
         self.buffer.write(&replicon_tick)
     }
 
+    /// Returns `true` is message contains any non-empty arrays.
+    fn is_sendable(&self) -> bool {
+        self.buffer.arrays_with_data() != 0
+    }
+
     /// Trims empty arrays from the message and sends it to the specified client.
     ///
     /// Does nothing if there is no data to send.
     fn send(&mut self, server: &mut RenetServer, client_id: ClientId) {
-        if self.buffer.arrays_with_data() == 0 {
+        if !self.is_sendable() {
             trace!("no init data to send for client {client_id}");
             return;
         }
@@ -189,6 +194,11 @@ impl UpdateMessage {
         self.entities.push((self.buffer.data_entity(), data_size));
     }
 
+    /// Returns `true` is message contains any written data.
+    fn is_sendable(&self) -> bool {
+        !self.buffer.as_slice().is_empty()
+    }
+
     /// Splits message according to entities inside it and sends it to the specified client.
     ///
     /// Does nothing if there is no data to send.
@@ -200,8 +210,7 @@ impl UpdateMessage {
         replicon_tick: RepliconTick,
         tick: Tick,
     ) -> bincode::Result<()> {
-        let mut slice = self.buffer.as_slice();
-        if slice.is_empty() {
+        if !self.is_sendable() {
             trace!("no updates to send for client {}", client_info.id);
             return Ok(());
         }
@@ -211,6 +220,7 @@ impl UpdateMessage {
         let mut header = [0; TICKS_SIZE + mem::size_of::<u16>()];
         bincode::serialize_into(&mut header[..], &(*last_change_tick, replicon_tick))?;
 
+        let mut slice = self.buffer.as_slice();
         let mut entities = Vec::new();
         let mut message_size = 0;
         for &(entity, data_size) in &self.entities {
