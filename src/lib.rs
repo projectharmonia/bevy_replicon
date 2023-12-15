@@ -377,14 +377,16 @@ creation / connection systems and corresponding UI.
 
 ## Eventual consistency
 
-All events, inserts, removals and despawns never replicated partially and will be applied in the same order as on the server.
+All events, inserts, removals and despawns will be applied to clients in the same order as on the server.
 
-Component value changes could be applies partially. So clients could receive changes for some entities and miss for other.
-But changes are grouped by entity, so client will never receive entity update partially.
-Also updates will be applied only when the tick with other data on which they changed also arrives.
-So if your component references another entity, it will be applied only when this entity being spawned.
+Entity component updates are grouped by entity, and component groupings may be applied to clients in a different order than on the server.
+For example, if two entities are spawned in tick 1 on the server and their components are updated in tick 2,
+then the client is guaranteed to see the spawns at the same time, but the component updates may appear in different client ticks.
 
-In other words clients should never assume that it's world state is the same as the server's on any given tick value-wise.
+If a component is dependent on other data, updates to the component will only be applied to the client when that data has arrived.
+So if your component references another entity, updates to that component will only be applied when the referenced entity has been spawned on the client.
+
+Clients should never assume their world state is the same as the server's on any given tick value-wise.
 World state on the client is only "eventually consistent" with the server's.
 
 ## Limits

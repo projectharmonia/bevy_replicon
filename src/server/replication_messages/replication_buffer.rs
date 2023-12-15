@@ -207,7 +207,7 @@ impl ReplicationBuffer {
     /// Ends writing entity data by writing its length into the last remembered position.
     ///
     /// If the entity data is empty, nothing will be written.
-    /// Increases array length if writing is done inside the array.
+    /// Increases array length if writing is done inside an array.
     /// See also [`Self::start_array`], [`Self::write_component`] and
     /// [`Self::write_component_id`].
     pub(crate) fn end_entity_data(&mut self) -> bincode::Result<()> {
@@ -294,7 +294,7 @@ impl ReplicationBuffer {
     /// Crops empty arrays at the end.
     ///
     /// Should only be called after all arrays have been written, because
-    /// removed array somewhere the middle cannot be detected during deserialization.
+    /// arrays removed somewhere the middle cannot be detected during deserialization.
     pub(super) fn trim_empty_arrays(&mut self) {
         debug_assert!(!self.inside_array);
         debug_assert_eq!(self.array_len, 0);

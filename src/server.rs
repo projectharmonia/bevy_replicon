@@ -387,7 +387,7 @@ fn collect_component_change(
             let tick = *client_info
                 .ticks
                 .get(&entity)
-                .expect("entity should present after adding component");
+                .expect("entity should be present after adding component");
             if ticks.is_changed(tick, change_tick.this_run()) {
                 update_message.write_component(replication_info, replication_id, component)?;
             }
@@ -528,7 +528,7 @@ impl ClientInfo {
     }
 }
 
-/// Contains the last tick on which the world was changed.
+/// Contains the last tick in which a replicated entity was spawned, despawned, or gained/lost a component.
 ///
 /// It should be included in update messages and server events instead of the current tick
 /// to avoid needless waiting for the next init message to arrive.

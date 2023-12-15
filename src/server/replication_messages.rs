@@ -11,7 +11,7 @@ use replication_buffer::ReplicationBuffer;
 
 /// Accumulates replication messages and sends them to clients.
 ///
-/// Messages serialized and deserialized manually because using an intermediate structure
+/// Messages are serialized and deserialized manually because using an intermediate structure
 /// leads to allocations and according to our benchmarks it's much slower.
 ///
 /// Reuses allocated memory from older messages.
@@ -26,7 +26,7 @@ impl ReplicationMessages {
     /// Initializes messages for each client.
     ///
     /// Reuses already allocated messages.
-    /// Creates new messages if number of clients is bigger then the number of allocated messages.
+    /// Creates new messages if the number of clients is bigger then the number of allocated messages.
     /// If there are more messages than the number of clients, then the extra messages remain untouched
     /// and iteration methods will not include them.
     pub(super) fn prepare(
@@ -71,7 +71,11 @@ impl ReplicationMessages {
             })
     }
 
-    /// Sends all messages and returns updated last change tick with clients info that was consumed in [`Self::prepare`].
+    /// Sends cached messages to clients specified in the last [`Self::prepare`] call.
+    ///
+    /// Returns the server's last change tick, which will equal the latest replicon tick if any init
+    /// messages were sent to clients. If only update messages were sent (or no messages at all) then
+    /// it will equal the input `last_change_tick`.
     pub(super) fn send(
         &mut self,
         server: &mut RenetServer,
@@ -150,13 +154,15 @@ impl InitMessage {
     }
 }
 
-/// A reusable message with component updates.
+/// A reusable message with replicated component updates.
 ///
 /// Contains last change tick, current tick and component updates since the last acknowledged tick for each entity.
-/// Requires init message with the same tick as last change tick to be applied to keep the world in valid state.
-/// The message will be manually split into packets up to max size that can be applied independently.
-/// Splits will happen per-entity to avoid weird behavior of partially changed entity.
-/// Sent over [`ReplicationChannel::Unreliable`] channel.
+/// Cannot be applied on the client until the init message matching this update message's last change tick
+/// has been applied to the client world.
+/// The message will be manually split into packets up to max size, and each packet will be applied
+/// independently on the client.
+/// Message splits only happen per-entity to avoid weird behavior from partial entity updates.
+/// Sent over the [`ReplicationChannel::Unreliable`] channel.
 ///
 /// See also [Limits](../index.html#limits)
 #[derive(Deref, DerefMut, Default)]
