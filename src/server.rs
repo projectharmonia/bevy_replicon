@@ -1,3 +1,4 @@
+pub(super) mod replication_buffer;
 pub(super) mod replication_messages;
 
 use std::{mem, time::Duration};

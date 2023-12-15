@@ -1,13 +1,10 @@
-pub(super) mod replication_buffer;
-
 use std::mem;
 
 use bevy::{ecs::component::Tick, prelude::*};
 use bevy_renet::renet::{Bytes, ClientId, RenetServer};
 
-use super::{ClientInfo, LastChangeTick};
+use super::{replication_buffer::ReplicationBuffer, ClientInfo, LastChangeTick};
 use crate::replicon_core::{replicon_tick::RepliconTick, ReplicationChannel};
-use replication_buffer::ReplicationBuffer;
 
 /// Accumulates replication messages and sends them to clients.
 ///

@@ -14,7 +14,7 @@ use crate::{
 };
 
 /// A reusable buffer with replicated data.
-pub(crate) struct ReplicationBuffer {
+pub(super) struct ReplicationBuffer {
     /// Serialized data.
     cursor: Cursor<Vec<u8>>,
 
@@ -69,7 +69,7 @@ impl ReplicationBuffer {
     /// Returns length of the current entity data.
     ///
     /// See also [`Self::start_entity_data`] and [`Self::end_entity_data`].
-    pub(crate) fn entity_data_len(&self) -> u8 {
+    pub(super) fn entity_data_len(&self) -> u8 {
         self.entity_data_len
     }
 
@@ -105,7 +105,7 @@ impl ReplicationBuffer {
     /// Arrays can contain entity data or despawns inside.
     /// Length will be increased automatically after writing data.
     /// See also [`Self::end_array`], [`Self::write_client_mapping`], [`Self::write_entity`] and [`Self::start_entity_data`].
-    pub(crate) fn start_array(&mut self) {
+    pub(super) fn start_array(&mut self) {
         debug_assert_eq!(self.array_len, 0);
         debug_assert!(!self.inside_array);
 
@@ -118,7 +118,7 @@ impl ReplicationBuffer {
     /// Ends writing array by writing its length into the last remembered position.
     ///
     /// See also [`Self::start_array`].
-    pub(crate) fn end_array(&mut self) -> bincode::Result<()> {
+    pub(super) fn end_array(&mut self) -> bincode::Result<()> {
         debug_assert!(self.inside_array);
 
         if self.array_len != 0 {
@@ -146,7 +146,7 @@ impl ReplicationBuffer {
     /// Should be called only inside array.
     /// Increases array length by 1.
     /// See also [`Self::start_array`].
-    pub(crate) fn write_client_mapping(&mut self, mapping: &ClientMapping) -> bincode::Result<()> {
+    pub(super) fn write_client_mapping(&mut self, mapping: &ClientMapping) -> bincode::Result<()> {
         debug_assert!(self.inside_array);
 
         serialize_entity(&mut self.cursor, mapping.server_entity)?;
@@ -164,7 +164,7 @@ impl ReplicationBuffer {
     /// Should be called only inside array.
     /// Increases array length by 1.
     /// See also [`Self::start_array`].
-    pub(crate) fn write_entity(&mut self, entity: Entity) -> bincode::Result<()> {
+    pub(super) fn write_entity(&mut self, entity: Entity) -> bincode::Result<()> {
         debug_assert!(self.inside_array);
 
         serialize_entity(&mut self.cursor, entity)?;
@@ -184,7 +184,7 @@ impl ReplicationBuffer {
     /// Can be called inside and outside of an array.
     /// See also [`Self::end_entity_data`], [`Self::write_component`]
     /// and [`Self::write_component_id`].
-    pub(crate) fn start_entity_data(&mut self, entity: Entity) {
+    pub(super) fn start_entity_data(&mut self, entity: Entity) {
         debug_assert_eq!(self.entity_data_len, 0);
 
         self.data_entity = entity;
@@ -210,7 +210,7 @@ impl ReplicationBuffer {
     /// Increases array length if writing is done inside an array.
     /// See also [`Self::start_array`], [`Self::write_component`] and
     /// [`Self::write_component_id`].
-    pub(crate) fn end_entity_data(&mut self) -> bincode::Result<()> {
+    pub(super) fn end_entity_data(&mut self) -> bincode::Result<()> {
         if self.entity_data_len != 0 {
             let previous_pos = self.cursor.position();
             self.cursor.set_position(self.entity_data_len_pos);
@@ -237,7 +237,7 @@ impl ReplicationBuffer {
     /// Should be called only inside entity data.
     /// Increases entity data length by 1.
     /// See also [`Self::start_entity_data`].
-    pub(crate) fn write_component(
+    pub(super) fn write_component(
         &mut self,
         replication_info: &ReplicationInfo,
         replication_id: ReplicationId,
@@ -259,7 +259,7 @@ impl ReplicationBuffer {
     /// Should be called only inside entity data.
     /// Increases entity data length by 1.
     /// See also [`Self::start_entity_data`].
-    pub(crate) fn write_replication_id(
+    pub(super) fn write_replication_id(
         &mut self,
         replication_id: ReplicationId,
     ) -> bincode::Result<()> {
@@ -277,7 +277,7 @@ impl ReplicationBuffer {
     ///
     /// Ends entity data for `other`.
     /// See also [`Self::start_entity_data`] and [`Self::end_entity_data`].
-    pub(crate) fn take_entity_data(&mut self, other: &mut Self) {
+    pub(super) fn take_entity_data(&mut self, other: &mut Self) {
         if other.entity_data_len != 0 {
             let slice = other.as_slice();
             let offset =
