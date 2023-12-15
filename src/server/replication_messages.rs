@@ -215,7 +215,14 @@ impl UpdateMessage {
         let mut message_size = 0;
         for &(entity, data_size) in &self.entities {
             const MAX_PACKET_SIZE: usize = 1200; // https://github.com/lucaspoffo/renet/blob/acee8b470e34c70d35700d96c00fb233d9cf6919/renet/src/packet.rs#L7
-            if message_size + data_size + header.len() > MAX_PACKET_SIZE {
+
+            // Pack small messages ordered after large messages into the large message's packet ('skip over' strategy).
+            if message_size == 0
+                || ((message_size + header.len()) % MAX_PACKET_SIZE) + 1 <= data_size
+            {
+                entities.push(entity);
+                message_size += data_size;
+            } else {
                 let (message, remaining) = slice.split_at(message_size);
                 slice = remaining;
                 message_size = data_size;
@@ -230,9 +237,6 @@ impl UpdateMessage {
                 );
 
                 entities.clear();
-            } else {
-                entities.push(entity);
-                message_size += data_size;
             }
         }
 

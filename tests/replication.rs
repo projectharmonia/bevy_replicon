@@ -214,6 +214,84 @@ fn update_replication() {
 
     common::connect(&mut server_app, &mut client_app);
 
+    let server_entity = server_app
+        .world
+        .spawn((Replication, BoolComponent(false)))
+        .id();
+
+    server_app.update();
+    client_app.update();
+
+    let mut component = server_app
+        .world
+        .get_mut::<BoolComponent>(server_entity)
+        .unwrap();
+    component.0 = true;
+
+    server_app.update();
+    client_app.update();
+
+    let component = client_app
+        .world
+        .query::<&BoolComponent>()
+        .single(&client_app.world);
+    assert!(component.0);
+}
+
+#[test]
+fn big_entity_update_replication() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+        ))
+        .replicate::<VecComponent>();
+    }
+
+    common::connect(&mut server_app, &mut client_app);
+
+    let server_entity = server_app
+        .world
+        .spawn((Replication, VecComponent::default()))
+        .id();
+
+    server_app.update();
+    client_app.update();
+
+    // To exceed packed size.
+    const BIG_DATA: &[u8] = &[0; 1200];
+    let mut component = server_app
+        .world
+        .get_mut::<VecComponent>(server_entity)
+        .unwrap();
+    component.0 = BIG_DATA.to_vec();
+
+    server_app.update();
+    client_app.update();
+
+    let component = client_app
+        .world
+        .query::<&VecComponent>()
+        .single(&client_app.world);
+    assert_eq!(component.0, BIG_DATA);
+}
+
+#[test]
+fn many_entities_update_replication() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+        ))
+        .replicate::<BoolComponent>();
+    }
+
+    common::connect(&mut server_app, &mut client_app);
+
     // Spawn many entities to cover message splitting.
     const ENTITIES_COUNT: u32 = 300;
     server_app
@@ -536,8 +614,11 @@ struct NonReplicatingComponent;
 #[derive(Component, Deserialize, Serialize)]
 struct IgnoredComponent;
 
-#[derive(Component, Clone, Copy, Serialize, Deserialize)]
+#[derive(Clone, Component, Copy, Deserialize, Serialize)]
 struct BoolComponent(bool);
+
+#[derive(Component, Default, Deserialize, Serialize)]
+struct VecComponent(Vec<u8>);
 
 #[derive(Component, Default, Deserialize, Reflect, Serialize)]
 #[reflect(Component)]
