@@ -83,7 +83,7 @@ impl ReplicationMessages {
         replicon_tick: RepliconTick,
         tick: Tick,
     ) -> bincode::Result<(LastChangeTick, Vec<ClientInfo>)> {
-        if let Some((init_message, _)) = self.data.last() {
+        if let Some((init_message, _)) = self.data.first() {
             if init_message.arrays_with_data() != 0 {
                 last_change_tick.0 = replicon_tick;
             }
