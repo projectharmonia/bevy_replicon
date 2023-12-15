@@ -226,10 +226,8 @@ impl UpdateMessage {
         for &(entity, data_size) in &self.entities {
             const MAX_PACKET_SIZE: usize = 1200; // https://github.com/lucaspoffo/renet/blob/acee8b470e34c70d35700d96c00fb233d9cf6919/renet/src/packet.rs#L7
 
-            // Pack small messages ordered after large messages into the large message's packet ('skip over' strategy).
-            if message_size == 0
-                || ((message_size + header.len()) % MAX_PACKET_SIZE) + 1 <= data_size
-            {
+            // Pack small messages ordered after large messages into the large message's packet ('pack back' strategy).
+            if message_size == 0 || ((message_size + header.len()) % MAX_PACKET_SIZE) < data_size {
                 entities.push(entity);
                 message_size += data_size;
             } else {
