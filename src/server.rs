@@ -118,7 +118,7 @@ impl ServerPlugin {
                     clients_info.remove(client_id);
                 }
                 ServerEvent::ClientConnected { client_id } => {
-                    clients_info.info.push(ClientInfo::new(client_id));
+                    clients_info.init(client_id);
                 }
             }
         }
@@ -132,6 +132,7 @@ impl ServerPlugin {
         let ClientsInfo {
             info,
             entity_buffer,
+            ..
         } = &mut *clients_info;
 
         for client_info in info.iter_mut() {
@@ -220,10 +221,8 @@ impl ServerPlugin {
         )?;
 
         // Return borrowed data back.
-        *set.p1() = ClientsInfo {
-            info,
-            entity_buffer,
-        };
+        set.p1().info = info;
+        set.p1().entity_buffer = entity_buffer;
         *set.p4() = last_change_tick;
 
         Ok(())

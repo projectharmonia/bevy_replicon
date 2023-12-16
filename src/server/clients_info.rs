@@ -12,14 +12,33 @@ pub(crate) struct ClientsInfo {
 
     /// [`Vec`]'s from acknowledged update indexes from [`ClientInfo`].
     ///
-    /// All data is cleared before the insertion, used just to reuse allocated capacity.
+    /// All data is cleared before the insertion.
+    /// Stored to reuse allocated capacity.
     pub(super) entity_buffer: Vec<Vec<Entity>>,
+
+    /// Disconnected client's [`ClientsInfo`].
+    ///
+    /// [`ClientInfo::clear`] is used before the insertion.
+    /// Stored to reuse allocated memory.
+    info_buffer: Vec<ClientInfo>,
 }
 
 impl ClientsInfo {
+    /// Initializes a new [`ClientInfo`] for this client.
+    pub(super) fn init(&mut self, client_id: ClientId) {
+        let client_info = if let Some(mut clinet_info) = self.info_buffer.pop() {
+            clinet_info.id = client_id;
+            clinet_info
+        } else {
+            ClientInfo::new(client_id)
+        };
+
+        self.info.push(client_info);
+    }
+
     /// Removes info for the client.
     ///
-    /// Keeps memory from update entities for reuse.
+    /// Keeps allocated memory.
     pub(super) fn remove(&mut self, client_id: ClientId) {
         let index = self
             .info
@@ -27,29 +46,18 @@ impl ClientsInfo {
             .position(|info| info.id == client_id)
             .expect("clients info should contain all connected clients");
         let mut client_info = self.info.remove(index);
-        let old_entities = client_info
-            .update_entities
-            .drain()
-            .map(|(_, (_, mut entities))| {
-                entities.clear();
-                entities
-            });
-        self.entity_buffer.extend(old_entities);
+        self.entity_buffer.extend(client_info.reset());
+        self.info_buffer.push(client_info);
     }
 
     /// Clears information for all clients.
     ///
-    /// Keeps memory from update entities for reuse.
+    /// Keeps allocated memory.
     pub(super) fn clear(&mut self) {
-        let old_entities = self
-            .info
-            .drain(..)
-            .flat_map(|client_info| client_info.update_entities)
-            .map(|(_, (_, mut entities))| {
-                entities.clear();
-                entities
-            });
-        self.entity_buffer.extend(old_entities);
+        for mut client_info in self.info.drain(..) {
+            self.entity_buffer.extend(client_info.reset());
+            self.info_buffer.push(client_info);
+        }
     }
 }
 
@@ -62,7 +70,7 @@ pub(super) struct ClientInfo {
 }
 
 impl ClientInfo {
-    pub(super) fn new(id: ClientId) -> Self {
+    fn new(id: ClientId) -> Self {
         Self {
             id,
             just_connected: true,
@@ -70,6 +78,20 @@ impl ClientInfo {
             update_entities: Default::default(),
             next_update_index: Default::default(),
         }
+    }
+
+    /// Resets all data except `id` and drains all [`Vec`]s from update entities mapping.
+    ///
+    /// Drained data will be cleared.
+    /// Keeps allocated memory.
+    fn reset(&mut self) -> impl Iterator<Item = Vec<Entity>> + '_ {
+        self.just_connected = true;
+        self.ticks.clear();
+        self.next_update_index = 0;
+        self.update_entities.drain().map(|(_, (_, mut entities))| {
+            entities.clear();
+            entities
+        })
     }
 
     /// Remembers `entities` and `tick` of an update message and returns its index.
