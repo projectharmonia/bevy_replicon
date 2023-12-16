@@ -54,7 +54,8 @@ impl Plugin for ServerPlugin {
             .configure_sets(PostUpdate, ServerSet::Send.before(RenetSend))
             .add_systems(
                 PreUpdate,
-                (Self::acks_receiving_system, Self::handle_connections_system)
+                (Self::handle_connections_system, Self::acks_receiving_system)
+                    .chain()
                     .in_set(ServerSet::Receive)
                     .run_if(resource_exists::<RenetServer>()),
             )
