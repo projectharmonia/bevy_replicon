@@ -249,7 +249,8 @@ fn collect_mappings(
     Ok(())
 }
 
-/// Collects component insertions from this tick into init messages and changes into update messages since the last entity tick.
+/// Collects component insertions from this tick into init messages, and changes into update messages
+/// since the last entity tick.
 fn collect_changes(
     messages: &mut ReplicationMessages,
     world: &World,
@@ -370,8 +371,8 @@ fn collect_changes(
 
 /// Collects the component if it has been changed.
 ///
-/// If the component has been changed in this tick, it will be collected into init buffer.
-/// Otherwise if the component has been changed since the last entity tick for a client - it will be collected into update message.
+/// If the component was added since the client's last init message, it will be collected into
+/// init buffer.
 fn collect_component_change(
     messages: &mut ReplicationMessages,
     entity: Entity,
