@@ -357,7 +357,47 @@ fn insert_update_replication() {
         .world
         .query_filtered::<&BoolComponent, With<TableComponent>>()
         .single(&client_app.world);
-    assert!(component.0, "init messages should contain the update");
+    assert!(component.0);
+}
+
+#[test]
+fn despawn_update_replication() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+        ))
+        .replicate::<BoolComponent>()
+        .replicate::<TableComponent>();
+    }
+
+    common::connect(&mut server_app, &mut client_app);
+
+    let server_entity = server_app
+        .world
+        .spawn((Replication, BoolComponent(false)))
+        .id();
+
+    server_app.update();
+    client_app.update();
+
+    let mut component = server_app
+        .world
+        .get_mut::<BoolComponent>(server_entity)
+        .unwrap();
+    component.0 = true;
+
+    // Update without client to send update message.
+    server_app.update();
+
+    server_app.world.despawn(server_entity);
+
+    server_app.update();
+    client_app.update();
+
+    assert!(client_app.world.entities().is_empty());
 }
 
 #[test]
