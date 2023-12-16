@@ -39,8 +39,8 @@ pub(super) struct ReplicationBuffer {
     /// Position of entity data length from last call of [`Self::write_data_entity`].
     entity_data_len_pos: u64,
 
-    /// Length of the data for entity that updated automatically after writing data.
-    entity_data_len: u8,
+    /// Length in bytes of the component data stored for the currently-being-written entity.
+    entity_data_len: u16,
 
     /// Entity from last call of [`Self::start_entity_data`].
     data_entity: Entity,
@@ -66,10 +66,10 @@ impl ReplicationBuffer {
         self.entity_data_pos
     }
 
-    /// Returns length of the current entity data.
+    /// Returns length in bytes of the current entity data.
     ///
     /// See also [`Self::start_entity_data`] and [`Self::end_entity_data`].
-    pub(super) fn entity_data_len(&self) -> u8 {
+    pub(super) fn entity_data_len(&self) -> u16 {
         self.entity_data_len
     }
 
@@ -247,9 +247,13 @@ impl ReplicationBuffer {
             self.write_data_entity()?;
         }
 
+        let old_pos = self.cursor.position();
         DefaultOptions::new().serialize_into(&mut self.cursor, &replication_id)?;
         (replication_info.serialize)(ptr, &mut self.cursor)?;
-        self.entity_data_len += 1;
+        let component_length = self.cursor.position() - old_pos;
+        debug_assert!(component_length > 0);
+        debug_assert!(component_length <= u16::MAX as u64);
+        self.entity_data_len += component_length as u16;
 
         Ok(())
     }

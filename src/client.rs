@@ -330,15 +330,13 @@ fn apply_init_components(
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..entities_count {
         let entity = deserialize_entity(cursor)?;
+        let update_bytes: u16 = bincode::deserialize_from(&mut *cursor)?;
         let mut entity = entity_map.get_by_server_or_spawn(world, entity);
         entity_ticks.insert(entity.id(), replicon_tick);
 
-        let components_count: u8 = bincode::deserialize_from(&mut *cursor)?;
-        if let Some(stats) = &mut stats {
-            stats.entities_changed += 1;
-            stats.components_changed += components_count as u32;
-        }
-        for _ in 0..components_count {
+        let end_pos = cursor.position() + update_bytes as u64;
+        let mut components_count = 0u32;
+        while cursor.position() < end_pos {
             let replication_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
             // SAFETY: server and client have identical `ReplicationRules` and server always sends valid IDs.
             let replication_info = unsafe { replication_rules.get_info_unchecked(replication_id) };
@@ -348,6 +346,11 @@ fn apply_init_components(
                 }
                 ComponentsKind::Removal => (replication_info.remove)(&mut entity, replicon_tick),
             }
+            components_count += 1;
+        }
+        if let Some(stats) = &mut stats {
+            stats.entities_changed += 1;
+            stats.components_changed += components_count;
         }
     }
 
@@ -399,28 +402,37 @@ fn apply_update_components(
 ) -> bincode::Result<()> {
     let len = cursor.get_ref().len() as u64;
     while cursor.position() < len {
-        let entity = deserialize_entity(cursor)?;
-        let mut entity = entity_map
-            .get_by_server(world, entity)
-            .expect("updates should be applied only on spawned entities");
+        let server_entity = deserialize_entity(cursor)?;
+        let update_bytes: u16 = bincode::deserialize_from(&mut *cursor)?;
+        let Some(mut entity) = entity_map.get_by_server(world, server_entity) else {
+            debug!("ignoring update received for unknown server entity {server_entity:?}");
+            cursor.set_position(cursor.position() + update_bytes as u64);
+            continue;
+        };
         let Some(entity_tick) = entity_ticks.get_mut(&entity.id()) else {
-            continue; // Update arrived after a despawn from init message.
+            error!("replicon tick missing for client entity {:?} mapped to server entity {server_entity:?}", entity.id());
+            cursor.set_position(cursor.position() + update_bytes as u64);
+            continue;
         };
         if message_tick <= *entity_tick {
-            continue; // Update for this entity is outdated.
+            trace!("ignoring outdated update for client entity {:?} mapped to server entity {server_entity:?}", entity.id());
+            cursor.set_position(cursor.position() + update_bytes as u64);
+            continue;
         }
         *entity_tick = message_tick;
 
-        let components_count: u8 = bincode::deserialize_from(&mut *cursor)?;
-        if let Some(stats) = &mut stats {
-            stats.entities_changed += 1;
-            stats.components_changed += components_count as u32;
-        }
-        for _ in 0..components_count {
+        let end_pos = cursor.position() + update_bytes as u64;
+        let mut components_count = 0u32;
+        while cursor.position() < end_pos {
             let replication_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
             // SAFETY: server and client have identical `ReplicationRules` and server always sends valid IDs.
             let replication_info = unsafe { replication_rules.get_info_unchecked(replication_id) };
-            (replication_info.deserialize)(&mut entity, entity_map, cursor, message_tick)?
+            (replication_info.deserialize)(&mut entity, entity_map, cursor, message_tick)?;
+            components_count += 1;
+        }
+        if let Some(stats) = &mut stats {
+            stats.entities_changed += 1;
+            stats.components_changed += components_count;
         }
     }
 
