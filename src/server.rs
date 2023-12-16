@@ -239,7 +239,7 @@ impl ServerPlugin {
     }
 }
 
-/// Collects and writes any new entity mappings happened in this tick.
+/// Collects and writes any new entity mappings that happened in this tick.
 ///
 /// On deserialization mappings should be processed first, so all referenced entities after it will behave correctly.
 fn collect_mappings(
