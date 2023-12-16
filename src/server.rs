@@ -52,7 +52,7 @@ impl Plugin for ServerPlugin {
             .configure_sets(PostUpdate, ServerSet::Send.before(RenetSend))
             .add_systems(
                 PreUpdate,
-                (Self::acks_receiving_system, Self::disconnect_cleanup_system)
+                (Self::acks_receiving_system, Self::handle_connections_system)
                     .in_set(ServerSet::Receive)
                     .run_if(resource_exists::<RenetServer>()),
             )
@@ -103,6 +103,28 @@ impl ServerPlugin {
         trace!("incremented {replicon_tick:?}");
     }
 
+    fn handle_connections_system(
+        mut server_events: EventReader<ServerEvent>,
+        mut entity_map: ResMut<ClientEntityMap>,
+        mut clients_info: ResMut<ClientsInfo>,
+    ) {
+        for event in server_events.read() {
+            match *event {
+                ServerEvent::ClientDisconnected { client_id, .. } => {
+                    entity_map.0.remove(&client_id);
+                    let index = clients_info
+                        .iter()
+                        .position(|info| info.id == client_id)
+                        .expect("clients info should contain all connected clients");
+                    clients_info.remove(index);
+                }
+                ServerEvent::ClientConnected { client_id } => {
+                    clients_info.push(ClientInfo::new(client_id));
+                }
+            }
+        }
+    }
+
     fn acks_receiving_system(
         change_tick: SystemChangeTick,
         mut server: ResMut<RenetServer>,
@@ -145,28 +167,6 @@ impl ServerPlugin {
                         "unable to deserialize update index from client {}: {e}",
                         client_info.id
                     ),
-                }
-            }
-        }
-    }
-
-    fn disconnect_cleanup_system(
-        mut server_events: EventReader<ServerEvent>,
-        mut entity_map: ResMut<ClientEntityMap>,
-        mut clients_info: ResMut<ClientsInfo>,
-    ) {
-        for event in server_events.read() {
-            match *event {
-                ServerEvent::ClientDisconnected { client_id, .. } => {
-                    entity_map.0.remove(&client_id);
-                    let index = clients_info
-                        .iter()
-                        .position(|info| info.id == client_id)
-                        .expect("clients info should contain all connected clients");
-                    clients_info.remove(index);
-                }
-                ServerEvent::ClientConnected { client_id } => {
-                    clients_info.push(ClientInfo::new(client_id));
                 }
             }
         }
