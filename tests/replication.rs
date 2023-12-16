@@ -546,6 +546,26 @@ fn despawn_replication() {
 }
 
 #[test]
+fn old_entities_replication() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+        ))
+        .replicate::<TableComponent>();
+    }
+
+    // Spawn an entity before client connected.
+    server_app.world.spawn((Replication, TableComponent));
+
+    common::connect(&mut server_app, &mut client_app);
+
+    assert_eq!(client_app.world.entities().len(), 1);
+}
+
+#[test]
 fn replication_into_scene() {
     let mut app = App::new();
     app.add_plugins(ReplicationPlugins)

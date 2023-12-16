@@ -371,7 +371,8 @@ fn collect_changes(
         }
     }
 
-    for (init_message, _) in messages.iter_mut() {
+    for (init_message, _, client_info) in messages.iter_mut_with_info() {
+        client_info.just_connected = false;
         init_message.end_array()?;
     }
 
@@ -392,7 +393,9 @@ fn collect_component_change(
     component: Ptr,
 ) -> bincode::Result<()> {
     for (init_message, update_message, client_info) in messages.iter_mut_with_info() {
-        if ticks.is_added(change_tick.last_run(), change_tick.this_run()) {
+        if client_info.just_connected
+            || ticks.is_added(change_tick.last_run(), change_tick.this_run())
+        {
             init_message.write_component(replication_info, replication_id, component)?;
         } else {
             let tick = *client_info
@@ -548,6 +551,7 @@ impl ClientsInfo {
 
 pub(super) struct ClientInfo {
     id: ClientId,
+    just_connected: bool,
     ticks: EntityHashMap<Entity, Tick>,
     update_entities: HashMap<u16, (Tick, Vec<Entity>)>,
     next_update_index: u16,
@@ -557,6 +561,7 @@ impl ClientInfo {
     fn new(id: ClientId) -> Self {
         Self {
             id,
+            just_connected: true,
             ticks: Default::default(),
             update_entities: Default::default(),
             next_update_index: Default::default(),
