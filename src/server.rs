@@ -1,3 +1,4 @@
+pub(super) mod clients_info;
 pub(super) mod replication_buffer;
 pub(super) mod replication_messages;
 
@@ -26,6 +27,7 @@ use crate::replicon_core::{
     replicon_tick::RepliconTick,
     ReplicationChannel,
 };
+use clients_info::{ClientInfo, ClientsInfo};
 use replication_messages::ReplicationMessages;
 
 pub const SERVER_ID: ClientId = ClientId::from_raw(0);
@@ -505,81 +507,6 @@ pub enum TickPolicy {
     EveryFrame,
     /// [`ServerSet::Send`] should be manually configured.
     Manual,
-}
-
-/// Stores meta-information about connected clients.
-#[derive(Default, Resource)]
-pub(super) struct ClientsInfo {
-    info: Vec<ClientInfo>,
-
-    /// [`Vec`]'s from acknowledged update indexes from [`ClientInfo`].
-    ///
-    /// All data is cleared before the insertion, used just to reuse allocated capacity.
-    entity_buffer: Vec<Vec<Entity>>,
-}
-
-impl ClientsInfo {
-    fn remove(&mut self, client_id: ClientId) {
-        let index = self
-            .info
-            .iter()
-            .position(|info| info.id == client_id)
-            .expect("clients info should contain all connected clients");
-        let mut client_info = self.info.remove(index);
-        let old_entities = client_info
-            .update_entities
-            .drain()
-            .map(|(_, (_, mut entities))| {
-                entities.clear();
-                entities
-            });
-        self.entity_buffer.extend(old_entities);
-    }
-
-    fn clear(&mut self) {
-        let old_entities = self
-            .info
-            .drain(..)
-            .flat_map(|client_info| client_info.update_entities)
-            .map(|(_, (_, mut entities))| {
-                entities.clear();
-                entities
-            });
-        self.entity_buffer.extend(old_entities);
-    }
-}
-
-pub(super) struct ClientInfo {
-    id: ClientId,
-    just_connected: bool,
-    ticks: EntityHashMap<Entity, Tick>,
-    update_entities: HashMap<u16, (Tick, Vec<Entity>)>,
-    next_update_index: u16,
-}
-
-impl ClientInfo {
-    fn new(id: ClientId) -> Self {
-        Self {
-            id,
-            just_connected: true,
-            ticks: Default::default(),
-            update_entities: Default::default(),
-            next_update_index: Default::default(),
-        }
-    }
-
-    /// Remembers `entities` and `tick` of an update message and returns its index.
-    ///
-    /// Used later to acknowledge updated entities.
-    #[must_use]
-    fn register_update(&mut self, tick: Tick, entities: Vec<Entity>) -> u16 {
-        let update_index = self.next_update_index;
-        self.update_entities.insert(update_index, (tick, entities));
-
-        self.next_update_index = self.next_update_index.overflowing_add(1).0;
-
-        update_index
-    }
 }
 
 /// Contains the last tick in which a replicated entity was spawned, despawned, or gained/lost a component.
