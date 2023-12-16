@@ -330,11 +330,11 @@ fn apply_init_components(
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..entities_count {
         let entity = deserialize_entity(cursor)?;
-        let update_bytes: u16 = bincode::deserialize_from(&mut *cursor)?;
+        let data_len: u16 = bincode::deserialize_from(&mut *cursor)?;
         let mut entity = entity_map.get_by_server_or_spawn(world, entity);
         entity_ticks.insert(entity.id(), replicon_tick);
 
-        let end_pos = cursor.position() + update_bytes as u64;
+        let end_pos = cursor.position() + data_len as u64;
         let mut components_count = 0u32;
         while cursor.position() < end_pos {
             let replication_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
@@ -402,26 +402,25 @@ fn apply_update_components(
 ) -> bincode::Result<()> {
     let len = cursor.get_ref().len() as u64;
     while cursor.position() < len {
-        let server_entity = deserialize_entity(cursor)?;
-        let update_bytes: u16 = bincode::deserialize_from(&mut *cursor)?;
-        let Some(mut entity) = entity_map.get_by_server(world, server_entity) else {
-            debug!("ignoring update received for unknown server entity {server_entity:?}");
-            cursor.set_position(cursor.position() + update_bytes as u64);
+        let entity = deserialize_entity(cursor)?;
+        let data_len: u16 = bincode::deserialize_from(&mut *cursor)?;
+        let Some(mut entity) = entity_map.get_by_server(world, entity) else {
+            // Update could arrive after a despawn from init message.
+            debug!("ignoring update received for unknown server's {entity:?}");
+            cursor.set_position(cursor.position() + data_len as u64);
             continue;
         };
-        let Some(entity_tick) = entity_ticks.get_mut(&entity.id()) else {
-            error!("replicon tick missing for client entity {:?} mapped to server entity {server_entity:?}", entity.id());
-            cursor.set_position(cursor.position() + update_bytes as u64);
-            continue;
-        };
+        let entity_tick = entity_ticks
+            .get_mut(&entity.id())
+            .expect("all entities from update should have assigned ticks");
         if message_tick <= *entity_tick {
-            trace!("ignoring outdated update for client entity {:?} mapped to server entity {server_entity:?}", entity.id());
-            cursor.set_position(cursor.position() + update_bytes as u64);
+            trace!("ignoring outdated update for client's {:?}", entity.id());
+            cursor.set_position(cursor.position() + data_len as u64);
             continue;
         }
         *entity_tick = message_tick;
 
-        let end_pos = cursor.position() + update_bytes as u64;
+        let end_pos = cursor.position() + data_len as u64;
         let mut components_count = 0u32;
         while cursor.position() < end_pos {
             let replication_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
