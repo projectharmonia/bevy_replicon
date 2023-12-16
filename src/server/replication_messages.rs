@@ -14,7 +14,7 @@ use crate::replicon_core::{replicon_tick::RepliconTick, ReplicationChannel};
 /// Reuses allocated memory from older messages.
 #[derive(Default)]
 pub(crate) struct ReplicationMessages {
-    clients_info: Vec<ClientInfo>,
+    info: Vec<ClientInfo>,
     data: Vec<(InitMessage, UpdateMessage)>,
     clients_count: usize,
 }
@@ -28,14 +28,14 @@ impl ReplicationMessages {
     /// and iteration methods will not include them.
     pub(super) fn prepare(
         &mut self,
-        clients_info: Vec<ClientInfo>,
+        info: Vec<ClientInfo>,
         replicon_tick: RepliconTick,
     ) -> bincode::Result<()> {
-        self.clients_count = clients_info.len();
+        self.clients_count = info.len();
 
         self.data.reserve(self.clients_count);
 
-        for index in 0..clients_info.len() {
+        for index in 0..info.len() {
             if let Some((init_message, update_message)) = self.data.get_mut(index) {
                 init_message.reset(replicon_tick)?;
                 update_message.reset()?;
@@ -45,7 +45,7 @@ impl ReplicationMessages {
             }
         }
 
-        self.clients_info = clients_info;
+        self.info = info;
 
         Ok(())
     }
@@ -62,7 +62,7 @@ impl ReplicationMessages {
         self.data
             .iter_mut()
             .take(self.clients_count)
-            .zip(&mut self.clients_info)
+            .zip(&mut self.info)
             .map(|((init_message, update_message), client_info)| {
                 (init_message, update_message, client_info)
             })
@@ -76,6 +76,7 @@ impl ReplicationMessages {
     pub(super) fn send(
         &mut self,
         server: &mut RenetServer,
+        entity_buffer: &mut Vec<Vec<Entity>>,
         mut last_change_tick: LastChangeTick,
         replicon_tick: RepliconTick,
         tick: Tick,
@@ -90,13 +91,20 @@ impl ReplicationMessages {
             .data
             .iter_mut()
             .take(self.clients_count)
-            .zip(&mut self.clients_info)
+            .zip(&mut self.info)
         {
             init_message.send(server, client_info.id);
-            update_message.send(server, client_info, last_change_tick, replicon_tick, tick)?;
+            update_message.send(
+                server,
+                entity_buffer,
+                client_info,
+                last_change_tick,
+                replicon_tick,
+                tick,
+            )?;
         }
 
-        Ok((last_change_tick, mem::take(&mut self.clients_info)))
+        Ok((last_change_tick, mem::take(&mut self.info)))
     }
 }
 
@@ -205,6 +213,7 @@ impl UpdateMessage {
     fn send(
         &mut self,
         server: &mut RenetServer,
+        entity_buffer: &mut Vec<Vec<Entity>>,
         client_info: &mut ClientInfo,
         last_change_tick: LastChangeTick,
         replicon_tick: RepliconTick,
@@ -221,7 +230,7 @@ impl UpdateMessage {
         bincode::serialize_into(&mut header[..], &(*last_change_tick, replicon_tick))?;
 
         let mut slice = self.buffer.as_slice();
-        let mut entities = Vec::new();
+        let mut entities = entity_buffer.pop().unwrap_or_default();
         let mut message_size = 0;
         for &(entity, data_size) in &self.entities {
             // Try to pack back first, then try to pack forward.
@@ -236,7 +245,7 @@ impl UpdateMessage {
                 slice = remaining;
                 message_size = data_size;
 
-                let update_index = client_info.register_update(tick, entities.clone());
+                let update_index = client_info.register_update(tick, entities);
                 bincode::serialize_into(&mut header[TICKS_SIZE..], &update_index)?;
 
                 server.send_message(
@@ -245,7 +254,7 @@ impl UpdateMessage {
                     Bytes::from_iter(header.into_iter().chain(message.iter().copied())),
                 );
 
-                entities.clear();
+                entities = entity_buffer.pop().unwrap_or_default();
             }
         }
 

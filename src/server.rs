@@ -112,14 +112,10 @@ impl ServerPlugin {
             match *event {
                 ServerEvent::ClientDisconnected { client_id, .. } => {
                     entity_map.0.remove(&client_id);
-                    let index = clients_info
-                        .iter()
-                        .position(|info| info.id == client_id)
-                        .expect("clients info should contain all connected clients");
-                    clients_info.remove(index);
+                    clients_info.remove(client_id);
                 }
                 ServerEvent::ClientConnected { client_id } => {
-                    clients_info.push(ClientInfo::new(client_id));
+                    clients_info.info.push(ClientInfo::new(client_id));
                 }
             }
         }
@@ -130,13 +126,18 @@ impl ServerPlugin {
         mut server: ResMut<RenetServer>,
         mut clients_info: ResMut<ClientsInfo>,
     ) {
-        for client_info in clients_info.iter_mut() {
+        let ClientsInfo {
+            info,
+            entity_buffer,
+        } = &mut *clients_info;
+
+        for client_info in info.iter_mut() {
             while let Some(message) =
                 server.receive_message(client_info.id, ReplicationChannel::Reliable)
             {
                 match bincode::deserialize::<u16>(&message) {
                     Ok(update_index) => {
-                        let Some((tick, entities)) =
+                        let Some((tick, mut entities)) =
                             client_info.update_entities.remove(&update_index)
                         else {
                             error!(
@@ -146,10 +147,10 @@ impl ServerPlugin {
                             continue;
                         };
 
-                        for entity in entities {
+                        for entity in &entities {
                             let last_tick = client_info
                                 .ticks
-                                .get_mut(&entity)
+                                .get_mut(entity)
                                 .expect("tick should be inserted on any component insertion");
 
                             // Received tick could be outdated because we bump it
@@ -158,6 +159,9 @@ impl ServerPlugin {
                                 *last_tick = tick;
                             }
                         }
+                        entities.clear();
+                        entity_buffer.push(entities);
+
                         trace!(
                             "client {} acknowledged an update with {tick:?}",
                             client_info.id
@@ -189,8 +193,8 @@ impl ServerPlugin {
         replication_rules: Res<ReplicationRules>,
         replicon_tick: Res<RepliconTick>,
     ) -> bincode::Result<()> {
-        let clients_info = mem::take(&mut set.p1().0); // Take ownership to avoid borrowing issues.
-        messages.prepare(clients_info, *replicon_tick)?;
+        let info = mem::take(&mut set.p1().info); // Take ownership to avoid borrowing issues.
+        messages.prepare(info, *replicon_tick)?;
 
         collect_mappings(&mut messages, &mut set.p2())?;
         collect_changes(&mut messages, set.p0(), &change_tick, &replication_rules)?;
@@ -203,15 +207,20 @@ impl ServerPlugin {
         collect_despawns(&mut messages, &mut removed_replication)?;
 
         let last_change_tick = *set.p4();
-        let (last_change_tick, clients_info) = messages.send(
+        let mut entity_buffer = mem::take(&mut set.p1().entity_buffer);
+        let (last_change_tick, info) = messages.send(
             &mut set.p3(),
+            &mut entity_buffer,
             last_change_tick,
             *replicon_tick,
             change_tick.this_run(),
         )?;
 
         // Return borrowed data back.
-        **set.p1() = clients_info;
+        *set.p1() = ClientsInfo {
+            info,
+            entity_buffer,
+        };
         *set.p4() = last_change_tick;
 
         Ok(())
@@ -496,8 +505,46 @@ pub enum TickPolicy {
 }
 
 /// Stores meta-information about connected clients.
-#[derive(Default, Resource, Deref, DerefMut)]
-pub(super) struct ClientsInfo(Vec<ClientInfo>);
+#[derive(Default, Resource)]
+pub(super) struct ClientsInfo {
+    info: Vec<ClientInfo>,
+
+    /// [`Vec`]'s from acknowledged update indexes from [`ClientInfo`].
+    ///
+    /// All data is cleared before the insertion, used just to reuse allocated capacity.
+    entity_buffer: Vec<Vec<Entity>>,
+}
+
+impl ClientsInfo {
+    fn remove(&mut self, client_id: ClientId) {
+        let index = self
+            .info
+            .iter()
+            .position(|info| info.id == client_id)
+            .expect("clients info should contain all connected clients");
+        let mut client_info = self.info.remove(index);
+        let old_entities = client_info
+            .update_entities
+            .drain()
+            .map(|(_, (_, mut entities))| {
+                entities.clear();
+                entities
+            });
+        self.entity_buffer.extend(old_entities);
+    }
+
+    fn clear(&mut self) {
+        let old_entities = self
+            .info
+            .drain(..)
+            .flat_map(|client_info| client_info.update_entities)
+            .map(|(_, (_, mut entities))| {
+                entities.clear();
+                entities
+            });
+        self.entity_buffer.extend(old_entities);
+    }
+}
 
 pub(super) struct ClientInfo {
     id: ClientId,
