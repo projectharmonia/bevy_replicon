@@ -386,7 +386,7 @@ then the client is guaranteed to see the spawns at the same time, but the compon
 If a component is dependent on other data, updates to the component will only be applied to the client when that data has arrived.
 So if your component references another entity, updates to that component will only be applied when the referenced entity has been spawned on the client.
 
-Updates for despawned entities will be discarded automatically, but events could reference despawned entities and users should discard them manually.
+Updates for despawned entities will be discarded automatically, but events or components may reference despawned entities and should be handled with that in mind.
 
 Clients should never assume their world state is the same as the server's on any given tick value-wise.
 World state on the client is only "eventually consistent" with the server's.
