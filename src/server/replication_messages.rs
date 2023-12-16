@@ -224,10 +224,11 @@ impl UpdateMessage {
         let mut entities = Vec::new();
         let mut message_size = 0;
         for &(entity, data_size) in &self.entities {
-            const MAX_PACKET_SIZE: usize = 1200; // https://github.com/lucaspoffo/renet/blob/acee8b470e34c70d35700d96c00fb233d9cf6919/renet/src/packet.rs#L7
-
-            // Pack small messages ordered after large messages into the large message's packet ('pack back' strategy).
-            if message_size == 0 || ((message_size + header.len()) % MAX_PACKET_SIZE) < data_size {
+            // Try to pack back first, then try to pack forward.
+            if message_size == 0
+                || can_pack(header.len(), message_size, data_size)
+                || can_pack(header.len(), data_size, message_size)
+            {
                 entities.push(entity);
                 message_size += data_size;
             } else {
@@ -260,5 +261,30 @@ impl UpdateMessage {
         }
 
         Ok(())
+    }
+}
+
+fn can_pack(header_len: usize, base: usize, add: usize) -> bool {
+    const MAX_PACKET_SIZE: usize = 1200; // https://github.com/lucaspoffo/renet/blob/acee8b470e34c70d35700d96c00fb233d9cf6919/renet/src/packet.rs#L7
+
+    let dangling = (base + header_len) % MAX_PACKET_SIZE;
+    (dangling > 0) && ((dangling + add) <= MAX_PACKET_SIZE)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn packing() {
+        assert!(can_pack(10, 0, 5));
+        assert!(can_pack(10, 0, 1190));
+        assert!(!can_pack(10, 0, 1191));
+        assert!(!can_pack(10, 0, 3000));
+
+        assert!(can_pack(10, 1189, 1));
+        assert!(!can_pack(10, 1190, 0));
+        assert!(!can_pack(10, 1190, 1));
+        assert!(!can_pack(10, 1190, 3000));
     }
 }
