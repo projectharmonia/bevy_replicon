@@ -201,6 +201,117 @@ fn insert_replication() {
 }
 
 #[test]
+fn removal_replication() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+        ))
+        .replicate::<TableComponent>();
+    }
+
+    common::connect(&mut server_app, &mut client_app);
+
+    let server_entity = server_app
+        .world
+        .spawn((Replication, TableComponent, NonReplicatingComponent))
+        .id();
+
+    server_app.update();
+
+    server_app
+        .world
+        .entity_mut(server_entity)
+        .remove::<TableComponent>();
+
+    let client_entity = client_app
+        .world
+        .spawn((Replication, TableComponent, NonReplicatingComponent))
+        .id();
+
+    client_app
+        .world
+        .resource_mut::<ServerEntityMap>()
+        .insert(server_entity, client_entity);
+
+    server_app.update();
+    client_app.update();
+
+    let client_entity = client_app.world.entity(client_entity);
+    assert!(!client_entity.contains::<TableComponent>());
+    assert!(client_entity.contains::<NonReplicatingComponent>());
+}
+
+#[test]
+fn despawn_replication() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+        ));
+    }
+
+    common::connect(&mut server_app, &mut client_app);
+
+    let server_child_entity = server_app.world.spawn(Replication).id();
+    let server_entity = server_app
+        .world
+        .spawn(Replication)
+        .push_children(&[server_child_entity])
+        .id();
+
+    server_app.update();
+
+    server_app.world.despawn(server_entity);
+    server_app.world.despawn(server_child_entity);
+
+    let client_child_entity = client_app.world.spawn(Replication).id();
+    let client_entity = client_app
+        .world
+        .spawn(Replication)
+        .push_children(&[client_child_entity])
+        .id();
+
+    let mut entity_map = client_app.world.resource_mut::<ServerEntityMap>();
+    entity_map.insert(server_entity, client_entity);
+    entity_map.insert(server_child_entity, client_child_entity);
+
+    server_app.update();
+    client_app.update();
+
+    assert!(client_app.world.get_entity(client_entity).is_none());
+    assert!(client_app.world.get_entity(client_child_entity).is_none());
+
+    let entity_map = client_app.world.resource::<ServerEntityMap>();
+    assert!(entity_map.to_client().is_empty());
+    assert!(entity_map.to_server().is_empty());
+}
+
+#[test]
+fn old_entities_replication() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+        ))
+        .replicate::<TableComponent>();
+    }
+
+    // Spawn an entity before client connected.
+    server_app.world.spawn((Replication, TableComponent));
+
+    common::connect(&mut server_app, &mut client_app);
+
+    assert_eq!(client_app.world.entities().len(), 1);
+}
+
+#[test]
 fn update_replication() {
     let mut server_app = App::new();
     let mut client_app = App::new();
@@ -452,117 +563,6 @@ fn update_replication_buffering() {
         .get::<BoolComponent>(client_entity)
         .unwrap();
     assert!(component.0, "buffered update should be applied");
-}
-
-#[test]
-fn removal_replication() {
-    let mut server_app = App::new();
-    let mut client_app = App::new();
-    for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((
-            MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
-        ))
-        .replicate::<TableComponent>();
-    }
-
-    common::connect(&mut server_app, &mut client_app);
-
-    let server_entity = server_app
-        .world
-        .spawn((Replication, TableComponent, NonReplicatingComponent))
-        .id();
-
-    server_app.update();
-
-    server_app
-        .world
-        .entity_mut(server_entity)
-        .remove::<TableComponent>();
-
-    let client_entity = client_app
-        .world
-        .spawn((Replication, TableComponent, NonReplicatingComponent))
-        .id();
-
-    client_app
-        .world
-        .resource_mut::<ServerEntityMap>()
-        .insert(server_entity, client_entity);
-
-    server_app.update();
-    client_app.update();
-
-    let client_entity = client_app.world.entity(client_entity);
-    assert!(!client_entity.contains::<TableComponent>());
-    assert!(client_entity.contains::<NonReplicatingComponent>());
-}
-
-#[test]
-fn despawn_replication() {
-    let mut server_app = App::new();
-    let mut client_app = App::new();
-    for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((
-            MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
-        ));
-    }
-
-    common::connect(&mut server_app, &mut client_app);
-
-    let server_child_entity = server_app.world.spawn(Replication).id();
-    let server_entity = server_app
-        .world
-        .spawn(Replication)
-        .push_children(&[server_child_entity])
-        .id();
-
-    server_app.update();
-
-    server_app.world.despawn(server_entity);
-    server_app.world.despawn(server_child_entity);
-
-    let client_child_entity = client_app.world.spawn(Replication).id();
-    let client_entity = client_app
-        .world
-        .spawn(Replication)
-        .push_children(&[client_child_entity])
-        .id();
-
-    let mut entity_map = client_app.world.resource_mut::<ServerEntityMap>();
-    entity_map.insert(server_entity, client_entity);
-    entity_map.insert(server_child_entity, client_child_entity);
-
-    server_app.update();
-    client_app.update();
-
-    assert!(client_app.world.get_entity(client_entity).is_none());
-    assert!(client_app.world.get_entity(client_child_entity).is_none());
-
-    let entity_map = client_app.world.resource::<ServerEntityMap>();
-    assert!(entity_map.to_client().is_empty());
-    assert!(entity_map.to_server().is_empty());
-}
-
-#[test]
-fn old_entities_replication() {
-    let mut server_app = App::new();
-    let mut client_app = App::new();
-    for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((
-            MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
-        ))
-        .replicate::<TableComponent>();
-    }
-
-    // Spawn an entity before client connected.
-    server_app.world.spawn((Replication, TableComponent));
-
-    common::connect(&mut server_app, &mut client_app);
-
-    assert_eq!(client_app.world.entities().len(), 1);
 }
 
 #[test]
