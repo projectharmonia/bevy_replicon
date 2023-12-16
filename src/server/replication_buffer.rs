@@ -247,13 +247,17 @@ impl ReplicationBuffer {
             self.write_data_entity()?;
         }
 
-        let old_pos = self.cursor.position();
+        let previous_pos = self.cursor.position();
         DefaultOptions::new().serialize_into(&mut self.cursor, &replication_id)?;
         (replication_info.serialize)(ptr, &mut self.cursor)?;
-        let component_length = self.cursor.position() - old_pos;
-        debug_assert!(component_length > 0);
-        debug_assert!(component_length <= u16::MAX as u64);
-        self.entity_data_len += component_length as u16;
+
+        let component_len = (self.cursor.position() - previous_pos)
+            .try_into()
+            .map_err(|_| bincode::ErrorKind::SizeLimit)?;
+        self.entity_data_len = self
+            .entity_data_len
+            .checked_add(component_len)
+            .ok_or(bincode::ErrorKind::SizeLimit)?;
 
         Ok(())
     }
