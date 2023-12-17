@@ -144,7 +144,7 @@ impl ServerPlugin {
                         let Some((tick, mut entities)) =
                             client_info.update_entities.remove(&update_index)
                         else {
-                            error!(
+                            debug!(
                                 "received unknown update index {update_index} from client {}",
                                 client_info.id
                             );
@@ -171,7 +171,7 @@ impl ServerPlugin {
                             client_info.id
                         );
                     }
-                    Err(e) => error!(
+                    Err(e) => debug!(
                         "unable to deserialize update index from client {}: {e}",
                         client_info.id
                     ),

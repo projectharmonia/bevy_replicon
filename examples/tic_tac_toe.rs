@@ -412,7 +412,7 @@ impl TicTacToePlugin {
         for FromClient { client_id, event } in pick_events.read().copied() {
             // It's good to check the received data, client could be cheating.
             if event.0 > GRID_SIZE * GRID_SIZE {
-                error!("received invalid cell index {:?}", event.0);
+                debug!("received invalid cell index {:?}", event.0);
                 continue;
             }
 
@@ -420,12 +420,12 @@ impl TicTacToePlugin {
                 .iter()
                 .any(|(player, &symbol)| player.0 == client_id && symbol == current_turn.0)
             {
-                error!("player {client_id} chose cell {:?} at wrong turn", event.0);
+                debug!("player {client_id} chose cell {:?} at wrong turn", event.0);
                 continue;
             }
 
             if symbols.iter().any(|cell_index| cell_index.0 == event.0) {
-                error!(
+                debug!(
                     "player {client_id} has chosen an already occupied cell {:?}",
                     event.0
                 );
