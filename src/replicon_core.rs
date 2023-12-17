@@ -1,6 +1,8 @@
 pub mod replication_rules;
 pub mod replicon_tick;
 
+use std::time::Duration;
+
 use bevy::prelude::*;
 use bevy_renet::renet::{ChannelConfig, SendType};
 
@@ -18,10 +20,22 @@ impl Plugin for RepliconCorePlugin {
     }
 }
 
-/// ID of the server replication channel.
+/// ID of a server replication channel.
 ///
 /// See also [`NetworkChannels`].
-pub const REPLICATION_CHANNEL_ID: u8 = 0;
+#[repr(u8)]
+pub enum ReplicationChannel {
+    /// For sending messages with entity mappings, inserts, removals and despawns.
+    Reliable,
+    /// For sending messages with component updates.
+    Unreliable,
+}
+
+impl From<ReplicationChannel> for u8 {
+    fn from(value: ReplicationChannel) -> Self {
+        value as u8
+    }
+}
 
 /// A resource to configure and setup channels for [`ConnectionConfig`](bevy_renet::renet::ConnectionConfig)
 #[derive(Clone, Resource)]
@@ -41,9 +55,19 @@ pub struct NetworkChannels {
 /// Stores only replication channel by default.
 impl Default for NetworkChannels {
     fn default() -> Self {
+        let replication_channels = vec![
+            (
+                SendType::ReliableOrdered {
+                    resend_time: Duration::ZERO,
+                },
+                None,
+            ),
+            (SendType::Unreliable, None),
+        ];
+
         Self {
-            server: vec![(SendType::Unreliable, None)],
-            client: vec![(SendType::Unreliable, None)],
+            server: replication_channels.clone(),
+            client: replication_channels,
             default_max_bytes: 5 * 1024 * 1024, // Value from `DefaultChannel::config()`.
         }
     }
@@ -62,7 +86,7 @@ impl NetworkChannels {
 
     /// Sets maximum usage bytes for specific client channel.
     ///
-    /// [`REPLICATION_CHANNEL_ID`] or [`EventChannel<T>`](crate::network_event::EventChannel) can be passed as `id`.
+    /// [`ReplicationChannel`] or [`EventChannel<T>`](crate::network_event::EventChannel) can be passed as `id`.
     /// Without calling this function, the default value will be used.
     /// See also [`Self::set_default_max_bytes`].
     pub fn set_server_max_bytes(&mut self, id: impl Into<u8>, max_bytes: usize) {

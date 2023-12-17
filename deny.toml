@@ -11,10 +11,14 @@ allow-osi-fsf-free = "either"
 multiple-versions = "deny"
 wildcards = "allow"
 skip = [
+  { name = "async-channel", version = "1.9" },
+  { name = "async-lock", version = "2.8" },
   { name = "bitflags", version = "2.0" },
+  { name = "event-listener", version = "2.5" },
   { name = "fastrand", version = "1.9" },
   { name = "foreign-types", version = "0.3" },
   { name = "foreign-types-shared", version = "0.1" },
+  { name = "futures-lite", version = "1.13" },
   { name = "hashbrown", version = "0.12" },
   { name = "indexmap", version = "1.0" },
   { name = "libloading", version = "0.7" },
@@ -26,6 +30,7 @@ skip = [
   { name = "regex-syntax", version = "0.7" },
   { name = "syn", version = "1.0" },
   { name = "toml_edit", version = "0.19" },
+  { name = "tracing-log", version = "0.1" },
   { name = "windows", version = "0.44" },
   { name = "windows-sys", version = "0.45" },
   { name = "windows-targets", version = "0.42" },

@@ -6,7 +6,7 @@ use bevy::{
     prelude::*,
     utils::{hashbrown::hash_map::Entry, EntityHashMap},
 };
-use bevy_renet::client_connected;
+use bevy_renet::{client_connected, renet::Bytes};
 use bevy_renet::{renet::RenetClient, transport::NetcodeClientPlugin, RenetClientPlugin};
 use bincode::{DefaultOptions, Options};
 use varint_rs::VarintReader;
@@ -14,7 +14,7 @@ use varint_rs::VarintReader;
 use crate::replicon_core::{
     replication_rules::{Mapper, Replication, ReplicationRules},
     replicon_tick::RepliconTick,
-    REPLICATION_CHANNEL_ID,
+    ReplicationChannel,
 };
 use diagnostics::ClientStats;
 
@@ -24,6 +24,8 @@ impl Plugin for ClientPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((RenetClientPlugin, NetcodeClientPlugin))
             .init_resource::<ServerEntityMap>()
+            .init_resource::<ServerEntityTicks>()
+            .init_resource::<BufferedUpdates>()
             .configure_sets(
                 PreUpdate,
                 ClientSet::Receive.after(NetcodeClientPlugin::update_system),
@@ -41,61 +43,141 @@ impl Plugin for ClientPlugin {
             )
             .add_systems(
                 PostUpdate,
-                (
-                    Self::ack_sending_system
-                        .in_set(ClientSet::Send)
-                        .run_if(client_connected()),
-                    Self::reset_system.run_if(resource_removed::<RenetClient>()),
-                ),
+                Self::reset_system.run_if(resource_removed::<RenetClient>()),
             );
     }
 }
 
 impl ClientPlugin {
+    /// Receives and applies replication messages from the server.
+    ///
+    /// Tick init messages are sent over the [`ReplicationChannel::Reliable`] and are applied first to ensure valid state
+    /// for entity updates.
+    ///
+    /// Entity update messages are sent over [`ReplicationChannel::Unreliable`], which means they may appear
+    /// ahead-of or behind init messages from the same server tick. An update will only be applied if its
+    /// change tick has already appeared in an init message, otherwise it will be buffered while waiting.
+    /// Since entity updates can arrive in any order, updates will only be applied if they correspond to a more
+    /// recent server tick than the last acked server tick for each entity.
+    ///
+    /// Buffered entity update messages are processed last.
+    ///
+    /// Acknowledgments for received entity update messages are sent back to the server.
+    ///
+    /// See also [`ReplicationMessages`](crate::server::replication_messages::ReplicationMessages).
     pub(super) fn replication_receiving_system(world: &mut World) -> bincode::Result<()> {
         world.resource_scope(|world, mut client: Mut<RenetClient>| {
             world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
-                world.resource_scope(|world, replication_rules: Mut<ReplicationRules>| {
-                    let mut stats = world.remove_resource::<ClientStats>();
-                    while let Some(message) = client.receive_message(REPLICATION_CHANNEL_ID) {
-                        apply_message(
-                            &message,
-                            world,
-                            &mut entity_map,
-                            stats.as_mut(),
-                            &replication_rules,
-                        )?;
-                    }
+                world.resource_scope(|world, mut entity_ticks: Mut<ServerEntityTicks>| {
+                    world.resource_scope(|world, mut buffered_updates: Mut<BufferedUpdates>| {
+                        world.resource_scope(|world, replication_rules: Mut<ReplicationRules>| {
+                            let mut stats = world.remove_resource::<ClientStats>();
+                            apply_replication(
+                                world,
+                                &mut client,
+                                &mut entity_map,
+                                &mut entity_ticks,
+                                &mut buffered_updates,
+                                stats.as_mut(),
+                                &replication_rules,
+                            )?;
 
-                    if let Some(stats) = stats {
-                        world.insert_resource(stats);
-                    }
+                            if let Some(stats) = stats {
+                                world.insert_resource(stats);
+                            }
 
-                    Ok(())
+                            Ok(())
+                        })
+                    })
                 })
             })
         })
     }
 
-    fn ack_sending_system(replicon_tick: Res<RepliconTick>, mut client: ResMut<RenetClient>) {
-        let message = bincode::serialize(&*replicon_tick)
-            .unwrap_or_else(|e| panic!("client ack should be serialized: {e}"));
-        client.send_message(REPLICATION_CHANNEL_ID, message);
-    }
-
     fn reset_system(
         mut replicon_tick: ResMut<RepliconTick>,
         mut entity_map: ResMut<ServerEntityMap>,
+        mut entity_ticks: ResMut<ServerEntityTicks>,
+        mut buffered_updates: ResMut<BufferedUpdates>,
     ) {
         *replicon_tick = Default::default();
         entity_map.clear();
+        entity_ticks.clear();
+        buffered_updates.clear();
     }
 }
 
-fn apply_message(
+/// Reads all received messages and applies them.
+///
+/// Sends acknowledgments for update messages back.
+fn apply_replication(
+    world: &mut World,
+    client: &mut RenetClient,
+    entity_map: &mut ServerEntityMap,
+    entity_ticks: &mut ServerEntityTicks,
+    buffered_updates: &mut BufferedUpdates,
+    mut stats: Option<&mut ClientStats>,
+    replication_rules: &ReplicationRules,
+) -> Result<(), Box<bincode::ErrorKind>> {
+    while let Some(message) = client.receive_message(ReplicationChannel::Reliable) {
+        apply_init_message(
+            &message,
+            world,
+            entity_map,
+            entity_ticks,
+            stats.as_deref_mut(),
+            replication_rules,
+        )?;
+    }
+
+    let replicon_tick = *world.resource::<RepliconTick>();
+    while let Some(message) = client.receive_message(ReplicationChannel::Unreliable) {
+        let index = apply_update_message(
+            message,
+            world,
+            entity_map,
+            entity_ticks,
+            buffered_updates,
+            stats.as_deref_mut(),
+            replication_rules,
+            replicon_tick,
+        )?;
+
+        client.send_message(ReplicationChannel::Reliable, bincode::serialize(&index)?)
+    }
+
+    let mut result = Ok(());
+    buffered_updates.retain(|update| {
+        if update.last_change_tick > replicon_tick {
+            return true;
+        }
+
+        trace!("applying buffered update message for {replicon_tick:?}");
+        if let Err(e) = apply_update_components(
+            &mut Cursor::new(&*update.message),
+            world,
+            entity_map,
+            entity_ticks,
+            stats.as_deref_mut(),
+            replication_rules,
+            update.message_tick,
+        ) {
+            result = Err(e);
+        }
+
+        false
+    });
+    result?;
+
+    Ok(())
+}
+
+/// Applies [`InitMessage`](crate::server::replication_messages::InitMessage).
+fn apply_init_message(
     message: &[u8],
     world: &mut World,
     entity_map: &mut ServerEntityMap,
+    entity_ticks: &mut ServerEntityTicks,
     mut stats: Option<&mut ClientStats>,
     replication_rules: &ReplicationRules,
 ) -> bincode::Result<()> {
@@ -106,39 +188,39 @@ fn apply_message(
         stats.bytes += end_pos;
     }
 
-    let Some(tick) = apply_tick(&mut cursor, world)? else {
-        return Ok(());
-    };
-    if cursor.position() == end_pos {
-        return Ok(());
-    }
+    let replicon_tick = bincode::deserialize_from(&mut cursor)?;
+    trace!("applying init message for {replicon_tick:?}");
+    *world.resource_mut::<RepliconTick>() = replicon_tick;
+    debug_assert!(cursor.position() < end_pos, "init message can't be empty");
 
     apply_entity_mappings(&mut cursor, world, entity_map, stats.as_deref_mut())?;
     if cursor.position() == end_pos {
         return Ok(());
     }
 
-    apply_components(
+    apply_init_components(
         &mut cursor,
         world,
         entity_map,
+        entity_ticks,
         stats.as_deref_mut(),
-        ComponentsKind::Change,
+        ComponentsKind::Insert,
         replication_rules,
-        tick,
+        replicon_tick,
     )?;
     if cursor.position() == end_pos {
         return Ok(());
     }
 
-    apply_components(
+    apply_init_components(
         &mut cursor,
         world,
         entity_map,
+        entity_ticks,
         stats.as_deref_mut(),
         ComponentsKind::Removal,
         replication_rules,
-        tick,
+        replicon_tick,
     )?;
     if cursor.position() == end_pos {
         return Ok(());
@@ -148,32 +230,62 @@ fn apply_message(
         &mut cursor,
         world,
         entity_map,
+        entity_ticks,
         replication_rules,
-        tick,
+        replicon_tick,
         stats,
     )?;
 
     Ok(())
 }
 
-/// Deserializes server tick and applies it to [`LastTick`] if it is newer.
+/// Applies [`UpdateMessage`](crate::server::replication_messages::UpdateMessage).
 ///
-/// Returns the tick if [`LastTick`] has been updated.
-fn apply_tick(
-    cursor: &mut Cursor<&[u8]>,
+/// If the update message can't be applied yet (because the init message with the
+/// corresponding tick hasn't arrived), it will be buffered.
+///
+/// Returns update index to be used for acknowledgment.
+#[allow(clippy::too_many_arguments)]
+fn apply_update_message(
+    message: Bytes,
     world: &mut World,
-) -> bincode::Result<Option<RepliconTick>> {
-    let tick = bincode::deserialize_from(cursor)?;
-
-    let mut replicon_tick = world.resource_mut::<RepliconTick>();
-    if *replicon_tick < tick {
-        trace!("applying {tick:?} over {replicon_tick:?}");
-        *replicon_tick = tick;
-        Ok(Some(tick))
-    } else {
-        trace!("discarding {tick:?}, which is older then {replicon_tick:?}");
-        Ok(None)
+    entity_map: &mut ServerEntityMap,
+    entity_ticks: &mut ServerEntityTicks,
+    buffered_updates: &mut BufferedUpdates,
+    mut stats: Option<&mut ClientStats>,
+    replication_rules: &ReplicationRules,
+    replicon_tick: RepliconTick,
+) -> bincode::Result<u16> {
+    let end_pos: u64 = message.len().try_into().unwrap();
+    let mut cursor = Cursor::new(&*message);
+    if let Some(stats) = &mut stats {
+        stats.packets += 1;
+        stats.bytes += end_pos;
     }
+
+    let (last_change_tick, message_tick, update_index) = bincode::deserialize_from(&mut cursor)?;
+    if last_change_tick > replicon_tick {
+        trace!("buffering update message for {replicon_tick:?}");
+        buffered_updates.push(BufferedUpdate {
+            last_change_tick,
+            message_tick,
+            message: message.slice(cursor.position() as usize..),
+        });
+        return Ok(update_index);
+    }
+
+    trace!("applying update message for {replicon_tick:?}");
+    apply_update_components(
+        &mut cursor,
+        world,
+        entity_map,
+        entity_ticks,
+        stats,
+        replication_rules,
+        message_tick,
+    )?;
+
+    Ok(update_index)
 }
 
 /// Applies received server mappings from client's pre-spawned entities.
@@ -191,14 +303,6 @@ fn apply_entity_mappings(
         let server_entity = deserialize_entity(cursor)?;
         let client_entity = deserialize_entity(cursor)?;
 
-        if let Some(entry) = entity_map.to_client().get(&server_entity) {
-            // It's possible to receive the same mappings in multiple packets if the server has not
-            // yet received an ack from the client for the tick when the mapping was created.
-            if *entry != client_entity {
-                panic!("received mapping from {server_entity:?} to {client_entity:?}, but already mapped to {entry:?}");
-            }
-        }
-
         if let Some(mut entity) = world.get_entity_mut(client_entity) {
             debug!("received mapping from {server_entity:?} to {client_entity:?}");
             entity.insert(Replication);
@@ -212,34 +316,41 @@ fn apply_entity_mappings(
 }
 
 /// Deserializes replicated components of `components_kind` and applies them to the `world`.
-fn apply_components(
+#[allow(clippy::too_many_arguments)]
+fn apply_init_components(
     cursor: &mut Cursor<&[u8]>,
     world: &mut World,
     entity_map: &mut ServerEntityMap,
+    entity_ticks: &mut ServerEntityTicks,
     mut stats: Option<&mut ClientStats>,
     components_kind: ComponentsKind,
     replication_rules: &ReplicationRules,
-    tick: RepliconTick,
+    replicon_tick: RepliconTick,
 ) -> bincode::Result<()> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..entities_count {
         let entity = deserialize_entity(cursor)?;
+        let data_len: u16 = bincode::deserialize_from(&mut *cursor)?;
         let mut entity = entity_map.get_by_server_or_spawn(world, entity);
-        let components_count: u8 = bincode::deserialize_from(&mut *cursor)?;
-        if let Some(stats) = &mut stats {
-            stats.entities_changed += 1;
-            stats.components_changed += components_count as u32;
-        }
-        for _ in 0..components_count {
+        entity_ticks.insert(entity.id(), replicon_tick);
+
+        let end_pos = cursor.position() + data_len as u64;
+        let mut components_count = 0u32;
+        while cursor.position() < end_pos {
             let replication_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
             // SAFETY: server and client have identical `ReplicationRules` and server always sends valid IDs.
             let replication_info = unsafe { replication_rules.get_info_unchecked(replication_id) };
             match components_kind {
-                ComponentsKind::Change => {
-                    (replication_info.deserialize)(&mut entity, entity_map, cursor, tick)?
+                ComponentsKind::Insert => {
+                    (replication_info.deserialize)(&mut entity, entity_map, cursor, replicon_tick)?
                 }
-                ComponentsKind::Removal => (replication_info.remove)(&mut entity, tick),
+                ComponentsKind::Removal => (replication_info.remove)(&mut entity, replicon_tick),
             }
+            components_count += 1;
+        }
+        if let Some(stats) = &mut stats {
+            stats.entities_changed += 1;
+            stats.components_changed += components_count;
         }
     }
 
@@ -251,8 +362,9 @@ fn apply_despawns(
     cursor: &mut Cursor<&[u8]>,
     world: &mut World,
     entity_map: &mut ServerEntityMap,
+    entity_ticks: &mut ServerEntityTicks,
     replication_rules: &ReplicationRules,
-    tick: RepliconTick,
+    replicon_tick: RepliconTick,
     stats: Option<&mut ClientStats>,
 ) -> bincode::Result<()> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
@@ -268,7 +380,58 @@ fn apply_despawns(
             .remove_by_server(server_entity)
             .and_then(|entity| world.get_entity_mut(entity))
         {
-            (replication_rules.despawn_fn)(client_entity, tick);
+            entity_ticks.remove(&client_entity.id());
+            (replication_rules.despawn_fn)(client_entity, replicon_tick);
+        }
+    }
+
+    Ok(())
+}
+
+///  Deserializes replicated component updates and applies them to the `world`.
+///
+/// Consumes all remaining bytes in the cursor.
+fn apply_update_components(
+    cursor: &mut Cursor<&[u8]>,
+    world: &mut World,
+    entity_map: &mut ServerEntityMap,
+    entity_ticks: &mut ServerEntityTicks,
+    mut stats: Option<&mut ClientStats>,
+    replication_rules: &ReplicationRules,
+    message_tick: RepliconTick,
+) -> bincode::Result<()> {
+    let len = cursor.get_ref().len() as u64;
+    while cursor.position() < len {
+        let entity = deserialize_entity(cursor)?;
+        let data_len: u16 = bincode::deserialize_from(&mut *cursor)?;
+        let Some(mut entity) = entity_map.get_by_server(world, entity) else {
+            // Update could arrive after a despawn from init message.
+            debug!("ignoring update received for unknown server's {entity:?}");
+            cursor.set_position(cursor.position() + data_len as u64);
+            continue;
+        };
+        let entity_tick = entity_ticks
+            .get_mut(&entity.id())
+            .expect("all entities from update should have assigned ticks");
+        if message_tick <= *entity_tick {
+            trace!("ignoring outdated update for client's {:?}", entity.id());
+            cursor.set_position(cursor.position() + data_len as u64);
+            continue;
+        }
+        *entity_tick = message_tick;
+
+        let end_pos = cursor.position() + data_len as u64;
+        let mut components_count = 0u32;
+        while cursor.position() < end_pos {
+            let replication_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
+            // SAFETY: server and client have identical `ReplicationRules` and server always sends valid IDs.
+            let replication_info = unsafe { replication_rules.get_info_unchecked(replication_id) };
+            (replication_info.deserialize)(&mut entity, entity_map, cursor, message_tick)?;
+            components_count += 1;
+        }
+        if let Some(stats) = &mut stats {
+            stats.entities_changed += 1;
+            stats.components_changed += components_count;
         }
     }
 
@@ -277,7 +440,7 @@ fn apply_despawns(
 
 /// Deserializes `entity` from compressed index and generation.
 ///
-/// For details see [`ReplicationBuffer::write_entity`](crate::server::replication_buffer::ReplicationBuffer::write_entity).
+/// For details see [`ReplicationBuffer::write_entity`](crate::server::replication_message::replication_buffer::write_entity).
 fn deserialize_entity(cursor: &mut Cursor<&[u8]>) -> bincode::Result<Entity> {
     let flagged_index: u64 = cursor.read_u64_varint()?;
     let has_generation = (flagged_index & 1) > 0;
@@ -296,7 +459,7 @@ fn deserialize_entity(cursor: &mut Cursor<&[u8]>) -> bincode::Result<Entity> {
 ///
 /// Parameter for [`apply_components`].
 enum ComponentsKind {
-    Change,
+    Insert,
     Removal,
 }
 
@@ -314,8 +477,6 @@ pub enum ClientSet {
 }
 
 /// Maps server entities to client entities and vice versa.
-///
-/// Used only on client.
 #[derive(Default, Resource)]
 pub struct ServerEntityMap {
     server_to_client: EntityHashMap<Entity, Entity>,
@@ -323,9 +484,16 @@ pub struct ServerEntityMap {
 }
 
 impl ServerEntityMap {
+    /// Inserts a server-client pair into the map.
+    ///
+    /// # Panics
+    ///
+    /// Panics if this mapping is already present.
     #[inline]
     pub fn insert(&mut self, server_entity: Entity, client_entity: Entity) {
-        self.server_to_client.insert(server_entity, client_entity);
+        if let Some(existing_entity) = self.server_to_client.insert(server_entity, client_entity) {
+            panic!("mapping {server_entity:?} to {client_entity:?}, but it's already mapped to {existing_entity:?}");
+        }
         self.client_to_server.insert(client_entity, server_entity);
     }
 
@@ -344,6 +512,16 @@ impl ServerEntityMap {
                 client_entity
             }
         }
+    }
+
+    pub(super) fn get_by_server<'a>(
+        &mut self,
+        world: &'a mut World,
+        server_entity: Entity,
+    ) -> Option<EntityWorldMut<'a>> {
+        self.server_to_client
+            .get(&server_entity)
+            .map(|&entity| world.entity_mut(entity))
     }
 
     pub(super) fn remove_by_server(&mut self, server_entity: Entity) -> Option<Entity> {
@@ -398,4 +576,29 @@ impl Mapper for ClientMapper<'_> {
             client_entity
         })
     }
+}
+
+/// Last received tick for each entity.
+///
+/// Used to avoid applying old updates.
+#[derive(Default, Deref, DerefMut, Resource)]
+pub(super) struct ServerEntityTicks(EntityHashMap<Entity, RepliconTick>);
+
+#[derive(Default, Deref, DerefMut, Resource)]
+pub(super) struct BufferedUpdates(Vec<BufferedUpdate>);
+
+/// Caches a partially-deserialized entity update message that is waiting for its tick to appear in an init message.
+///
+/// See also [`crate::server::replication_messages::UpdateMessage`].
+pub(super) struct BufferedUpdate {
+    /// Required tick to wait for.
+    ///
+    /// See also [`crate::server::LastChangeTick`].
+    last_change_tick: RepliconTick,
+
+    /// The tick this update corresponds to.
+    message_tick: RepliconTick,
+
+    /// Update data.
+    message: Bytes,
 }

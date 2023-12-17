@@ -5,6 +5,7 @@ use bevy_renet::renet::{transport::NetcodeClientTransport, ClientId};
 use bevy_replicon::prelude::*;
 
 use common::DummyEvent;
+use serde::{Deserialize, Serialize};
 
 #[test]
 fn without_server_plugin() {
@@ -160,45 +161,38 @@ fn event_queue() {
             MinimalPlugins,
             ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
         ))
+        .replicate::<DummyComponent>()
         .add_server_event::<DummyEvent>(EventType::Ordered);
     }
 
     common::connect(&mut server_app, &mut client_app);
 
-    // Simulate event that received two ticks earlier.
-    let mut tick = *server_app.world.resource::<RepliconTick>();
-    tick.increment_by(2);
-    client_app
-        .world
-        .resource_mut::<ServerEventQueue<DummyEvent>>()
-        .insert(tick, DummyEvent(Entity::PLACEHOLDER));
-
-    // Send another event to trigger world update.
-    server_app
-        .world
-        .resource_mut::<Events<ToClients<DummyEvent>>>()
-        .send(ToClients {
-            mode: SendMode::Broadcast,
-            event: DummyEvent(Entity::PLACEHOLDER),
-        });
+    // Spawn entity to trigger world change.
+    server_app.world.spawn((Replication, DummyComponent));
+    let old_tick = *server_app.world.resource::<RepliconTick>();
 
     server_app.update();
     client_app.update();
 
-    let mut dummy_events = client_app.world.resource_mut::<Events<DummyEvent>>();
-    assert_eq!(
-        dummy_events.drain().count(),
-        1,
-        "should emit only single event for current tick"
-    );
+    // Artificially rollback the client by 1 tick to force next received event to be queued.
+    *client_app.world.resource_mut::<RepliconTick>() = old_tick;
+    server_app.world.send_event(ToClients {
+        mode: SendMode::Broadcast,
+        event: DummyEvent(Entity::PLACEHOLDER),
+    });
 
     server_app.update();
+    client_app.update();
+
+    assert!(client_app.world.resource::<Events<DummyEvent>>().is_empty());
+
+    client_app.world.resource_mut::<RepliconTick>().increment();
+
     client_app.update();
 
     let dummy_events = client_app.world.resource::<Events<DummyEvent>>();
-    assert_eq!(
-        dummy_events.len(),
-        1,
-        "should emit another event received earlier"
-    );
+    assert_eq!(dummy_events.len(), 1);
 }
+
+#[derive(Component, Serialize, Deserialize)]
+struct DummyComponent;

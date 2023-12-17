@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 /// A tick that increments each time we need the server to compute and send an update.
 ///
 /// Updated on clients every time they receive replication from the server.
-/// Mapped to the Bevy's `Tick` in [`AckedTicks`](crate::server::AckedTicks).
 /// See also [`TickPolicy`](crate::server::TickPolicy).
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Resource, Serialize)]
 pub struct RepliconTick(pub(crate) u32);

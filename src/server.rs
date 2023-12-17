@@ -1,18 +1,20 @@
-pub(super) mod despawn_tracker;
-pub(super) mod message;
-pub(super) mod removal_tracker;
+pub(super) mod clients_info;
+pub(super) mod replication_buffer;
+pub(super) mod replication_messages;
 
-use std::time::Duration;
+use std::{mem, time::Duration};
 
 use bevy::{
     ecs::{
         archetype::ArchetypeId,
-        component::{StorageType, Tick},
+        component::{ComponentTicks, StorageType, Tick},
+        removal_detection::RemovedComponentEvents,
         system::SystemChangeTick,
     },
     prelude::*,
+    ptr::Ptr,
     time::common_conditions::on_timer,
-    utils::HashMap,
+    utils::{EntityHashMap, HashMap},
 };
 use bevy_renet::{
     renet::{ClientId, RenetClient, RenetServer, ServerEvent},
@@ -21,11 +23,12 @@ use bevy_renet::{
 };
 
 use crate::replicon_core::{
-    replication_rules::ReplicationRules, replicon_tick::RepliconTick, REPLICATION_CHANNEL_ID,
+    replication_rules::{Replication, ReplicationId, ReplicationInfo, ReplicationRules},
+    replicon_tick::RepliconTick,
+    ReplicationChannel,
 };
-use despawn_tracker::{DespawnTracker, DespawnTrackerPlugin};
-use message::ReplicationMessage;
-use removal_tracker::{RemovalTracker, RemovalTrackerPlugin};
+use clients_info::{ClientInfo, ClientsInfo};
+use replication_messages::ReplicationMessages;
 
 pub const SERVER_ID: ClientId = ClientId::from_raw(0);
 
@@ -43,39 +46,30 @@ impl Default for ServerPlugin {
 
 impl Plugin for ServerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins((
-            RenetServerPlugin,
-            NetcodeServerPlugin,
-            RemovalTrackerPlugin,
-            DespawnTrackerPlugin,
-        ))
-        .init_resource::<AckedTicks>()
-        .init_resource::<TicksMap>()
-        .init_resource::<MinRepliconTick>()
-        .init_resource::<ClientEntityMap>()
-        .configure_sets(PreUpdate, ServerSet::Receive.after(RenetReceive))
-        .configure_sets(
-            PostUpdate,
-            ServerSet::Send
-                .before(RenetSend)
-                .run_if(resource_changed::<RepliconTick>()),
-        )
-        .add_systems(
-            PreUpdate,
-            (Self::acks_receiving_system, Self::acks_cleanup_system)
-                .in_set(ServerSet::Receive)
-                .run_if(resource_exists::<RenetServer>()),
-        )
-        .add_systems(
-            PostUpdate,
-            (
-                Self::replication_sending_system
-                    .map(Result::unwrap)
-                    .in_set(ServerSet::Send)
+        app.add_plugins((RenetServerPlugin, NetcodeServerPlugin))
+            .init_resource::<ClientsInfo>()
+            .init_resource::<LastChangeTick>()
+            .init_resource::<ClientEntityMap>()
+            .configure_sets(PreUpdate, ServerSet::Receive.after(RenetReceive))
+            .configure_sets(PostUpdate, ServerSet::Send.before(RenetSend))
+            .add_systems(
+                PreUpdate,
+                (Self::handle_connections_system, Self::acks_receiving_system)
+                    .chain()
+                    .in_set(ServerSet::Receive)
                     .run_if(resource_exists::<RenetServer>()),
-                Self::reset_system.run_if(resource_removed::<RenetServer>()),
-            ),
-        );
+            )
+            .add_systems(
+                PostUpdate,
+                (
+                    Self::replication_sending_system
+                        .map(Result::unwrap)
+                        .in_set(ServerSet::Send)
+                        .run_if(resource_exists::<RenetServer>())
+                        .run_if(resource_changed::<RepliconTick>()),
+                    Self::reset_system.run_if(resource_removed::<RenetServer>()),
+                ),
+            );
 
         match self.tick_policy {
             TickPolicy::MaxTickRate(max_tick_rate) => {
@@ -84,13 +78,16 @@ impl Plugin for ServerPlugin {
                     PostUpdate,
                     Self::increment_tick
                         .before(Self::replication_sending_system)
+                        .run_if(resource_exists::<RenetServer>())
                         .run_if(on_timer(tick_time)),
                 );
             }
             TickPolicy::EveryFrame => {
                 app.add_systems(
                     PostUpdate,
-                    Self::increment_tick.before(Self::replication_sending_system),
+                    Self::increment_tick
+                        .before(Self::replication_sending_system)
+                        .run_if(resource_exists::<RenetServer>()),
                 );
             }
             TickPolicy::Manual => (),
@@ -104,149 +101,157 @@ impl ServerPlugin {
     }
 
     /// Increments current server tick which causes the server to replicate this frame.
-    pub fn increment_tick(mut tick: ResMut<RepliconTick>) {
-        tick.increment();
-        trace!("incremented {tick:?}");
+    pub fn increment_tick(mut replicon_tick: ResMut<RepliconTick>) {
+        replicon_tick.increment();
+        trace!("incremented {replicon_tick:?}");
+    }
+
+    fn handle_connections_system(
+        mut server_events: EventReader<ServerEvent>,
+        mut entity_map: ResMut<ClientEntityMap>,
+        mut clients_info: ResMut<ClientsInfo>,
+    ) {
+        for event in server_events.read() {
+            match *event {
+                ServerEvent::ClientDisconnected { client_id, .. } => {
+                    entity_map.0.remove(&client_id);
+                    clients_info.remove(client_id);
+                }
+                ServerEvent::ClientConnected { client_id } => {
+                    clients_info.init(client_id);
+                }
+            }
+        }
     }
 
     fn acks_receiving_system(
-        mut acked_ticks: ResMut<AckedTicks>,
-        mut ticks_map: ResMut<TicksMap>,
-        mut server: ResMut<RenetServer>,
-        mut entity_map: ResMut<ClientEntityMap>,
-    ) {
-        for client_id in server.clients_id() {
-            while let Some(message) = server.receive_message(client_id, REPLICATION_CHANNEL_ID) {
-                match bincode::deserialize::<RepliconTick>(&message) {
-                    Ok(tick) => {
-                        let acked_tick = acked_ticks.0.entry(client_id).or_default();
-                        if *acked_tick < tick {
-                            *acked_tick = tick;
-                            entity_map.cleanup_acked(client_id, *acked_tick);
-                            trace!("client {client_id} acknowledged {tick:?}");
-                        }
-                    }
-                    Err(e) => error!("unable to deserialize tick from client {client_id}: {e}"),
-                }
-            }
-        }
-
-        ticks_map.cleanup_acked(&acked_ticks)
-    }
-
-    fn acks_cleanup_system(
-        mut server_events: EventReader<ServerEvent>,
-        mut acked_ticks: ResMut<AckedTicks>,
-    ) {
-        for event in server_events.read() {
-            match event {
-                ServerEvent::ClientDisconnected { client_id, .. } => {
-                    acked_ticks.0.remove(client_id);
-                }
-                ServerEvent::ClientConnected { client_id } => {
-                    acked_ticks.0.entry(*client_id).or_default();
-                }
-            }
-        }
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn replication_sending_system(
-        mut messages: Local<Vec<ReplicationMessage>>,
         change_tick: SystemChangeTick,
-        mut set: ParamSet<(&World, ResMut<TicksMap>, ResMut<RenetServer>)>,
-        acked_ticks: Res<AckedTicks>,
+        mut server: ResMut<RenetServer>,
+        mut clients_info: ResMut<ClientsInfo>,
+    ) {
+        let ClientsInfo {
+            info,
+            entity_buffer,
+            ..
+        } = &mut *clients_info;
+
+        for client_info in info.iter_mut() {
+            while let Some(message) =
+                server.receive_message(client_info.id, ReplicationChannel::Reliable)
+            {
+                match bincode::deserialize::<u16>(&message) {
+                    Ok(update_index) => {
+                        let Some((tick, mut entities)) =
+                            client_info.update_entities.remove(&update_index)
+                        else {
+                            error!(
+                                "received unknown update index {update_index} from client {}",
+                                client_info.id
+                            );
+                            continue;
+                        };
+
+                        for entity in &entities {
+                            let last_tick = client_info
+                                .ticks
+                                .get_mut(entity)
+                                .expect("tick should be inserted on any component insertion");
+
+                            // Received tick could be outdated because we bump it
+                            // if we detect any insertion on the entity in `collect_changes`.
+                            if !last_tick.is_newer_than(tick, change_tick.this_run()) {
+                                *last_tick = tick;
+                            }
+                        }
+                        entities.clear();
+                        entity_buffer.push(entities);
+
+                        trace!(
+                            "client {} acknowledged an update with {tick:?}",
+                            client_info.id
+                        );
+                    }
+                    Err(e) => error!(
+                        "unable to deserialize update index from client {}: {e}",
+                        client_info.id
+                    ),
+                }
+            }
+        }
+    }
+
+    /// Collects [`ReplicationMessages`] and sends them.
+    #[allow(clippy::type_complexity)]
+    pub(super) fn replication_sending_system(
+        mut messages: Local<ReplicationMessages>,
+        change_tick: SystemChangeTick,
+        remove_events: &RemovedComponentEvents,
+        mut set: ParamSet<(
+            &World,
+            ResMut<ClientsInfo>,
+            ResMut<ClientEntityMap>,
+            ResMut<RenetServer>,
+            ResMut<LastChangeTick>,
+        )>,
+        mut removed_replication: RemovedComponents<Replication>,
         replication_rules: Res<ReplicationRules>,
-        despawn_tracker: Res<DespawnTracker>,
         replicon_tick: Res<RepliconTick>,
-        min_replicon_tick: Res<MinRepliconTick>,
-        removal_trackers: Query<(Entity, &RemovalTracker)>,
-        entity_map: Res<ClientEntityMap>,
     ) -> bincode::Result<()> {
-        set.p1().0.insert(*replicon_tick, change_tick.this_run());
+        let info = mem::take(&mut set.p1().info); // Take ownership to avoid borrowing issues.
+        messages.prepare(info, *replicon_tick)?;
 
-        let messages = prepare_messages(
+        collect_mappings(&mut messages, &mut set.p2())?;
+        collect_changes(&mut messages, set.p0(), &change_tick, &replication_rules)?;
+        collect_removals(
             &mut messages,
-            &acked_ticks,
-            &set.p1(),
-            *replicon_tick,
-            *min_replicon_tick,
-        )?;
-
-        collect_mappings(messages, &entity_map)?;
-        collect_changes(
-            messages,
-            set.p0(),
+            remove_events,
             change_tick.this_run(),
             &replication_rules,
         )?;
-        collect_removals(messages, &removal_trackers, change_tick.this_run())?;
-        collect_despawns(messages, &despawn_tracker, change_tick.this_run())?;
+        collect_despawns(&mut messages, &mut removed_replication)?;
 
-        for messages in messages {
-            messages.send(&mut set.p2());
-        }
+        let last_change_tick = *set.p4();
+        let mut entity_buffer = mem::take(&mut set.p1().entity_buffer);
+        let (last_change_tick, info) = messages.send(
+            &mut set.p3(),
+            &mut entity_buffer,
+            last_change_tick,
+            *replicon_tick,
+            change_tick.this_run(),
+        )?;
+
+        // Return borrowed data back.
+        set.p1().info = info;
+        set.p1().entity_buffer = entity_buffer;
+        *set.p4() = last_change_tick;
 
         Ok(())
     }
 
     fn reset_system(
         mut replicon_tick: ResMut<RepliconTick>,
-        mut acked_ticks: ResMut<AckedTicks>,
-        mut ticks_map: ResMut<TicksMap>,
+        mut entity_map: ResMut<ClientEntityMap>,
+        mut clients_info: ResMut<ClientsInfo>,
     ) {
         *replicon_tick = Default::default();
-        acked_ticks.0.clear();
-        ticks_map.0.clear();
+        entity_map.0.clear();
+        clients_info.clear();
     }
 }
 
-/// Initializes message for each client and returns it as mutable slice.
+/// Collects and writes any new entity mappings that happened in this tick.
 ///
-/// Reuses already allocated messages.
-/// Creates new messages if number of clients is bigger then the number of allocated messages.
-/// If there are more messages than the number of clients, then the extra messages remain untouched
-/// and the returned slice will not include them.
-fn prepare_messages<'a>(
-    messages: &'a mut Vec<ReplicationMessage>,
-    acked_ticks: &AckedTicks,
-    ticks_map: &TicksMap,
-    replicon_tick: RepliconTick,
-    min_replicon_tick: MinRepliconTick,
-) -> bincode::Result<&'a mut [ReplicationMessage]> {
-    messages.reserve(acked_ticks.len());
-    for (index, (&client_id, &acked_tick)) in acked_ticks.iter().enumerate() {
-        let system_tick = *ticks_map.get(&acked_tick).unwrap_or(&Tick::new(0));
-
-        let send_empty = acked_tick < *min_replicon_tick;
-        if let Some(message) = messages.get_mut(index) {
-            message.reset(replicon_tick, client_id, system_tick, send_empty)?;
-        } else {
-            messages.push(ReplicationMessage::new(
-                replicon_tick,
-                client_id,
-                system_tick,
-                send_empty,
-            )?);
-        }
-    }
-
-    Ok(&mut messages[..acked_ticks.len()])
-}
-
-/// Collect and write any new entity mappings into messages since last acknowledged tick.
-///
-/// Mappings will be processed first, so all referenced entities after it will behave correctly.
+/// On deserialization mappings should be processed first, so all referenced entities after it will behave correctly.
 fn collect_mappings(
-    messages: &mut [ReplicationMessage],
-    entity_map: &ClientEntityMap,
+    messages: &mut ReplicationMessages,
+    entity_map: &mut ClientEntityMap,
 ) -> bincode::Result<()> {
-    for message in &mut *messages {
+    for (message, _, client_info) in messages.iter_mut_with_info() {
         message.start_array();
 
-        if let Some(mappings) = entity_map.get(&message.client_id) {
-            for mapping in mappings {
-                message.write_client_mapping(mapping)?;
+        if let Some(mappings) = entity_map.0.get_mut(&client_info.id) {
+            for mapping in mappings.drain(..) {
+                message.write_client_mapping(&mapping)?;
             }
         }
 
@@ -255,15 +260,16 @@ fn collect_mappings(
     Ok(())
 }
 
-/// Collect component changes into messages based on last acknowledged tick.
+/// Collects component insertions from this tick into init messages, and changes into update messages
+/// since the last entity tick.
 fn collect_changes(
-    messages: &mut [ReplicationMessage],
+    messages: &mut ReplicationMessages,
     world: &World,
-    system_tick: Tick,
+    change_tick: &SystemChangeTick,
     replication_rules: &ReplicationRules,
 ) -> bincode::Result<()> {
-    for message in &mut *messages {
-        message.start_array();
+    for (init_message, _) in messages.iter_mut() {
+        init_message.start_array();
     }
 
     for archetype in world
@@ -280,8 +286,9 @@ fn collect_changes(
             .expect("archetype should be valid");
 
         for archetype_entity in archetype.entities() {
-            for message in &mut *messages {
-                message.start_entity_data(archetype_entity.entity());
+            for (init_message, update_message) in messages.iter_mut() {
+                init_message.start_entity_data(archetype_entity.entity());
+                update_message.start_entity_data(archetype_entity.entity())
             }
 
             for component_id in archetype.components() {
@@ -310,15 +317,15 @@ fn collect_changes(
                         let component =
                             unsafe { column.get_data_unchecked(archetype_entity.table_row()) };
 
-                        for message in &mut *messages {
-                            if ticks.is_changed(message.system_tick, system_tick) {
-                                message.write_component(
-                                    replication_info,
-                                    replication_id,
-                                    component,
-                                )?;
-                            }
-                        }
+                        collect_component_change(
+                            messages,
+                            archetype_entity.entity(),
+                            ticks,
+                            change_tick,
+                            replication_info,
+                            replication_id,
+                            component,
+                        )?;
                     }
                     StorageType::SparseSet => {
                         let sparse_set = world
@@ -335,80 +342,138 @@ fn collect_changes(
                             .get(entity)
                             .unwrap_or_else(|| panic!("{entity:?} should have {component_id:?}"));
 
-                        for message in &mut *messages {
-                            if ticks.is_changed(message.system_tick, system_tick) {
-                                message.write_component(
-                                    replication_info,
-                                    replication_id,
-                                    component,
-                                )?;
-                            }
-                        }
+                        collect_component_change(
+                            messages,
+                            entity,
+                            ticks,
+                            change_tick,
+                            replication_info,
+                            replication_id,
+                            component,
+                        )?;
                     }
                 }
             }
 
-            for message in &mut *messages {
-                message.end_entity_data()?;
+            for (init_message, update_message, client_info) in messages.iter_mut_with_info() {
+                if init_message.entity_data_len() != 0 {
+                    // If there is any insertion, include all updates into init message
+                    // and bump the last acknowledged tick to keep entity updates atomic.
+                    init_message.take_entity_data(update_message);
+                    client_info
+                        .ticks
+                        .insert(archetype_entity.entity(), change_tick.this_run());
+                } else {
+                    update_message.register_entity();
+                    update_message.end_entity_data()?;
+                }
+
+                init_message.end_entity_data()?;
             }
         }
     }
 
-    for message in &mut *messages {
-        message.end_array()?;
+    for (init_message, _, client_info) in messages.iter_mut_with_info() {
+        client_info.just_connected = false;
+        init_message.end_array()?;
     }
 
     Ok(())
 }
 
-/// Collect component removals into messages based on last acknowledged tick.
-fn collect_removals(
-    messages: &mut [ReplicationMessage],
-    removal_trackers: &Query<(Entity, &RemovalTracker)>,
-    system_tick: Tick,
+/// Collects the component if it has been changed.
+///
+/// If the component was added since the client's last init message, it will be collected into
+/// init buffer.
+fn collect_component_change(
+    messages: &mut ReplicationMessages,
+    entity: Entity,
+    ticks: ComponentTicks,
+    change_tick: &SystemChangeTick,
+    replication_info: &ReplicationInfo,
+    replication_id: ReplicationId,
+    component: Ptr,
 ) -> bincode::Result<()> {
-    for message in &mut *messages {
+    for (init_message, update_message, client_info) in messages.iter_mut_with_info() {
+        if client_info.just_connected
+            || ticks.is_added(change_tick.last_run(), change_tick.this_run())
+        {
+            init_message.write_component(replication_info, replication_id, component)?;
+        } else {
+            let tick = *client_info
+                .ticks
+                .get(&entity)
+                .expect("entity should be present after adding component");
+            if ticks.is_changed(tick, change_tick.this_run()) {
+                update_message.write_component(replication_info, replication_id, component)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Collects component removals from this tick into init messages.
+fn collect_removals(
+    messages: &mut ReplicationMessages,
+    remove_events: &RemovedComponentEvents,
+    tick: Tick,
+    replication_rules: &ReplicationRules,
+) -> bincode::Result<()> {
+    for (message, _) in messages.iter_mut() {
         message.start_array();
     }
 
-    for (entity, removal_tracker) in removal_trackers {
-        for message in &mut *messages {
+    // PERF: Unfortunately, removed components are grouped by type, not by entity.
+    // This is why we need an intermediate container. But in practice users rarely
+    // remove a lot of components in the same tick, so it's probably fine.
+    let mut removals: EntityHashMap<_, Vec<_>> = Default::default();
+    for (&component_id, &replication_id) in replication_rules.get_ids() {
+        for entity in remove_events
+            .get(component_id)
+            .into_iter()
+            .flat_map(|removed| removed.iter_current_update_events().cloned())
+            .map(Into::into)
+        {
+            removals.entry(entity).or_default().push(replication_id);
+        }
+    }
+
+    for (entity, components) in removals {
+        for (message, _, client_info) in messages.iter_mut_with_info() {
             message.start_entity_data(entity);
-            for (&replication_id, &tick) in &removal_tracker.0 {
-                if tick.is_newer_than(message.system_tick, system_tick) {
-                    message.write_replication_id(replication_id)?;
-                }
+            for &replication_id in &components {
+                client_info.ticks.insert(entity, tick);
+                message.write_replication_id(replication_id)?;
             }
             message.end_entity_data()?;
         }
     }
 
-    for message in &mut *messages {
+    for (message, _) in messages.iter_mut() {
         message.end_array()?;
     }
 
     Ok(())
 }
 
-/// Collect entity despawns into messages based on last acknowledged tick.
+/// Collect entity despawns from this tick into init messages.
 fn collect_despawns(
-    messages: &mut [ReplicationMessage],
-    despawn_tracker: &DespawnTracker,
-    system_tick: Tick,
+    messages: &mut ReplicationMessages,
+    removed_replication: &mut RemovedComponents<Replication>,
 ) -> bincode::Result<()> {
-    for message in &mut *messages {
+    for (message, _) in messages.iter_mut() {
         message.start_array();
     }
 
-    for &(entity, tick) in &despawn_tracker.0 {
-        for message in &mut *messages {
-            if tick.is_newer_than(message.system_tick, system_tick) {
-                message.write_entity(entity)?;
-            }
+    for entity in removed_replication.read() {
+        for (message, _, client_info) in messages.iter_mut_with_info() {
+            client_info.ticks.remove(&entity);
+            message.write_entity(entity)?;
         }
     }
 
-    for message in &mut *messages {
+    for (message, _) in messages.iter_mut() {
         message.end_array()?;
     }
 
@@ -444,36 +509,12 @@ pub enum TickPolicy {
     Manual,
 }
 
-/// Stores mapping from server ticks to system change ticks.
+/// Contains the last tick in which a replicated entity was spawned, despawned, or gained/lost a component.
 ///
-/// Used only on server.
-#[derive(Default, Deref, Resource)]
-pub struct TicksMap(HashMap<RepliconTick, Tick>);
-
-impl TicksMap {
-    fn cleanup_acked(&mut self, acked_ticks: &AckedTicks) {
-        self.0
-            .retain(|tick, _| acked_ticks.values().any(|acked_tick| acked_tick <= tick));
-    }
-}
-
-/// Last acknowledged server ticks for all clients.
-///
-/// Used only on server.
-#[derive(Default, Deref, Resource)]
-pub struct AckedTicks(HashMap<ClientId, RepliconTick>);
-
-/// Contains the lowest replicon tick that should be acknowledged by clients.
-///
-/// If a client has not acked this tick, then replication messages >= this tick
-/// will be sent even if they do not contain data.
-///
-/// Used to synchronize server-sent events with clients. A client cannot consume
-/// a server-sent event until it has acknowledged the tick where that event was
-/// created. This means we need to replicate ticks after a server-sent event is
-/// emitted to guarantee the client can eventually consume the event.
-#[derive(Clone, Copy, Debug, Default, Deref, DerefMut, Resource)]
-pub(super) struct MinRepliconTick(RepliconTick);
+/// It should be included in update messages and server events instead of the current tick
+/// to avoid needless waiting for the next init message to arrive.
+#[derive(Clone, Copy, Debug, Default, Deref, Resource)]
+pub struct LastChangeTick(RepliconTick);
 
 /**
 A resource that exists on the server for mapping server entities to
@@ -519,7 +560,6 @@ fn confirm_bullet(
     mut commands: Commands,
     mut bullet_events: EventReader<FromClient<SpawnBullet>>,
     mut entity_map: ResMut<ClientEntityMap>,
-    tick: Res<RepliconTick>,
 ) {
     for FromClient { client_id, event } in bullet_events.read() {
         let server_entity = commands.spawn(Bullet).id(); // You can insert more components, they will be sent to the client's entity correctly.
@@ -527,7 +567,6 @@ fn confirm_bullet(
         entity_map.insert(
             *client_id,
             ClientMapping {
-                tick: *tick,
                 server_entity,
                 client_entity: event.0,
             },
@@ -554,22 +593,11 @@ impl ClientEntityMap {
     pub fn insert(&mut self, client_id: ClientId, mapping: ClientMapping) {
         self.0.entry(client_id).or_default().push(mapping);
     }
-
-    /// Removes acknowledged mappings.
-    fn cleanup_acked(&mut self, client_id: ClientId, acked_tick: RepliconTick) {
-        if let Some(mappings) = self.0.get_mut(&client_id) {
-            mappings.retain(|mapping| mapping.tick > acked_tick);
-        }
-    }
 }
 
 /// Stores the server entity corresponding to a client's pre-spawned entity.
-///
-/// The `tick` is stored here so that this prediction data can be cleaned up once the tick
-/// has been acked by the client.
 #[derive(Debug)]
 pub struct ClientMapping {
-    pub tick: RepliconTick,
     pub server_entity: Entity,
     pub client_entity: Entity,
 }

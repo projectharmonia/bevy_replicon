@@ -15,7 +15,7 @@ use crate::{
     replicon_core::{
         replication_rules::MapNetworkEntities, replicon_tick::RepliconTick, NetworkChannels,
     },
-    server::{has_authority, MinRepliconTick, ServerSet, SERVER_ID},
+    server::{has_authority, LastChangeTick, ServerSet, SERVER_ID},
 };
 
 /// An extension trait for [`App`] for creating server events.
@@ -66,13 +66,13 @@ pub trait ServerEventAppExt {
     fn sending_reflect_system(
         mut server: ResMut<RenetServer>,
         mut reflect_events: EventReader<ToClients<ReflectEvent>>,
-        tick: Res<RepliconTick>,
+        last_change_tick: Res<LastChangeTick>,
         channel: Res<EventChannel<ReflectEvent>>,
         registry: Res<AppTypeRegistry>,
     ) {
         let registry = registry.read();
         for ToClients { event, mode } in reflect_events.read() {
-            let message = serialize_reflect_event(*tick, &event, &registry)
+            let message = serialize_reflect_event(**last_change_tick, &event, &registry)
                 .expect("server event should be serializable");
 
             server_event::send(&mut server, *channel, *mode, message)
@@ -185,12 +185,11 @@ impl ServerEventAppExt for App {
                 PostUpdate,
                 (
                     (
-                        (min_tick_update_system::<T>, sending_system)
-                            .run_if(resource_exists::<RenetServer>()),
+                        sending_system.run_if(resource_exists::<RenetServer>()),
                         local_resending_system::<T>.run_if(has_authority()),
                     )
                         .chain()
-                        .before(ServerPlugin::replication_sending_system)
+                        .after(ServerPlugin::replication_sending_system)
                         .in_set(ServerSet::Send),
                     reset_system::<T>.run_if(resource_removed::<RenetClient>()),
                 ),
@@ -261,29 +260,15 @@ fn receiving_and_mapping_system<T: Event + MapNetworkEntities + DeserializeOwned
 fn sending_system<T: Event + Serialize>(
     mut server: ResMut<RenetServer>,
     mut server_events: EventReader<ToClients<T>>,
-    tick: Res<RepliconTick>,
+    last_change_tick: Res<LastChangeTick>,
     channel: Res<EventChannel<T>>,
 ) {
     for ToClients { event, mode } in server_events.read() {
         let message = DefaultOptions::new()
-            .serialize(&(*tick, event))
+            .serialize(&(**last_change_tick, event))
             .expect("server event should be serializable");
 
         send(&mut server, *channel, *mode, message);
-    }
-}
-
-/// Updates [`MinRepliconTick`] to force server to send replication message even if there were no world changes.
-///
-/// Needed because events on a client won't be emitted until the client acknowledges the event tick.
-/// See also [`ServerEventQueue`].
-fn min_tick_update_system<T: Event>(
-    mut server_events: EventReader<ToClients<T>>,
-    mut min_tick: ResMut<MinRepliconTick>,
-    tick: Res<RepliconTick>,
-) {
-    if server_events.read().count() > 0 {
-        **min_tick = *tick;
     }
 }
 

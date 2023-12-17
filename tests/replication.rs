@@ -1,5 +1,7 @@
 mod common;
 
+use std::ops::DerefMut;
+
 use bevy::prelude::*;
 use bevy_replicon::{prelude::*, scene};
 
@@ -7,7 +9,7 @@ use bevy_renet::renet::{transport::NetcodeClientTransport, ClientId};
 use serde::{Deserialize, Serialize};
 
 #[test]
-fn acked_ticks_cleanup() {
+fn reset() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
@@ -19,16 +21,22 @@ fn acked_ticks_cleanup() {
 
     common::connect(&mut server_app, &mut client_app);
 
-    let mut client_transport = client_app.world.resource_mut::<NetcodeClientTransport>();
-    client_transport.disconnect();
-    let client_id = ClientId::from_raw(client_transport.client_id());
+    client_app.world.resource_mut::<RenetClient>().disconnect();
 
     client_app.update();
     server_app.update();
+
+    client_app.update();
     server_app.update();
 
-    let acked_ticks = server_app.world.resource::<AckedTicks>();
-    assert!(!acked_ticks.contains_key(&client_id));
+    client_app.world.remove_resource::<RenetClient>();
+    server_app.world.remove_resource::<RenetServer>();
+
+    server_app.update();
+    client_app.update();
+
+    assert_eq!(server_app.world.resource::<RepliconTick>().get(), 0);
+    assert_eq!(client_app.world.resource::<RepliconTick>().get(), 0);
 }
 
 #[test]
@@ -93,7 +101,6 @@ fn client_spawn_replication() {
     let client_entity = client_app.world.spawn_empty().id();
     let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
 
-    let tick = *server_app.world.get_resource::<RepliconTick>().unwrap();
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
     let client_id = ClientId::from_raw(client_transport.client_id());
 
@@ -101,7 +108,6 @@ fn client_spawn_replication() {
     entity_map.insert(
         client_id,
         ClientMapping {
-            tick,
             server_entity,
             client_entity,
         },
@@ -143,7 +149,6 @@ fn client_spawn_replication() {
 fn insert_replication() {
     let mut server_app = App::new();
     let mut client_app = App::new();
-
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
@@ -287,6 +292,280 @@ fn despawn_replication() {
 }
 
 #[test]
+fn old_entities_replication() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+        ))
+        .replicate::<TableComponent>();
+    }
+
+    // Spawn an entity before client connected.
+    server_app.world.spawn((Replication, TableComponent));
+
+    common::connect(&mut server_app, &mut client_app);
+
+    assert_eq!(client_app.world.entities().len(), 1);
+}
+
+#[test]
+fn update_replication() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+        ))
+        .replicate::<BoolComponent>();
+    }
+
+    common::connect(&mut server_app, &mut client_app);
+
+    let server_entity = server_app
+        .world
+        .spawn((Replication, BoolComponent(false)))
+        .id();
+
+    server_app.update();
+    client_app.update();
+
+    let mut component = server_app
+        .world
+        .get_mut::<BoolComponent>(server_entity)
+        .unwrap();
+    component.0 = true;
+
+    server_app.update();
+    client_app.update();
+
+    let component = client_app
+        .world
+        .query::<&BoolComponent>()
+        .single(&client_app.world);
+    assert!(component.0);
+}
+
+#[test]
+fn big_entity_update_replication() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+        ))
+        .replicate::<VecComponent>();
+    }
+
+    common::connect(&mut server_app, &mut client_app);
+
+    let server_entity = server_app
+        .world
+        .spawn((Replication, VecComponent::default()))
+        .id();
+
+    server_app.update();
+    client_app.update();
+
+    // To exceed packed size.
+    const BIG_DATA: &[u8] = &[0; 1200];
+    let mut component = server_app
+        .world
+        .get_mut::<VecComponent>(server_entity)
+        .unwrap();
+    component.0 = BIG_DATA.to_vec();
+
+    server_app.update();
+    client_app.update();
+
+    let component = client_app
+        .world
+        .query::<&VecComponent>()
+        .single(&client_app.world);
+    assert_eq!(component.0, BIG_DATA);
+}
+
+#[test]
+fn many_entities_update_replication() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+        ))
+        .replicate::<BoolComponent>();
+    }
+
+    common::connect(&mut server_app, &mut client_app);
+
+    // Spawn many entities to cover message splitting.
+    const ENTITIES_COUNT: u32 = 300;
+    server_app
+        .world
+        .spawn_batch([(Replication, BoolComponent(false)); ENTITIES_COUNT as usize]);
+
+    server_app.update();
+    client_app.update();
+
+    assert_eq!(client_app.world.entities().len(), ENTITIES_COUNT);
+
+    for mut component in server_app
+        .world
+        .query::<&mut BoolComponent>()
+        .iter_mut(&mut server_app.world)
+    {
+        component.0 = true;
+    }
+
+    server_app.update();
+    client_app.update();
+
+    for component in client_app
+        .world
+        .query::<&BoolComponent>()
+        .iter(&client_app.world)
+    {
+        assert!(component.0);
+    }
+}
+
+#[test]
+fn insert_update_replication() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+        ))
+        .replicate::<BoolComponent>()
+        .replicate::<TableComponent>();
+    }
+
+    common::connect(&mut server_app, &mut client_app);
+
+    let server_entity = server_app
+        .world
+        .spawn((Replication, BoolComponent(false)))
+        .id();
+
+    server_app.update();
+    client_app.update();
+
+    let mut server_entity = server_app.world.entity_mut(server_entity);
+    server_entity.get_mut::<BoolComponent>().unwrap().0 = true;
+    server_entity.insert(TableComponent);
+
+    server_app.update();
+    client_app.update();
+
+    let component = client_app
+        .world
+        .query_filtered::<&BoolComponent, With<TableComponent>>()
+        .single(&client_app.world);
+    assert!(component.0);
+}
+
+#[test]
+fn despawn_update_replication() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+        ))
+        .replicate::<BoolComponent>()
+        .replicate::<TableComponent>();
+    }
+
+    common::connect(&mut server_app, &mut client_app);
+
+    let server_entity = server_app
+        .world
+        .spawn((Replication, BoolComponent(false)))
+        .id();
+
+    server_app.update();
+    client_app.update();
+
+    let mut component = server_app
+        .world
+        .get_mut::<BoolComponent>(server_entity)
+        .unwrap();
+    component.0 = true;
+
+    // Update without client to send update message.
+    server_app.update();
+
+    server_app.world.despawn(server_entity);
+
+    server_app.update();
+    client_app.update();
+
+    assert!(client_app.world.entities().is_empty());
+}
+
+#[test]
+fn update_replication_buffering() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+        ))
+        .replicate::<BoolComponent>();
+    }
+
+    common::connect(&mut server_app, &mut client_app);
+
+    let server_entity = server_app
+        .world
+        .spawn((Replication, BoolComponent(false)))
+        .id();
+
+    let old_tick = *server_app.world.resource::<RepliconTick>();
+
+    server_app.update();
+    client_app.update();
+
+    // Artificially rollback the client by 1 tick to force next received update to be buffered.
+    *client_app.world.resource_mut::<RepliconTick>() = old_tick;
+    let mut component = server_app
+        .world
+        .get_mut::<BoolComponent>(server_entity)
+        .unwrap();
+    component.0 = true;
+
+    server_app.update();
+    client_app.update();
+
+    let (client_entity, component) = client_app
+        .world
+        .query::<(Entity, &BoolComponent)>()
+        .single(&client_app.world);
+    assert!(!component.0, "client should buffer the update");
+
+    // Move tick forward to let the buffered update apply.
+    client_app.world.resource_mut::<RepliconTick>().increment();
+
+    server_app.update();
+    client_app.update();
+
+    let component = client_app
+        .world
+        .get::<BoolComponent>(client_entity)
+        .unwrap();
+    assert!(component.0, "buffered update should be applied");
+}
+
+#[test]
 fn replication_into_scene() {
     let mut app = App::new();
     app.add_plugins(ReplicationPlugins)
@@ -338,15 +617,12 @@ fn diagnostics() {
     let client_entity = client_app.world.spawn_empty().id();
     let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
 
-    let tick = *server_app.world.get_resource::<RepliconTick>().unwrap();
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
     let client_id = ClientId::from_raw(client_transport.client_id());
-
     let mut entity_map = server_app.world.resource_mut::<ClientEntityMap>();
     entity_map.insert(
         client_id,
         ClientMapping {
-            tick,
             server_entity,
             client_entity,
         },
@@ -357,13 +633,23 @@ fn diagnostics() {
     server_app.update();
     client_app.update();
 
+    // Trigger change detection.
+    server_app
+        .world
+        .get_mut::<TableComponent>(server_entity)
+        .unwrap()
+        .deref_mut();
+
+    server_app.update();
+    client_app.update();
+
     let stats = client_app.world.resource::<ClientStats>();
-    assert_eq!(stats.entities_changed, 1);
-    assert_eq!(stats.components_changed, 1);
+    assert_eq!(stats.entities_changed, 2);
+    assert_eq!(stats.components_changed, 2);
     assert_eq!(stats.mappings, 1);
     assert_eq!(stats.despawns, 1);
-    assert_eq!(stats.packets, 1);
-    assert_eq!(stats.bytes, 18);
+    assert_eq!(stats.packets, 2);
+    assert_eq!(stats.bytes, 33);
 }
 
 #[derive(Component, Deserialize, Serialize)]
@@ -387,6 +673,12 @@ struct NonReplicatingComponent;
 
 #[derive(Component, Deserialize, Serialize)]
 struct IgnoredComponent;
+
+#[derive(Clone, Component, Copy, Deserialize, Serialize)]
+struct BoolComponent(bool);
+
+#[derive(Component, Default, Deserialize, Serialize)]
+struct VecComponent(Vec<u8>);
 
 #[derive(Component, Default, Deserialize, Reflect, Serialize)]
 #[reflect(Component)]

@@ -117,7 +117,7 @@ fn deserialize_transform(
     entity: &mut EntityWorldMut,
     _entity_map: &mut ServerEntityMap,
     cursor: &mut Cursor<&[u8]>,
-    _tick: RepliconTick,
+    _replicon_tick: RepliconTick,
 ) -> bincode::Result<()> {
     let translation: Vec3 = bincode::deserialize_from(cursor)?;
     entity.insert(Transform::from_translation(translation));
@@ -375,12 +375,29 @@ They rarely used for gameplay systems (since you write the same logic for
 multiplayer and single-player!), but could be used for server
 creation / connection systems and corresponding UI.
 
+## Eventual consistency
+
+All events, inserts, removals and despawns will be applied to clients in the same order as on the server.
+
+Entity component updates are grouped by entity, and component groupings may be applied to clients in a different order than on the server.
+For example, if two entities are spawned in tick 1 on the server and their components are updated in tick 2,
+then the client is guaranteed to see the spawns at the same time, but the component updates may appear in different client ticks.
+
+If a component is dependent on other data, updates to the component will only be applied to the client when that data has arrived.
+So if your component references another entity, updates to that component will only be applied when the referenced entity has been spawned on the client.
+
+Updates for despawned entities will be discarded automatically, but events or components may reference despawned entities and should be handled with that in mind.
+
+Clients should never assume their world state is the same as the server's on any given tick value-wise.
+World state on the client is only "eventually consistent" with the server's.
+
 ## Limits
 
 To reduce packet size there are the following limits per replication update:
 
-- Up to [`u16::MAX`] entities that have changed/added components with up to [`u8::MAX`] such components.
-- Up to [`u16::MAX`] entities that have removed components with up to [`u8::MAX`] such components.
+- Up to [`u16::MAX`] entities that have added components with up to [`u16::MAX`] bytes of component data.
+- Up to [`u16::MAX`] entities that have changed components with up to [`u16::MAX`] bytes of component data.
+- Up to [`u16::MAX`] entities that have removed components with up to [`u16::MAX`] bytes of component data.
 - Up to [`u16::MAX`] entities that were despawned.
 */
 
@@ -410,10 +427,10 @@ pub mod prelude {
                 ReplicationRules,
             },
             replicon_tick::RepliconTick,
-            NetworkChannels, RepliconCorePlugin, REPLICATION_CHANNEL_ID,
+            NetworkChannels, ReplicationChannel, RepliconCorePlugin,
         },
         server::{
-            has_authority, AckedTicks, ClientEntityMap, ClientMapping, ServerPlugin, ServerSet,
+            has_authority, ClientEntityMap, ClientMapping, LastChangeTick, ServerPlugin, ServerSet,
             TickPolicy, SERVER_ID,
         },
         ReplicationPlugins,
