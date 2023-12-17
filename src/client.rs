@@ -211,13 +211,12 @@ fn apply_init_message(
         return Ok(());
     }
 
-    apply_init_components(
+    apply_despawns(
         &mut cursor,
         world,
         entity_map,
         entity_ticks,
         stats.as_deref_mut(),
-        ComponentsKind::Removal,
         replication_rules,
         replicon_tick,
     )?;
@@ -225,14 +224,15 @@ fn apply_init_message(
         return Ok(());
     }
 
-    apply_despawns(
+    apply_init_components(
         &mut cursor,
         world,
         entity_map,
         entity_ticks,
+        stats,
+        ComponentsKind::Removal,
         replication_rules,
         replicon_tick,
-        stats,
     )?;
 
     Ok(())
@@ -362,9 +362,9 @@ fn apply_despawns(
     world: &mut World,
     entity_map: &mut ServerEntityMap,
     entity_ticks: &mut ServerEntityTicks,
+    stats: Option<&mut ClientStats>,
     replication_rules: &ReplicationRules,
     replicon_tick: RepliconTick,
-    stats: Option<&mut ClientStats>,
 ) -> bincode::Result<()> {
     let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
     if let Some(stats) = stats {
