@@ -1,21 +1,20 @@
+pub mod client_mapper;
 pub mod diagnostics;
 
 use std::io::Cursor;
 
-use bevy::{
-    prelude::*,
-    utils::{hashbrown::hash_map::Entry, EntityHashMap},
-};
+use bevy::{prelude::*, utils::EntityHashMap};
 use bevy_renet::{client_connected, renet::Bytes};
 use bevy_renet::{renet::RenetClient, transport::NetcodeClientPlugin, RenetClientPlugin};
 use bincode::{DefaultOptions, Options};
 use varint_rs::VarintReader;
 
 use crate::replicon_core::{
-    replication_rules::{Mapper, Replication, ReplicationRules},
+    replication_rules::{Replication, ReplicationRules},
     replicon_tick::RepliconTick,
     ReplicationChannel,
 };
+use client_mapper::ServerEntityMap;
 use diagnostics::ClientStats;
 
 pub struct ClientPlugin;
@@ -474,108 +473,6 @@ pub enum ClientSet {
     ///
     /// Runs in `PostUpdate`.
     Send,
-}
-
-/// Maps server entities to client entities and vice versa.
-#[derive(Default, Resource)]
-pub struct ServerEntityMap {
-    server_to_client: EntityHashMap<Entity, Entity>,
-    client_to_server: EntityHashMap<Entity, Entity>,
-}
-
-impl ServerEntityMap {
-    /// Inserts a server-client pair into the map.
-    ///
-    /// # Panics
-    ///
-    /// Panics if this mapping is already present.
-    #[inline]
-    pub fn insert(&mut self, server_entity: Entity, client_entity: Entity) {
-        if let Some(existing_entity) = self.server_to_client.insert(server_entity, client_entity) {
-            panic!("mapping {server_entity:?} to {client_entity:?}, but it's already mapped to {existing_entity:?}");
-        }
-        self.client_to_server.insert(client_entity, server_entity);
-    }
-
-    pub(super) fn get_by_server_or_spawn<'a>(
-        &mut self,
-        world: &'a mut World,
-        server_entity: Entity,
-    ) -> EntityWorldMut<'a> {
-        match self.server_to_client.entry(server_entity) {
-            Entry::Occupied(entry) => world.entity_mut(*entry.get()),
-            Entry::Vacant(entry) => {
-                let client_entity = world.spawn(Replication);
-                entry.insert(client_entity.id());
-                self.client_to_server
-                    .insert(client_entity.id(), server_entity);
-                client_entity
-            }
-        }
-    }
-
-    pub(super) fn get_by_server<'a>(
-        &mut self,
-        world: &'a mut World,
-        server_entity: Entity,
-    ) -> Option<EntityWorldMut<'a>> {
-        self.server_to_client
-            .get(&server_entity)
-            .map(|&entity| world.entity_mut(entity))
-    }
-
-    pub(super) fn remove_by_server(&mut self, server_entity: Entity) -> Option<Entity> {
-        let client_entity = self.server_to_client.remove(&server_entity);
-        if let Some(client_entity) = client_entity {
-            self.client_to_server.remove(&client_entity);
-        }
-        client_entity
-    }
-
-    #[inline]
-    pub fn to_client(&self) -> &EntityHashMap<Entity, Entity> {
-        &self.server_to_client
-    }
-
-    #[inline]
-    pub fn to_server(&self) -> &EntityHashMap<Entity, Entity> {
-        &self.client_to_server
-    }
-
-    fn clear(&mut self) {
-        self.client_to_server.clear();
-        self.server_to_client.clear();
-    }
-}
-
-/// Maps server entities into client entities inside components.
-///
-/// Spawns new client entity if a mapping doesn't exists.
-pub struct ClientMapper<'a> {
-    world: &'a mut World,
-    server_to_client: &'a mut EntityHashMap<Entity, Entity>,
-    client_to_server: &'a mut EntityHashMap<Entity, Entity>,
-}
-
-impl<'a> ClientMapper<'a> {
-    #[inline]
-    pub fn new(world: &'a mut World, entity_map: &'a mut ServerEntityMap) -> Self {
-        Self {
-            world,
-            server_to_client: &mut entity_map.server_to_client,
-            client_to_server: &mut entity_map.client_to_server,
-        }
-    }
-}
-
-impl Mapper for ClientMapper<'_> {
-    fn map(&mut self, entity: Entity) -> Entity {
-        *self.server_to_client.entry(entity).or_insert_with(|| {
-            let client_entity = self.world.spawn(Replication).id();
-            self.client_to_server.insert(client_entity, entity);
-            client_entity
-        })
-    }
 }
 
 /// Last received tick for each entity.
