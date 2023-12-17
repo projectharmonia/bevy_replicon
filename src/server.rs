@@ -1,4 +1,5 @@
 pub(super) mod clients_info;
+pub(super) mod removals_reader;
 pub(super) mod replication_buffer;
 pub(super) mod replication_messages;
 
@@ -8,13 +9,12 @@ use bevy::{
     ecs::{
         archetype::ArchetypeId,
         component::{ComponentTicks, StorageType, Tick},
-        removal_detection::RemovedComponentEvents,
         system::SystemChangeTick,
     },
     prelude::*,
     ptr::Ptr,
     time::common_conditions::on_timer,
-    utils::{EntityHashMap, HashMap},
+    utils::HashMap,
 };
 use bevy_renet::{
     renet::{ClientId, RenetClient, RenetServer, ServerEvent},
@@ -28,6 +28,7 @@ use crate::replicon_core::{
     ReplicationChannel,
 };
 use clients_info::{ClientInfo, ClientsInfo};
+use removals_reader::RemovedComponentIds;
 use replication_messages::ReplicationMessages;
 
 pub const SERVER_ID: ClientId = ClientId::from_raw(0);
@@ -185,7 +186,7 @@ impl ServerPlugin {
     pub(super) fn replication_sending_system(
         mut messages: Local<ReplicationMessages>,
         change_tick: SystemChangeTick,
-        remove_events: &RemovedComponentEvents,
+        mut removed_ids: RemovedComponentIds,
         mut set: ParamSet<(
             &World,
             ResMut<ClientsInfo>,
@@ -202,13 +203,13 @@ impl ServerPlugin {
 
         collect_mappings(&mut messages, &mut set.p2())?;
         collect_changes(&mut messages, set.p0(), &change_tick, &replication_rules)?;
+        collect_despawns(&mut messages, &mut removed_replication, &mut removed_ids)?;
         collect_removals(
             &mut messages,
-            remove_events,
+            &mut removed_ids,
             change_tick.this_run(),
             &replication_rules,
         )?;
-        collect_despawns(&mut messages, &mut removed_replication)?;
 
         let last_change_tick = *set.p4();
         let mut entity_buffer = mem::take(&mut set.p1().entity_buffer);
@@ -413,40 +414,21 @@ fn collect_component_change(
     Ok(())
 }
 
-/// Collects component removals from this tick into init messages.
-fn collect_removals(
+/// Collect entity despawns from this tick into init messages.
+fn collect_despawns(
     messages: &mut ReplicationMessages,
-    remove_events: &RemovedComponentEvents,
-    tick: Tick,
-    replication_rules: &ReplicationRules,
+    removed_replication: &mut RemovedComponents<Replication>,
+    removed_ids: &mut RemovedComponentIds,
 ) -> bincode::Result<()> {
     for (message, _) in messages.iter_mut() {
         message.start_array();
     }
 
-    // PERF: Unfortunately, removed components are grouped by type, not by entity.
-    // This is why we need an intermediate container. But in practice users rarely
-    // remove a lot of components in the same tick, so it's probably fine.
-    let mut removals: EntityHashMap<_, Vec<_>> = Default::default();
-    for (&component_id, &replication_id) in replication_rules.get_ids() {
-        for entity in remove_events
-            .get(component_id)
-            .into_iter()
-            .flat_map(|removed| removed.iter_current_update_events().cloned())
-            .map(Into::into)
-        {
-            removals.entry(entity).or_default().push(replication_id);
-        }
-    }
-
-    for (entity, components) in removals {
+    for entity in removed_replication.read() {
         for (message, _, client_info) in messages.iter_mut_with_info() {
-            message.start_entity_data(entity);
-            for &replication_id in &components {
-                client_info.ticks.insert(entity, tick);
-                message.write_replication_id(replication_id)?;
-            }
-            message.end_entity_data()?;
+            client_info.ticks.remove(&entity);
+            removed_ids.register_despawn(entity);
+            message.write_entity(entity)?;
         }
     }
 
@@ -457,19 +439,25 @@ fn collect_removals(
     Ok(())
 }
 
-/// Collect entity despawns from this tick into init messages.
-fn collect_despawns(
+/// Collects component removals from this tick into init messages.
+fn collect_removals(
     messages: &mut ReplicationMessages,
-    removed_replication: &mut RemovedComponents<Replication>,
+    removed_ids: &mut RemovedComponentIds,
+    tick: Tick,
+    replication_rules: &ReplicationRules,
 ) -> bincode::Result<()> {
     for (message, _) in messages.iter_mut() {
         message.start_array();
     }
 
-    for entity in removed_replication.read() {
+    for (entity, components) in removed_ids.read(replication_rules) {
         for (message, _, client_info) in messages.iter_mut_with_info() {
-            client_info.ticks.remove(&entity);
-            message.write_entity(entity)?;
+            message.start_entity_data(entity);
+            for &replication_id in components {
+                client_info.ticks.insert(entity, tick);
+                message.write_replication_id(replication_id)?;
+            }
+            message.end_entity_data()?;
         }
     }
 

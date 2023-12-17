@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Send all component mappings, inserts, removals and despawns over reliable channel in form of deltas and component updates over unreliable channel packed by packet size. This significantly reduces the possibility of packet loss.
 - Replace `REPLICATION_CHANNEL_ID` with `ReplicationChannel` enum. The previous constant corresponded to the unreliable channel.
 - Server events use tick with the last change instead of waiting for replication message without changes.
+- Fix replication of removals that happened after replication on the same frame.
+- Include despawns before removals to optimize space for case where despawns are presents and removals aren't.
 - `TickPolicy::EveryFrame` and `TickPolicy::MaxTickRate` now increment tick only if `RenetServer` exists.
 - `ServerSet::Send` now always runs. Replication sending system still runs on `RepliconTick` change.
 - `ClientMapping` no longer contains `tick` field.

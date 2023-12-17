@@ -201,50 +201,6 @@ fn insert_replication() {
 }
 
 #[test]
-fn removal_replication() {
-    let mut server_app = App::new();
-    let mut client_app = App::new();
-    for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((
-            MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
-        ))
-        .replicate::<TableComponent>();
-    }
-
-    common::connect(&mut server_app, &mut client_app);
-
-    let server_entity = server_app
-        .world
-        .spawn((Replication, TableComponent, NonReplicatingComponent))
-        .id();
-
-    server_app.update();
-
-    server_app
-        .world
-        .entity_mut(server_entity)
-        .remove::<TableComponent>();
-
-    let client_entity = client_app
-        .world
-        .spawn((Replication, TableComponent, NonReplicatingComponent))
-        .id();
-
-    client_app
-        .world
-        .resource_mut::<ServerEntityMap>()
-        .insert(server_entity, client_entity);
-
-    server_app.update();
-    client_app.update();
-
-    let client_entity = client_app.world.entity(client_entity);
-    assert!(!client_entity.contains::<TableComponent>());
-    assert!(client_entity.contains::<NonReplicatingComponent>());
-}
-
-#[test]
 fn despawn_replication() {
     let mut server_app = App::new();
     let mut client_app = App::new();
@@ -289,6 +245,50 @@ fn despawn_replication() {
     let entity_map = client_app.world.resource::<ServerEntityMap>();
     assert!(entity_map.to_client().is_empty());
     assert!(entity_map.to_server().is_empty());
+}
+
+#[test]
+fn removal_replication() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+        ))
+        .replicate::<TableComponent>();
+    }
+
+    common::connect(&mut server_app, &mut client_app);
+
+    let server_entity = server_app
+        .world
+        .spawn((Replication, TableComponent, NonReplicatingComponent))
+        .id();
+
+    server_app.update();
+
+    server_app
+        .world
+        .entity_mut(server_entity)
+        .remove::<TableComponent>();
+
+    let client_entity = client_app
+        .world
+        .spawn((Replication, TableComponent, NonReplicatingComponent))
+        .id();
+
+    client_app
+        .world
+        .resource_mut::<ServerEntityMap>()
+        .insert(server_entity, client_entity);
+
+    server_app.update();
+    client_app.update();
+
+    let client_entity = client_app.world.entity(client_entity);
+    assert!(!client_entity.contains::<TableComponent>());
+    assert!(client_entity.contains::<NonReplicatingComponent>());
 }
 
 #[test]
@@ -649,7 +649,7 @@ fn diagnostics() {
     assert_eq!(stats.mappings, 1);
     assert_eq!(stats.despawns, 1);
     assert_eq!(stats.packets, 2);
-    assert_eq!(stats.bytes, 33);
+    assert_eq!(stats.bytes, 31);
 }
 
 #[derive(Component, Deserialize, Serialize)]
