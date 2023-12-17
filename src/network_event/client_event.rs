@@ -87,7 +87,7 @@ pub trait ClientEventAppExt {
                         });
                     }
                     Err(e) => {
-                        error!("unable to deserialize event from client {client_id}: {e}")
+                        debug!("unable to deserialize event from client {client_id}: {e}")
                     }
                 }
             }
@@ -170,7 +170,7 @@ fn receiving_system<T: Event + DeserializeOwned>(
                 Ok(event) => {
                     client_events.send(FromClient { client_id, event });
                 }
-                Err(e) => error!("unable to deserialize event from client {client_id}: {e}"),
+                Err(e) => debug!("unable to deserialize event from client {client_id}: {e}"),
             }
         }
     }
