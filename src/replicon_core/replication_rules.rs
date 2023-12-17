@@ -5,7 +5,7 @@ use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use super::replicon_tick::RepliconTick;
-use crate::client::{ClientMapper, ServerEntityMap};
+use crate::client::client_mapper::{ClientMapper, ServerEntityMap};
 
 pub trait AppReplicationExt {
     /// Marks component for replication.
