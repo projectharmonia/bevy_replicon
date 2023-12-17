@@ -26,9 +26,9 @@ pub(crate) struct ClientsInfo {
 impl ClientsInfo {
     /// Initializes a new [`ClientInfo`] for this client.
     pub(super) fn init(&mut self, client_id: ClientId) {
-        let client_info = if let Some(mut clinet_info) = self.info_buffer.pop() {
-            clinet_info.id = client_id;
-            clinet_info
+        let client_info = if let Some(mut client_info) = self.info_buffer.pop() {
+            client_info.id = client_id;
+            client_info
         } else {
             ClientInfo::new(client_id)
         };
