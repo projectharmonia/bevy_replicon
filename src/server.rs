@@ -34,8 +34,11 @@ use replication_messages::ReplicationMessages;
 pub const SERVER_ID: ClientId = ClientId::from_raw(0);
 
 pub struct ServerPlugin {
-    tick_policy: TickPolicy,
-    update_timeout: Duration,
+    /// Tick configuration.
+    pub tick_policy: TickPolicy,
+
+    /// The time after which updates will be considered lost if an acknowledgment is not received for them.
+    pub update_timeout: Duration,
 }
 
 impl Default for ServerPlugin {
@@ -104,14 +107,6 @@ impl Plugin for ServerPlugin {
 }
 
 impl ServerPlugin {
-    // TODO: better constructors or remove them at all.
-    pub fn new(tick_policy: TickPolicy) -> Self {
-        Self {
-            tick_policy,
-            ..Default::default()
-        }
-    }
-
     /// Increments current server tick which causes the server to replicate this frame.
     pub fn increment_tick(mut replicon_tick: ResMut<RepliconTick>) {
         replicon_tick.increment();
