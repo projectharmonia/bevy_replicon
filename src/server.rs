@@ -38,6 +38,8 @@ pub struct ServerPlugin {
     pub tick_policy: TickPolicy,
 
     /// The time after which updates will be considered lost if an acknowledgment is not received for them.
+    ///
+    /// In practice updates will live at least `update_timeout`, and at most `2*update_timeout`.
     pub update_timeout: Duration,
 }
 
@@ -139,7 +141,7 @@ impl ServerPlugin {
                 ..
             } = &mut *clients_info;
 
-            let min_timestamp = time.elapsed() - update_timeout;
+            let min_timestamp = time.elapsed().saturating_sub(update_timeout);
             for client_info in info {
                 client_info.updates.retain(|_, update_info| {
                     if update_info.timestamp < min_timestamp {
