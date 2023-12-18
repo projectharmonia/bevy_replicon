@@ -645,7 +645,7 @@ fn update_replication_cleanup() {
         .world
         .query::<Ref<BoolComponent>>()
         .single(&client_app.world);
-    let change_tick = component.last_changed();
+    let tick1 = component.last_changed();
 
     // Take and drop received message to make systems miss it.
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
@@ -668,11 +668,26 @@ fn update_replication_cleanup() {
         .world
         .query::<Ref<BoolComponent>>()
         .single(&client_app.world);
-    let last_change_tick = component.last_changed();
+    let tick2 = component.last_changed();
 
     assert!(
-        change_tick.get() < last_change_tick.get(),
+        tick1.get() < tick2.get(),
         "client should receive the same update twice because server missed the ack"
+    );
+
+    server_app.update();
+    client_app.update();
+
+    let component = client_app
+        .world
+        .query::<Ref<BoolComponent>>()
+        .single(&client_app.world);
+    let tick3 = component.last_changed();
+
+    assert_eq!(
+        tick2.get(),
+        tick3.get(),
+        "client shouldn't receive acked update"
     );
 }
 
