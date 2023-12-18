@@ -144,9 +144,10 @@ impl ServerPlugin {
                 ..
             } = &mut *clients_info;
 
+            let min_timestamp = time.elapsed() - update_timeout;
             for client_info in info {
                 client_info.updates.retain(|_, update_info| {
-                    if update_info.timestamp - time.elapsed() < update_timeout {
+                    if update_info.timestamp < min_timestamp {
                         entity_buffer.push(mem::take(&mut update_info.entities));
                         true
                     } else {
