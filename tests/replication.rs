@@ -2,10 +2,13 @@ mod common;
 
 use std::ops::DerefMut;
 
-use bevy::prelude::*;
+use bevy::{prelude::*, utils::Duration};
 use bevy_replicon::{prelude::*, scene};
 
-use bevy_renet::renet::{transport::NetcodeClientTransport, ClientId};
+use bevy_renet::renet::{
+    transport::{NetcodeClientTransport, NetcodeServerTransport},
+    ClientId,
+};
 use serde::{Deserialize, Serialize};
 
 #[test]
@@ -602,6 +605,75 @@ fn update_replication_buffering() {
         .get::<BoolComponent>(client_entity)
         .unwrap();
     assert!(component.0, "buffered update should be applied");
+}
+
+#[test]
+fn update_replication_cleanup() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                update_timeout: Duration::ZERO, // Will cause dropping updates after each frame.
+            }),
+        ))
+        .replicate::<BoolComponent>();
+    }
+
+    common::connect(&mut server_app, &mut client_app);
+
+    let server_entity = server_app
+        .world
+        .spawn((Replication, BoolComponent(false)))
+        .id();
+
+    server_app.update();
+    client_app.update();
+
+    let mut component = server_app
+        .world
+        .get_mut::<BoolComponent>(server_entity)
+        .unwrap();
+    component.0 = true;
+
+    server_app.update();
+    client_app.update();
+
+    let component = client_app
+        .world
+        .query::<Ref<BoolComponent>>()
+        .single(&client_app.world);
+    let change_tick = component.last_changed();
+
+    // Take and drop received message to make systems miss it.
+    let client_transport = client_app.world.resource::<NetcodeClientTransport>();
+    let client_id = ClientId::from_raw(client_transport.client_id());
+    let delta = server_app.world.resource::<Time>().delta();
+    server_app
+        .world
+        .resource_scope(|world, mut server_transport: Mut<NetcodeServerTransport>| {
+            let mut server = world.resource_mut::<RenetServer>();
+            server_transport.update(delta, &mut server).unwrap();
+            server
+                .receive_message(client_id, ReplicationChannel::Reliable)
+                .unwrap();
+        });
+
+    server_app.update();
+    client_app.update();
+
+    let component = client_app
+        .world
+        .query::<Ref<BoolComponent>>()
+        .single(&client_app.world);
+    let last_change_tick = component.last_changed();
+
+    assert!(
+        change_tick.get() < last_change_tick.get(),
+        "client should receive the same update twice because server missed the ack"
+    );
 }
 
 #[test]
