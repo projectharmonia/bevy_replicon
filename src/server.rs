@@ -144,9 +144,9 @@ impl ServerPlugin {
                 client_info.updates.retain(|_, update_info| {
                     if update_info.timestamp < min_timestamp {
                         entity_buffer.push(mem::take(&mut update_info.entities));
-                        true
-                    } else {
                         false
+                    } else {
+                        true
                     }
                 });
             }
