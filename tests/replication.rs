@@ -530,13 +530,13 @@ fn update_replication_buffering() {
         .spawn((Replication, BoolComponent(false)))
         .id();
 
-    let old_tick = *server_app.world.resource::<RepliconTick>();
+    let previous_tick = *server_app.world.resource::<RepliconTick>();
 
     server_app.update();
     client_app.update();
 
     // Artificially rollback the client by 1 tick to force next received update to be buffered.
-    *client_app.world.resource_mut::<RepliconTick>() = old_tick;
+    *client_app.world.resource_mut::<RepliconTick>() = previous_tick;
     let mut component = server_app
         .world
         .get_mut::<BoolComponent>(server_entity)
@@ -546,9 +546,9 @@ fn update_replication_buffering() {
     server_app.update();
     client_app.update();
 
-    let (client_entity, component) = client_app
+    let component = client_app
         .world
-        .query::<(Entity, &BoolComponent)>()
+        .query::<&BoolComponent>()
         .single(&client_app.world);
     assert!(!component.0, "client should buffer the update");
 
@@ -560,8 +560,8 @@ fn update_replication_buffering() {
 
     let component = client_app
         .world
-        .get::<BoolComponent>(client_entity)
-        .unwrap();
+        .query::<&BoolComponent>()
+        .single(&client_app.world);
     assert!(component.0, "buffered update should be applied");
 }
 

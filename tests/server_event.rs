@@ -169,13 +169,13 @@ fn event_queue() {
 
     // Spawn entity to trigger world change.
     server_app.world.spawn((Replication, DummyComponent));
-    let old_tick = *server_app.world.resource::<RepliconTick>();
+    let previous_tick = *server_app.world.resource::<RepliconTick>();
 
     server_app.update();
     client_app.update();
 
     // Artificially rollback the client by 1 tick to force next received event to be queued.
-    *client_app.world.resource_mut::<RepliconTick>() = old_tick;
+    *client_app.world.resource_mut::<RepliconTick>() = previous_tick;
     server_app.world.send_event(ToClients {
         mode: SendMode::Broadcast,
         event: DummyEvent(Entity::PLACEHOLDER),
