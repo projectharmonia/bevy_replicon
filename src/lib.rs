@@ -35,10 +35,10 @@ app.add_plugins((
     ReplicationPlugins
         .build()
         .disable::<ClientPlugin>()
-            ReplicationPlugins.set(ServerPlugin {
-                tick_policy: TickPolicy::MaxTickRate(60),
-                ..Default::default()
-            }),
+        .set(ServerPlugin {
+            tick_policy: TickPolicy::MaxTickRate(60),
+            ..Default::default()
+        }),
 ));
 ```
 
