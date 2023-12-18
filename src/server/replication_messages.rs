@@ -1,10 +1,13 @@
-use std::mem;
+use std::{mem, time::Duration};
 
 use bevy::{ecs::component::Tick, prelude::*};
 use bevy_renet::renet::{Bytes, ClientId, RenetServer};
 
 use super::{replication_buffer::ReplicationBuffer, ClientInfo, LastChangeTick};
-use crate::replicon_core::{replicon_tick::RepliconTick, ReplicationChannel};
+use crate::{
+    replicon_core::{replicon_tick::RepliconTick, ReplicationChannel},
+    server::clients_info::UpdateInfo,
+};
 
 /// Accumulates replication messages and sends them to clients.
 ///
@@ -80,6 +83,7 @@ impl ReplicationMessages {
         mut last_change_tick: LastChangeTick,
         replicon_tick: RepliconTick,
         tick: Tick,
+        timestamp: Duration,
     ) -> bincode::Result<(LastChangeTick, Vec<ClientInfo>)> {
         if let Some((init_message, _)) = self.data.first() {
             if init_message.is_sendable() {
@@ -101,6 +105,7 @@ impl ReplicationMessages {
                 last_change_tick,
                 replicon_tick,
                 tick,
+                timestamp,
             )?;
         }
 
@@ -210,6 +215,7 @@ impl UpdateMessage {
     /// Splits message according to entities inside it and sends it to the specified client.
     ///
     /// Does nothing if there is no data to send.
+    #[allow(clippy::too_many_arguments)]
     fn send(
         &mut self,
         server: &mut RenetServer,
@@ -218,6 +224,7 @@ impl UpdateMessage {
         last_change_tick: LastChangeTick,
         replicon_tick: RepliconTick,
         tick: Tick,
+        timestamp: Duration,
     ) -> bincode::Result<()> {
         if !self.is_sendable() {
             trace!("no updates to send for client {}", client_info.id);
@@ -245,7 +252,12 @@ impl UpdateMessage {
                 slice = remaining;
                 message_size = data_size;
 
-                let update_index = client_info.register_update(tick, entities);
+                let update_info = UpdateInfo {
+                    tick,
+                    timestamp,
+                    entities,
+                };
+                let update_index = client_info.register_update(update_info);
                 bincode::serialize_into(&mut header[TICKS_SIZE..], &update_index)?;
 
                 server.send_message(
@@ -259,7 +271,12 @@ impl UpdateMessage {
         }
 
         if !slice.is_empty() {
-            let update_index = client_info.register_update(tick, entities);
+            let update_info = UpdateInfo {
+                tick,
+                timestamp,
+                entities,
+            };
+            let update_index = client_info.register_update(update_info);
             bincode::serialize_into(&mut header[TICKS_SIZE..], &update_index)?;
 
             server.send_message(

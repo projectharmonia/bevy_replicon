@@ -150,7 +150,10 @@ fn setup_apps(server_app: &mut App, client_app: &mut App) {
     for app in [server_app, client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
         ))
         .replicate::<DummyComponent>();
     }

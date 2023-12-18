@@ -2,10 +2,13 @@ mod common;
 
 use std::ops::DerefMut;
 
-use bevy::prelude::*;
+use bevy::{prelude::*, utils::Duration};
 use bevy_replicon::{prelude::*, scene};
 
-use bevy_renet::renet::{transport::NetcodeClientTransport, ClientId};
+use bevy_renet::renet::{
+    transport::{NetcodeClientTransport, NetcodeServerTransport},
+    ClientId,
+};
 use serde::{Deserialize, Serialize};
 
 #[test]
@@ -15,7 +18,10 @@ fn reset() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
         ));
     }
 
@@ -46,7 +52,10 @@ fn spawn_replication() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
         ))
         .replicate::<TableComponent>();
     }
@@ -88,7 +97,10 @@ fn client_spawn_replication() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
         ))
         .replicate::<TableComponent>();
     }
@@ -152,7 +164,10 @@ fn insert_replication() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
         ))
         .replicate::<TableComponent>()
         .replicate::<SparseSetComponent>()
@@ -207,7 +222,10 @@ fn despawn_replication() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
         ));
     }
 
@@ -254,7 +272,10 @@ fn removal_replication() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
         ))
         .replicate::<TableComponent>();
     }
@@ -298,7 +319,10 @@ fn old_entities_replication() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
         ))
         .replicate::<TableComponent>();
     }
@@ -318,7 +342,10 @@ fn update_replication() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
         ))
         .replicate::<BoolComponent>();
     }
@@ -356,7 +383,10 @@ fn big_entity_update_replication() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
         ))
         .replicate::<VecComponent>();
     }
@@ -396,7 +426,10 @@ fn many_entities_update_replication() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
         ))
         .replicate::<BoolComponent>();
     }
@@ -441,7 +474,10 @@ fn insert_update_replication() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
         ))
         .replicate::<BoolComponent>()
         .replicate::<TableComponent>();
@@ -478,7 +514,10 @@ fn despawn_update_replication() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
         ))
         .replicate::<BoolComponent>()
         .replicate::<TableComponent>();
@@ -518,7 +557,10 @@ fn update_replication_buffering() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
         ))
         .replicate::<BoolComponent>();
     }
@@ -566,6 +608,90 @@ fn update_replication_buffering() {
 }
 
 #[test]
+fn update_replication_cleanup() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                update_timeout: Duration::ZERO, // Will cause dropping updates after each frame.
+            }),
+        ))
+        .replicate::<BoolComponent>();
+    }
+
+    common::connect(&mut server_app, &mut client_app);
+
+    let server_entity = server_app
+        .world
+        .spawn((Replication, BoolComponent(false)))
+        .id();
+
+    server_app.update();
+    client_app.update();
+
+    let mut component = server_app
+        .world
+        .get_mut::<BoolComponent>(server_entity)
+        .unwrap();
+    component.0 = true;
+
+    server_app.update();
+    client_app.update();
+
+    let component = client_app
+        .world
+        .query::<Ref<BoolComponent>>()
+        .single(&client_app.world);
+    let tick1 = component.last_changed();
+
+    // Take and drop received message to make systems miss it.
+    let client_transport = client_app.world.resource::<NetcodeClientTransport>();
+    let client_id = ClientId::from_raw(client_transport.client_id());
+    let delta = server_app.world.resource::<Time>().delta();
+    server_app
+        .world
+        .resource_scope(|world, mut server_transport: Mut<NetcodeServerTransport>| {
+            let mut server = world.resource_mut::<RenetServer>();
+            server_transport.update(delta, &mut server).unwrap();
+            server
+                .receive_message(client_id, ReplicationChannel::Reliable)
+                .unwrap();
+        });
+
+    server_app.update();
+    client_app.update();
+
+    let component = client_app
+        .world
+        .query::<Ref<BoolComponent>>()
+        .single(&client_app.world);
+    let tick2 = component.last_changed();
+
+    assert!(
+        tick1.get() < tick2.get(),
+        "client should receive the same update twice because server missed the ack"
+    );
+
+    server_app.update();
+    client_app.update();
+
+    let component = client_app
+        .world
+        .query::<Ref<BoolComponent>>()
+        .single(&client_app.world);
+    let tick3 = component.last_changed();
+
+    assert_eq!(
+        tick2.get(),
+        tick3.get(),
+        "client shouldn't receive acked update"
+    );
+}
+
+#[test]
 fn replication_into_scene() {
     let mut app = App::new();
     app.add_plugins(ReplicationPlugins)
@@ -606,7 +732,10 @@ fn diagnostics() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
         ))
         .replicate::<TableComponent>();
     }

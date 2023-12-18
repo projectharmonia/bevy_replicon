@@ -36,7 +36,10 @@ fn sending_receiving() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
         ))
         .add_server_event::<DummyEvent>(EventType::Ordered);
     }
@@ -80,7 +83,10 @@ fn sending_receiving_and_mapping() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
         ))
         .add_mapped_server_event::<DummyEvent>(EventType::Ordered);
     }
@@ -119,7 +125,10 @@ fn local_resending() {
     let mut app = App::new();
     app.add_plugins((
         TimePlugin,
-        ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+        ReplicationPlugins.set(ServerPlugin {
+            tick_policy: TickPolicy::EveryFrame,
+            ..Default::default()
+        }),
     ))
     .add_server_event::<DummyEvent>(EventType::Ordered);
 
@@ -159,7 +168,10 @@ fn event_queue() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin::new(TickPolicy::EveryFrame)),
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
         ))
         .replicate::<DummyComponent>()
         .add_server_event::<DummyEvent>(EventType::Ordered);

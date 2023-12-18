@@ -34,13 +34,20 @@ use replication_messages::ReplicationMessages;
 pub const SERVER_ID: ClientId = ClientId::from_raw(0);
 
 pub struct ServerPlugin {
-    tick_policy: TickPolicy,
+    /// Tick configuration.
+    pub tick_policy: TickPolicy,
+
+    /// The time after which updates will be considered lost if an acknowledgment is not received for them.
+    ///
+    /// In practice updates will live at least `update_timeout`, and at most `2*update_timeout`.
+    pub update_timeout: Duration,
 }
 
 impl Default for ServerPlugin {
     fn default() -> Self {
         Self {
             tick_policy: TickPolicy::MaxTickRate(30),
+            update_timeout: Duration::from_secs(10),
         }
     }
 }
@@ -55,7 +62,12 @@ impl Plugin for ServerPlugin {
             .configure_sets(PostUpdate, ServerSet::Send.before(RenetSend))
             .add_systems(
                 PreUpdate,
-                (Self::handle_connections_system, Self::acks_receiving_system)
+                (
+                    Self::handle_connections_system,
+                    Self::acks_receiving_system,
+                    Self::acks_cleanup_system(self.update_timeout)
+                        .run_if(on_timer(self.update_timeout)),
+                )
                     .chain()
                     .in_set(ServerSet::Receive)
                     .run_if(resource_exists::<RenetServer>()),
@@ -97,10 +109,6 @@ impl Plugin for ServerPlugin {
 }
 
 impl ServerPlugin {
-    pub fn new(tick_policy: TickPolicy) -> Self {
-        Self { tick_policy }
-    }
-
     /// Increments current server tick which causes the server to replicate this frame.
     pub fn increment_tick(mut replicon_tick: ResMut<RepliconTick>) {
         replicon_tick.increment();
@@ -125,6 +133,28 @@ impl ServerPlugin {
         }
     }
 
+    fn acks_cleanup_system(update_timeout: Duration) -> impl FnMut(ResMut<ClientsInfo>, Res<Time>) {
+        move |mut clients_info: ResMut<ClientsInfo>, time: Res<Time>| {
+            let ClientsInfo {
+                info,
+                entity_buffer,
+                ..
+            } = &mut *clients_info;
+
+            let min_timestamp = time.elapsed().saturating_sub(update_timeout);
+            for client_info in info {
+                client_info.updates.retain(|_, update_info| {
+                    if update_info.timestamp < min_timestamp {
+                        entity_buffer.push(mem::take(&mut update_info.entities));
+                        false
+                    } else {
+                        true
+                    }
+                });
+            }
+        }
+    }
+
     fn acks_receiving_system(
         change_tick: SystemChangeTick,
         mut server: ResMut<RenetServer>,
@@ -142,8 +172,7 @@ impl ServerPlugin {
             {
                 match bincode::deserialize::<u16>(&message) {
                     Ok(update_index) => {
-                        let Some((tick, mut entities)) =
-                            client_info.update_entities.remove(&update_index)
+                        let Some(mut update_info) = client_info.updates.remove(&update_index)
                         else {
                             debug!(
                                 "received unknown update index {update_index} from client {}",
@@ -152,7 +181,7 @@ impl ServerPlugin {
                             continue;
                         };
 
-                        for entity in &entities {
+                        for entity in &update_info.entities {
                             let last_tick = client_info
                                 .ticks
                                 .get_mut(entity)
@@ -160,16 +189,17 @@ impl ServerPlugin {
 
                             // Received tick could be outdated because we bump it
                             // if we detect any insertion on the entity in `collect_changes`.
-                            if !last_tick.is_newer_than(tick, change_tick.this_run()) {
-                                *last_tick = tick;
+                            if !last_tick.is_newer_than(update_info.tick, change_tick.this_run()) {
+                                *last_tick = update_info.tick;
                             }
                         }
-                        entities.clear();
-                        entity_buffer.push(entities);
+                        update_info.entities.clear();
+                        entity_buffer.push(update_info.entities);
 
                         trace!(
-                            "client {} acknowledged an update with {tick:?}",
-                            client_info.id
+                            "client {} acknowledged an update with {:?}",
+                            client_info.id,
+                            update_info.tick,
                         );
                     }
                     Err(e) => debug!(
@@ -182,10 +212,11 @@ impl ServerPlugin {
     }
 
     /// Collects [`ReplicationMessages`] and sends them.
-    #[allow(clippy::type_complexity)]
+    #[allow(clippy::type_complexity, clippy::too_many_arguments)]
     pub(super) fn replication_sending_system(
         mut messages: Local<ReplicationMessages>,
         change_tick: SystemChangeTick,
+        mut removed_replication: RemovedComponents<Replication>,
         mut removed_ids: RemovedComponentIds,
         mut set: ParamSet<(
             &World,
@@ -194,9 +225,9 @@ impl ServerPlugin {
             ResMut<RenetServer>,
             ResMut<LastChangeTick>,
         )>,
-        mut removed_replication: RemovedComponents<Replication>,
         replication_rules: Res<ReplicationRules>,
         replicon_tick: Res<RepliconTick>,
+        time: Res<Time>,
     ) -> bincode::Result<()> {
         let info = mem::take(&mut set.p1().info); // Take ownership to avoid borrowing issues.
         messages.prepare(info, *replicon_tick)?;
@@ -219,6 +250,7 @@ impl ServerPlugin {
             last_change_tick,
             *replicon_tick,
             change_tick.this_run(),
+            time.elapsed(),
         )?;
 
         // Return borrowed data back.

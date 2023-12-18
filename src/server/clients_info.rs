@@ -1,7 +1,7 @@
 use bevy::{
     ecs::component::Tick,
     prelude::*,
-    utils::{EntityHashMap, HashMap},
+    utils::{Duration, EntityHashMap, HashMap},
 };
 use bevy_renet::renet::ClientId;
 
@@ -65,7 +65,7 @@ pub(super) struct ClientInfo {
     pub(super) id: ClientId,
     pub(super) just_connected: bool,
     pub(super) ticks: EntityHashMap<Entity, Tick>,
-    pub(super) update_entities: HashMap<u16, (Tick, Vec<Entity>)>,
+    pub(super) updates: HashMap<u16, UpdateInfo>,
     next_update_index: u16,
 }
 
@@ -75,7 +75,7 @@ impl ClientInfo {
             id,
             just_connected: true,
             ticks: Default::default(),
-            update_entities: Default::default(),
+            updates: Default::default(),
             next_update_index: Default::default(),
         }
     }
@@ -88,9 +88,9 @@ impl ClientInfo {
         self.just_connected = true;
         self.ticks.clear();
         self.next_update_index = 0;
-        self.update_entities.drain().map(|(_, (_, mut entities))| {
-            entities.clear();
-            entities
+        self.updates.drain().map(|(_, mut update_info)| {
+            update_info.entities.clear();
+            update_info.entities
         })
     }
 
@@ -98,12 +98,18 @@ impl ClientInfo {
     ///
     /// Used later to acknowledge updated entities.
     #[must_use]
-    pub(super) fn register_update(&mut self, tick: Tick, entities: Vec<Entity>) -> u16 {
+    pub(super) fn register_update(&mut self, update_info: UpdateInfo) -> u16 {
         let update_index = self.next_update_index;
-        self.update_entities.insert(update_index, (tick, entities));
+        self.updates.insert(update_index, update_info);
 
         self.next_update_index = self.next_update_index.overflowing_add(1).0;
 
         update_index
     }
+}
+
+pub(super) struct UpdateInfo {
+    pub(super) tick: Tick,
+    pub(super) timestamp: Duration,
+    pub(super) entities: Vec<Entity>,
 }
