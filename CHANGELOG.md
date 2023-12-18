@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] - 2023-12-19
+
 ### Changed
 
 - Send all component mappings, inserts, removals and despawns over reliable channel in form of deltas and component updates over unreliable channel packed by packet size. This significantly reduces the possibility of packet loss.
@@ -269,7 +271,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release after separation from [lifescape](https://github.com/lifescapegame/lifescape).
 
-[unreleased]: https://github.com/lifescapegame/bevy_replicon/compare/v0.17.0...HEAD
+[unreleased]: https://github.com/lifescapegame/bevy_replicon/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.15.1...v0.16.0
 [0.15.1]: https://github.com/lifescapegame/bevy_replicon/compare/v0.15.0...v0.15.1
