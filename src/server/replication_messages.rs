@@ -133,7 +133,7 @@ impl InitMessage {
 
     /// Clears the message and assigns tick to it.
     ///
-    /// Keeps allocated capacity of the buffer.
+    /// Keeps allocated capacity for reuse.
     fn reset(&mut self, replicon_tick: RepliconTick) -> bincode::Result<()> {
         self.buffer.reset();
         self.buffer.write(&replicon_tick)
@@ -188,7 +188,7 @@ pub(super) struct UpdateMessage {
 impl UpdateMessage {
     /// Clears the message.
     ///
-    /// Keeps allocated capacity of the buffer.
+    /// Keeps allocated capacity for reuse.
     fn reset(&mut self) -> bincode::Result<()> {
         self.entities.clear();
         self.buffer.reset();

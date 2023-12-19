@@ -14,15 +14,13 @@ pub(crate) struct ClientsInfo(Vec<ClientInfo>);
 /// Reusable buffers for [`ClientsInfo`] and [`ClientInfo`].
 #[derive(Default, Resource)]
 pub(crate) struct ClientBuffers {
-    /// Disconnected client's [`ClientsInfo`].
+    /// [`ClientsInfo`]'s of previously disconnected clients.
     ///
-    /// [`ClientInfo::clear`] is used before the insertion.
     /// Stored to reuse allocated memory.
     info: Vec<ClientInfo>,
 
     /// [`Vec`]'s from acknowledged update indexes from [`ClientInfo`].
     ///
-    /// All data is cleared before the insertion.
     /// Stored to reuse allocated capacity.
     entities: Vec<Vec<Entity>>,
 }

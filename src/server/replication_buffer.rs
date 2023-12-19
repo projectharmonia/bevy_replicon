@@ -49,7 +49,7 @@ pub(super) struct ReplicationBuffer {
 impl ReplicationBuffer {
     /// Clears the buffer.
     ///
-    /// Keeps allocated capacity.
+    /// Keeps allocated capacity for reuse.
     pub(super) fn reset(&mut self) {
         self.cursor.set_position(0);
         self.arrays_with_data = 0;
