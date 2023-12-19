@@ -19,7 +19,6 @@ use crate::{
 pub(crate) struct ReplicationMessages {
     info: Vec<ClientInfo>,
     data: Vec<(InitMessage, UpdateMessage)>,
-    clients_count: usize,
 }
 
 impl ReplicationMessages {
@@ -34,9 +33,7 @@ impl ReplicationMessages {
         info: Vec<ClientInfo>,
         replicon_tick: RepliconTick,
     ) -> bincode::Result<()> {
-        self.clients_count = info.len();
-
-        self.data.reserve(self.clients_count);
+        self.data.reserve(info.len());
 
         for index in 0..info.len() {
             if let Some((init_message, update_message)) = self.data.get_mut(index) {
@@ -55,20 +52,18 @@ impl ReplicationMessages {
 
     /// Returns iterator over messages for each client.
     pub(super) fn iter_mut(&mut self) -> impl Iterator<Item = &mut (InitMessage, UpdateMessage)> {
-        self.data.iter_mut().take(self.clients_count)
+        self.data.iter_mut().take(self.info.len())
     }
 
     /// Same as [`Self::iter_mut`], but also iterates over clients info.
     pub(super) fn iter_mut_with_info(
         &mut self,
     ) -> impl Iterator<Item = (&mut InitMessage, &mut UpdateMessage, &mut ClientInfo)> {
-        self.data
-            .iter_mut()
-            .take(self.clients_count)
-            .zip(&mut self.info)
-            .map(|((init_message, update_message), client_info)| {
+        self.data.iter_mut().zip(&mut self.info).map(
+            |((init_message, update_message), client_info)| {
                 (init_message, update_message, client_info)
-            })
+            },
+        )
     }
 
     /// Sends cached messages to clients specified in the last [`Self::prepare`] call.
@@ -91,11 +86,8 @@ impl ReplicationMessages {
             }
         }
 
-        for ((init_message, update_message), client_info) in self
-            .data
-            .iter_mut()
-            .take(self.clients_count)
-            .zip(&mut self.info)
+        for ((init_message, update_message), client_info) in
+            self.data.iter_mut().zip(&mut self.info)
         {
             init_message.send(server, client_info.id);
             update_message.send(
