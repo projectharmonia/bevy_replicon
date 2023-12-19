@@ -3,11 +3,12 @@ use std::{mem, time::Duration};
 use bevy::{ecs::component::Tick, prelude::*};
 use bevy_renet::renet::{Bytes, ClientId, RenetServer};
 
-use super::{replication_buffer::ReplicationBuffer, ClientInfo, LastChangeTick};
-use crate::{
-    replicon_core::{replicon_tick::RepliconTick, ReplicationChannel},
-    server::clients_info::UpdateInfo,
+use super::{
+    clients_info::{ClientBuffers, ClientsInfo},
+    replication_buffer::ReplicationBuffer,
+    ClientInfo, LastChangeTick,
 };
+use crate::replicon_core::{replicon_tick::RepliconTick, ReplicationChannel};
 
 /// Accumulates replication messages and sends them to clients.
 ///
@@ -17,7 +18,7 @@ use crate::{
 /// Reuses allocated memory from older messages.
 #[derive(Default)]
 pub(crate) struct ReplicationMessages {
-    info: Vec<ClientInfo>,
+    clients_info: ClientsInfo,
     data: Vec<(InitMessage, UpdateMessage)>,
 }
 
@@ -30,12 +31,12 @@ impl ReplicationMessages {
     /// and iteration methods will not include them.
     pub(super) fn prepare(
         &mut self,
-        info: Vec<ClientInfo>,
+        clients_info: ClientsInfo,
         replicon_tick: RepliconTick,
     ) -> bincode::Result<()> {
-        self.data.reserve(info.len());
+        self.data.reserve(clients_info.len());
 
-        for index in 0..info.len() {
+        for index in 0..clients_info.len() {
             if let Some((init_message, update_message)) = self.data.get_mut(index) {
                 init_message.reset(replicon_tick)?;
                 update_message.reset()?;
@@ -45,21 +46,21 @@ impl ReplicationMessages {
             }
         }
 
-        self.info = info;
+        self.clients_info = clients_info;
 
         Ok(())
     }
 
     /// Returns iterator over messages for each client.
     pub(super) fn iter_mut(&mut self) -> impl Iterator<Item = &mut (InitMessage, UpdateMessage)> {
-        self.data.iter_mut().take(self.info.len())
+        self.data.iter_mut().take(self.clients_info.len())
     }
 
     /// Same as [`Self::iter_mut`], but also iterates over clients info.
     pub(super) fn iter_mut_with_info(
         &mut self,
     ) -> impl Iterator<Item = (&mut InitMessage, &mut UpdateMessage, &mut ClientInfo)> {
-        self.data.iter_mut().zip(&mut self.info).map(
+        self.data.iter_mut().zip(self.clients_info.iter_mut()).map(
             |((init_message, update_message), client_info)| {
                 (init_message, update_message, client_info)
             },
@@ -74,12 +75,12 @@ impl ReplicationMessages {
     pub(super) fn send(
         &mut self,
         server: &mut RenetServer,
-        entity_buffer: &mut Vec<Vec<Entity>>,
+        client_buffers: &mut ClientBuffers,
         mut last_change_tick: LastChangeTick,
         replicon_tick: RepliconTick,
         tick: Tick,
         timestamp: Duration,
-    ) -> bincode::Result<(LastChangeTick, Vec<ClientInfo>)> {
+    ) -> bincode::Result<(LastChangeTick, ClientsInfo)> {
         if let Some((init_message, _)) = self.data.first() {
             if init_message.is_sendable() {
                 last_change_tick.0 = replicon_tick;
@@ -87,12 +88,12 @@ impl ReplicationMessages {
         }
 
         for ((init_message, update_message), client_info) in
-            self.data.iter_mut().zip(&mut self.info)
+            self.data.iter_mut().zip(self.clients_info.iter_mut())
         {
-            init_message.send(server, client_info.id);
+            init_message.send(server, client_info.id());
             update_message.send(
                 server,
-                entity_buffer,
+                client_buffers,
                 client_info,
                 last_change_tick,
                 replicon_tick,
@@ -101,7 +102,9 @@ impl ReplicationMessages {
             )?;
         }
 
-        Ok((last_change_tick, mem::take(&mut self.info)))
+        let clients_info = mem::take(&mut self.clients_info);
+
+        Ok((last_change_tick, clients_info))
     }
 }
 
@@ -211,7 +214,7 @@ impl UpdateMessage {
     fn send(
         &mut self,
         server: &mut RenetServer,
-        entity_buffer: &mut Vec<Vec<Entity>>,
+        client_buffers: &mut ClientBuffers,
         client_info: &mut ClientInfo,
         last_change_tick: LastChangeTick,
         replicon_tick: RepliconTick,
@@ -219,18 +222,20 @@ impl UpdateMessage {
         timestamp: Duration,
     ) -> bincode::Result<()> {
         if !self.is_sendable() {
-            trace!("no updates to send for client {}", client_info.id);
+            trace!("no updates to send for client {}", client_info.id());
             return Ok(());
         }
 
-        trace!("sending update message(s) to client {}", client_info.id);
+        trace!("sending update message(s) to client {}", client_info.id());
         const TICKS_SIZE: usize = 2 * mem::size_of::<RepliconTick>();
         let mut header = [0; TICKS_SIZE + mem::size_of::<u16>()];
         bincode::serialize_into(&mut header[..], &(*last_change_tick, replicon_tick))?;
 
         let mut slice = self.buffer.as_slice();
-        let mut entities = entity_buffer.pop().unwrap_or_default();
         let mut message_size = 0;
+        let client_id = client_info.id();
+        let (mut update_index, mut entities) =
+            client_info.register_update(client_buffers, tick, timestamp);
         for &(entity, data_size) in &self.entities {
             // Try to pack back first, then try to pack forward.
             if message_size == 0
@@ -244,35 +249,26 @@ impl UpdateMessage {
                 slice = remaining;
                 message_size = data_size;
 
-                let update_info = UpdateInfo {
-                    tick,
-                    timestamp,
-                    entities,
-                };
-                let update_index = client_info.register_update(update_info);
                 bincode::serialize_into(&mut header[TICKS_SIZE..], &update_index)?;
 
                 server.send_message(
-                    client_info.id,
+                    client_id,
                     ReplicationChannel::Unreliable,
                     Bytes::from_iter(header.into_iter().chain(message.iter().copied())),
                 );
 
-                entities = entity_buffer.pop().unwrap_or_default();
+                if !slice.is_empty() {
+                    (update_index, entities) =
+                        client_info.register_update(client_buffers, tick, timestamp);
+                }
             }
         }
 
         if !slice.is_empty() {
-            let update_info = UpdateInfo {
-                tick,
-                timestamp,
-                entities,
-            };
-            let update_index = client_info.register_update(update_info);
             bincode::serialize_into(&mut header[TICKS_SIZE..], &update_index)?;
 
             server.send_message(
-                client_info.id,
+                client_id,
                 ReplicationChannel::Unreliable,
                 Bytes::from_iter(header.into_iter().chain(slice.iter().copied())),
             );
