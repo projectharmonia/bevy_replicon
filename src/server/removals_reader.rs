@@ -30,7 +30,6 @@ pub(crate) struct RemovedComponentIds<'w, 's> {
 
     /// Removed components from previous reading.
     ///
-    /// All data is cleared before the insertion.
     /// Stored to reuse allocated capacity.
     component_buffer: Local<'s, Vec<Vec<ReplicationId>>>,
 }
@@ -49,10 +48,7 @@ impl RemovedComponentIds<'_, '_> {
         replication_rules: &ReplicationRules,
     ) -> impl Iterator<Item = (Entity, &[ReplicationId])> {
         self.component_buffer
-            .extend(self.entity_buffer.drain().map(|(_, mut components)| {
-                components.clear();
-                components
-            }));
+            .extend(self.entity_buffer.drain().map(|(_, components)| components));
 
         // Removed components are grouped by type, not by entity, so we need an intermediate container.
         for (&component_id, &replication_id) in replication_rules.get_ids() {
@@ -66,7 +62,11 @@ impl RemovedComponentIds<'_, '_> {
                 {
                     self.entity_buffer
                         .entry(entity)
-                        .or_insert_with(|| self.component_buffer.pop().unwrap_or_default())
+                        .or_insert_with(|| {
+                            let mut components = self.component_buffer.pop().unwrap_or_default();
+                            components.clear();
+                            components
+                        })
                         .push(replication_id);
                 }
             }
