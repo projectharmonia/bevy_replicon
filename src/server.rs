@@ -1,5 +1,6 @@
 pub(super) mod clients_info;
 pub(super) mod removals_reader;
+pub(super) mod replicated_archetypes_info;
 pub(super) mod replication_buffer;
 pub(super) mod replication_messages;
 
@@ -7,7 +8,6 @@ use std::{mem, time::Duration};
 
 use bevy::{
     ecs::{
-        archetype::ArchetypeId,
         component::{ComponentTicks, StorageType, Tick},
         system::SystemChangeTick,
     },
@@ -29,6 +29,7 @@ use crate::replicon_core::{
 };
 use clients_info::{ClientBuffers, ClientInfo, ClientsInfo};
 use removals_reader::RemovedComponentIds;
+use replicated_archetypes_info::ReplicatedArchetypesInfo;
 use replication_messages::ReplicationMessages;
 
 pub const SERVER_ID: ClientId = ClientId::from_raw(0);
@@ -179,6 +180,7 @@ impl ServerPlugin {
     #[allow(clippy::type_complexity, clippy::too_many_arguments)]
     pub(super) fn replication_sending_system(
         mut messages: Local<ReplicationMessages>,
+        mut archetypes_info: Local<ReplicatedArchetypesInfo>,
         change_tick: SystemChangeTick,
         mut removed_replication: RemovedComponents<Replication>,
         mut removed_ids: RemovedComponentIds,
@@ -194,11 +196,13 @@ impl ServerPlugin {
         replicon_tick: Res<RepliconTick>,
         time: Res<Time>,
     ) -> bincode::Result<()> {
+        archetypes_info.update(set.p0().archetypes(), &replication_rules);
+
         let clients_info = mem::take(&mut *set.p1()); // Take ownership to avoid borrowing issues.
         messages.prepare(clients_info, *replicon_tick)?;
 
         collect_mappings(&mut messages, &mut set.p2())?;
-        collect_changes(&mut messages, set.p0(), &change_tick, &replication_rules)?;
+        collect_changes(&mut messages, &archetypes_info, set.p0(), &change_tick)?;
         collect_despawns(&mut messages, &mut removed_replication, &mut removed_ids)?;
         collect_removals(
             &mut messages,
@@ -263,26 +267,17 @@ fn collect_mappings(
 /// since the last entity tick.
 fn collect_changes(
     messages: &mut ReplicationMessages,
+    archetypes_info: &ReplicatedArchetypesInfo,
     world: &World,
     change_tick: &SystemChangeTick,
-    replication_rules: &ReplicationRules,
 ) -> bincode::Result<()> {
     for (init_message, _) in messages.iter_mut() {
         init_message.start_array();
     }
 
-    for archetype in world
-        .archetypes()
-        .iter()
-        .filter(|archetype| archetype.id() != ArchetypeId::EMPTY)
-        .filter(|archetype| archetype.id() != ArchetypeId::INVALID)
-        .filter(|archetype| archetype.contains(replication_rules.get_marker_id()))
-    {
-        let table = world
-            .storages()
-            .tables
-            .get(archetype.table_id())
-            .expect("archetype should be valid");
+    for archetype_info in archetypes_info.iter() {
+        // SAFETY: all IDs from replicated archetypes obtained from real archetypes.
+        let archetype = unsafe { world.archetypes().get(archetype_info.id).unwrap_unchecked() };
 
         for archetype_entity in archetype.entities() {
             for (init_message, update_message) in messages.iter_mut() {
@@ -290,29 +285,25 @@ fn collect_changes(
                 update_message.start_entity_data(archetype_entity.entity())
             }
 
-            for component_id in archetype.components() {
-                let Some((replication_id, replication_info)) = replication_rules.get(component_id)
-                else {
-                    continue;
-                };
-                if archetype.contains(replication_info.ignored_id) {
-                    continue;
-                }
-
-                let storage_type = archetype
-                    .get_storage_type(component_id)
-                    .unwrap_or_else(|| panic!("{component_id:?} be in archetype"));
-
-                match storage_type {
+            for component_info in &archetype_info.components {
+                match component_info.storage_type {
                     StorageType::Table => {
-                        let column = table
-                            .get_column(component_id)
-                            .unwrap_or_else(|| panic!("{component_id:?} should belong to table"));
+                        // SAFETY: component storage and table obtained from this archetype.
+                        let column = unsafe {
+                            let table = world
+                                .storages()
+                                .tables
+                                .get(archetype.table_id())
+                                .unwrap_unchecked();
+                            table
+                                .get_column(component_info.component_id)
+                                .unwrap_unchecked()
+                        };
 
-                        // SAFETY: the table row obtained from the world state.
+                        // SAFETY: table row obtained from this archetype.
                         let ticks =
                             unsafe { column.get_ticks_unchecked(archetype_entity.table_row()) };
-                        // SAFETY: component obtained from the archetype.
+                        // SAFETY: component obtained from this archetype.
                         let component =
                             unsafe { column.get_data_unchecked(archetype_entity.table_row()) };
 
@@ -321,33 +312,35 @@ fn collect_changes(
                             archetype_entity.entity(),
                             ticks,
                             change_tick,
-                            replication_info,
-                            replication_id,
+                            &component_info.replication_info,
+                            component_info.replication_id,
                             component,
                         )?;
                     }
                     StorageType::SparseSet => {
-                        let sparse_set = world
-                            .storages()
-                            .sparse_sets
-                            .get(component_id)
-                            .unwrap_or_else(|| panic!("{component_id:?} should be in sparse set"));
+                        // SAFETY: component storage obtained from this archetype.
+                        let sparse_set = unsafe {
+                            world
+                                .storages()
+                                .sparse_sets
+                                .get(component_info.component_id)
+                                .unwrap_unchecked()
+                        };
 
                         let entity = archetype_entity.entity();
-                        let ticks = sparse_set
-                            .get_ticks(entity)
-                            .unwrap_or_else(|| panic!("{entity:?} should have {component_id:?}"));
-                        let component = sparse_set
-                            .get(entity)
-                            .unwrap_or_else(|| panic!("{entity:?} should have {component_id:?}"));
+
+                        // SAFETY: entity obtained from this archetype.
+                        let ticks = unsafe { sparse_set.get_ticks(entity).unwrap_unchecked() };
+                        // SAFETY: component obtained from this archetype.
+                        let component = unsafe { sparse_set.get(entity).unwrap_unchecked() };
 
                         collect_component_change(
                             messages,
                             entity,
                             ticks,
                             change_tick,
-                            replication_info,
-                            replication_id,
+                            &component_info.replication_info,
+                            component_info.replication_id,
                             component,
                         )?;
                     }

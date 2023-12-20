@@ -76,9 +76,9 @@ impl AppReplicationExt for App {
         };
 
         let mut replication_rules = self.world.resource_mut::<ReplicationRules>();
-        replication_rules.infos.push(replicated_component);
+        replication_rules.info.push(replicated_component);
 
-        let replication_id = ReplicationId(replication_rules.infos.len() - 1);
+        let replication_id = ReplicationId(replication_rules.info.len() - 1);
         replication_rules.ids.insert(component_id, replication_id);
 
         self
@@ -98,7 +98,7 @@ pub struct ReplicationRules {
     ids: HashMap<ComponentId, ReplicationId>,
 
     /// Meta information about components that should be replicated.
-    infos: Vec<ReplicationInfo>,
+    info: Vec<ReplicationInfo>,
 
     /// ID of [`Replication`] component.
     marker_id: ComponentId,
@@ -119,10 +119,10 @@ impl ReplicationRules {
     pub(crate) fn get(
         &self,
         component_id: ComponentId,
-    ) -> Option<(ReplicationId, &ReplicationInfo)> {
+    ) -> Option<(ReplicationId, ReplicationInfo)> {
         let replication_id = self.ids.get(&component_id).copied()?;
         // SAFETY: ID corresponds to a valid index because it obtained from `ids`.
-        let replication_info = unsafe { self.infos.get_unchecked(replication_id.0) };
+        let replication_info = unsafe { *self.info.get_unchecked(replication_id.0) };
 
         Some((replication_id, replication_info))
     }
@@ -136,14 +136,14 @@ impl ReplicationRules {
         &self,
         replication_id: ReplicationId,
     ) -> &ReplicationInfo {
-        self.infos.get_unchecked(replication_id.0)
+        self.info.get_unchecked(replication_id.0)
     }
 }
 
 impl FromWorld for ReplicationRules {
     fn from_world(world: &mut World) -> Self {
         Self {
-            infos: Default::default(),
+            info: Default::default(),
             ids: Default::default(),
             marker_id: world.init_component::<Replication>(),
             despawn_fn: despawn_recursive,
@@ -169,6 +169,7 @@ pub type RemoveComponentFn = fn(&mut EntityWorldMut, RepliconTick);
 pub type EntityDespawnFn = fn(EntityWorldMut, RepliconTick);
 
 /// Stores meta information about replicated component.
+#[derive(Clone, Copy)]
 pub(crate) struct ReplicationInfo {
     /// ID of [`Ignored<T>`] component.
     pub(crate) ignored_id: ComponentId,
