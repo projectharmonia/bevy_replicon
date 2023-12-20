@@ -51,7 +51,7 @@ impl ReplicatedArchetypesInfo {
                     component_id,
                     storage_type,
                     replication_id,
-                    replication_info,
+                    replication_info: replication_info.clone(),
                 });
             }
 

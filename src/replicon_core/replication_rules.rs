@@ -119,9 +119,9 @@ impl ReplicationRules {
     pub(crate) fn get(
         &self,
         component_id: ComponentId,
-    ) -> Option<(ReplicationId, ReplicationInfo)> {
+    ) -> Option<(ReplicationId, &ReplicationInfo)> {
         let replication_id = self.ids.get(&component_id).copied()?;
-        let replication_info = self.info[replication_id.0];
+        let replication_info = &self.info[replication_id.0];
 
         Some((replication_id, replication_info))
     }
@@ -168,7 +168,7 @@ pub type RemoveComponentFn = fn(&mut EntityWorldMut, RepliconTick);
 pub type EntityDespawnFn = fn(EntityWorldMut, RepliconTick);
 
 /// Stores meta information about replicated component.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(crate) struct ReplicationInfo {
     /// ID of [`Ignored<T>`] component.
     pub(crate) ignored_id: ComponentId,
