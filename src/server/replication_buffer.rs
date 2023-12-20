@@ -239,7 +239,7 @@ impl ReplicationBuffer {
     /// See also [`Self::start_entity_data`].
     pub(super) fn write_component(
         &mut self,
-        replication_info: &ReplicationInfo,
+        replication_info: ReplicationInfo,
         replication_id: ReplicationId,
         ptr: Ptr,
     ) -> bincode::Result<()> {

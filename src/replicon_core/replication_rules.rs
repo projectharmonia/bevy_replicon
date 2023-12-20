@@ -134,8 +134,8 @@ impl ReplicationRules {
     pub(crate) unsafe fn get_info_unchecked(
         &self,
         replication_id: ReplicationId,
-    ) -> &ReplicationInfo {
-        self.info.get_unchecked(replication_id.0)
+    ) -> ReplicationInfo {
+        *self.info.get_unchecked(replication_id.0)
     }
 }
 
