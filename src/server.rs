@@ -27,7 +27,7 @@ use crate::replicon_core::{
     replicon_tick::RepliconTick,
     ReplicationChannel,
 };
-use clients_info::{ClientInfo, ClientsInfo};
+use clients_info::{ClientBuffers, ClientInfo, ClientsInfo};
 use removals_reader::RemovedComponentIds;
 use replication_messages::ReplicationMessages;
 
@@ -56,6 +56,7 @@ impl Plugin for ServerPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((RenetServerPlugin, NetcodeServerPlugin))
             .init_resource::<ClientsInfo>()
+            .init_resource::<ClientBuffers>()
             .init_resource::<LastChangeTick>()
             .init_resource::<ClientEntityMap>()
             .configure_sets(PreUpdate, ServerSet::Receive.after(RenetReceive))
@@ -119,38 +120,30 @@ impl ServerPlugin {
         mut server_events: EventReader<ServerEvent>,
         mut entity_map: ResMut<ClientEntityMap>,
         mut clients_info: ResMut<ClientsInfo>,
+        mut client_buffers: ResMut<ClientBuffers>,
     ) {
         for event in server_events.read() {
             match *event {
                 ServerEvent::ClientDisconnected { client_id, .. } => {
                     entity_map.0.remove(&client_id);
-                    clients_info.remove(client_id);
+                    clients_info.remove(&mut client_buffers, client_id);
                 }
                 ServerEvent::ClientConnected { client_id } => {
-                    clients_info.init(client_id);
+                    clients_info.init(&mut client_buffers, client_id);
                 }
             }
         }
     }
 
-    fn acks_cleanup_system(update_timeout: Duration) -> impl FnMut(ResMut<ClientsInfo>, Res<Time>) {
-        move |mut clients_info: ResMut<ClientsInfo>, time: Res<Time>| {
-            let ClientsInfo {
-                info,
-                entity_buffer,
-                ..
-            } = &mut *clients_info;
-
+    fn acks_cleanup_system(
+        update_timeout: Duration,
+    ) -> impl FnMut(ResMut<ClientsInfo>, ResMut<ClientBuffers>, Res<Time>) {
+        move |mut clients_info: ResMut<ClientsInfo>,
+              mut client_buffers: ResMut<ClientBuffers>,
+              time: Res<Time>| {
             let min_timestamp = time.elapsed().saturating_sub(update_timeout);
-            for client_info in info {
-                client_info.updates.retain(|_, update_info| {
-                    if update_info.timestamp < min_timestamp {
-                        entity_buffer.push(mem::take(&mut update_info.entities));
-                        false
-                    } else {
-                        true
-                    }
-                });
+            for client_info in clients_info.iter_mut() {
+                client_info.remove_older_updates(&mut client_buffers, min_timestamp);
             }
         }
     }
@@ -159,52 +152,23 @@ impl ServerPlugin {
         change_tick: SystemChangeTick,
         mut server: ResMut<RenetServer>,
         mut clients_info: ResMut<ClientsInfo>,
+        mut client_buffers: ResMut<ClientBuffers>,
     ) {
-        let ClientsInfo {
-            info,
-            entity_buffer,
-            ..
-        } = &mut *clients_info;
-
-        for client_info in info.iter_mut() {
+        for client_info in clients_info.iter_mut() {
             while let Some(message) =
-                server.receive_message(client_info.id, ReplicationChannel::Reliable)
+                server.receive_message(client_info.id(), ReplicationChannel::Reliable)
             {
                 match bincode::deserialize::<u16>(&message) {
                     Ok(update_index) => {
-                        let Some(mut update_info) = client_info.updates.remove(&update_index)
-                        else {
-                            debug!(
-                                "received unknown update index {update_index} from client {}",
-                                client_info.id
-                            );
-                            continue;
-                        };
-
-                        for entity in &update_info.entities {
-                            let last_tick = client_info
-                                .ticks
-                                .get_mut(entity)
-                                .expect("tick should be inserted on any component insertion");
-
-                            // Received tick could be outdated because we bump it
-                            // if we detect any insertion on the entity in `collect_changes`.
-                            if !last_tick.is_newer_than(update_info.tick, change_tick.this_run()) {
-                                *last_tick = update_info.tick;
-                            }
-                        }
-                        update_info.entities.clear();
-                        entity_buffer.push(update_info.entities);
-
-                        trace!(
-                            "client {} acknowledged an update with {:?}",
-                            client_info.id,
-                            update_info.tick,
+                        client_info.acknowledge(
+                            &mut client_buffers,
+                            change_tick.this_run(),
+                            update_index,
                         );
                     }
                     Err(e) => debug!(
                         "unable to deserialize update index from client {}: {e}",
-                        client_info.id
+                        client_info.id()
                     ),
                 }
             }
@@ -224,13 +188,14 @@ impl ServerPlugin {
             ResMut<ClientEntityMap>,
             ResMut<RenetServer>,
             ResMut<LastChangeTick>,
+            ResMut<ClientBuffers>,
         )>,
         replication_rules: Res<ReplicationRules>,
         replicon_tick: Res<RepliconTick>,
         time: Res<Time>,
     ) -> bincode::Result<()> {
-        let info = mem::take(&mut set.p1().info); // Take ownership to avoid borrowing issues.
-        messages.prepare(info, *replicon_tick)?;
+        let clients_info = mem::take(&mut *set.p1()); // Take ownership to avoid borrowing issues.
+        messages.prepare(clients_info, *replicon_tick)?;
 
         collect_mappings(&mut messages, &mut set.p2())?;
         collect_changes(&mut messages, set.p0(), &change_tick, &replication_rules)?;
@@ -243,10 +208,10 @@ impl ServerPlugin {
         )?;
 
         let last_change_tick = *set.p4();
-        let mut entity_buffer = mem::take(&mut set.p1().entity_buffer);
-        let (last_change_tick, info) = messages.send(
+        let mut client_buffers = mem::take(&mut *set.p5());
+        let (last_change_tick, clients_info) = messages.send(
             &mut set.p3(),
-            &mut entity_buffer,
+            &mut client_buffers,
             last_change_tick,
             *replicon_tick,
             change_tick.this_run(),
@@ -254,9 +219,9 @@ impl ServerPlugin {
         )?;
 
         // Return borrowed data back.
-        set.p1().info = info;
-        set.p1().entity_buffer = entity_buffer;
+        *set.p1() = clients_info;
         *set.p4() = last_change_tick;
+        *set.p5() = client_buffers;
 
         Ok(())
     }
@@ -265,10 +230,11 @@ impl ServerPlugin {
         mut replicon_tick: ResMut<RepliconTick>,
         mut entity_map: ResMut<ClientEntityMap>,
         mut clients_info: ResMut<ClientsInfo>,
+        mut client_buffers: ResMut<ClientBuffers>,
     ) {
         *replicon_tick = Default::default();
         entity_map.0.clear();
-        clients_info.clear();
+        clients_info.clear(&mut client_buffers);
     }
 }
 
@@ -282,7 +248,7 @@ fn collect_mappings(
     for (message, _, client_info) in messages.iter_mut_with_info() {
         message.start_array();
 
-        if let Some(mappings) = entity_map.0.get_mut(&client_info.id) {
+        if let Some(mappings) = entity_map.0.get_mut(&client_info.id()) {
             for mapping in mappings.drain(..) {
                 message.write_client_mapping(&mapping)?;
             }

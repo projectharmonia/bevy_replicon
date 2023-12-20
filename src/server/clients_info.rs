@@ -1,3 +1,5 @@
+use std::mem;
+
 use bevy::{
     ecs::component::Tick,
     prelude::*,
@@ -7,65 +9,77 @@ use bevy_renet::renet::ClientId;
 
 /// Stores meta-information about connected clients.
 #[derive(Default, Resource)]
-pub(crate) struct ClientsInfo {
-    pub(super) info: Vec<ClientInfo>,
+pub(crate) struct ClientsInfo(Vec<ClientInfo>);
+
+/// Reusable buffers for [`ClientsInfo`] and [`ClientInfo`].
+#[derive(Default, Resource)]
+pub(crate) struct ClientBuffers {
+    /// [`ClientsInfo`]'s of previously disconnected clients.
+    ///
+    /// Stored to reuse allocated memory.
+    info: Vec<ClientInfo>,
 
     /// [`Vec`]'s from acknowledged update indexes from [`ClientInfo`].
     ///
-    /// All data is cleared before the insertion.
     /// Stored to reuse allocated capacity.
-    pub(super) entity_buffer: Vec<Vec<Entity>>,
-
-    /// Disconnected client's [`ClientsInfo`].
-    ///
-    /// [`ClientInfo::clear`] is used before the insertion.
-    /// Stored to reuse allocated memory.
-    info_buffer: Vec<ClientInfo>,
+    entities: Vec<Vec<Entity>>,
 }
 
 impl ClientsInfo {
+    /// Returns a mutable iterator over clients information.
+    pub(super) fn iter_mut(&mut self) -> impl Iterator<Item = &mut ClientInfo> {
+        self.0.iter_mut()
+    }
+
+    /// Returns number of connected clients.
+    pub(super) fn len(&self) -> usize {
+        self.0.len()
+    }
+
     /// Initializes a new [`ClientInfo`] for this client.
-    pub(super) fn init(&mut self, client_id: ClientId) {
-        let client_info = if let Some(mut client_info) = self.info_buffer.pop() {
-            client_info.id = client_id;
+    ///
+    /// Reuses the memory from the buffers if available.
+    pub(super) fn init(&mut self, client_buffers: &mut ClientBuffers, client_id: ClientId) {
+        let client_info = if let Some(mut client_info) = client_buffers.info.pop() {
+            client_info.reset(client_id);
             client_info
         } else {
             ClientInfo::new(client_id)
         };
 
-        self.info.push(client_info);
+        self.0.push(client_info);
     }
 
     /// Removes info for the client.
     ///
-    /// Keeps allocated memory.
-    pub(super) fn remove(&mut self, client_id: ClientId) {
+    /// Keeps allocated memory in the buffers for reuse.
+    pub(super) fn remove(&mut self, client_buffers: &mut ClientBuffers, client_id: ClientId) {
         let index = self
-            .info
+            .0
             .iter()
             .position(|info| info.id == client_id)
             .expect("clients info should contain all connected clients");
-        let mut client_info = self.info.remove(index);
-        self.entity_buffer.extend(client_info.reset());
-        self.info_buffer.push(client_info);
+        let mut client_info = self.0.remove(index);
+        client_buffers.entities.extend(client_info.drain_entities());
+        client_buffers.info.push(client_info);
     }
 
     /// Clears information for all clients.
     ///
-    /// Keeps allocated memory.
-    pub(super) fn clear(&mut self) {
-        for mut client_info in self.info.drain(..) {
-            self.entity_buffer.extend(client_info.reset());
-            self.info_buffer.push(client_info);
+    /// Keeps allocated memory in the buffers for reuse.
+    pub(super) fn clear(&mut self, client_buffers: &mut ClientBuffers) {
+        for mut client_info in self.0.drain(..) {
+            client_buffers.entities.extend(client_info.drain_entities());
+            client_buffers.info.push(client_info);
         }
     }
 }
 
 pub(super) struct ClientInfo {
-    pub(super) id: ClientId,
+    id: ClientId,
     pub(super) just_connected: bool,
     pub(super) ticks: EntityHashMap<Entity, Tick>,
-    pub(super) updates: HashMap<u16, UpdateInfo>,
+    updates: HashMap<u16, UpdateInfo>,
     next_update_index: u16,
 }
 
@@ -80,36 +94,123 @@ impl ClientInfo {
         }
     }
 
-    /// Resets all data except `id` and drains all [`Vec`]s from update entities mapping.
-    ///
-    /// Drained data will be cleared.
-    /// Keeps allocated memory.
-    fn reset(&mut self) -> impl Iterator<Item = Vec<Entity>> + '_ {
-        self.just_connected = true;
-        self.ticks.clear();
-        self.next_update_index = 0;
-        self.updates.drain().map(|(_, mut update_info)| {
-            update_info.entities.clear();
-            update_info.entities
-        })
+    // Returns associated client ID.
+    pub(super) fn id(&self) -> ClientId {
+        self.id
     }
 
-    /// Remembers `entities` and `tick` of an update message and returns its index.
+    /// Clears all entities for unacknowledged updates, returning them as an iterator.
+    ///
+    /// Keeps the allocated memory for reuse.
+    fn drain_entities(&mut self) -> impl Iterator<Item = Vec<Entity>> + '_ {
+        self.updates
+            .drain()
+            .map(|(_, update_info)| update_info.entities)
+    }
+
+    /// Resets all data.
+    ///
+    /// Keeps the allocated memory for reuse.
+    fn reset(&mut self, id: ClientId) {
+        self.id = id;
+        self.just_connected = true;
+        self.ticks.clear();
+        self.updates.clear();
+        self.next_update_index = 0;
+    }
+
+    /// Registers update at specified `tick` and `timestamp` and returns its index with entities to fill.
     ///
     /// Used later to acknowledge updated entities.
     #[must_use]
-    pub(super) fn register_update(&mut self, update_info: UpdateInfo) -> u16 {
+    pub(super) fn register_update(
+        &mut self,
+        client_buffers: &mut ClientBuffers,
+        tick: Tick,
+        timestamp: Duration,
+    ) -> (u16, &mut Vec<Entity>) {
         let update_index = self.next_update_index;
-        self.updates.insert(update_index, update_info);
-
         self.next_update_index = self.next_update_index.overflowing_add(1).0;
 
-        update_index
+        let entities = client_buffers.entities.pop().unwrap_or_default();
+        let update_info = UpdateInfo {
+            tick,
+            timestamp,
+            entities,
+        };
+        let update_info = self
+            .updates
+            .entry(update_index)
+            .insert(update_info)
+            .into_mut();
+
+        (update_index, &mut update_info.entities)
+    }
+
+    /// Marks update with the specified index as acknowledged.
+    ///
+    /// Ticks for all entities from this update will be set to the update's tick if it's higher.
+    ///
+    /// Keeps allocated memory in the buffers for reuse.
+    pub(super) fn acknowledge(
+        &mut self,
+        client_buffers: &mut ClientBuffers,
+        tick: Tick,
+        update_index: u16,
+    ) {
+        let Some(mut update_info) = self.updates.remove(&update_index) else {
+            debug!(
+                "received unknown update index {update_index} from client {}",
+                self.id
+            );
+            return;
+        };
+
+        for entity in &update_info.entities {
+            let last_tick = self
+                .ticks
+                .get_mut(entity)
+                .expect("tick should be inserted on any component insertion");
+
+            // Received tick could be outdated because we bump it
+            // if we detect any insertion on the entity in `collect_changes`.
+            if !last_tick.is_newer_than(update_info.tick, tick) {
+                *last_tick = update_info.tick;
+            }
+        }
+        update_info.entities.clear();
+        client_buffers.entities.push(update_info.entities);
+
+        trace!(
+            "client {} acknowledged an update with {:?}",
+            self.id,
+            update_info.tick,
+        );
+    }
+
+    /// Removes all updates older then `min_timestamp`.
+    ///
+    /// Keeps allocated memory in the buffers for reuse.
+    pub(super) fn remove_older_updates(
+        &mut self,
+        client_buffers: &mut ClientBuffers,
+        min_timestamp: Duration,
+    ) {
+        self.updates.retain(|_, update_info| {
+            if update_info.timestamp < min_timestamp {
+                client_buffers
+                    .entities
+                    .push(mem::take(&mut update_info.entities));
+                false
+            } else {
+                true
+            }
+        });
     }
 }
 
-pub(super) struct UpdateInfo {
-    pub(super) tick: Tick,
-    pub(super) timestamp: Duration,
-    pub(super) entities: Vec<Entity>,
+struct UpdateInfo {
+    tick: Tick,
+    timestamp: Duration,
+    entities: Vec<Entity>,
 }
