@@ -132,7 +132,8 @@ impl ClientInfo {
         let update_index = self.next_update_index;
         self.next_update_index = self.next_update_index.overflowing_add(1).0;
 
-        let entities = client_buffers.entities.pop().unwrap_or_default();
+        let mut entities = client_buffers.entities.pop().unwrap_or_default();
+        entities.clear();
         let update_info = UpdateInfo {
             tick,
             timestamp,
@@ -158,7 +159,7 @@ impl ClientInfo {
         tick: Tick,
         update_index: u16,
     ) {
-        let Some(mut update_info) = self.updates.remove(&update_index) else {
+        let Some(update_info) = self.updates.remove(&update_index) else {
             debug!(
                 "received unknown update index {update_index} from client {}",
                 self.id
@@ -178,7 +179,6 @@ impl ClientInfo {
                 *last_tick = update_info.tick;
             }
         }
-        update_info.entities.clear();
         client_buffers.entities.push(update_info.entities);
 
         trace!(
