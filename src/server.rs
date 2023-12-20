@@ -278,6 +278,14 @@ fn collect_changes(
     for archetype_info in archetypes_info.iter() {
         // SAFETY: all IDs from replicated archetypes obtained from real archetypes.
         let archetype = unsafe { world.archetypes().get(archetype_info.id).unwrap_unchecked() };
+        // SAFETY: table obtained from this archetype.
+        let table = unsafe {
+            world
+                .storages()
+                .tables
+                .get(archetype.table_id())
+                .unwrap_unchecked()
+        };
 
         for archetype_entity in archetype.entities() {
             for (init_message, update_message) in messages.iter_mut() {
@@ -288,13 +296,8 @@ fn collect_changes(
             for component_info in &archetype_info.components {
                 match component_info.storage_type {
                     StorageType::Table => {
-                        // SAFETY: component storage and table obtained from this archetype.
+                        // SAFETY: component storage obtained from this archetype.
                         let column = unsafe {
-                            let table = world
-                                .storages()
-                                .tables
-                                .get(archetype.table_id())
-                                .unwrap_unchecked();
                             table
                                 .get_column(component_info.component_id)
                                 .unwrap_unchecked()

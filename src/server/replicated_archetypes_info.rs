@@ -17,7 +17,7 @@ pub(crate) struct ReplicatedArchetypesInfo {
 }
 
 impl ReplicatedArchetypesInfo {
-    /// Returns an iterator the archetypes.
+    /// Returns an iterator over the archetypes.
     pub(super) fn iter(&self) -> impl Iterator<Item = &ReplicatedArchetypeInfo> {
         self.info.iter()
     }
