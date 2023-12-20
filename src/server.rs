@@ -315,7 +315,7 @@ fn collect_changes(
                             archetype_entity.entity(),
                             ticks,
                             change_tick,
-                            component_info.replication_info,
+                            &component_info.replication_info,
                             component_info.replication_id,
                             component,
                         )?;
@@ -342,7 +342,7 @@ fn collect_changes(
                             entity,
                             ticks,
                             change_tick,
-                            component_info.replication_info,
+                            &component_info.replication_info,
                             component_info.replication_id,
                             component,
                         )?;
@@ -385,7 +385,7 @@ fn collect_component_change(
     entity: Entity,
     ticks: ComponentTicks,
     change_tick: &SystemChangeTick,
-    replication_info: ReplicationInfo,
+    replication_info: &ReplicationInfo,
     replication_id: ReplicationId,
     component: Ptr,
 ) -> bincode::Result<()> {
