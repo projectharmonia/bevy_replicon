@@ -121,8 +121,7 @@ impl ReplicationRules {
         component_id: ComponentId,
     ) -> Option<(ReplicationId, ReplicationInfo)> {
         let replication_id = self.ids.get(&component_id).copied()?;
-        // SAFETY: ID corresponds to a valid index because it obtained from `ids`.
-        let replication_info = unsafe { *self.info.get_unchecked(replication_id.0) };
+        let replication_info = self.info[replication_id.0];
 
         Some((replication_id, replication_info))
     }
