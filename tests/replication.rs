@@ -62,7 +62,6 @@ fn spawn_replication() {
 
     common::connect(&mut server_app, &mut client_app);
 
-    server_app.world.spawn(Replication); // Empty entity that won't be replicated.
     let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
 
     server_app.update();
@@ -83,9 +82,31 @@ fn spawn_replication() {
         Some(&server_entity),
         "replicated entity on client should be mapped to a server entity"
     );
-    assert_eq!(
-        client_app.world.entities().len(),
-        1,
+}
+
+#[test]
+fn empty_spawn_replication() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ));
+    }
+
+    common::connect(&mut server_app, &mut client_app);
+
+    server_app.world.spawn(Replication);
+
+    server_app.update();
+    client_app.update();
+
+    assert!(
+        client_app.world.entities().is_empty(),
         "empty entity shouldn't be replicated"
     );
 }
