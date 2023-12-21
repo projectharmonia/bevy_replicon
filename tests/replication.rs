@@ -112,6 +112,29 @@ fn empty_spawn_replication() {
 }
 
 #[test]
+fn before_connection_spawn_replication() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<TableComponent>();
+    }
+
+    // Spawn an entity before client connected.
+    server_app.world.spawn((Replication, TableComponent));
+
+    common::connect(&mut server_app, &mut client_app);
+
+    assert_eq!(client_app.world.entities().len(), 1);
+}
+
+#[test]
 fn client_spawn_replication() {
     let mut server_app = App::new();
     let mut client_app = App::new();
@@ -331,29 +354,6 @@ fn removal_replication() {
     let client_entity = client_app.world.entity(client_entity);
     assert!(!client_entity.contains::<TableComponent>());
     assert!(client_entity.contains::<NonReplicatingComponent>());
-}
-
-#[test]
-fn old_entities_replication() {
-    let mut server_app = App::new();
-    let mut client_app = App::new();
-    for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((
-            MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
-                tick_policy: TickPolicy::EveryFrame,
-                ..Default::default()
-            }),
-        ))
-        .replicate::<TableComponent>();
-    }
-
-    // Spawn an entity before client connected.
-    server_app.world.spawn((Replication, TableComponent));
-
-    common::connect(&mut server_app, &mut client_app);
-
-    assert_eq!(client_app.world.entities().len(), 1);
 }
 
 #[test]
