@@ -312,13 +312,13 @@ fn collect_changes(
                     replication_rules.get_marker_id(),
                 )
             };
-            // If the marker was added on this tick, the entity just started replicating.
-            // It could be newly spawned entity or old entity with disabled replication
-            // and we need include even old components that was registered for replication.
+            // If the marker was added in this tick, the entity just started replicating.
+            // It could be a newly spawned entity or an old entity with just-enabled replication,
+            // so we need to include even old components that were registered for replication.
             let new_entity = marker_ticks.is_added(change_tick.last_run(), change_tick.this_run());
 
             for component_info in &archetype_info.components {
-                // SAFETY: component and storage obtained from this archetype.
+                // SAFETY: component and storage were obtained from this archetype.
                 let (component, ticks) = unsafe {
                     get_component_unchecked(
                         table,
@@ -385,7 +385,7 @@ fn collect_changes(
 ///
 /// # Safety
 ///
-/// Component should present in this archetype and have this storage type.
+/// Component should be present in this archetype and have this storage type.
 unsafe fn get_component_unchecked<'w>(
     table: &'w Table,
     sparse_sets: &'w SparseSets,
