@@ -8,7 +8,9 @@ use std::{mem, time::Duration};
 
 use bevy::{
     ecs::{
-        component::{ComponentTicks, StorageType, Tick},
+        archetype::ArchetypeEntity,
+        component::{ComponentId, ComponentTicks, StorageType, Tick},
+        storage::{SparseSets, Table},
         system::SystemChangeTick,
     },
     prelude::*,
@@ -23,7 +25,7 @@ use bevy_renet::{
 };
 
 use crate::replicon_core::{
-    replication_rules::{Replication, ReplicationId, ReplicationInfo, ReplicationRules},
+    replication_rules::{Replication, ReplicationRules},
     replicon_tick::RepliconTick,
     ReplicationChannel,
 };
@@ -287,65 +289,45 @@ fn collect_changes(
                 .unwrap_unchecked()
         };
 
-        for archetype_entity in archetype.entities() {
+        for entity in archetype.entities() {
             for (init_message, update_message) in messages.iter_mut() {
-                init_message.start_entity_data(archetype_entity.entity());
-                update_message.start_entity_data(archetype_entity.entity())
+                init_message.start_entity_data(entity.entity());
+                update_message.start_entity_data(entity.entity())
             }
 
             for component_info in &archetype_info.components {
-                match component_info.storage_type {
-                    StorageType::Table => {
-                        // SAFETY: component storage obtained from this archetype.
-                        let column = unsafe {
-                            table
-                                .get_column(component_info.component_id)
-                                .unwrap_unchecked()
-                        };
+                // SAFETY: component and storage obtained from this archetype.
+                let (component, ticks) = unsafe {
+                    get_component_unchecked(
+                        table,
+                        &world.storages().sparse_sets,
+                        entity,
+                        component_info.storage_type,
+                        component_info.component_id,
+                    )
+                };
 
-                        // SAFETY: table row obtained from this archetype.
-                        let ticks =
-                            unsafe { column.get_ticks_unchecked(archetype_entity.table_row()) };
-                        // SAFETY: component obtained from this archetype.
-                        let component =
-                            unsafe { column.get_data_unchecked(archetype_entity.table_row()) };
-
-                        collect_component_change(
-                            messages,
-                            archetype_entity.entity(),
-                            ticks,
-                            change_tick,
+                for (init_message, update_message, client_info) in messages.iter_mut_with_info() {
+                    if client_info.just_connected
+                        || ticks.is_added(change_tick.last_run(), change_tick.this_run())
+                    {
+                        init_message.write_component(
                             &component_info.replication_info,
                             component_info.replication_id,
                             component,
                         )?;
-                    }
-                    StorageType::SparseSet => {
-                        // SAFETY: component storage obtained from this archetype.
-                        let sparse_set = unsafe {
-                            world
-                                .storages()
-                                .sparse_sets
-                                .get(component_info.component_id)
-                                .unwrap_unchecked()
-                        };
-
-                        let entity = archetype_entity.entity();
-
-                        // SAFETY: entity obtained from this archetype.
-                        let ticks = unsafe { sparse_set.get_ticks(entity).unwrap_unchecked() };
-                        // SAFETY: component obtained from this archetype.
-                        let component = unsafe { sparse_set.get(entity).unwrap_unchecked() };
-
-                        collect_component_change(
-                            messages,
-                            entity,
-                            ticks,
-                            change_tick,
-                            &component_info.replication_info,
-                            component_info.replication_id,
-                            component,
-                        )?;
+                    } else {
+                        let tick = *client_info
+                            .ticks
+                            .get(&entity.entity())
+                            .expect("entity should be present after adding component");
+                        if ticks.is_changed(tick, change_tick.this_run()) {
+                            update_message.write_component(
+                                &component_info.replication_info,
+                                component_info.replication_id,
+                                component,
+                            )?;
+                        }
                     }
                 }
             }
@@ -357,7 +339,7 @@ fn collect_changes(
                     init_message.take_entity_data(update_message);
                     client_info
                         .ticks
-                        .insert(archetype_entity.entity(), change_tick.this_run());
+                        .insert(entity.entity(), change_tick.this_run());
                 } else {
                     update_message.register_entity();
                     update_message.end_entity_data()?;
@@ -376,36 +358,34 @@ fn collect_changes(
     Ok(())
 }
 
-/// Collects the component if it has been changed.
+/// Extracts component in form of [`Ptr`] and its ticks from table or sparse set based on its storage type.
 ///
-/// If the component was added since the client's last init message, it will be collected into
-/// init buffer.
-fn collect_component_change(
-    messages: &mut ReplicationMessages,
-    entity: Entity,
-    ticks: ComponentTicks,
-    change_tick: &SystemChangeTick,
-    replication_info: &ReplicationInfo,
-    replication_id: ReplicationId,
-    component: Ptr,
-) -> bincode::Result<()> {
-    for (init_message, update_message, client_info) in messages.iter_mut_with_info() {
-        if client_info.just_connected
-            || ticks.is_added(change_tick.last_run(), change_tick.this_run())
-        {
-            init_message.write_component(replication_info, replication_id, component)?;
-        } else {
-            let tick = *client_info
-                .ticks
-                .get(&entity)
-                .expect("entity should be present after adding component");
-            if ticks.is_changed(tick, change_tick.this_run()) {
-                update_message.write_component(replication_info, replication_id, component)?;
-            }
+/// # Safety
+///
+/// Component should present in this archetype and have this storage type.
+unsafe fn get_component_unchecked<'w>(
+    table: &'w Table,
+    sparse_sets: &'w SparseSets,
+    entity: &ArchetypeEntity,
+    storage_type: StorageType,
+    component_id: ComponentId,
+) -> (Ptr<'w>, ComponentTicks) {
+    match storage_type {
+        StorageType::Table => {
+            let column = table.get_column(component_id).unwrap_unchecked();
+            let component = column.get_data_unchecked(entity.table_row());
+            let ticks = column.get_ticks_unchecked(entity.table_row());
+
+            (component, ticks)
+        }
+        StorageType::SparseSet => {
+            let sparse_set = sparse_sets.get(component_id).unwrap_unchecked();
+            let component = sparse_set.get(entity.entity()).unwrap_unchecked();
+            let ticks = sparse_set.get_ticks(entity.entity()).unwrap_unchecked();
+
+            (component, ticks)
         }
     }
-
-    Ok(())
 }
 
 /// Collect entity despawns from this tick into init messages.
