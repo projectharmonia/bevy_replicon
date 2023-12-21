@@ -112,6 +112,43 @@ fn empty_spawn_replication() {
 }
 
 #[test]
+fn old_spawn_replication() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<TableComponent>();
+    }
+
+    common::connect(&mut server_app, &mut client_app);
+
+    // Spawn an entity with replicated component, but without a marker.
+    let server_entity = server_app.world.spawn(TableComponent).id();
+
+    server_app.update();
+    client_app.update();
+
+    assert!(client_app.world.entities().is_empty());
+
+    // Enable replication for previously spawned entity
+    server_app
+        .world
+        .entity_mut(server_entity)
+        .insert(Replication);
+
+    server_app.update();
+    client_app.update();
+
+    assert_eq!(client_app.world.entities().len(), 1);
+}
+
+#[test]
 fn before_connection_spawn_replication() {
     let mut server_app = App::new();
     let mut client_app = App::new();
