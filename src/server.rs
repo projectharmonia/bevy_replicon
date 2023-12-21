@@ -204,7 +204,13 @@ impl ServerPlugin {
         messages.prepare(clients_info, *replicon_tick)?;
 
         collect_mappings(&mut messages, &mut set.p2())?;
-        collect_changes(&mut messages, &archetypes_info, set.p0(), &change_tick)?;
+        collect_changes(
+            &mut messages,
+            &archetypes_info,
+            &replication_rules,
+            set.p0(),
+            &change_tick,
+        )?;
         collect_despawns(&mut messages, &mut removed_replication, &mut removed_ids)?;
         collect_removals(
             &mut messages,
@@ -270,6 +276,7 @@ fn collect_mappings(
 fn collect_changes(
     messages: &mut ReplicationMessages,
     archetypes_info: &ReplicatedArchetypesInfo,
+    replication_rules: &ReplicationRules,
     world: &World,
     change_tick: &SystemChangeTick,
 ) -> bincode::Result<()> {
@@ -295,6 +302,21 @@ fn collect_changes(
                 update_message.start_entity_data(entity.entity())
             }
 
+            // SAFETY: all replicated archetypes have marker component with table storage.
+            let (_, marker_ticks) = unsafe {
+                get_component_unchecked(
+                    table,
+                    &world.storages().sparse_sets,
+                    entity,
+                    StorageType::Table,
+                    replication_rules.get_marker_id(),
+                )
+            };
+            // If the marker was added on this tick, the entity just started replicating.
+            // It could be newly spawned entity or old entity with disabled replication
+            // and we need include even old components that was registered for replication.
+            let new_entity = marker_ticks.is_added(change_tick.last_run(), change_tick.this_run());
+
             for component_info in &archetype_info.components {
                 // SAFETY: component and storage obtained from this archetype.
                 let (component, ticks) = unsafe {
@@ -308,7 +330,8 @@ fn collect_changes(
                 };
 
                 for (init_message, update_message, client_info) in messages.iter_mut_with_info() {
-                    if client_info.just_connected
+                    if new_entity
+                        || client_info.just_connected
                         || ticks.is_added(change_tick.last_run(), change_tick.this_run())
                     {
                         init_message.write_component(
