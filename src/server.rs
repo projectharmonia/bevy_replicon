@@ -483,14 +483,23 @@ pub enum ServerSet {
     Send,
 }
 
+/// Controls how often [`RepliconTick`] is incremented on the server.
+///
+/// When [`RepliconTick`] is mutated, the server's replication
+/// system will run. This means the tick policy controls how often server state is replicated.
+///
+/// Note that component updates are replicated over the unreliable channel, so if a component update packet is lost
+/// then component updates won't be resent until the server's replication system runs again.
 pub enum TickPolicy {
-    /// Max number of updates sent from server per second. May be lower if update cycle duration is too long.
+    /// The replicon tick is incremented at most max ticks per second. In practice the tick rate may be lower if the
+    /// app's update cycle duration is too long.
     ///
-    /// By default it's 30 updates per second.
+    /// By default it's 30 ticks per second.
     MaxTickRate(u16),
-    /// Send updates from server every frame.
+    /// The replicon tick is incremented every frame.
     EveryFrame,
-    /// [`ServerSet::Send`] should be manually configured.
+    /// The user should manually configure [`ServerPlugin::increment_tick`] or manually increment
+    /// [`RepliconTick`].
     Manual,
 }
 
