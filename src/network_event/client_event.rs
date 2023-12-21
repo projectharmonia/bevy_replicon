@@ -6,7 +6,7 @@ use bevy_renet::{
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Serialize};
 
-use super::EventChannel;
+use super::ClientEventChannel;
 use crate::{
     client::{client_mapper::ServerEntityMap, ClientSet},
     network_event::EventMapper,
@@ -54,7 +54,7 @@ pub trait ClientEventAppExt {
     fn sending_reflect_system(
         mut reflect_events: EventReader<ReflectEvent>,
         mut client: ResMut<RenetClient>,
-        channel: Res<EventChannel<ReflectEvent>>,
+        channel: Res<ClientEventChannel<ReflectEvent>>,
         registry: Res<AppTypeRegistry>,
     ) {
         let registry = registry.read();
@@ -71,7 +71,7 @@ pub trait ClientEventAppExt {
     fn receiving_reflect_system(
         mut reflect_events: EventWriter<FromClient<ReflectEvent>>,
         mut server: ResMut<RenetServer>,
-        channel: Res<EventChannel<ReflectEvent>>,
+        channel: Res<ClientEventChannel<ReflectEvent>>,
         registry: Res<AppTypeRegistry>,
     ) {
         let registry = registry.read();
@@ -138,7 +138,7 @@ impl ClientEventAppExt for App {
 
         self.add_event::<T>()
             .init_resource::<Events<FromClient<T>>>()
-            .insert_resource(EventChannel::<T>::new(channel_id))
+            .insert_resource(ClientEventChannel::<T>::new(channel_id))
             .add_systems(
                 PreUpdate,
                 receiving_system
@@ -162,7 +162,7 @@ impl ClientEventAppExt for App {
 fn receiving_system<T: Event + DeserializeOwned>(
     mut client_events: EventWriter<FromClient<T>>,
     mut server: ResMut<RenetServer>,
-    channel: Res<EventChannel<T>>,
+    channel: Res<ClientEventChannel<T>>,
 ) {
     for client_id in server.clients_id() {
         while let Some(message) = server.receive_message(client_id, *channel) {
@@ -179,7 +179,7 @@ fn receiving_system<T: Event + DeserializeOwned>(
 fn sending_system<T: Event + Serialize>(
     mut events: EventReader<T>,
     mut client: ResMut<RenetClient>,
-    channel: Res<EventChannel<T>>,
+    channel: Res<ClientEventChannel<T>>,
 ) {
     for event in events.read() {
         let message = DefaultOptions::new()
@@ -194,7 +194,7 @@ fn mapping_and_sending_system<T: Event + MapNetworkEntities + Serialize>(
     mut events: ResMut<Events<T>>,
     mut client: ResMut<RenetClient>,
     entity_map: Res<ServerEntityMap>,
-    channel: Res<EventChannel<T>>,
+    channel: Res<ClientEventChannel<T>>,
 ) {
     for mut event in events.drain() {
         event.map_entities(&mut EventMapper(entity_map.to_server()));

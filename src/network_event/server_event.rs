@@ -7,7 +7,7 @@ use bincode::{DefaultOptions, Options};
 use ordered_multimap::ListOrderedMultimap;
 use serde::{de::DeserializeOwned, Serialize};
 
-use super::EventChannel;
+use super::ServerEventChannel;
 use crate::{
     client::{client_mapper::ServerEntityMap, ClientSet},
     network_event::EventMapper,
@@ -67,7 +67,7 @@ pub trait ServerEventAppExt {
         mut server: ResMut<RenetServer>,
         mut reflect_events: EventReader<ToClients<ReflectEvent>>,
         last_change_tick: Res<LastChangeTick>,
-        channel: Res<EventChannel<ReflectEvent>>,
+        channel: Res<ServerEventChannel<ReflectEvent>>,
         registry: Res<AppTypeRegistry>,
     ) {
         let registry = registry.read();
@@ -84,7 +84,7 @@ pub trait ServerEventAppExt {
         mut client: ResMut<RenetClient>,
         mut event_queue: ResMut<ServerEventQueue<ReflectEvent>>,
         replicon_tick: Res<RepliconTick>,
-        channel: Res<EventChannel<ReflectEvent>>,
+        channel: Res<ServerEventChannel<ReflectEvent>>,
         registry: Res<AppTypeRegistry>,
     ) {
         let registry = registry.read();
@@ -172,7 +172,7 @@ impl ServerEventAppExt for App {
         self.add_event::<T>()
             .init_resource::<Events<ToClients<T>>>()
             .init_resource::<ServerEventQueue<T>>()
-            .insert_resource(EventChannel::<T>::new(channel_id))
+            .insert_resource(ServerEventChannel::<T>::new(channel_id))
             .add_systems(
                 PreUpdate,
                 (queue_system::<T>, receiving_system)
@@ -220,7 +220,7 @@ fn receiving_system<T: Event + DeserializeOwned>(
     mut client: ResMut<RenetClient>,
     mut event_queue: ResMut<ServerEventQueue<T>>,
     replicon_tick: Res<RepliconTick>,
-    channel: Res<EventChannel<T>>,
+    channel: Res<ServerEventChannel<T>>,
 ) {
     while let Some(message) = client.receive_message(*channel) {
         let (tick, event) = DefaultOptions::new()
@@ -241,7 +241,7 @@ fn receiving_and_mapping_system<T: Event + MapNetworkEntities + DeserializeOwned
     mut event_queue: ResMut<ServerEventQueue<T>>,
     replicon_tick: Res<RepliconTick>,
     entity_map: Res<ServerEntityMap>,
-    channel: Res<EventChannel<T>>,
+    channel: Res<ServerEventChannel<T>>,
 ) {
     while let Some(message) = client.receive_message(*channel) {
         let (tick, mut event): (_, T) = DefaultOptions::new()
@@ -261,7 +261,7 @@ fn sending_system<T: Event + Serialize>(
     mut server: ResMut<RenetServer>,
     mut server_events: EventReader<ToClients<T>>,
     last_change_tick: Res<LastChangeTick>,
-    channel: Res<EventChannel<T>>,
+    channel: Res<ServerEventChannel<T>>,
 ) {
     for ToClients { event, mode } in server_events.read() {
         let message = DefaultOptions::new()
@@ -307,7 +307,7 @@ fn reset_system<T: Event>(mut event_queue: ResMut<ServerEventQueue<T>>) {
 /// See also [`ServerEventAppExt::add_server_event_with`]
 pub fn send<T>(
     server: &mut RenetServer,
-    channel: EventChannel<T>,
+    channel: ServerEventChannel<T>,
     mode: SendMode,
     message: Vec<u8>,
 ) {
