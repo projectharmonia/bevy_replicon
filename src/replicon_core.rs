@@ -86,7 +86,7 @@ impl NetworkChannels {
 
     /// Sets maximum usage bytes for specific client channel.
     ///
-    /// [`ReplicationChannel`] or [`EventChannel<T>`](crate::network_event::EventChannel) can be passed as `id`.
+    /// [`ReplicationChannel`] or [`ServerEventChannel<T>`](crate::network_event::ServerEventChannel) can be passed as `id`.
     /// Without calling this function, the default value will be used.
     /// See also [`Self::set_default_max_bytes`].
     pub fn set_server_max_bytes(&mut self, id: impl Into<u8>, max_bytes: usize) {

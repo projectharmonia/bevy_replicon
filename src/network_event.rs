@@ -8,14 +8,14 @@ use bevy_renet::renet::SendType;
 
 use crate::replicon_core::replication_rules::Mapper;
 
-/// Holds a channel ID for `T`.
+/// Holds a server's channel ID for `T`.
 #[derive(Resource)]
-pub struct EventChannel<T> {
+pub struct ServerEventChannel<T> {
     id: u8,
     marker: PhantomData<T>,
 }
 
-impl<T> EventChannel<T> {
+impl<T> ServerEventChannel<T> {
     fn new(id: u8) -> Self {
         Self {
             id,
@@ -24,16 +24,46 @@ impl<T> EventChannel<T> {
     }
 }
 
-impl<T> Clone for EventChannel<T> {
+impl<T> Clone for ServerEventChannel<T> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<T> Copy for EventChannel<T> {}
+impl<T> Copy for ServerEventChannel<T> {}
 
-impl<T> From<EventChannel<T>> for u8 {
-    fn from(value: EventChannel<T>) -> Self {
+impl<T> From<ServerEventChannel<T>> for u8 {
+    fn from(value: ServerEventChannel<T>) -> Self {
+        value.id
+    }
+}
+
+/// Holds a client's channel ID for `T`.
+#[derive(Resource)]
+pub struct ClientEventChannel<T> {
+    id: u8,
+    marker: PhantomData<T>,
+}
+
+impl<T> ClientEventChannel<T> {
+    fn new(id: u8) -> Self {
+        Self {
+            id,
+            marker: PhantomData,
+        }
+    }
+}
+
+impl<T> Clone for ClientEventChannel<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for ClientEventChannel<T> {}
+
+impl<T> From<ClientEventChannel<T>> for u8 {
+    fn from(value: ClientEventChannel<T>) -> Self {
         value.id
     }
 }
