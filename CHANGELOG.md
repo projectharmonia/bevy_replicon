@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Cache replicated archetypes for faster iteration.
+- Fix crash caused by registering the same type for client and server events.
 - Fix replication for entities when `Replication` component is added after spawn.
 
 ## [0.18.0] - 2023-12-19
