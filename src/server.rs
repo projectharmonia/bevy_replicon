@@ -498,7 +498,7 @@ pub enum TickPolicy {
     MaxTickRate(u16),
     /// The replicon tick is incremented every frame.
     EveryFrame,
-    /// The user should manually configure [`ServerPlugin::increment_tick()`] or manually increment
+    /// The user should manually configure [`ServerPlugin::increment_tick`] or manually increment
     /// [`RepliconTick`].
     Manual,
 }
