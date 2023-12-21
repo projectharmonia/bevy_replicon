@@ -60,9 +60,9 @@ pub fn replicate_into(scene: &mut DynamicScene, world: &World) {
         .filter(|archetype| archetype.contains(replication_rules.get_marker_id()))
     {
         let entities_offset = scene.entities.len();
-        for archetype_entity in archetype.entities() {
+        for entity in archetype.entities() {
             scene.entities.push(DynamicEntity {
-                entity: archetype_entity.entity(),
+                entity: entity.entity(),
                 components: Vec::new(),
             });
         }
