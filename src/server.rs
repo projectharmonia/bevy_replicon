@@ -1,5 +1,6 @@
 pub(super) mod clients_info;
-pub(super) mod removals_reader;
+pub(super) mod despawn_buffer;
+pub(super) mod removal_buffer;
 pub(super) mod replicated_archetypes_info;
 pub(super) mod replication_buffer;
 pub(super) mod replication_messages;
@@ -25,12 +26,11 @@ use bevy_renet::{
 };
 
 use crate::replicon_core::{
-    replication_rules::{Replication, ReplicationRules},
-    replicon_tick::RepliconTick,
-    ReplicationChannel,
+    replication_rules::ReplicationRules, replicon_tick::RepliconTick, ReplicationChannel,
 };
 use clients_info::{ClientBuffers, ClientInfo, ClientsInfo};
-use removals_reader::RemovedComponentIds;
+use despawn_buffer::{DespawnBuffer, DespawnBufferPlugin};
+use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
 use replicated_archetypes_info::ReplicatedArchetypesInfo;
 use replication_messages::ReplicationMessages;
 
@@ -57,36 +57,41 @@ impl Default for ServerPlugin {
 
 impl Plugin for ServerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins((RenetServerPlugin, NetcodeServerPlugin))
-            .init_resource::<ClientsInfo>()
-            .init_resource::<ClientBuffers>()
-            .init_resource::<LastChangeTick>()
-            .init_resource::<ClientEntityMap>()
-            .configure_sets(PreUpdate, ServerSet::Receive.after(RenetReceive))
-            .configure_sets(PostUpdate, ServerSet::Send.before(RenetSend))
-            .add_systems(
-                PreUpdate,
-                (
-                    Self::handle_connections_system,
-                    Self::acks_receiving_system,
-                    Self::acks_cleanup_system(self.update_timeout)
-                        .run_if(on_timer(self.update_timeout)),
-                )
-                    .chain()
-                    .in_set(ServerSet::Receive)
-                    .run_if(resource_exists::<RenetServer>()),
+        app.add_plugins((
+            DespawnBufferPlugin,
+            RemovalBufferPlugin,
+            RenetServerPlugin,
+            NetcodeServerPlugin,
+        ))
+        .init_resource::<ClientsInfo>()
+        .init_resource::<ClientBuffers>()
+        .init_resource::<LastChangeTick>()
+        .init_resource::<ClientEntityMap>()
+        .configure_sets(PreUpdate, ServerSet::Receive.after(RenetReceive))
+        .configure_sets(PostUpdate, ServerSet::Send.before(RenetSend))
+        .add_systems(
+            PreUpdate,
+            (
+                Self::handle_connections_system,
+                Self::acks_receiving_system,
+                Self::acks_cleanup_system(self.update_timeout)
+                    .run_if(on_timer(self.update_timeout)),
             )
-            .add_systems(
-                PostUpdate,
-                (
-                    Self::replication_sending_system
-                        .map(Result::unwrap)
-                        .in_set(ServerSet::Send)
-                        .run_if(resource_exists::<RenetServer>())
-                        .run_if(resource_changed::<RepliconTick>()),
-                    Self::reset_system.run_if(resource_removed::<RenetServer>()),
-                ),
-            );
+                .chain()
+                .in_set(ServerSet::Receive)
+                .run_if(resource_exists::<RenetServer>()),
+        )
+        .add_systems(
+            PostUpdate,
+            (
+                Self::replication_sending_system
+                    .map(Result::unwrap)
+                    .in_set(ServerSet::Send)
+                    .run_if(resource_exists::<RenetServer>())
+                    .run_if(resource_changed::<RepliconTick>()),
+                Self::reset_system.run_if(resource_removed::<RenetServer>()),
+            ),
+        );
 
         match self.tick_policy {
             TickPolicy::MaxTickRate(max_tick_rate) => {
@@ -179,20 +184,20 @@ impl ServerPlugin {
     }
 
     /// Collects [`ReplicationMessages`] and sends them.
-    #[allow(clippy::type_complexity, clippy::too_many_arguments)]
+    #[allow(clippy::type_complexity)]
     pub(super) fn replication_sending_system(
         mut messages: Local<ReplicationMessages>,
         mut archetypes_info: Local<ReplicatedArchetypesInfo>,
         change_tick: SystemChangeTick,
-        mut removed_replication: RemovedComponents<Replication>,
-        mut removed_ids: RemovedComponentIds,
         mut set: ParamSet<(
             &World,
             ResMut<ClientsInfo>,
             ResMut<ClientEntityMap>,
-            ResMut<RenetServer>,
+            ResMut<DespawnBuffer>,
+            ResMut<RemovalBuffer>,
             ResMut<LastChangeTick>,
             ResMut<ClientBuffers>,
+            ResMut<RenetServer>,
         )>,
         replication_rules: Res<ReplicationRules>,
         replicon_tick: Res<RepliconTick>,
@@ -211,18 +216,13 @@ impl ServerPlugin {
             set.p0(),
             &change_tick,
         )?;
-        collect_despawns(&mut messages, &mut removed_replication, &mut removed_ids)?;
-        collect_removals(
-            &mut messages,
-            &mut removed_ids,
-            change_tick.this_run(),
-            &replication_rules,
-        )?;
+        collect_despawns(&mut messages, &mut set.p3())?;
+        collect_removals(&mut messages, &mut set.p4(), change_tick.this_run())?;
 
-        let last_change_tick = *set.p4();
-        let mut client_buffers = mem::take(&mut *set.p5());
+        let last_change_tick = *set.p5();
+        let mut client_buffers = mem::take(&mut *set.p6());
         let (last_change_tick, clients_info) = messages.send(
-            &mut set.p3(),
+            &mut set.p7(),
             &mut client_buffers,
             last_change_tick,
             *replicon_tick,
@@ -232,8 +232,8 @@ impl ServerPlugin {
 
         // Return borrowed data back.
         *set.p1() = clients_info;
-        *set.p4() = last_change_tick;
-        *set.p5() = client_buffers;
+        *set.p5() = last_change_tick;
+        *set.p6() = client_buffers;
 
         Ok(())
     }
@@ -414,17 +414,15 @@ unsafe fn get_component_unchecked<'w>(
 /// Collect entity despawns from this tick into init messages.
 fn collect_despawns(
     messages: &mut ReplicationMessages,
-    removed_replication: &mut RemovedComponents<Replication>,
-    removed_ids: &mut RemovedComponentIds,
+    despawn_buffer: &mut DespawnBuffer,
 ) -> bincode::Result<()> {
     for (message, _) in messages.iter_mut() {
         message.start_array();
     }
 
-    for entity in removed_replication.read() {
+    for entity in despawn_buffer.drain(..) {
         for (message, _, client_info) in messages.iter_mut_with_info() {
             client_info.ticks.remove(&entity);
-            removed_ids.register_despawn(entity);
             message.write_entity(entity)?;
         }
     }
@@ -439,15 +437,14 @@ fn collect_despawns(
 /// Collects component removals from this tick into init messages.
 fn collect_removals(
     messages: &mut ReplicationMessages,
-    removed_ids: &mut RemovedComponentIds,
+    removal_buffer: &mut RemovalBuffer,
     tick: Tick,
-    replication_rules: &ReplicationRules,
 ) -> bincode::Result<()> {
     for (message, _) in messages.iter_mut() {
         message.start_array();
     }
 
-    for (entity, components) in removed_ids.read(replication_rules) {
+    for (entity, components) in removal_buffer.iter() {
         for (message, _, client_info) in messages.iter_mut_with_info() {
             message.start_entity_data(entity);
             for &replication_id in components {
@@ -457,6 +454,7 @@ fn collect_removals(
             message.end_entity_data()?;
         }
     }
+    removal_buffer.clear();
 
     for (message, _) in messages.iter_mut() {
         message.end_array()?;
