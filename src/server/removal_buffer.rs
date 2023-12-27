@@ -107,10 +107,9 @@ mod tests {
     #[test]
     fn removals() {
         let mut app = App::new();
-        app.add_plugins(RemovalBufferPlugin)
+        app.add_plugins((DespawnBufferPlugin, RemovalBufferPlugin))
             .insert_resource(RenetServer::new(Default::default()))
             .init_resource::<ReplicationRules>()
-            .init_resource::<DespawnBuffer>()
             .replicate::<DummyComponent>();
 
         app.update();
@@ -127,6 +126,27 @@ mod tests {
         removal_buffer.clear();
         assert!(removal_buffer.removals.is_empty());
         assert_eq!(removal_buffer.component_buffer.len(), 1);
+    }
+
+    #[test]
+    fn despawn_ignore() {
+        let mut app = App::new();
+        app.add_plugins((DespawnBufferPlugin, RemovalBufferPlugin))
+            .insert_resource(RenetServer::new(Default::default()))
+            .init_resource::<ReplicationRules>()
+            .replicate::<DummyComponent>();
+
+        app.update();
+
+        app.world.spawn((DummyComponent, Replication)).despawn();
+
+        app.update();
+
+        let removal_buffer = app.world.resource::<RemovalBuffer>();
+        assert!(
+            removal_buffer.removals.is_empty(),
+            "despawns shouldn't be counted as removals"
+        );
     }
 
     #[derive(Serialize, Deserialize, Component)]
