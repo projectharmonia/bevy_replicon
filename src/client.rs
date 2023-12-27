@@ -30,6 +30,12 @@ impl Plugin for ClientPlugin {
                 ClientSet::Receive.after(NetcodeClientPlugin::update_system),
             )
             .configure_sets(
+                PreUpdate,
+                ClientSet::Reset
+                    .after(NetcodeClientPlugin::update_system)
+                    .run_if(bevy_renet::client_just_disconnected()),
+            )
+            .configure_sets(
                 PostUpdate,
                 ClientSet::Send.before(NetcodeClientPlugin::send_packets),
             )
@@ -40,10 +46,7 @@ impl Plugin for ClientPlugin {
                     .in_set(ClientSet::Receive)
                     .run_if(client_connected()),
             )
-            .add_systems(
-                PostUpdate,
-                Self::reset_system.run_if(resource_removed::<RenetClient>()),
-            );
+            .add_systems(PreUpdate, Self::reset_system.in_set(ClientSet::Reset));
     }
 }
 
@@ -146,7 +149,7 @@ fn apply_replication(
     }
 
     let mut result = Ok(());
-    buffered_updates.retain(|update| {
+    buffered_updates.0.retain(|update| {
         if update.last_change_tick > replicon_tick {
             return true;
         }
@@ -265,7 +268,7 @@ fn apply_update_message(
     let (last_change_tick, message_tick, update_index) = bincode::deserialize_from(&mut cursor)?;
     if last_change_tick > replicon_tick {
         trace!("buffering update message for {replicon_tick:?}");
-        buffered_updates.push(BufferedUpdate {
+        buffered_updates.0.push(BufferedUpdate {
             last_change_tick,
             message_tick,
             message: message.slice(cursor.position() as usize..),
@@ -473,16 +476,34 @@ pub enum ClientSet {
     ///
     /// Runs in `PostUpdate`.
     Send,
+    /// Systems that reset the client.
+    ///
+    /// Runs in `PreUpdate`.
+    ///
+    /// If this set is disabled, then you need to manually clean up the client after a disconnect or when
+    /// reconnecting.
+    Reset,
 }
 
 /// Last received tick for each entity.
 ///
 /// Used to avoid applying old updates.
+///
+/// If [`ClientSet::Reset`] is disabled, then this needs to be cleaned up manually.
 #[derive(Default, Deref, DerefMut, Resource)]
-pub(super) struct ServerEntityTicks(EntityHashMap<Entity, RepliconTick>);
+pub struct ServerEntityTicks(EntityHashMap<Entity, RepliconTick>);
 
-#[derive(Default, Deref, DerefMut, Resource)]
-pub(super) struct BufferedUpdates(Vec<BufferedUpdate>);
+/// All cached [`BufferedUpdate`]s.
+///
+/// If [`ClientSet::Reset`] is disabled, then this needs to be cleaned up manually with [`Self::clear`].
+#[derive(Default, Resource)]
+pub struct BufferedUpdates(Vec<BufferedUpdate>);
+
+impl BufferedUpdates {
+    pub fn clear(&mut self) {
+        self.0.clear();
+    }
+}
 
 /// Caches a partially-deserialized entity update message that is waiting for its tick to appear in an init message.
 ///

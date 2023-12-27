@@ -36,6 +36,9 @@ impl Mapper for ClientMapper<'_> {
 }
 
 /// Maps server entities to client entities and vice versa.
+///
+/// If [`ClientSet::Reset`](crate::client::ClientSet) is disabled, then this needs to be cleaned up manually
+/// via [`Self::remove_by_client`] or [`Self::clear`].
 #[derive(Default, Resource)]
 pub struct ServerEntityMap {
     server_to_client: EntityHashMap<Entity, Entity>,
@@ -91,6 +94,17 @@ impl ServerEntityMap {
         client_entity
     }
 
+    /// Remove an entry using the client entity.
+    ///
+    /// Useful for manual cleanup, e.g. after reconnects.
+    pub fn remove_by_client(&mut self, client_entity: Entity) -> Option<Entity> {
+        let server_entity = self.client_to_server.remove(&client_entity);
+        if let Some(server_entity) = server_entity {
+            self.server_to_client.remove(&server_entity);
+        }
+        server_entity
+    }
+
     #[inline]
     pub fn to_client(&self) -> &EntityHashMap<Entity, Entity> {
         &self.server_to_client
@@ -101,7 +115,8 @@ impl ServerEntityMap {
         &self.client_to_server
     }
 
-    pub(super) fn clear(&mut self) {
+    /// Clear the map.
+    pub fn clear(&mut self) {
         self.client_to_server.clear();
         self.server_to_client.clear();
     }

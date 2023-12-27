@@ -416,7 +416,7 @@ pub mod prelude {
         client::{
             client_mapper::{ClientMapper, ServerEntityMap},
             diagnostics::{ClientDiagnosticsPlugin, ClientStats},
-            ClientPlugin, ClientSet,
+            BufferedUpdates, ClientPlugin, ClientSet, ServerEntityTicks,
         },
         network_event::{
             client_event::{ClientEventAppExt, FromClient},
