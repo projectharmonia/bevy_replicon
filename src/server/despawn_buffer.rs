@@ -6,7 +6,7 @@ use crate::replicon_core::replication_rules::Replication;
 
 /// Treats removals of [`Replication`] component as despawns and stores them into [`DespawnBuffer`] resource.
 ///
-/// Used to avoid missing events.
+/// Used to avoid missing events in case the server's tick policy is not [`TickPolicy::EveryFrame`].
 pub(super) struct DespawnBufferPlugin;
 
 impl Plugin for DespawnBufferPlugin {
