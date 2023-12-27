@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.18.2] - 2023-12-27
 
+### Changed
+
 - Fix missing removals and despawns caused by events cleanup.
 
 ## [0.18.1] - 2023-12-21
