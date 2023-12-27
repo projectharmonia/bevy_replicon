@@ -11,7 +11,7 @@ use bevy_renet::renet::RenetServer;
 
 use super::{
     despawn_buffer::{DespawnBuffer, DespawnBufferPlugin},
-    ServerSet,
+    ServerPlugin, ServerSet,
 };
 use crate::replicon_core::replication_rules::{ReplicationId, ReplicationRules};
 
@@ -26,7 +26,8 @@ impl Plugin for RemovalBufferPlugin {
             PostUpdate,
             Self::detection_system
                 .after(DespawnBufferPlugin::detection_system)
-                .before(ServerSet::Send)
+                .before(ServerPlugin::replication_sending_system)
+                .in_set(ServerSet::Send)
                 .run_if(resource_exists::<RenetServer>()),
         );
     }
