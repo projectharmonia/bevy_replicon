@@ -493,7 +493,8 @@ pub enum ClientSet {
 #[derive(Default, Deref, DerefMut, Resource)]
 pub struct ServerEntityTicks(EntityHashMap<Entity, RepliconTick>);
 
-/// All cached [`BufferedUpdate`]s.
+/// All cached buffered updates, used by the replicon client to align replication updates with initialization
+/// messages.
 ///
 /// If [`ClientSet::Reset`] is disabled, then this needs to be cleaned up manually with [`Self::clear`].
 #[derive(Default, Resource)]
