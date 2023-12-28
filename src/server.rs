@@ -332,8 +332,7 @@ fn collect_changes(
                 for (init_message, update_message, client_info) in messages.iter_mut_with_info() {
                     let must_init = new_entity || client_info.just_connected;
 
-                    if must_init || ticks.is_added(change_tick.last_run(), change_tick.this_run())
-                    {
+                    if must_init || ticks.is_added(change_tick.last_run(), change_tick.this_run()) {
                         init_message.write_component(
                             &component_info.replication_info,
                             component_info.replication_id,
