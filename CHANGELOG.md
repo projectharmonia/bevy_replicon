@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Added `ClientSet::Reset` which can be disabled by external users. Also moved the client reset system to `PreUpdate` so clients can react more promptly to resets.
+- Added `ServerEntityMap::remove_by_client()` for manual client cleanup.
+- Added `BufferedUpdates`, `ServerEntityTicks` to public API.
+
+
 ## [0.18.2] - 2023-12-27
 
 ### Changed
