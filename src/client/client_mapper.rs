@@ -94,7 +94,7 @@ impl ServerEntityMap {
         client_entity
     }
 
-    /// Remove an entry using the client entity.
+    /// Removes an entry using the client entity.
     ///
     /// Useful for manual cleanup, e.g. after reconnects.
     pub fn remove_by_client(&mut self, client_entity: Entity) -> Option<Entity> {
@@ -115,7 +115,7 @@ impl ServerEntityMap {
         &self.client_to_server
     }
 
-    /// Clear the map.
+    /// Clears the map.
     pub fn clear(&mut self) {
         self.client_to_server.clear();
         self.server_to_client.clear();
