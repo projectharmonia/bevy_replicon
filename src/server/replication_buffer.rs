@@ -211,18 +211,17 @@ impl ReplicationBuffer {
     /// See also [`Self::start_array`], [`Self::write_component`] and
     /// [`Self::write_component_id`].
     pub(super) fn end_entity_data(&mut self, save_empty: bool) -> bincode::Result<()> {
-        // abort if empty and unwanted
+        // Abort if empty and unwanted.
         if !save_empty && self.entity_data_len == 0 {
             self.cursor.set_position(self.entity_data_pos);
             return Ok(());
         }
 
-        // add entity if missing
+        // Record entity if it has not been written previously.
         if self.entity_data_len == 0 {
             self.write_data_entity()?;
         }
 
-        // finalize
         let previous_pos = self.cursor.position();
         self.cursor.set_position(self.entity_data_len_pos);
 
