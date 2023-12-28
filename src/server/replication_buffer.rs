@@ -206,27 +206,35 @@ impl ReplicationBuffer {
 
     /// Ends writing entity data by writing its length into the last remembered position.
     ///
-    /// If the entity data is empty, nothing will be written.
+    /// If the entity data is empty, nothing will be written unless `save_empty` is set to true.
     /// Increases array length if writing is done inside an array.
     /// See also [`Self::start_array`], [`Self::write_component`] and
     /// [`Self::write_component_id`].
-    pub(super) fn end_entity_data(&mut self) -> bincode::Result<()> {
-        if self.entity_data_len != 0 {
-            let previous_pos = self.cursor.position();
-            self.cursor.set_position(self.entity_data_len_pos);
-
-            bincode::serialize_into(&mut self.cursor, &self.entity_data_len)?;
-
-            self.cursor.set_position(previous_pos);
-            self.entity_data_len = 0;
-            if self.inside_array {
-                self.array_len = self
-                    .array_len
-                    .checked_add(1)
-                    .ok_or(bincode::ErrorKind::SizeLimit)?;
-            }
-        } else {
+    pub(super) fn end_entity_data(&mut self, save_empty: bool) -> bincode::Result<()> {
+        // abort if empty and unwanted
+        if !save_empty && self.entity_data_len == 0 {
             self.cursor.set_position(self.entity_data_pos);
+            return Ok(());
+        }
+
+        // add entity if missing
+        if self.entity_data_len == 0 {
+            self.write_data_entity()?;
+        }
+
+        // finalize
+        let previous_pos = self.cursor.position();
+        self.cursor.set_position(self.entity_data_len_pos);
+
+        bincode::serialize_into(&mut self.cursor, &self.entity_data_len)?;
+
+        self.cursor.set_position(previous_pos);
+        self.entity_data_len = 0;
+        if self.inside_array {
+            self.array_len = self
+                .array_len
+                .checked_add(1)
+                .ok_or(bincode::ErrorKind::SizeLimit)?;
         }
 
         Ok(())
