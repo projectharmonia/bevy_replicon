@@ -315,7 +315,8 @@ fn collect_changes(
             // If the marker was added in this tick, the entity just started replicating.
             // It could be a newly spawned entity or an old entity with just-enabled replication,
             // so we need to include even old components that were registered for replication.
-            let new_entity = marker_ticks.is_added(change_tick.last_run(), change_tick.this_run());
+            let marker_added =
+                marker_ticks.is_added(change_tick.last_run(), change_tick.this_run());
 
             for component_info in &archetype_info.components {
                 // SAFETY: component and storage were obtained from this archetype.
@@ -330,9 +331,8 @@ fn collect_changes(
                 };
 
                 for (init_message, update_message, client_info) in messages.iter_mut_with_info() {
-                    if new_entity
-                        || client_info.just_connected
-                        || ticks.is_added(change_tick.last_run(), change_tick.this_run())
+                    let new_entity = marker_added || client_info.just_connected;
+                    if new_entity || ticks.is_added(change_tick.last_run(), change_tick.this_run())
                     {
                         init_message.write_component(
                             &component_info.replication_info,
@@ -356,8 +356,9 @@ fn collect_changes(
             }
 
             for (init_message, update_message, client_info) in messages.iter_mut_with_info() {
-                if init_message.entity_data_len() != 0 {
-                    // If there is any insertion, include all updates into init message
+                let new_entity = marker_added || client_info.just_connected;
+                if new_entity || init_message.entity_data_len() != 0 {
+                    // If there is any insertion or we must initialize, include all updates into init message
                     // and bump the last acknowledged tick to keep entity updates atomic.
                     init_message.take_entity_data(update_message);
                     client_info
@@ -365,10 +366,10 @@ fn collect_changes(
                         .insert(entity.entity(), change_tick.this_run());
                 } else {
                     update_message.register_entity();
-                    update_message.end_entity_data()?;
+                    update_message.end_entity_data(false)?;
                 }
 
-                init_message.end_entity_data()?;
+                init_message.end_entity_data(new_entity)?;
             }
         }
     }
@@ -451,7 +452,7 @@ fn collect_removals(
                 client_info.ticks.insert(entity, tick);
                 message.write_replication_id(replication_id)?;
             }
-            message.end_entity_data()?;
+            message.end_entity_data(false)?;
         }
     }
     removal_buffer.clear();

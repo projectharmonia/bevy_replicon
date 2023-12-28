@@ -105,10 +105,7 @@ fn empty_spawn_replication() {
     server_app.update();
     client_app.update();
 
-    assert!(
-        client_app.world.entities().is_empty(),
-        "empty entity shouldn't be replicated"
-    );
+    assert_eq!(client_app.world.entities().len(), 1);
 }
 
 #[test]
