@@ -5,7 +5,7 @@ use bevy::{ecs::system::EntityCommands, prelude::*};
 
 use super::replication_rules::Replication;
 
-pub trait CommandNotReplicateExt {
+pub trait CommandDontReplicateExt {
     /**
     Disables replication for component `T`.
 
@@ -23,17 +23,17 @@ pub trait CommandNotReplicateExt {
     # let mut world = World::new();
     # let mut queue = CommandQueue::default();
     # let mut commands = Commands::new(&mut queue, &world);
-    commands.spawn((Replication, Transform::default())).not_replicate::<Transform>();
+    commands.spawn((Replication, Transform::default())).dont_replicate::<Transform>();
     # queue.apply(&mut world);
     ```
     */
-    fn not_replicate<T: Component>(&mut self) -> &mut Self;
+    fn dont_replicate<T: Component>(&mut self) -> &mut Self;
 }
 
-impl CommandNotReplicateExt for EntityCommands<'_, '_, '_> {
-    fn not_replicate<T: Component>(&mut self) -> &mut Self {
+impl CommandDontReplicateExt for EntityCommands<'_, '_, '_> {
+    fn dont_replicate<T: Component>(&mut self) -> &mut Self {
         self.add(|mut entity: EntityWorldMut| {
-            entity.not_replicate::<T>();
+            entity.dont_replicate::<T>();
         });
 
         self
@@ -41,16 +41,16 @@ impl CommandNotReplicateExt for EntityCommands<'_, '_, '_> {
 }
 
 pub trait EntityNotReplciateExt {
-    /// Same as [`CommandNotReplicateExt::not_replicate`], but for direct use on an entity.
-    fn not_replicate<T: Component>(&mut self) -> &mut Self;
+    /// Same as [`CommandDontReplicateExt::dont_replicate`], but for direct use on an entity.
+    fn dont_replicate<T: Component>(&mut self) -> &mut Self;
 }
 
 impl EntityNotReplciateExt for EntityWorldMut<'_> {
-    fn not_replicate<T: Component>(&mut self) -> &mut Self {
+    fn dont_replicate<T: Component>(&mut self) -> &mut Self {
         // SAFETY: world is not mutated and used only to obtain the tick without atomic synchronization.
         let tick = unsafe { self.world_mut().change_tick() };
 
-        self.insert(NotReplicate::<T>(PhantomData));
+        self.insert(DontReplicate::<T>(PhantomData));
 
         let component_name = any::type_name::<T>();
         let replication_name = any::type_name::<Replication>();
@@ -70,7 +70,7 @@ impl EntityNotReplciateExt for EntityWorldMut<'_> {
 
 /// Replication will be ignored for `T` if this component is present on the same entity.
 #[derive(Component, Debug)]
-pub(super) struct NotReplicate<T>(PhantomData<T>);
+pub(super) struct DontReplicate<T>(PhantomData<T>);
 
 #[cfg(test)]
 mod tests {
@@ -85,7 +85,7 @@ mod tests {
 
         let mut queue = CommandQueue::default();
         let mut commands = Commands::new(&mut queue, &world);
-        commands.spawn_empty().not_replicate::<Transform>();
+        commands.spawn_empty().dont_replicate::<Transform>();
         queue.apply(&mut world);
     }
 
@@ -103,7 +103,7 @@ mod tests {
 
         let mut queue = CommandQueue::default();
         let mut commands = Commands::new(&mut queue, &world);
-        commands.entity(entity).not_replicate::<Transform>();
+        commands.entity(entity).dont_replicate::<Transform>();
         queue.apply(&mut world);
     }
 }

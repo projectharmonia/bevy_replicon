@@ -135,7 +135,7 @@ marked for replication through [`AppReplicationExt::replicate()`]
 will be replicated.
 
 If you need to disable replication for specific component for specific entity,
-you can call [`CommandNotReplicateExt::not_replicate::<T>`] and replication will be skipped for `T`.
+you can call [`CommandDontReplicateExt::dont_replicate::<T>`] and replication will be skipped for `T`.
 
 ### Tick and fixed timestep games
 
@@ -422,7 +422,7 @@ pub mod prelude {
         parent_sync::{ParentSync, ParentSyncPlugin},
         renet::{RenetClient, RenetServer},
         replicon_core::{
-            not_replicate::{CommandNotReplicateExt, EntityNotReplciateExt},
+            dont_replicate::{CommandDontReplicateExt, EntityNotReplciateExt},
             replication_rules::{
                 AppReplicationExt, MapNetworkEntities, Mapper, Replication, ReplicationRules,
             },

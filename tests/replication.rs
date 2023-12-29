@@ -278,7 +278,7 @@ fn insert_replication() {
             MappedComponent(server_map_entity),
             NotReplicatedComponent,
         ))
-        .not_replicate::<NotReplicatedComponent>()
+        .dont_replicate::<NotReplicatedComponent>()
         .id();
 
     let mut entity_map = client_app.world.resource_mut::<ServerEntityMap>();
@@ -764,7 +764,7 @@ fn replication_into_scene() {
     let empty_entity = app
         .world
         .spawn((Replication, ReflectedComponent))
-        .not_replicate::<ReflectedComponent>()
+        .dont_replicate::<ReflectedComponent>()
         .id();
 
     let mut scene = DynamicScene::default();

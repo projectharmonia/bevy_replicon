@@ -4,7 +4,7 @@ use bevy::{ecs::component::ComponentId, prelude::*, ptr::Ptr, utils::HashMap};
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use super::{not_replicate::NotReplicate, replicon_tick::RepliconTick};
+use super::{dont_replicate::DontReplicate, replicon_tick::RepliconTick};
 use crate::client::client_mapper::{ClientMapper, ServerEntityMap};
 
 pub trait AppReplicationExt {
@@ -66,9 +66,9 @@ impl AppReplicationExt for App {
         C: Component,
     {
         let component_id = self.world.init_component::<C>();
-        let not_replicate_id = self.world.init_component::<NotReplicate<C>>();
+        let dont_replicate_id = self.world.init_component::<DontReplicate<C>>();
         let replicated_component = ReplicationInfo {
-            not_replicate_id,
+            dont_replicate_id,
             serialize,
             deserialize,
             remove,
@@ -169,8 +169,8 @@ pub type EntityDespawnFn = fn(EntityWorldMut, RepliconTick);
 /// Stores meta information about replicated component.
 #[derive(Clone)]
 pub(crate) struct ReplicationInfo {
-    /// ID of [`NotReplicate<T>`] component.
-    pub(crate) not_replicate_id: ComponentId,
+    /// ID of [`DontReplicate<T>`] component.
+    pub(crate) dont_replicate_id: ComponentId,
 
     /// Function that serializes component into bytes.
     pub(crate) serialize: SerializeFn,

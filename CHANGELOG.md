@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Replace `Ignored<T>` with `CommandNotReplicateExt::not_replicate`.
+- Replace `Ignored<T>` with `CommandDontReplicateExt::dont_replicate`.
 - `Replication` entities with no replicated components will now be spawned on the client anyway.
 
 ## [0.18.2] - 2023-12-27
