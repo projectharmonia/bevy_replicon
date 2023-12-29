@@ -4,7 +4,11 @@
 [![docs.rs](https://docs.rs/bevy_replicon/badge.svg)](https://docs.rs/bevy_replicon)
 [![codecov](https://codecov.io/gh/lifescapegame/bevy_replicon/branch/master/graph/badge.svg?token=N1G28NQB1L)](https://codecov.io/gh/lifescapegame/bevy_replicon)
 
-Write the same logic that works for both multiplayer and single-player. The crate provides synchronization of components and network events between the server and clients using the [Renet](https://github.com/lucaspoffo/renet) library for the [Bevy game engine](https://bevyengine.org).
+ECS-style high-level networking crate for the [Bevy game engine](https://bevyengine.org) using the [Renet](https://github.com/lucaspoffo/renet) library.
+
+The crate provides component-based replication and messaging using events.
+
+Prediction and interpolation are out of the crate's scope. But the crate is made extensible, so if your game needs it, you can implement it on top. Also check out [related crates](#Related-crates).
 
 ## Getting Started
 
