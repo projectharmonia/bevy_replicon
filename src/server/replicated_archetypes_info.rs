@@ -39,7 +39,7 @@ impl ReplicatedArchetypesInfo {
                 else {
                     continue;
                 };
-                if archetype.contains(replication_info.ignored_id) {
+                if archetype.contains(replication_info.not_replicate_id) {
                     continue;
                 }
 

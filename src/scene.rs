@@ -71,7 +71,7 @@ pub fn replicate_into(scene: &mut DynamicScene, world: &World) {
             let Some((_, replication_info)) = replication_rules.get(component_id) else {
                 continue;
             };
-            if archetype.contains(replication_info.ignored_id) {
+            if archetype.contains(replication_info.not_replicate_id) {
                 continue;
             }
 

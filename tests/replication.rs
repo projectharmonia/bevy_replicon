@@ -255,7 +255,7 @@ fn insert_replication() {
         ))
         .replicate::<TableComponent>()
         .replicate::<SparseSetComponent>()
-        .replicate::<IgnoredComponent>()
+        .replicate::<NotReplicatedComponent>()
         .replicate_mapped::<MappedComponent>();
     }
 
@@ -276,9 +276,9 @@ fn insert_replication() {
             SparseSetComponent,
             NonReplicatingComponent,
             MappedComponent(server_map_entity),
-            IgnoredComponent,
-            Ignored::<IgnoredComponent>::default(),
+            NotReplicatedComponent,
         ))
+        .not_replicate::<NotReplicatedComponent>()
         .id();
 
     let mut entity_map = client_app.world.resource_mut::<ServerEntityMap>();
@@ -292,7 +292,7 @@ fn insert_replication() {
     assert!(client_entity.contains::<SparseSetComponent>());
     assert!(client_entity.contains::<TableComponent>());
     assert!(!client_entity.contains::<NonReplicatingComponent>());
-    assert!(!client_entity.contains::<IgnoredComponent>());
+    assert!(!client_entity.contains::<NotReplicatedComponent>());
     assert_eq!(
         client_entity.get::<MappedComponent>().unwrap().0,
         client_map_entity
@@ -763,11 +763,8 @@ fn replication_into_scene() {
     let reflect_entity = app.world.spawn((Replication, ReflectedComponent)).id();
     let empty_entity = app
         .world
-        .spawn((
-            Replication,
-            ReflectedComponent,
-            Ignored::<ReflectedComponent>::default(),
-        ))
+        .spawn((Replication, ReflectedComponent))
+        .not_replicate::<ReflectedComponent>()
         .id();
 
     let mut scene = DynamicScene::default();
@@ -862,7 +859,7 @@ struct SparseSetComponent;
 struct NonReplicatingComponent;
 
 #[derive(Component, Deserialize, Serialize)]
-struct IgnoredComponent;
+struct NotReplicatedComponent;
 
 #[derive(Clone, Component, Copy, Deserialize, Serialize)]
 struct BoolComponent(bool);
