@@ -4,11 +4,11 @@
 [![docs.rs](https://docs.rs/bevy_replicon/badge.svg)](https://docs.rs/bevy_replicon)
 [![codecov](https://codecov.io/gh/lifescapegame/bevy_replicon/branch/master/graph/badge.svg?token=N1G28NQB1L)](https://codecov.io/gh/lifescapegame/bevy_replicon)
 
-ECS-style high-level networking crate for the [Bevy game engine](https://bevyengine.org) using the [Renet](https://github.com/lucaspoffo/renet) library.
+ECS-focused high-level networking crate for the [Bevy game engine](https://bevyengine.org) using the [Renet](https://github.com/lucaspoffo/renet) library.
 
-The crate provides component-based replication and messaging using events.
+The crate provides component-oriented world state replication and exposes an events-based messaging API.
 
-Prediction and interpolation are out of the crate's scope. But the crate is made extensible, so if your game needs it, you can implement it on top. Also check out [related crates](#Related-crates).
+Prediction and interpolation are not implemented in this crate, but the crate API is designed to be extensible so if your game needs something, you can implement it on top. Also check out [related crates](#Related-crates).
 
 ## Getting Started
 
