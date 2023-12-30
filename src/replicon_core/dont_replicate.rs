@@ -9,11 +9,11 @@ pub trait CommandDontReplicateExt {
     /**
     Disables replication for component `T`.
 
-    Should only be called on the entity for which [`Replication`] was inserted at this tick.
+    May only be called on an entity if  [`Replication`] was inserted on it this tick.
 
     # Panics
 
-    Panics if called on an entity without [`Replication`] or if it was inserted on a different tick.
+    Panics if called on an entity without [`Replication`] or if [`Replication`] was inserted in a different tick.
 
     # Examples
 

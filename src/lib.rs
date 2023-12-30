@@ -134,8 +134,8 @@ component. Just insert it to the entity you want to replicate. Only components
 marked for replication through [`AppReplicationExt::replicate()`]
 will be replicated.
 
-If you need to disable replication for specific component for specific entity,
-you can call [`CommandDontReplicateExt::dont_replicate::<T>`] and replication will be skipped for `T`.
+If you need to disable replication for a specific component on an entity,
+you can call [`CommandDontReplicateExt::dont_replicate::<T>`] on it and replication will be skipped for `T`.
 
 ### Tick and fixed timestep games
 
