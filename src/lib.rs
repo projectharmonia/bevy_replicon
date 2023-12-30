@@ -134,8 +134,8 @@ component. Just insert it to the entity you want to replicate. Only components
 marked for replication through [`AppReplicationExt::replicate()`]
 will be replicated.
 
-If you need to disable replication for specific component for specific entity,
-you can insert [`Ignored<T>`] component and replication will be skipped for `T`.
+If you need to disable replication for a specific component on an entity,
+you can call [`CommandDontReplicateExt::dont_replicate::<T>`] on it and replication will be skipped for `T`.
 
 ### Tick and fixed timestep games
 
@@ -205,10 +205,6 @@ struct Player;
 This pairs nicely with server state serialization and keeps saves clean.
 You can use [`replicate_into`](scene::replicate_into) to
 fill `DynamicScene` with replicated entities and their components.
-
-The mentioned [`Ignored<T>`] component is an exception.
-It needs to be inserted before [`ServerSet::Send`] in `PostUpdate` on the server.
-So you will need a separate initialization system for it.
 
 ### Component relations
 
@@ -426,9 +422,9 @@ pub mod prelude {
         parent_sync::{ParentSync, ParentSyncPlugin},
         renet::{RenetClient, RenetServer},
         replicon_core::{
+            dont_replicate::{CommandDontReplicateExt, EntityDontReplicateExt},
             replication_rules::{
-                AppReplicationExt, Ignored, MapNetworkEntities, Mapper, Replication,
-                ReplicationRules,
+                AppReplicationExt, MapNetworkEntities, Mapper, Replication, ReplicationRules,
             },
             replicon_tick::RepliconTick,
             NetworkChannels, ReplicationChannel, RepliconCorePlugin,

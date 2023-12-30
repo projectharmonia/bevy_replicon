@@ -1,17 +1,16 @@
-use std::{io::Cursor, marker::PhantomData};
+use std::io::Cursor;
 
 use bevy::{ecs::component::ComponentId, prelude::*, ptr::Ptr, utils::HashMap};
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use super::replicon_tick::RepliconTick;
+use super::{dont_replicate::DontReplicate, replicon_tick::RepliconTick};
 use crate::client::client_mapper::{ClientMapper, ServerEntityMap};
 
 pub trait AppReplicationExt {
     /// Marks component for replication.
     ///
     /// Component will be serialized as is using bincode.
-    /// It also registers [`Ignored<T>`] that can be used to exclude the component from replication.
     fn replicate<C>(&mut self) -> &mut Self
     where
         C: Component + Serialize + DeserializeOwned;
@@ -67,9 +66,9 @@ impl AppReplicationExt for App {
         C: Component,
     {
         let component_id = self.world.init_component::<C>();
-        let ignored_id = self.world.init_component::<Ignored<C>>();
+        let dont_replicate_id = self.world.init_component::<DontReplicate<C>>();
         let replicated_component = ReplicationInfo {
-            ignored_id,
+            dont_replicate_id,
             serialize,
             deserialize,
             remove,
@@ -170,8 +169,8 @@ pub type EntityDespawnFn = fn(EntityWorldMut, RepliconTick);
 /// Stores meta information about replicated component.
 #[derive(Clone)]
 pub(crate) struct ReplicationInfo {
-    /// ID of [`Ignored<T>`] component.
-    pub(crate) ignored_id: ComponentId,
+    /// ID of [`DontReplicate<T>`] component.
+    pub(crate) dont_replicate_id: ComponentId,
 
     /// Function that serializes component into bytes.
     pub(crate) serialize: SerializeFn,
@@ -187,16 +186,6 @@ pub(crate) struct ReplicationInfo {
 #[derive(Component, Clone, Copy, Default, Reflect, Debug)]
 #[reflect(Component)]
 pub struct Replication;
-
-/// Replication will be ignored for `T` if this component is present on the same entity.
-#[derive(Component, Debug)]
-pub struct Ignored<T>(PhantomData<T>);
-
-impl<T> Default for Ignored<T> {
-    fn default() -> Self {
-        Self(PhantomData)
-    }
-}
 
 /// Same as [`ComponentId`], but consistent between server and clients.
 ///
