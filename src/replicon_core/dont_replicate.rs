@@ -40,12 +40,12 @@ impl CommandDontReplicateExt for EntityCommands<'_, '_, '_> {
     }
 }
 
-pub trait EntityNotReplciateExt {
+pub trait EntityDontReplicateExt {
     /// Same as [`CommandDontReplicateExt::dont_replicate`], but for direct use on an entity.
     fn dont_replicate<T: Component>(&mut self) -> &mut Self;
 }
 
-impl EntityNotReplciateExt for EntityWorldMut<'_> {
+impl EntityDontReplicateExt for EntityWorldMut<'_> {
     fn dont_replicate<T: Component>(&mut self) -> &mut Self {
         // SAFETY: world is not mutated and used only to obtain the tick without atomic synchronization.
         let tick = unsafe { self.world_mut().change_tick() };

@@ -422,7 +422,7 @@ pub mod prelude {
         parent_sync::{ParentSync, ParentSyncPlugin},
         renet::{RenetClient, RenetServer},
         replicon_core::{
-            dont_replicate::{CommandDontReplicateExt, EntityNotReplciateExt},
+            dont_replicate::{CommandDontReplicateExt, EntityDontReplicateExt},
             replication_rules::{
                 AppReplicationExt, MapNetworkEntities, Mapper, Replication, ReplicationRules,
             },
