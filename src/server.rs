@@ -4,6 +4,7 @@ pub(super) mod removal_buffer;
 pub(super) mod replicated_archetypes_info;
 pub(super) mod replication_buffer;
 pub(super) mod replication_messages;
+pub(super) mod replicaton_buffer2;
 
 use std::{mem, time::Duration};
 
