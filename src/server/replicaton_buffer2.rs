@@ -192,15 +192,11 @@ impl ReplicationSlices {
         buffer: &mut ReplicationBuffer,
         mapping: &ClientMapping,
     ) -> bincode::Result<()> {
-        if let Some(range) = buffer.current_range() {
-            self.extend_or_push(range);
-        } else {
-            let begin = buffer.start_range();
-            serialize_entity(&mut buffer.cursor, mapping.server_entity)?;
-            serialize_entity(&mut buffer.cursor, mapping.client_entity)?;
-            let end = buffer.position();
-            self.ranges.push(begin..end);
-        }
+        let begin = buffer.start_range();
+        serialize_entity(&mut buffer.cursor, mapping.server_entity)?;
+        serialize_entity(&mut buffer.cursor, mapping.client_entity)?;
+        let end = buffer.position();
+        self.ranges.push(begin..end);
 
         Ok(())
     }
