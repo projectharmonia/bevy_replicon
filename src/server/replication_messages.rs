@@ -40,30 +40,19 @@ impl ReplicationMessages {
     /// Creates new messages if the number of clients is bigger then the number of allocated messages.
     /// If there are more messages than the number of clients, then the extra messages remain untouched
     /// and iteration methods will not include them.
-    pub(super) fn prepare(
-        &mut self,
-        buffer: &mut ReplicationBuffer,
-        clients_info: ClientsInfo,
-        replicon_tick: RepliconTick,
-    ) -> bincode::Result<()> {
+    pub(super) fn prepare(&mut self, clients_info: ClientsInfo) {
         self.data.reserve(clients_info.len());
 
         for index in 0..clients_info.len() {
             if let Some((init_message, update_message)) = self.data.get_mut(index) {
-                init_message.reset(replicon_tick, buffer)?;
-                update_message.reset()?;
+                init_message.reset();
+                update_message.reset();
             } else {
-                self.data.push((
-                    InitMessage::new(replicon_tick, buffer)?,
-                    UpdateMessage::default(),
-                ));
+                self.data.push(Default::default());
             }
         }
-        buffer.end_write();
 
         self.clients_info = clients_info;
-
-        Ok(())
     }
 
     /// Returns iterator over messages for each client.
@@ -107,7 +96,7 @@ impl ReplicationMessages {
         for ((init_message, update_message), client_info) in
             self.data.iter_mut().zip(self.clients_info.iter_mut())
         {
-            init_message.send(buffer, server, client_info.id());
+            init_message.send(buffer, server, replicon_tick, client_info.id())?;
             update_message.send(
                 buffer,
                 server,
@@ -133,6 +122,7 @@ impl ReplicationMessages {
 /// Sent over [`ReplicationChannel::Reliable`] channel.
 ///
 /// See also [Limits](../index.html#limits)
+#[derive(Default)]
 pub(super) struct InitMessage {
     /// Slices of serialized data in form of ranges that points to [`ReplicationBuffer`].
     ranges: Vec<Range<usize>>,
@@ -154,40 +144,16 @@ pub(super) struct InitMessage {
 }
 
 impl InitMessage {
-    /// Creates a new message for the specified tick.
-    fn new(replicon_tick: RepliconTick, buffer: &mut ReplicationBuffer) -> bincode::Result<Self> {
-        let ranges =
-            vec![buffer.get_or_write(|cursor| bincode::serialize_into(cursor, &replicon_tick))?];
-
-        Ok(Self {
-            ranges,
-            array_index: Default::default(),
-            array_len: Default::default(),
-            trailing_empty_arrays: Default::default(),
-            entity_data_index: Default::default(),
-            entity_data_size: Default::default(),
-        })
-    }
-
     /// Clears the message and assigns tick to it.
     ///
     /// Keeps allocated capacity for reuse.
-    fn reset(
-        &mut self,
-        replicon_tick: RepliconTick,
-        buffer: &mut ReplicationBuffer,
-    ) -> bincode::Result<()> {
-        let range =
-            buffer.get_or_write(|cursor| bincode::serialize_into(cursor, &replicon_tick))?;
+    fn reset(&mut self) {
         self.ranges.clear();
-        self.ranges.push(range);
         self.array_index = 0;
         self.array_len = 0;
         self.trailing_empty_arrays = 0;
         self.entity_data_index = 0;
         self.entity_data_size = 0;
-
-        Ok(())
     }
 
     /// Returns size in bytes of the current entity data.
@@ -377,43 +343,38 @@ impl InitMessage {
         update_message.entity_data_size = 0;
     }
 
-    /// Crops empty arrays at the end.
-    ///
-    /// Should only be called after all arrays have been written, because
-    /// arrays removed somewhere the middle cannot be detected during deserialization.
-    fn trim_empty_arrays(&mut self) {
-        self.ranges
-            .truncate(self.ranges.len() - self.trailing_empty_arrays);
-    }
-
     /// Returns `true` is message contains any written data.
     fn is_empty(&self) -> bool {
-        // Always contains one range for the tick.
-        self.ranges.len() - self.trailing_empty_arrays == 1
+        self.ranges.len() - self.trailing_empty_arrays == 0
     }
 
     /// Trims empty arrays from the message and sends it to the specified client.
     ///
     /// Does nothing if there is no data to send.
     fn send(
-        &mut self,
+        &self,
         buffer: &mut ReplicationBuffer,
         server: &mut RenetServer,
+        replicon_tick: RepliconTick,
         client_id: ClientId,
-    ) {
+    ) -> bincode::Result<()> {
         if self.is_empty() {
             trace!("no init data to send for client {client_id}");
-            return;
+            return Ok(());
         }
 
-        self.trim_empty_arrays();
+        let mut header = [0; mem::size_of::<RepliconTick>()];
+        bincode::serialize_into(&mut header[..], &replicon_tick)?;
+        let ranges = &self.ranges[..self.ranges.len() - self.trailing_empty_arrays];
 
         trace!("sending init message to client {client_id}");
         server.send_message(
             client_id,
             ReplicationChannel::Reliable,
-            Bytes::from_iter(buffer.iter_ranges(&self.ranges)),
+            Bytes::from_iter(header.into_iter().chain(buffer.iter_ranges(ranges))),
         );
+
+        Ok(())
     }
 }
 
@@ -447,13 +408,11 @@ impl UpdateMessage {
     /// Clears the message.
     ///
     /// Keeps allocated capacity for reuse.
-    fn reset(&mut self) -> bincode::Result<()> {
+    fn reset(&mut self) {
         self.entities.clear();
         self.ranges.clear();
         self.entity_data_index = 0;
         self.entity_data_size = 0;
-
-        Ok(())
     }
 
     /// Starts writing entity and its data size as an array element by preallocating a range for it.

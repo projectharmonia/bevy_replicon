@@ -208,7 +208,7 @@ impl ServerPlugin {
         archetypes_info.update(set.p0().archetypes(), &replication_rules);
 
         let clients_info = mem::take(&mut *set.p1()); // Take ownership to avoid borrowing issues.
-        messages.prepare(&mut buffer, clients_info, *replicon_tick)?;
+        messages.prepare(clients_info);
 
         collect_mappings(&mut messages, &mut buffer, &mut set.p2())?;
         collect_changes(
