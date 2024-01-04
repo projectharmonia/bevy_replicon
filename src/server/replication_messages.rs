@@ -1,14 +1,25 @@
-use std::{mem, time::Duration};
+use std::{
+    io::Cursor,
+    mem,
+    ops::{DerefMut, Range},
+    time::Duration,
+};
 
-use bevy::{ecs::component::Tick, prelude::*};
+use bevy::{ecs::component::Tick, prelude::*, ptr::Ptr};
 use bevy_renet::renet::{Bytes, ClientId, RenetServer};
+use bincode::{DefaultOptions, Options};
+use varint_rs::VarintWriter;
 
 use super::{
     clients_info::{ClientBuffers, ClientsInfo},
     replication_buffer::ReplicationBuffer,
-    ClientInfo, LastChangeTick,
+    ClientInfo, ClientMapping, LastChangeTick,
 };
-use crate::replicon_core::{replicon_tick::RepliconTick, ReplicationChannel};
+use crate::replicon_core::{
+    replication_rules::{ReplicationId, ReplicationInfo},
+    replicon_tick::RepliconTick,
+    ReplicationChannel,
+};
 
 /// Accumulates replication messages and sends them to clients.
 ///
@@ -31,6 +42,7 @@ impl ReplicationMessages {
     /// and iteration methods will not include them.
     pub(super) fn prepare(
         &mut self,
+        buffer: &mut ReplicationBuffer,
         clients_info: ClientsInfo,
         replicon_tick: RepliconTick,
     ) -> bincode::Result<()> {
@@ -38,13 +50,16 @@ impl ReplicationMessages {
 
         for index in 0..clients_info.len() {
             if let Some((init_message, update_message)) = self.data.get_mut(index) {
-                init_message.reset(replicon_tick)?;
+                init_message.reset(replicon_tick, buffer)?;
                 update_message.reset()?;
             } else {
-                self.data
-                    .push((InitMessage::new(replicon_tick)?, UpdateMessage::default()));
+                self.data.push((
+                    InitMessage::new(replicon_tick, buffer)?,
+                    UpdateMessage::default(),
+                ));
             }
         }
+        buffer.end_write();
 
         self.clients_info = clients_info;
 
@@ -72,8 +87,10 @@ impl ReplicationMessages {
     /// Returns the server's last change tick, which will equal the latest replicon tick if any init
     /// messages were sent to clients. If only update messages were sent (or no messages at all) then
     /// it will equal the input `last_change_tick`.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn send(
         &mut self,
+        buffer: &mut ReplicationBuffer,
         server: &mut RenetServer,
         client_buffers: &mut ClientBuffers,
         mut last_change_tick: LastChangeTick,
@@ -82,7 +99,7 @@ impl ReplicationMessages {
         timestamp: Duration,
     ) -> bincode::Result<(LastChangeTick, ClientsInfo)> {
         if let Some((init_message, _)) = self.data.first() {
-            if init_message.is_sendable() {
+            if !init_message.is_empty() {
                 last_change_tick.0 = replicon_tick;
             }
         }
@@ -90,8 +107,9 @@ impl ReplicationMessages {
         for ((init_message, update_message), client_info) in
             self.data.iter_mut().zip(self.clients_info.iter_mut())
         {
-            init_message.send(server, client_info.id());
+            init_message.send(buffer, server, client_info.id());
             update_message.send(
+                buffer,
                 server,
                 client_buffers,
                 client_info,
@@ -115,51 +133,286 @@ impl ReplicationMessages {
 /// Sent over [`ReplicationChannel::Reliable`] channel.
 ///
 /// See also [Limits](../index.html#limits)
-#[derive(Deref, DerefMut)]
 pub(super) struct InitMessage {
-    /// Message data.
-    #[deref]
-    buffer: ReplicationBuffer,
+    /// Slices of serialized data in form of ranges that points to [`ReplicationBuffer`].
+    ranges: Vec<Range<usize>>,
+
+    /// Index of range from the last call of [`Self::start_array`].
+    array_index: usize,
+
+    /// Length of the array that updated automatically after writing data.
+    array_len: u16,
+
+    /// The number of empty arrays at the end. Can be removed using [`Self::trim_empty_arrays`]
+    trailing_empty_arrays: usize,
+
+    /// Index of range from the last call of [`Self::start_entity_data`].
+    entity_data_index: usize,
+
+    /// Size in bytes of the component data stored for the currently-being-written entity.
+    entity_data_size: u16,
 }
 
 impl InitMessage {
     /// Creates a new message for the specified tick.
-    fn new(replicon_tick: RepliconTick) -> bincode::Result<Self> {
-        let mut buffer = ReplicationBuffer::default();
-        buffer.write(&replicon_tick)?;
+    fn new(replicon_tick: RepliconTick, buffer: &mut ReplicationBuffer) -> bincode::Result<Self> {
+        let ranges =
+            vec![buffer.get_or_write(|cursor| bincode::serialize_into(cursor, &replicon_tick))?];
 
-        Ok(Self { buffer })
+        Ok(Self {
+            ranges,
+            array_index: Default::default(),
+            array_len: Default::default(),
+            trailing_empty_arrays: Default::default(),
+            entity_data_index: Default::default(),
+            entity_data_size: Default::default(),
+        })
     }
 
     /// Clears the message and assigns tick to it.
     ///
     /// Keeps allocated capacity for reuse.
-    fn reset(&mut self, replicon_tick: RepliconTick) -> bincode::Result<()> {
-        self.buffer.reset();
-        self.buffer.write(&replicon_tick)
+    fn reset(
+        &mut self,
+        replicon_tick: RepliconTick,
+        buffer: &mut ReplicationBuffer,
+    ) -> bincode::Result<()> {
+        let range =
+            buffer.get_or_write(|cursor| bincode::serialize_into(cursor, &replicon_tick))?;
+        self.ranges.clear();
+        self.ranges.push(range);
+        self.array_index = 0;
+        self.array_len = 0;
+        self.trailing_empty_arrays = 0;
+        self.entity_data_index = 0;
+        self.entity_data_size = 0;
+
+        Ok(())
     }
 
-    /// Returns `true` is message contains any non-empty arrays.
-    fn is_sendable(&self) -> bool {
-        self.buffer.arrays_with_data() != 0
+    /// Returns size in bytes of the current entity data.
+    ///
+    /// See also [`Self::start_entity_data`] and [`Self::end_entity_data`].
+    pub(super) fn entity_data_size(&self) -> u16 {
+        self.entity_data_size
+    }
+
+    /// Starts writing array by preallocating a range for it.
+    ///
+    /// Arrays can contain entity data or despawns inside.
+    /// See also [`Self::end_array`], [`Self::write_client_mapping`], [`Self::write_entity`] and [`Self::start_entity_data`].
+    pub(super) fn start_array(&mut self) {
+        self.ranges.push(Default::default());
+        self.array_index = self.ranges.len() - 1;
+    }
+
+    /// Ends writing array by writing its length and updating the preallocated range.
+    ///
+    /// See also [`Self::start_array`].
+    pub(super) fn end_array(&mut self, buffer: &mut ReplicationBuffer) -> bincode::Result<()> {
+        let range = buffer.write(|cursor| bincode::serialize_into(cursor, &self.array_len))?;
+
+        self.ranges[self.array_index] = range;
+        if self.array_len != 0 {
+            self.array_len = 0;
+            self.trailing_empty_arrays = 0;
+        } else {
+            self.trailing_empty_arrays += 1;
+        }
+
+        Ok(())
+    }
+
+    /// Serializes entity to entity mapping as an array element.
+    ///
+    /// Should be called only inside an array and increases its length by 1.
+    /// See also [`Self::start_array`].
+    pub(super) fn write_client_mapping(
+        &mut self,
+        buffer: &mut ReplicationBuffer,
+        mapping: &ClientMapping,
+    ) -> bincode::Result<()> {
+        let range = buffer.write(|cursor| {
+            serialize_entity(cursor, mapping.server_entity)?;
+            serialize_entity(cursor, mapping.client_entity)
+        })?;
+        self.ranges.push(range);
+
+        self.array_len = self
+            .array_len
+            .checked_add(1)
+            .ok_or(bincode::ErrorKind::SizeLimit)?;
+
+        Ok(())
+    }
+
+    /// Serializes `entity` as an array element.
+    ///
+    /// Should be called only inside an array and increases its length by 1.
+    /// See also [`Self::start_array`].
+    pub(super) fn write_entity(
+        &mut self,
+        buffer: &mut ReplicationBuffer,
+        entity: Entity,
+    ) -> bincode::Result<()> {
+        let range = buffer.get_or_write(|cursor| serialize_entity(cursor, entity))?;
+        self.ranges.push(range);
+
+        self.array_len = self
+            .array_len
+            .checked_add(1)
+            .ok_or(bincode::ErrorKind::SizeLimit)?;
+
+        Ok(())
+    }
+
+    /// Starts writing entity and its data size as an array element by preallocating a range for it.
+    ///
+    /// Data can contain components with their IDs or IDs only.
+    /// Should be called only inside an array and increases its length by 1.
+    /// See also [`Self::end_entity_data`], [`Self::write_component`]
+    /// and [`Self::write_component_id`].
+    pub(super) fn start_entity_data(&mut self) {
+        self.ranges.push(Default::default());
+        self.entity_data_index = self.ranges.len() - 1;
+    }
+
+    /// Ends writing entity data by writing the entity with its size and updating the preallocated range.
+    ///
+    /// If the entity data is empty, nothing will be written unless `save_empty` is set to true.
+    /// Should be called only inside an array and increases its length by 1.
+    /// See also [`Self::start_array`], [`Self::write_component`] and
+    /// [`Self::write_component_id`].
+    pub(super) fn end_entity_data(
+        &mut self,
+        buffer: &mut ReplicationBuffer,
+        entity: Entity,
+        save_empty: bool,
+    ) -> bincode::Result<()> {
+        if !save_empty && self.entity_data_size == 0 {
+            self.ranges.pop();
+            return Ok(());
+        }
+
+        let range = buffer.write(|cursor| {
+            serialize_entity(cursor, entity)?;
+            bincode::serialize_into(cursor, &self.entity_data_size)
+        })?;
+
+        self.ranges[self.entity_data_index] = range;
+        self.entity_data_size = 0;
+        self.array_len = self
+            .array_len
+            .checked_add(1)
+            .ok_or(bincode::ErrorKind::SizeLimit)?;
+
+        Ok(())
+    }
+
+    /// Serializes component and its replication ID as an element of entity data.
+    ///
+    /// Should be called only inside an entity data and increases its size.
+    /// See also [`Self::start_entity_data`].
+    pub(super) fn write_component(
+        &mut self,
+        buffer: &mut ReplicationBuffer,
+        replication_info: &ReplicationInfo,
+        replication_id: ReplicationId,
+        ptr: Ptr,
+    ) -> bincode::Result<()> {
+        let range = buffer.get_or_write(|mut cursor| {
+            DefaultOptions::new().serialize_into(cursor.deref_mut(), &replication_id)?;
+            (replication_info.serialize)(ptr, cursor)
+        })?;
+
+        let size = (range.end - range.start)
+            .try_into()
+            .map_err(|_| bincode::ErrorKind::SizeLimit)?;
+        self.entity_data_size = self
+            .entity_data_size
+            .checked_add(size)
+            .ok_or(bincode::ErrorKind::SizeLimit)?;
+
+        self.ranges.push(range);
+
+        Ok(())
+    }
+
+    /// Serializes replication ID as an element of entity data.
+    ///
+    /// Should be called only inside an entity data and increases its size.
+    /// See also [`Self::start_entity_data`].
+    pub(super) fn write_replication_id(
+        &mut self,
+        buffer: &mut ReplicationBuffer,
+        replication_id: ReplicationId,
+    ) -> bincode::Result<()> {
+        let range = buffer
+            .get_or_write(|cursor| DefaultOptions::new().serialize_into(cursor, &replication_id))?;
+        let size = (range.end - range.start)
+            .try_into()
+            .map_err(|_| bincode::ErrorKind::SizeLimit)?;
+        self.entity_data_size = self
+            .entity_data_size
+            .checked_add(size)
+            .ok_or(bincode::ErrorKind::SizeLimit)?;
+
+        self.ranges.push(range);
+
+        Ok(())
+    }
+
+    /// Takes all ranges related to entity data from the update message.
+    ///
+    /// Ends entity data for the update message.
+    /// See also [`Self::start_entity_data`] and [`Self::end_entity_data`].
+    pub(super) fn take_entity_data(&mut self, update_message: &mut UpdateMessage) {
+        self.ranges.extend(
+            update_message
+                .ranges
+                .drain(update_message.entity_data_index..)
+                .skip(1), // Drop preallocated range for entity size.
+        );
+        self.entity_data_size += update_message.entity_data_size;
+        update_message.entity_data_size = 0;
+    }
+
+    /// Crops empty arrays at the end.
+    ///
+    /// Should only be called after all arrays have been written, because
+    /// arrays removed somewhere the middle cannot be detected during deserialization.
+    fn trim_empty_arrays(&mut self) {
+        self.ranges
+            .truncate(self.ranges.len() - self.trailing_empty_arrays);
+    }
+
+    /// Returns `true` is message contains any written data.
+    fn is_empty(&self) -> bool {
+        // Always contains one range for the tick.
+        self.ranges.len() - self.trailing_empty_arrays == 1
     }
 
     /// Trims empty arrays from the message and sends it to the specified client.
     ///
     /// Does nothing if there is no data to send.
-    fn send(&mut self, server: &mut RenetServer, client_id: ClientId) {
-        if !self.is_sendable() {
+    fn send(
+        &mut self,
+        buffer: &mut ReplicationBuffer,
+        server: &mut RenetServer,
+        client_id: ClientId,
+    ) {
+        if self.is_empty() {
             trace!("no init data to send for client {client_id}");
             return;
         }
 
-        self.buffer.trim_empty_arrays();
+        self.trim_empty_arrays();
 
         trace!("sending init message to client {client_id}");
         server.send_message(
             client_id,
             ReplicationChannel::Reliable,
-            Bytes::copy_from_slice(self.buffer.as_slice()),
+            Bytes::from_iter(buffer.iter_ranges(&self.ranges)),
         );
     }
 }
@@ -175,14 +428,19 @@ impl InitMessage {
 /// Sent over the [`ReplicationChannel::Unreliable`] channel.
 ///
 /// See also [Limits](../index.html#limits)
-#[derive(Deref, DerefMut, Default)]
+#[derive(Default)]
 pub(super) struct UpdateMessage {
-    /// Entities and their data sizes.
+    /// Entities and their sizes in the message with data.
     entities: Vec<(Entity, usize)>,
 
     /// Message data.
-    #[deref]
-    buffer: ReplicationBuffer,
+    ranges: Vec<Range<usize>>,
+
+    /// Index of range from the last call of [`Self::start_entity_data`].
+    entity_data_index: usize,
+
+    /// Size in bytes of the component data stored for the currently-being-written entity.
+    entity_data_size: u16,
 }
 
 impl UpdateMessage {
@@ -191,20 +449,81 @@ impl UpdateMessage {
     /// Keeps allocated capacity for reuse.
     fn reset(&mut self) -> bincode::Result<()> {
         self.entities.clear();
-        self.buffer.reset();
+        self.ranges.clear();
+        self.entity_data_index = 0;
+        self.entity_data_size = 0;
 
         Ok(())
     }
 
-    /// Registers entity from buffer's entity data and its size for possible splitting.
-    pub(super) fn register_entity(&mut self) {
-        let data_size = self.buffer.as_slice().len() - self.buffer.entity_data_pos() as usize;
-        self.entities.push((self.buffer.data_entity(), data_size));
+    /// Starts writing entity and its data size as an array element by preallocating a range for it.
+    ///
+    /// Data can contain components with their IDs.
+    /// See also [`Self::end_entity_data`], [`Self::write_component`].
+    pub(super) fn start_entity_data(&mut self) {
+        self.ranges.push(Default::default());
+        self.entity_data_index = self.ranges.len() - 1;
+    }
+
+    /// Ends writing entity data by writing the entity with its size and updating the preallocated range.
+    ///
+    /// If the entity data is empty, nothing will be written.
+    /// See also [`Self::start_array`], [`Self::write_component`].
+    pub(super) fn end_entity_data(
+        &mut self,
+        buffer: &mut ReplicationBuffer,
+        entity: Entity,
+    ) -> bincode::Result<()> {
+        if self.entity_data_size == 0 {
+            self.ranges.pop();
+            return Ok(());
+        }
+
+        let range = buffer.write(|cursor| {
+            serialize_entity(cursor, entity)?;
+            bincode::serialize_into(cursor, &self.entity_data_size)
+        })?;
+
+        let size = range.end - range.start + self.entity_data_size as usize;
+        self.entities.push((entity, size));
+        self.ranges[self.entity_data_index] = range;
+        self.entity_data_size = 0;
+
+        Ok(())
+    }
+
+    /// Serializes component and its replication ID as an element of entity data.
+    ///
+    /// Should be called only inside an entity data and increases its size.
+    /// See also [`Self::start_entity_data`].
+    pub(super) fn write_component(
+        &mut self,
+        buffer: &mut ReplicationBuffer,
+        replication_info: &ReplicationInfo,
+        replication_id: ReplicationId,
+        ptr: Ptr,
+    ) -> bincode::Result<()> {
+        let range = buffer.get_or_write(|mut cursor| {
+            DefaultOptions::new().serialize_into(cursor.deref_mut(), &replication_id)?;
+            (replication_info.serialize)(ptr, cursor)
+        })?;
+
+        let size = (range.end - range.start)
+            .try_into()
+            .map_err(|_| bincode::ErrorKind::SizeLimit)?;
+        self.entity_data_size = self
+            .entity_data_size
+            .checked_add(size)
+            .ok_or(bincode::ErrorKind::SizeLimit)?;
+
+        self.ranges.push(range);
+
+        Ok(())
     }
 
     /// Returns `true` is message contains any written data.
-    fn is_sendable(&self) -> bool {
-        !self.buffer.as_slice().is_empty()
+    fn is_empty(&self) -> bool {
+        self.ranges.is_empty()
     }
 
     /// Splits message according to entities inside it and sends it to the specified client.
@@ -212,7 +531,8 @@ impl UpdateMessage {
     /// Does nothing if there is no data to send.
     #[allow(clippy::too_many_arguments)]
     fn send(
-        &mut self,
+        &self,
+        buffer: &mut ReplicationBuffer,
         server: &mut RenetServer,
         client_buffers: &mut ClientBuffers,
         client_info: &mut ClientInfo,
@@ -221,7 +541,7 @@ impl UpdateMessage {
         tick: Tick,
         timestamp: Duration,
     ) -> bincode::Result<()> {
-        if !self.is_sendable() {
+        if self.is_empty() {
             trace!("no updates to send for client {}", client_info.id());
             return Ok(());
         }
@@ -231,7 +551,7 @@ impl UpdateMessage {
         let mut header = [0; TICKS_SIZE + mem::size_of::<u16>()];
         bincode::serialize_into(&mut header[..], &(*last_change_tick, replicon_tick))?;
 
-        let mut slice = self.buffer.as_slice();
+        let mut iter = buffer.iter_ranges(&self.ranges).peekable();
         let mut message_size = 0;
         let client_id = client_info.id();
         let (mut update_index, mut entities) =
@@ -245,8 +565,7 @@ impl UpdateMessage {
                 entities.push(entity);
                 message_size += data_size;
             } else {
-                let (message, remaining) = slice.split_at(message_size);
-                slice = remaining;
+                let message_iter = iter.by_ref().take(message_size);
                 message_size = data_size;
 
                 bincode::serialize_into(&mut header[TICKS_SIZE..], &update_index)?;
@@ -254,23 +573,23 @@ impl UpdateMessage {
                 server.send_message(
                     client_id,
                     ReplicationChannel::Unreliable,
-                    Bytes::from_iter(header.into_iter().chain(message.iter().copied())),
+                    Bytes::from_iter(header.into_iter().chain(message_iter)),
                 );
 
-                if !slice.is_empty() {
+                if iter.peek().is_some() {
                     (update_index, entities) =
                         client_info.register_update(client_buffers, tick, timestamp);
                 }
             }
         }
 
-        if !slice.is_empty() {
+        if iter.peek().is_some() {
             bincode::serialize_into(&mut header[TICKS_SIZE..], &update_index)?;
 
             server.send_message(
                 client_id,
                 ReplicationChannel::Unreliable,
-                Bytes::from_iter(header.into_iter().chain(slice.iter().copied())),
+                Bytes::from_iter(header.into_iter().chain(iter)),
             );
         }
 
@@ -278,11 +597,28 @@ impl UpdateMessage {
     }
 }
 
-fn can_pack(header_len: usize, base: usize, add: usize) -> bool {
+fn can_pack(header_size: usize, base: usize, add: usize) -> bool {
     const MAX_PACKET_SIZE: usize = 1200; // https://github.com/lucaspoffo/renet/blob/acee8b470e34c70d35700d96c00fb233d9cf6919/renet/src/packet.rs#L7
 
-    let dangling = (base + header_len) % MAX_PACKET_SIZE;
+    let dangling = (base + header_size) % MAX_PACKET_SIZE;
     (dangling > 0) && ((dangling + add) <= MAX_PACKET_SIZE)
+}
+
+/// Serializes `entity` by writing its index and generation as separate varints.
+///
+/// The index is first prepended with a bit flag to indicate if the generation
+/// is serialized or not (it is not serialized if equal to zero).
+fn serialize_entity(cursor: &mut Cursor<Vec<u8>>, entity: Entity) -> bincode::Result<()> {
+    let mut flagged_index = (entity.index() as u64) << 1;
+    let flag = entity.generation() > 0;
+    flagged_index |= flag as u64;
+
+    cursor.write_u64_varint(flagged_index)?;
+    if flag {
+        cursor.write_u32_varint(entity.generation())?;
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
