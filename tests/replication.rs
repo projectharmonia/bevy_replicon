@@ -836,7 +836,7 @@ fn diagnostics() {
     assert_eq!(stats.mappings, 1);
     assert_eq!(stats.despawns, 1);
     assert_eq!(stats.packets, 2);
-    assert_eq!(stats.bytes, 31);
+    assert_eq!(stats.bytes, 26);
 }
 
 #[derive(Component, Deserialize, Serialize)]

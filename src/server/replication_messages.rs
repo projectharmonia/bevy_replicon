@@ -131,7 +131,7 @@ pub(super) struct InitMessage {
     array_index: usize,
 
     /// Length of the array that updated automatically after writing data.
-    array_len: u16,
+    array_len: usize,
 
     /// The number of empty arrays at the end. Can be removed using [`Self::trim_empty_arrays`]
     trailing_empty_arrays: usize,
@@ -140,7 +140,7 @@ pub(super) struct InitMessage {
     entity_data_index: usize,
 
     /// Size in bytes of the component data stored for the currently-being-written entity.
-    entity_data_size: u16,
+    entity_data_size: usize,
 }
 
 impl InitMessage {
@@ -159,7 +159,7 @@ impl InitMessage {
     /// Returns size in bytes of the current entity data.
     ///
     /// See also [`Self::start_entity_data`] and [`Self::end_entity_data`].
-    pub(super) fn entity_data_size(&self) -> u16 {
+    pub(super) fn entity_data_size(&self) -> usize {
         self.entity_data_size
     }
 
@@ -176,7 +176,8 @@ impl InitMessage {
     ///
     /// See also [`Self::start_array`].
     pub(super) fn end_array(&mut self, buffer: &mut ReplicationBuffer) -> bincode::Result<()> {
-        let range = buffer.write(|cursor| bincode::serialize_into(cursor, &self.array_len))?;
+        let range =
+            buffer.write(|cursor| DefaultOptions::new().serialize_into(cursor, &self.array_len))?;
 
         self.ranges[self.array_index] = range;
         if self.array_len != 0 {
@@ -203,11 +204,7 @@ impl InitMessage {
             serialize_entity(cursor, mapping.client_entity)
         })?;
         self.ranges.push(range);
-
-        self.array_len = self
-            .array_len
-            .checked_add(1)
-            .ok_or(bincode::ErrorKind::SizeLimit)?;
+        self.array_len += 1;
 
         Ok(())
     }
@@ -223,11 +220,7 @@ impl InitMessage {
     ) -> bincode::Result<()> {
         let range = buffer.get_or_write(|cursor| serialize_entity(cursor, entity))?;
         self.ranges.push(range);
-
-        self.array_len = self
-            .array_len
-            .checked_add(1)
-            .ok_or(bincode::ErrorKind::SizeLimit)?;
+        self.array_len += 1;
 
         Ok(())
     }
@@ -262,15 +255,12 @@ impl InitMessage {
 
         let range = buffer.write(|cursor| {
             serialize_entity(cursor, entity)?;
-            bincode::serialize_into(cursor, &self.entity_data_size)
+            DefaultOptions::new().serialize_into(cursor, &self.entity_data_size)
         })?;
 
         self.ranges[self.entity_data_index] = range;
         self.entity_data_size = 0;
-        self.array_len = self
-            .array_len
-            .checked_add(1)
-            .ok_or(bincode::ErrorKind::SizeLimit)?;
+        self.array_len += 1;
 
         Ok(())
     }
@@ -290,15 +280,7 @@ impl InitMessage {
             DefaultOptions::new().serialize_into(cursor.deref_mut(), &replication_id)?;
             (replication_info.serialize)(ptr, cursor)
         })?;
-
-        let size = (range.end - range.start)
-            .try_into()
-            .map_err(|_| bincode::ErrorKind::SizeLimit)?;
-        self.entity_data_size = self
-            .entity_data_size
-            .checked_add(size)
-            .ok_or(bincode::ErrorKind::SizeLimit)?;
-
+        self.entity_data_size += range.end - range.start;
         self.ranges.push(range);
 
         Ok(())
@@ -315,13 +297,7 @@ impl InitMessage {
     ) -> bincode::Result<()> {
         let range = buffer
             .get_or_write(|cursor| DefaultOptions::new().serialize_into(cursor, &replication_id))?;
-        let size = (range.end - range.start)
-            .try_into()
-            .map_err(|_| bincode::ErrorKind::SizeLimit)?;
-        self.entity_data_size = self
-            .entity_data_size
-            .checked_add(size)
-            .ok_or(bincode::ErrorKind::SizeLimit)?;
+        self.entity_data_size += range.end - range.start;
 
         self.ranges.push(range);
 
@@ -401,7 +377,7 @@ pub(super) struct UpdateMessage {
     entity_data_index: usize,
 
     /// Size in bytes of the component data stored for the currently-being-written entity.
-    entity_data_size: u16,
+    entity_data_size: usize,
 }
 
 impl UpdateMessage {
@@ -440,11 +416,10 @@ impl UpdateMessage {
 
         let range = buffer.write(|cursor| {
             serialize_entity(cursor, entity)?;
-            bincode::serialize_into(cursor, &self.entity_data_size)
+            DefaultOptions::new().serialize_into(cursor, &self.entity_data_size)
         })?;
-
-        let size = range.end - range.start + self.entity_data_size as usize;
-        self.entities.push((entity, size));
+        self.entities
+            .push((entity, range.end - range.start + self.entity_data_size));
         self.ranges[self.entity_data_index] = range;
         self.entity_data_size = 0;
 
@@ -466,15 +441,7 @@ impl UpdateMessage {
             DefaultOptions::new().serialize_into(cursor.deref_mut(), &replication_id)?;
             (replication_info.serialize)(ptr, cursor)
         })?;
-
-        let size = (range.end - range.start)
-            .try_into()
-            .map_err(|_| bincode::ErrorKind::SizeLimit)?;
-        self.entity_data_size = self
-            .entity_data_size
-            .checked_add(size)
-            .ok_or(bincode::ErrorKind::SizeLimit)?;
-
+        self.entity_data_size += range.end - range.start;
         self.ranges.push(range);
 
         Ok(())
