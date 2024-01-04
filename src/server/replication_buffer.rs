@@ -146,7 +146,7 @@ impl ReplicationBuffer {
     /// Should be called only inside array.
     /// Increases array length by 1.
     /// See also [`Self::start_array`].
-    pub(super) fn write_client_mapping(&mut self, mapping: &ClientMapping) -> bincode::Result<()> {
+    pub(super) fn write_client_mapping(&mut self, mapping: &ClientMapped) -> bincode::Result<()> {
         debug_assert!(self.inside_array);
 
         serialize_entity(&mut self.cursor, mapping.server_entity)?;

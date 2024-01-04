@@ -101,12 +101,20 @@ pub struct ReplicationRules {
 
     /// ID of [`Replication`] component.
     marker_id: ComponentId,
+
+    /// ID of [`ClientMapped`] component.
+    mapping_id: ComponentId,
 }
 
 impl ReplicationRules {
     /// ID of [`Replication`] component.
     pub(crate) fn get_marker_id(&self) -> ComponentId {
         self.marker_id
+    }
+
+    /// ID of [`ClientMapped`] component.
+    pub(crate) fn get_client_mapped_id(&self) -> ComponentId {
+        self.mapping_id
     }
 
     /// Returns mapping of replicated components to their replication IDs.
@@ -144,6 +152,7 @@ impl FromWorld for ReplicationRules {
             info: Default::default(),
             ids: Default::default(),
             marker_id: world.init_component::<Replication>(),
+            mapping_id: world.init_component::<ClientMapped>(),
             despawn_fn: despawn_recursive,
         }
     }

@@ -255,20 +255,62 @@ impl ServerPlugin {
 /// On deserialization mappings should be processed first, so all referenced entities after it will behave correctly.
 fn collect_mappings(
     messages: &mut ReplicationMessages,
-    entity_map: &mut ClientEntityMap,
+    archetypes_info: &ReplicatedArchetypesInfo,
+    replication_rules: &ReplicationRules,
+    world: &World,
+    change_tick: &SystemChangeTick,
 ) -> bincode::Result<()> {
-    for (message, _, client_info) in messages.iter_mut_with_info() {
-        message.start_array();
+    for (init_message, _) in messages.iter_mut() {
+        init_message.start_array();
+    }
 
-        if let Some(mappings) = entity_map.0.get_mut(&client_info.id()) {
-            for mapping in mappings.drain(..) {
-                message.write_client_mapping(&mapping)?;
+    for archetype_info in archetypes_info.iter_client_mapped() {
+        // SAFETY: all IDs from replicated archetypes obtained from real archetypes.
+        let archetype = unsafe { world.archetypes().get(archetype_info.id).unwrap_unchecked() };
+        // SAFETY: table obtained from this archetype.
+        let table = unsafe {
+            world
+                .storages()
+                .tables
+                .get(archetype.table_id())
+                .unwrap_unchecked()
+        };
+
+        for entity in archetype.entities() {
+            // SAFETY: all client mapped archetypes have ClientMapped component with table storage.
+            let (component, ticks) = unsafe {
+                get_component_unchecked(
+                    table,
+                    &world.storages().sparse_sets,
+                    entity,
+                    StorageType::Table,
+                    replication_rules.get_client_mapped_id(),
+                )
+            };
+
+            // SAFETY: we know the ClientMapped `ComponentId` and used it to get this component from
+            // the archetype table.
+            let mapping = unsafe { component.deref::<ClientMapped>() };
+
+            for (init_message, _, client_info) in messages.iter_mut_with_info() {
+                if mapping.client_id != client_info.id() {
+                    continue;
+                }
+
+                let just_added = ticks.is_added(change_tick.last_run(), change_tick.this_run());
+                if !(just_added || client_info.just_connected) {
+                    break;
+                }
+
+                init_message.write_client_mapping(&mapping)?;
+                break;
             }
         }
-
-        message.end_array()?;
     }
-    Ok(())
+
+    for (init_message, _, client_info) in messages.iter_mut_with_info() {
+        init_message.end_array()?;
+    }
 }
 
 /// Collects component insertions from this tick into init messages, and changes into update messages
@@ -510,22 +552,21 @@ pub enum TickPolicy {
 pub struct LastChangeTick(RepliconTick);
 
 /**
-A resource that exists on the server for mapping server entities to
-entities that clients have already spawned. The mappings are sent to clients as part of replication
-and injected into the client's [`ServerEntityMap`](crate::client::client_mapper::ServerEntityMap).
+A component that can be inserted on a server entity if it should map to a 'pre-spawned' client entity.
+Mappings are sent to clients as part of replication.
 
-Sometimes you don't want to wait for the server to spawn something before it appears on the
-client – when a client performs an action, they can immediately simulate it on the client,
-then match up that entity with the eventual replicated server spawn, rather than have replication spawn
-a brand new entity on the client.
-
-In this situation, the client can send the server its pre-spawned entity id, then the server can spawn its own entity
-and inject the [`ClientMapping`] into its [`ClientEntityMap`].
+This is useful if, for example, you don't want to wait for the server to spawn something before it appears
+on the client.
+When a client performs an action, they can immediately simulate it on the client by spawning an entity,
+then send their pre-spawned entity's id to the server.
+In response, The server can spawn a replicated entity and add `ClientMapped` to it so the
+server entity will 'merge' into the client entity.
 
 Replication packets will send a list of such mappings to clients, which will
 be inserted into the client's [`ServerEntityMap`](crate::client::client_mapper::ServerEntityMap). Using replication
 to propagate the mappings ensures any replication messages related to the pre-mapped
-server entities will synchronize with updating the client's [`ServerEntityMap`](crate::client::client_mapper::ServerEntityMap).
+server entities will synchronize with updating the client's
+[`ServerEntityMap`](crate::client::client_mapper::ServerEntityMap).
 
 ### Example:
 
@@ -555,15 +596,15 @@ fn confirm_bullet(
     mut entity_map: ResMut<ClientEntityMap>,
 ) {
     for FromClient { client_id, event } in bullet_events.read() {
-        let server_entity = commands.spawn(Bullet).id(); // You can insert more components, they will be sent to the client's entity correctly.
+        let entity = commands.spawn(Bullet); // You can insert more components, they will be sent to the client's entity correctly.
+        let server_entity = entity.id();
 
-        entity_map.insert(
-            *client_id,
-            ClientMapping {
+        entity.insert(
+            ClientMapped{
+                client_id,
                 server_entity,
-                client_entity: event.0,
-            },
-        );
+                client_entity: event.0
+        });
     }
 }
 ```
@@ -575,22 +616,12 @@ client entity.
 
 If client's original entity is not found, a new entity will be spawned on the client,
 just the same as when no client entity is provided.
+Note that mappings are only sent to the client with the prespawned entity, so other clients will always spawn
+a new entity.
 **/
-#[derive(Resource, Debug, Default, Deref)]
-pub struct ClientEntityMap(HashMap<ClientId, Vec<ClientMapping>>);
-
-impl ClientEntityMap {
-    /// Registers `mapping` for a client entity pre-spawned by the specified client.
-    ///
-    /// This will be sent as part of replication data and added to the client's [`ServerEntityMap`](crate::client::client_mapper::ServerEntityMap).
-    pub fn insert(&mut self, client_id: ClientId, mapping: ClientMapping) {
-        self.0.entry(client_id).or_default().push(mapping);
-    }
-}
-
-/// Stores the server entity corresponding to a client's pre-spawned entity.
-#[derive(Debug)]
-pub struct ClientMapping {
+#[derive(Component, Debug, Default)]
+pub struct ClientMapped {
+    pub client_id: ClientId,
     pub server_entity: Entity,
     pub client_entity: Entity,
 }

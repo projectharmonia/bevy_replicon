@@ -22,6 +22,11 @@ impl ReplicatedArchetypesInfo {
         self.info.iter()
     }
 
+    /// Returns an iterator over archetypes that are client mapped.
+    pub(super) fn iter_client_mapped(&self) -> impl Iterator<Item = &ReplicatedArchetypeInfo> {
+        self.info.iter().filter(|a| a.client_mapped)
+    }
+
     /// Updates internal view of the [`World`]'s replicated archetypes.
     ///
     /// If this is not called before querying data, the results may not accurately reflect what is in the world.
@@ -41,6 +46,9 @@ impl ReplicatedArchetypesInfo {
                 };
                 if archetype.contains(replication_info.dont_replicate_id) {
                     continue;
+                }
+                if archetype.contains(replication_rules.get_client_mapped_id()) {
+                    archetype_info.client_mapped = true;
                 }
 
                 // SAFETY: component ID obtained from this archetype.
@@ -72,6 +80,7 @@ impl Default for ReplicatedArchetypesInfo {
 pub(super) struct ReplicatedArchetypeInfo {
     pub(super) id: ArchetypeId,
     pub(super) components: Vec<ReplicatedComponentInfo>,
+    client_mapped: bool,
 }
 
 impl ReplicatedArchetypeInfo {
@@ -79,6 +88,7 @@ impl ReplicatedArchetypeInfo {
         Self {
             id,
             components: Default::default(),
+            client_mapped: false,
         }
     }
 }
