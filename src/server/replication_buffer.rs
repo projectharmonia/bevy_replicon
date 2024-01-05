@@ -7,7 +7,7 @@ pub(crate) struct ReplicationBuffer {
     cursor: Cursor<Vec<u8>>,
 
     /// Range of last written data from [`Self::get_or_write`].
-    last_write: Option<Range<usize>>,
+    cached_range: Option<Range<usize>>,
 }
 
 impl ReplicationBuffer {
@@ -16,7 +16,7 @@ impl ReplicationBuffer {
     /// Keeps allocated capacity for reuse.
     pub(super) fn clear(&mut self) {
         self.cursor.set_position(0);
-        self.last_write = None;
+        self.cached_range = None;
     }
 
     /// Returns an iterator over slices data from the buffer.
@@ -30,14 +30,14 @@ impl ReplicationBuffer {
             .copied()
     }
 
-    /// Finishes the current write by clearing last written range.
+    /// Finishes the current write by clearing last cached range.
     ///
     /// Next call [`Self::get_or_write`] will write data into the buffer.
     pub(super) fn end_write(&mut self) {
-        self.last_write = None;
+        self.cached_range = None;
     }
 
-    /// Writes data into the buffer and returns its range.
+    /// Writes data into the buffer without using cache and returns its range.
     ///
     /// See also [`Self::end_write`].
     pub(super) fn write(
@@ -51,21 +51,21 @@ impl ReplicationBuffer {
         Ok(begin..end)
     }
 
-    /// Returns previously written range or a new range for the written data.
+    /// Returns cached range from the previous call or a new range for the written data.
     ///
     /// See also [`Self::end_write`].
     pub(super) fn get_or_write(
         &mut self,
         write_fn: impl FnOnce(&mut Cursor<Vec<u8>>) -> bincode::Result<()>,
     ) -> bincode::Result<Range<usize>> {
-        if let Some(last_write) = &self.last_write {
-            return Ok(last_write.clone());
+        if let Some(cached_range) = &self.cached_range {
+            return Ok(cached_range.clone());
         }
 
         let begin = self.cursor.position() as usize;
         (write_fn)(&mut self.cursor)?;
         let end = self.cursor.position() as usize;
-        self.last_write = Some(begin..end);
+        self.cached_range = Some(begin..end);
 
         Ok(begin..end)
     }
