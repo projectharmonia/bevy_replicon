@@ -1,5 +1,5 @@
-#[path = "../tests/common/mod.rs"]
-mod common;
+#[path = "../tests/connect/mod.rs"]
+mod connect;
 
 use std::time::{Duration, Instant};
 
@@ -29,7 +29,7 @@ fn replication(c: &mut Criterion) {
                     for _ in 0..clients {
                         client_apps.push(create_app());
                     }
-                    common::connect_multiple(&mut server_app, &mut client_apps);
+                    connect::multiple_clients(&mut server_app, &mut client_apps);
 
                     server_app
                         .world
@@ -57,7 +57,7 @@ fn replication(c: &mut Criterion) {
                 for _ in 0..clients {
                     client_apps.push(create_app());
                 }
-                common::connect_multiple(&mut server_app, &mut client_apps);
+                connect::multiple_clients(&mut server_app, &mut client_apps);
 
                 server_app
                     .world
@@ -100,7 +100,7 @@ fn replication(c: &mut Criterion) {
             for _ in 0..iter {
                 let mut server_app = create_app();
                 let mut client_app = create_app();
-                common::connect(&mut server_app, &mut client_app);
+                connect::single_client(&mut server_app, &mut client_app);
 
                 server_app
                     .world
@@ -123,7 +123,7 @@ fn replication(c: &mut Criterion) {
         b.iter_custom(|iter| {
             let mut server_app = create_app();
             let mut client_app = create_app();
-            common::connect(&mut server_app, &mut client_app);
+            connect::single_client(&mut server_app, &mut client_app);
 
             server_app
                 .world

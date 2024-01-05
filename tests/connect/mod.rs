@@ -13,7 +13,7 @@ use bevy_renet::renet::{
 };
 use bevy_replicon::prelude::*;
 
-pub(super) fn connect(server_app: &mut App, client_app: &mut App) {
+pub(super) fn single_client(server_app: &mut App, client_app: &mut App) {
     const CLIENT_ID: u64 = 1;
     let port = setup_server(server_app, 1);
     setup_client(client_app, CLIENT_ID, port);
@@ -21,7 +21,7 @@ pub(super) fn connect(server_app: &mut App, client_app: &mut App) {
 }
 
 #[allow(dead_code)]
-pub(super) fn connect_multiple(server_app: &mut App, client_apps: &mut [App]) {
+pub(super) fn multiple_clients(server_app: &mut App, client_apps: &mut [App]) {
     const BASE_ID: u64 = 1;
     let port = setup_server(server_app, client_apps.len());
     for (index, client_app) in client_apps.iter_mut().enumerate() {

@@ -1,4 +1,4 @@
-mod common;
+mod connect;
 
 use bevy::{ecs::event::Events, prelude::*, time::TimePlugin};
 use bevy_renet::renet::{transport::NetcodeClientTransport, ClientId};
@@ -43,7 +43,7 @@ fn sending_receiving() {
         .add_server_event::<DummyEvent>(EventType::Ordered);
     }
 
-    common::connect(&mut server_app, &mut client_app);
+    connect::single_client(&mut server_app, &mut client_app);
 
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
     let client_id = ClientId::from_raw(client_transport.client_id());
@@ -90,7 +90,7 @@ fn sending_receiving_and_mapping() {
         .add_mapped_server_event::<MappedEvent>(EventType::Ordered);
     }
 
-    common::connect(&mut server_app, &mut client_app);
+    connect::single_client(&mut server_app, &mut client_app);
 
     let client_entity = Entity::from_raw(0);
     let server_entity = Entity::from_raw(client_entity.index() + 1);
@@ -176,7 +176,7 @@ fn event_queue() {
         .add_server_event::<DummyEvent>(EventType::Ordered);
     }
 
-    common::connect(&mut server_app, &mut client_app);
+    connect::single_client(&mut server_app, &mut client_app);
 
     // Spawn entity to trigger world change.
     server_app.world.spawn((Replication, DummyComponent));

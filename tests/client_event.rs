@@ -1,4 +1,4 @@
-mod common;
+mod connect;
 
 use bevy::{ecs::event::Events, prelude::*, time::TimePlugin};
 use bevy_replicon::prelude::*;
@@ -35,7 +35,7 @@ fn sending_receiving() {
             .add_client_event::<DummyEvent>(EventType::Ordered);
     }
 
-    common::connect(&mut server_app, &mut client_app);
+    connect::single_client(&mut server_app, &mut client_app);
 
     client_app
         .world
@@ -60,7 +60,7 @@ fn mapping_and_sending_receiving() {
             .add_mapped_client_event::<MappedEvent>(EventType::Ordered);
     }
 
-    common::connect(&mut server_app, &mut client_app);
+    connect::single_client(&mut server_app, &mut client_app);
 
     let client_entity = Entity::from_raw(0);
     let server_entity = Entity::from_raw(client_entity.index() + 1);
