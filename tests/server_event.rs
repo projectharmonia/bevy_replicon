@@ -4,7 +4,6 @@ use bevy::{ecs::event::Events, prelude::*, time::TimePlugin};
 use bevy_renet::renet::{transport::NetcodeClientTransport, ClientId};
 use bevy_replicon::prelude::*;
 
-use common::DummyEvent;
 use serde::{Deserialize, Serialize};
 
 #[test]
@@ -61,7 +60,7 @@ fn sending_receiving() {
             .resource_mut::<Events<ToClients<DummyEvent>>>()
             .send(ToClients {
                 mode,
-                event: DummyEvent(Entity::PLACEHOLDER),
+                event: DummyEvent,
             });
 
         server_app.update();
@@ -88,7 +87,7 @@ fn sending_receiving_and_mapping() {
                 ..Default::default()
             }),
         ))
-        .add_mapped_server_event::<DummyEvent>(EventType::Ordered);
+        .add_mapped_server_event::<MappedEvent>(EventType::Ordered);
     }
 
     common::connect(&mut server_app, &mut client_app);
@@ -102,10 +101,10 @@ fn sending_receiving_and_mapping() {
 
     server_app
         .world
-        .resource_mut::<Events<ToClients<DummyEvent>>>()
+        .resource_mut::<Events<ToClients<MappedEvent>>>()
         .send(ToClients {
             mode: SendMode::Broadcast,
-            event: DummyEvent(server_entity),
+            event: MappedEvent(server_entity),
         });
 
     server_app.update();
@@ -113,7 +112,7 @@ fn sending_receiving_and_mapping() {
 
     let mapped_entities: Vec<_> = client_app
         .world
-        .resource_mut::<Events<DummyEvent>>()
+        .resource_mut::<Events<MappedEvent>>()
         .drain()
         .map(|event| event.0)
         .collect();
@@ -144,7 +143,7 @@ fn local_resending() {
             .resource_mut::<Events<ToClients<DummyEvent>>>()
             .send(ToClients {
                 mode,
-                event: DummyEvent(Entity::PLACEHOLDER),
+                event: DummyEvent,
             });
 
         app.update();
@@ -190,7 +189,7 @@ fn event_queue() {
     *client_app.world.resource_mut::<RepliconTick>() = previous_tick;
     server_app.world.send_event(ToClients {
         mode: SendMode::Broadcast,
-        event: DummyEvent(Entity::PLACEHOLDER),
+        event: DummyEvent,
     });
 
     server_app.update();
@@ -208,3 +207,15 @@ fn event_queue() {
 
 #[derive(Component, Serialize, Deserialize)]
 struct DummyComponent;
+
+#[derive(Deserialize, Event, Serialize)]
+struct DummyEvent;
+
+#[derive(Deserialize, Event, Serialize)]
+struct MappedEvent(Entity);
+
+impl MapNetworkEntities for MappedEvent {
+    fn map_entities<T: Mapper>(&mut self, mapper: &mut T) {
+        self.0 = mapper.map(self.0);
+    }
+}
