@@ -12,7 +12,6 @@ use bevy_renet::renet::{
     ConnectionConfig, RenetClient, RenetServer,
 };
 use bevy_replicon::prelude::*;
-use serde::{Deserialize, Serialize};
 
 pub(super) fn connect(server_app: &mut App, client_app: &mut App) {
     const CLIENT_ID: u64 = 1;
@@ -113,13 +112,4 @@ fn create_client_transport(client_id: u64, port: u16) -> NetcodeClientTransport 
     };
 
     NetcodeClientTransport::new(current_time, authentication, socket).unwrap()
-}
-
-#[derive(Deserialize, Event, Serialize)]
-pub(super) struct DummyEvent(pub(super) Entity);
-
-impl MapNetworkEntities for DummyEvent {
-    fn map_entities<T: Mapper>(&mut self, mapper: &mut T) {
-        self.0 = mapper.map(self.0);
-    }
 }
