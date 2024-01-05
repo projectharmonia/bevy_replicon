@@ -1,4 +1,4 @@
-mod common;
+mod connect;
 
 use std::ops::DerefMut;
 
@@ -25,7 +25,7 @@ fn reset() {
         ));
     }
 
-    common::connect(&mut server_app, &mut client_app);
+    connect::single_client(&mut server_app, &mut client_app);
 
     client_app.world.resource_mut::<RenetClient>().disconnect();
 
@@ -60,7 +60,7 @@ fn spawn_replication() {
         .replicate::<TableComponent>();
     }
 
-    common::connect(&mut server_app, &mut client_app);
+    connect::single_client(&mut server_app, &mut client_app);
 
     let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
 
@@ -98,7 +98,7 @@ fn empty_spawn_replication() {
         ));
     }
 
-    common::connect(&mut server_app, &mut client_app);
+    connect::single_client(&mut server_app, &mut client_app);
 
     server_app.world.spawn(Replication);
 
@@ -123,7 +123,7 @@ fn old_spawn_replication() {
         .replicate::<TableComponent>();
     }
 
-    common::connect(&mut server_app, &mut client_app);
+    connect::single_client(&mut server_app, &mut client_app);
 
     // Spawn an entity with replicated component, but without a marker.
     let server_entity = server_app.world.spawn(TableComponent).id();
@@ -166,7 +166,7 @@ fn before_connection_spawn_replication() {
     // Spawn an entity before client connected.
     server_app.world.spawn((Replication, TableComponent));
 
-    common::connect(&mut server_app, &mut client_app);
+    connect::single_client(&mut server_app, &mut client_app);
 
     client_app
         .world
@@ -189,7 +189,7 @@ fn client_spawn_replication() {
         .replicate::<TableComponent>();
     }
 
-    common::connect(&mut server_app, &mut client_app);
+    connect::single_client(&mut server_app, &mut client_app);
 
     // Make client and server have different entity IDs.
     server_app.world.spawn_empty();
@@ -259,7 +259,7 @@ fn insert_replication() {
         .replicate_mapped::<MappedComponent>();
     }
 
-    common::connect(&mut server_app, &mut client_app);
+    connect::single_client(&mut server_app, &mut client_app);
 
     // Make client and server have different entity IDs.
     server_app.world.spawn_empty();
@@ -313,7 +313,7 @@ fn despawn_replication() {
         ));
     }
 
-    common::connect(&mut server_app, &mut client_app);
+    connect::single_client(&mut server_app, &mut client_app);
 
     let server_child_entity = server_app.world.spawn(Replication).id();
     let server_entity = server_app
@@ -364,7 +364,7 @@ fn removal_replication() {
         .replicate::<TableComponent>();
     }
 
-    common::connect(&mut server_app, &mut client_app);
+    connect::single_client(&mut server_app, &mut client_app);
 
     let server_entity = server_app
         .world
@@ -411,7 +411,7 @@ fn update_replication() {
         .replicate::<BoolComponent>();
     }
 
-    common::connect(&mut server_app, &mut client_app);
+    connect::single_client(&mut server_app, &mut client_app);
 
     let server_entity = server_app
         .world
@@ -452,7 +452,7 @@ fn big_entity_update_replication() {
         .replicate::<VecComponent>();
     }
 
-    common::connect(&mut server_app, &mut client_app);
+    connect::single_client(&mut server_app, &mut client_app);
 
     let server_entity = server_app
         .world
@@ -495,7 +495,7 @@ fn many_entities_update_replication() {
         .replicate::<BoolComponent>();
     }
 
-    common::connect(&mut server_app, &mut client_app);
+    connect::single_client(&mut server_app, &mut client_app);
 
     // Spawn many entities to cover message splitting.
     const ENTITIES_COUNT: u32 = 300;
@@ -544,7 +544,7 @@ fn insert_update_replication() {
         .replicate::<TableComponent>();
     }
 
-    common::connect(&mut server_app, &mut client_app);
+    connect::single_client(&mut server_app, &mut client_app);
 
     let server_entity = server_app
         .world
@@ -584,7 +584,7 @@ fn despawn_update_replication() {
         .replicate::<TableComponent>();
     }
 
-    common::connect(&mut server_app, &mut client_app);
+    connect::single_client(&mut server_app, &mut client_app);
 
     let server_entity = server_app
         .world
@@ -626,7 +626,7 @@ fn update_replication_buffering() {
         .replicate::<BoolComponent>();
     }
 
-    common::connect(&mut server_app, &mut client_app);
+    connect::single_client(&mut server_app, &mut client_app);
 
     let server_entity = server_app
         .world
@@ -683,7 +683,7 @@ fn update_replication_cleanup() {
         .replicate::<BoolComponent>();
     }
 
-    common::connect(&mut server_app, &mut client_app);
+    connect::single_client(&mut server_app, &mut client_app);
 
     let server_entity = server_app
         .world
@@ -799,7 +799,7 @@ fn diagnostics() {
     }
     client_app.add_plugins(ClientDiagnosticsPlugin);
 
-    common::connect(&mut server_app, &mut client_app);
+    connect::single_client(&mut server_app, &mut client_app);
 
     let client_entity = client_app.world.spawn_empty().id();
     let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
