@@ -15,34 +15,58 @@ use bevy_replicon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 pub(super) fn connect(server_app: &mut App, client_app: &mut App) {
-    let network_channels = server_app.world.resource::<NetworkChannels>();
+    const CLIENT_ID: u64 = 1;
+    let port = setup_server(server_app, 1);
+    setup_client(client_app, CLIENT_ID, port);
+    wait_for_connection(server_app, client_app);
+}
+
+#[allow(dead_code)]
+pub(super) fn connect_multiple(server_app: &mut App, client_apps: &mut [App]) {
+    const BASE_ID: u64 = 1;
+    let port = setup_server(server_app, client_apps.len());
+    for (index, client_app) in client_apps.iter_mut().enumerate() {
+        setup_client(client_app, BASE_ID + index as u64, port);
+        wait_for_connection(server_app, client_app);
+    }
+}
+
+fn setup_client(app: &mut App, client_id: u64, port: u16) {
+    let network_channels = app.world.resource::<NetworkChannels>();
 
     let server_channels_config = network_channels.get_server_configs();
     let client_channels_config = network_channels.get_client_configs();
 
-    let server = RenetServer::new(ConnectionConfig {
-        server_channels_config: server_channels_config.clone(),
-        client_channels_config: client_channels_config.clone(),
-        ..Default::default()
-    });
     let client = RenetClient::new(ConnectionConfig {
         server_channels_config,
         client_channels_config,
         ..Default::default()
     });
+    let transport = create_client_transport(client_id, port);
 
-    let server_transport = create_server_transport();
-    let client_transport =
-        create_client_transport(server_transport.addresses().first().unwrap().port());
+    app.insert_resource(client).insert_resource(transport);
+}
 
-    server_app
-        .insert_resource(server)
-        .insert_resource(server_transport);
+fn setup_server(app: &mut App, max_clients: usize) -> u16 {
+    let network_channels = app.world.resource::<NetworkChannels>();
 
-    client_app
-        .insert_resource(client)
-        .insert_resource(client_transport);
+    let server_channels_config = network_channels.get_server_configs();
+    let client_channels_config = network_channels.get_client_configs();
 
+    let server = RenetServer::new(ConnectionConfig {
+        server_channels_config,
+        client_channels_config,
+        ..Default::default()
+    });
+    let transport = create_server_transport(max_clients);
+    let port = transport.addresses().first().unwrap().port();
+
+    app.insert_resource(server).insert_resource(transport);
+
+    port
+}
+
+fn wait_for_connection(server_app: &mut App, client_app: &mut App) {
     loop {
         client_app.update();
         server_app.update();
@@ -54,7 +78,7 @@ pub(super) fn connect(server_app: &mut App, client_app: &mut App) {
 
 const PROTOCOL_ID: u64 = 0;
 
-fn create_server_transport() -> NetcodeServerTransport {
+fn create_server_transport(max_clients: usize) -> NetcodeServerTransport {
     let current_time = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap();
@@ -65,7 +89,7 @@ fn create_server_transport() -> NetcodeServerTransport {
         .expect("socket should autodetect local address");
     let server_config = ServerConfig {
         current_time,
-        max_clients: 1,
+        max_clients,
         protocol_id: PROTOCOL_ID,
         public_addresses: vec![public_addr],
         authentication: ServerAuthentication::Unsecure,
@@ -74,11 +98,10 @@ fn create_server_transport() -> NetcodeServerTransport {
     NetcodeServerTransport::new(server_config, socket).unwrap()
 }
 
-fn create_client_transport(port: u16) -> NetcodeClientTransport {
+fn create_client_transport(client_id: u64, port: u16) -> NetcodeClientTransport {
     let current_time = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap();
-    let client_id = current_time.as_millis() as u64;
     let ip = Ipv4Addr::LOCALHOST.into();
     let server_addr = SocketAddr::new(ip, port);
     let socket = UdpSocket::bind((ip, 0)).expect("localhost should be bindable");
