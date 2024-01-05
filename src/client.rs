@@ -145,7 +145,10 @@ fn apply_replication(
             replicon_tick,
         )?;
 
-        client.send_message(ReplicationChannel::Reliable, bincode::serialize(&index)?)
+        client.send_message(
+            ReplicationChannel::Reliable,
+            DefaultOptions::new().serialize(&index)?,
+        )
     }
 
     let mut result = Ok(());
