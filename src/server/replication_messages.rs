@@ -212,6 +212,7 @@ impl InitMessage {
     /// Serializes `entity` as an array element.
     ///
     /// Should be called only inside an array and increases its length by 1.
+    /// Reuses the serialized data from the buffer from the previous call unless [`ReplicationBuffer::end_write`] is called.
     /// See also [`Self::start_array`].
     pub(super) fn write_entity(
         &mut self,
@@ -268,6 +269,7 @@ impl InitMessage {
     /// Serializes component and its replication ID as an element of entity data.
     ///
     /// Should be called only inside an entity data and increases its size.
+    /// Reuses the serialized data from the buffer from the previous call unless [`ReplicationBuffer::end_write`] is called.
     /// See also [`Self::start_entity_data`].
     pub(super) fn write_component(
         &mut self,
@@ -289,6 +291,7 @@ impl InitMessage {
     /// Serializes replication ID as an element of entity data.
     ///
     /// Should be called only inside an entity data and increases its size.
+    /// Reuses the serialized data from the buffer from the previous call unless [`ReplicationBuffer::end_write`] is called.
     /// See also [`Self::start_entity_data`].
     pub(super) fn write_replication_id(
         &mut self,
@@ -429,6 +432,7 @@ impl UpdateMessage {
     /// Serializes component and its replication ID as an element of entity data.
     ///
     /// Should be called only inside an entity data and increases its size.
+    /// Reuses the serialized data from the buffer from the previous call unless [`ReplicationBuffer::end_write`] is called.
     /// See also [`Self::start_entity_data`].
     pub(super) fn write_component(
         &mut self,
