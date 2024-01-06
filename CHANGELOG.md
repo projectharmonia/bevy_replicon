@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `renet_serde` feature which reexports `serde` feature from `bevy_renet`.
 - `ClientSet::Reset` which can be disabled by external users. Also moved the client reset system to `PreUpdate` so clients can react more promptly to resets.
 - `ServerEntityMap::remove_by_client()` for manual client cleanup.
 - `BufferedUpdates`, `ServerEntityTicks` to public API.
