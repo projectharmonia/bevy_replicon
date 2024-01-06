@@ -50,6 +50,8 @@ bevy = { version = "0.12", default-features = false, features = [
 
 [features]
 default = ["renet_serde"]
+
+# Re-exports renet's `serde` feature.
 renet_serde = ["bevy_renet/serde"]
 
 [[bench]]
