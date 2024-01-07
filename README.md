@@ -20,7 +20,7 @@ See also [examples](https://github.com/lifescapegame/bevy_replicon/tree/master/e
 
 - [bevy_timewarp](https://github.com/RJ/bevy_timewarp) - a rollback library that buffers component state. See [this](https://github.com/RJ/bevy_timewarp/blob/main/REPLICON_INTEGRATION.md) instruction about how to integrate.
 - [bevy_replicon_snap](https://github.com/Bendzae/bevy_replicon_snap) - a snapshot interpolation plugin.
-- [bevy_replicon_repair](https://github.com/UkoeHB/bevy_replicon_repair) - improves reconnect handling on clients.
+- [bevy_replicon_repair](https://github.com/UkoeHB/bevy_replicon_repair) - preserves replicated client state across reconnects.
 
 ## Bevy compatibility
 
