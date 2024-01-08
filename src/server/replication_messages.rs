@@ -491,10 +491,6 @@ impl UpdateMessage {
             return Ok(());
         }
 
-        if self.entity_data_size == 0 {
-            self.write_data_entity()?;
-        }
-
         let previous_pos = self.cursor.position();
         self.cursor.set_position(self.entity_data_size_pos);
 
