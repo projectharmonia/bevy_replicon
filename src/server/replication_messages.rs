@@ -74,7 +74,6 @@ impl ReplicationMessages {
     /// Returns the server's last change tick, which will equal the latest replicon tick if any init
     /// messages were sent to clients. If only update messages were sent (or no messages at all) then
     /// it will equal the input `last_change_tick`.
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn send(
         &mut self,
         server: &mut RenetServer,
