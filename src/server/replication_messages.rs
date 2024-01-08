@@ -211,7 +211,6 @@ impl InitMessage {
     /// Serializes entity as an array element.
     ///
     /// Should be called only inside an array and increases its length by 1.
-    /// Reuses the serialized data from the buffer from the previous call unless [`ReplicationBuffer::end_write`] is called.
     /// See also [`Self::start_array`].
     pub(super) fn write_entity(&mut self, entity: Entity) -> bincode::Result<()> {
         serialize_entity(&mut self.cursor, entity)?;
@@ -483,7 +482,7 @@ impl UpdateMessage {
 
     /// Ends writing entity data by writing its length into the last remembered position.
     ///
-    /// If the entity data is empty, nothing will be written.
+    /// If the entity data is empty, nothing will be written and the cursor will reset.
     /// See also [`Self::start_array`] and [`Self::write_component`].
     pub(super) fn end_entity_data(&mut self) -> bincode::Result<()> {
         if self.entity_data_size == 0 {
