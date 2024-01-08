@@ -24,9 +24,8 @@ impl ReplicationBuffer {
         &'a self,
         ranges: impl Iterator<Item = &'a Range<usize>> + 'a,
     ) -> impl Iterator<Item = u8> + 'a {
-        // SAFETY: This buffer instantiated only once inside the crate, so all ranges correspond to the valid data.
         ranges
-            .flat_map(|range| unsafe { self.cursor.get_ref().get_unchecked(range.clone()) })
+            .flat_map(|range| &self.cursor.get_ref()[range.clone()])
             .copied()
     }
 
