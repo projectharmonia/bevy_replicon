@@ -24,7 +24,6 @@ use bevy_renet::{
     transport::NetcodeServerPlugin,
     RenetReceive, RenetSend, RenetServerPlugin,
 };
-use bincode::{DefaultOptions, Options};
 
 use crate::replicon_core::{
     replication_rules::ReplicationRules, replicon_tick::RepliconTick, ReplicationChannel,
@@ -168,7 +167,7 @@ impl ServerPlugin {
             while let Some(message) =
                 server.receive_message(client_info.id(), ReplicationChannel::Reliable)
             {
-                match DefaultOptions::new().deserialize::<u16>(&message) {
+                match bincode::deserialize::<u16>(&message) {
                     Ok(update_index) => {
                         client_info.acknowledge(
                             &mut client_buffers,
