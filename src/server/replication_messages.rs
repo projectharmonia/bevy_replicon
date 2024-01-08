@@ -144,7 +144,7 @@ pub(super) struct InitMessage {
 }
 
 impl InitMessage {
-    /// Clears the message and assigns tick to it.
+    /// Clears the message.
     ///
     /// Keeps allocated capacity for reuse.
     fn reset(&mut self) {
@@ -208,7 +208,7 @@ impl InitMessage {
         Ok(())
     }
 
-    /// Serializes `entity` as an array element.
+    /// Serializes entity as an array element.
     ///
     /// Should be called only inside an array and increases its length by 1.
     /// Reuses the serialized data from the buffer from the previous call unless [`ReplicationBuffer::end_write`] is called.
@@ -361,7 +361,7 @@ impl InitMessage {
         Ok(())
     }
 
-    /// Returns the serialized data as a byte array excluding trailing empty arrays.
+    /// Returns the serialized data, excluding trailing empty arrays, as a byte array.
     fn as_slice(&self) -> &[u8] {
         let slice = self.cursor.get_ref();
         let position = self.cursor.position() as usize;
@@ -369,7 +369,7 @@ impl InitMessage {
         &slice[..position - extra_len]
     }
 
-    /// Sends the message excluding trailing empty arrays to the specified client.
+    /// Sends the message, excluding trailing empty arrays, to the specified client.
     ///
     /// Does nothing if there is no data to send.
     fn send(
@@ -456,7 +456,7 @@ impl UpdateMessage {
         self.entities.clear();
     }
 
-    /// Starts writing entity and its data as an array element.
+    /// Starts writing entity and its data.
     ///
     /// Data can contain components with their IDs.
     /// Entity will be written lazily after first data write.
