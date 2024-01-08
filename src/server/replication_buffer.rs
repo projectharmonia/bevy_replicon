@@ -22,9 +22,10 @@ impl ReplicationBuffer {
     /// Returns an iterator over slices data from the buffer.
     pub(super) fn iter_ranges<'a>(
         &'a self,
-        ranges: impl Iterator<Item = &'a Range<usize>> + 'a,
+        ranges: &'a [Range<usize>],
     ) -> impl Iterator<Item = u8> + 'a {
         ranges
+            .iter()
             .flat_map(|range| &self.cursor.get_ref()[range.clone()])
             .copied()
     }

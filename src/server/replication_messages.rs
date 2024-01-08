@@ -1,6 +1,6 @@
 use std::{
     io::Cursor,
-    iter, mem,
+    mem,
     ops::{DerefMut, Range},
     time::Duration,
 };
@@ -342,16 +342,15 @@ impl InitMessage {
             return Ok(());
         }
 
-        let header_range =
-            buffer.write(|cursor| DefaultOptions::new().serialize_into(cursor, &replicon_tick))?;
-        let trimmed_ranges = &self.ranges[..self.ranges.len() - self.trailing_empty_arrays];
-        let message_ranges = iter::once(&header_range).chain(trimmed_ranges);
+        let mut header = [0; mem::size_of::<RepliconTick>()];
+        bincode::serialize_into(&mut header[..], &replicon_tick)?;
+        let ranges = &self.ranges[..self.ranges.len() - self.trailing_empty_arrays];
 
         trace!("sending init message to client {client_id}");
         server.send_message(
             client_id,
             ReplicationChannel::Reliable,
-            Bytes::from_iter(buffer.iter_ranges(message_ranges)),
+            Bytes::from_iter(header.into_iter().chain(buffer.iter_ranges(ranges))),
         );
 
         Ok(())
@@ -371,10 +370,8 @@ impl InitMessage {
 /// See also [Limits](../index.html#limits)
 #[derive(Default)]
 pub(super) struct UpdateMessage {
-    /// Entities and their indexes in `ranges`.
-    ///
-    /// All ranges are sequential (i.e. `end` is equal to `start` of the next one).
-    entities: Vec<(Entity, Range<usize>)>,
+    /// Entities and their sizes in the message with data.
+    entities: Vec<(Entity, usize)>,
 
     /// Message data.
     ranges: Vec<Range<usize>>,
@@ -424,9 +421,9 @@ impl UpdateMessage {
             serialize_entity(cursor, entity)?;
             DefaultOptions::new().serialize_into(cursor, &self.entity_data_size)
         })?;
-        self.ranges[self.entity_data_index] = range;
         self.entities
-            .push((entity, self.entity_data_index..self.ranges.len()));
+            .push((entity, range.end - range.start + self.entity_data_size));
+        self.ranges[self.entity_data_index] = range;
         self.entity_data_size = 0;
 
         Ok(())
@@ -480,61 +477,49 @@ impl UpdateMessage {
         }
 
         trace!("sending update message(s) to client {}", client_info.id());
-        let ticks_range = buffer.write(|cursor| {
-            DefaultOptions::new().serialize_into(&mut *cursor, &*last_change_tick)?;
-            DefaultOptions::new().serialize_into(cursor, &replicon_tick)
-        })?;
-        let header_size = ticks_range.end - ticks_range.start;
+        const TICKS_SIZE: usize = 2 * mem::size_of::<RepliconTick>();
+        let mut header = [0; TICKS_SIZE + mem::size_of::<u16>()];
+        bincode::serialize_into(&mut header[..], &(*last_change_tick, replicon_tick))?;
 
-        let mut entities_size = 0;
-        let mut entities_ranges = Range::default();
+        let mut iter = buffer.iter_ranges(&self.ranges).peekable();
+        let mut message_size = 0;
+        let client_id = client_info.id();
         let (mut update_index, mut entities) =
             client_info.register_update(client_buffers, tick, timestamp);
-        for (entity, entity_range) in &self.entities {
-            let entity_size = self.ranges[entity_range.clone()]
-                .iter()
-                .map(|range| range.end - range.start)
-                .sum();
-
+        for &(entity, data_size) in &self.entities {
             // Try to pack back first, then try to pack forward.
-            if entities_size == 0
-                || can_pack(header_size, entities_size, entity_size)
-                || can_pack(header_size, entity_size, entities_size)
+            if message_size == 0
+                || can_pack(header.len(), message_size, data_size)
+                || can_pack(header.len(), data_size, message_size)
             {
-                entities.push(*entity);
-                entities_size += entity_size;
-                entities_ranges.end = entity_range.end;
+                entities.push(entity);
+                message_size += data_size;
             } else {
-                let index_range = buffer
-                    .write(|cursor| DefaultOptions::new().serialize_into(cursor, &update_index))?;
-                let message_ranges = [&ticks_range, &index_range]
-                    .into_iter()
-                    .chain(&self.ranges[entities_ranges.clone()]);
+                let message_iter = iter.by_ref().take(message_size);
+                message_size = data_size;
+
+                bincode::serialize_into(&mut header[TICKS_SIZE..], &update_index)?;
 
                 server.send_message(
-                    client_info.id(),
+                    client_id,
                     ReplicationChannel::Unreliable,
-                    Bytes::from_iter(buffer.iter_ranges(message_ranges)),
+                    Bytes::from_iter(header.into_iter().chain(message_iter)),
                 );
 
-                entities_size = entity_size;
-                entities_ranges = entity_range.clone();
-                (update_index, entities) =
-                    client_info.register_update(client_buffers, tick, timestamp);
+                if iter.peek().is_some() {
+                    (update_index, entities) =
+                        client_info.register_update(client_buffers, tick, timestamp);
+                }
             }
         }
 
-        if !entities_ranges.is_empty() {
-            let index_range = buffer
-                .write(|cursor| DefaultOptions::new().serialize_into(cursor, &update_index))?;
-            let message_ranges = [&ticks_range, &index_range]
-                .into_iter()
-                .chain(&self.ranges[entities_ranges.clone()]);
+        if iter.peek().is_some() {
+            bincode::serialize_into(&mut header[TICKS_SIZE..], &update_index)?;
 
             server.send_message(
-                client_info.id(),
+                client_id,
                 ReplicationChannel::Unreliable,
-                Bytes::from_iter(buffer.iter_ranges(message_ranges)),
+                Bytes::from_iter(header.into_iter().chain(iter)),
             );
         }
 

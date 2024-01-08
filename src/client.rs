@@ -190,7 +190,7 @@ fn apply_init_message(
         stats.bytes += end_pos;
     }
 
-    let replicon_tick = DefaultOptions::new().deserialize_from(&mut cursor)?;
+    let replicon_tick = bincode::deserialize_from(&mut cursor)?;
     trace!("applying init message for {replicon_tick:?}");
     *world.resource_mut::<RepliconTick>() = replicon_tick;
     debug_assert!(cursor.position() < end_pos, "init message can't be empty");
@@ -265,9 +265,7 @@ fn apply_update_message(
         stats.bytes += end_pos;
     }
 
-    let last_change_tick = DefaultOptions::new().deserialize_from(&mut cursor)?;
-    let message_tick = DefaultOptions::new().deserialize_from(&mut cursor)?;
-    let update_index = DefaultOptions::new().deserialize_from(&mut cursor)?;
+    let (last_change_tick, message_tick, update_index) = bincode::deserialize_from(&mut cursor)?;
     if last_change_tick > replicon_tick {
         trace!("buffering update message for {replicon_tick:?}");
         buffered_updates.0.push(BufferedUpdate {
