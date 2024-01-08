@@ -255,7 +255,7 @@ impl InitMessage {
     /// See also [`Self::start_array`], [`Self::write_component`] and
     /// [`Self::write_component_id`].
     pub(super) fn end_entity_data(&mut self, save_empty: bool) -> bincode::Result<()> {
-        if !save_empty && self.entity_data_size == 0 {
+        if self.entity_data_size == 0 && !save_empty {
             self.cursor.set_position(self.entity_data_pos);
             return Ok(());
         }
