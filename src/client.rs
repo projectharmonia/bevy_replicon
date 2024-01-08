@@ -297,7 +297,7 @@ fn apply_entity_mappings(
     entity_map: &mut ServerEntityMap,
     stats: Option<&mut ClientStats>,
 ) -> bincode::Result<()> {
-    let mappings_len: usize = DefaultOptions::new().deserialize_from(&mut *cursor)?;
+    let mappings_len: u16 = bincode::deserialize_from(&mut *cursor)?;
     if let Some(stats) = stats {
         stats.mappings += mappings_len as u32;
     }
@@ -329,10 +329,10 @@ fn apply_init_components(
     replication_rules: &ReplicationRules,
     replicon_tick: RepliconTick,
 ) -> bincode::Result<()> {
-    let entities_len: usize = DefaultOptions::new().deserialize_from(&mut *cursor)?;
+    let entities_len: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..entities_len {
         let entity = deserialize_entity(cursor)?;
-        let data_size: usize = DefaultOptions::new().deserialize_from(&mut *cursor)?;
+        let data_size: u16 = bincode::deserialize_from(&mut *cursor)?;
         let mut entity = entity_map.get_by_server_or_spawn(world, entity);
         entity_ticks.insert(entity.id(), replicon_tick);
 
@@ -369,7 +369,7 @@ fn apply_despawns(
     replication_rules: &ReplicationRules,
     replicon_tick: RepliconTick,
 ) -> bincode::Result<()> {
-    let entities_len: usize = DefaultOptions::new().deserialize_from(&mut *cursor)?;
+    let entities_len: u16 = bincode::deserialize_from(&mut *cursor)?;
     if let Some(stats) = stats {
         stats.despawns += entities_len as u32;
     }
@@ -405,7 +405,7 @@ fn apply_update_components(
     let message_end = cursor.get_ref().len() as u64;
     while cursor.position() < message_end {
         let entity = deserialize_entity(cursor)?;
-        let data_size: usize = DefaultOptions::new().deserialize_from(&mut *cursor)?;
+        let data_size: u16 = bincode::deserialize_from(&mut *cursor)?;
         let Some(mut entity) = entity_map.get_by_server(world, entity) else {
             // Update could arrive after a despawn from init message.
             debug!("ignoring update received for unknown server's {entity:?}");

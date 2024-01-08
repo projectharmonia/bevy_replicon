@@ -2,7 +2,6 @@ pub(super) mod clients_info;
 pub(super) mod despawn_buffer;
 pub(super) mod removal_buffer;
 pub(super) mod replicated_archetypes_info;
-pub(super) mod replication_buffer;
 pub(super) mod replication_messages;
 
 use std::{mem, time::Duration};
@@ -32,7 +31,6 @@ use clients_info::{ClientBuffers, ClientInfo, ClientsInfo};
 use despawn_buffer::{DespawnBuffer, DespawnBufferPlugin};
 use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
 use replicated_archetypes_info::ReplicatedArchetypesInfo;
-use replication_buffer::ReplicationBuffer;
 use replication_messages::ReplicationMessages;
 
 pub const SERVER_ID: ClientId = ClientId::from_raw(0);
@@ -185,10 +183,9 @@ impl ServerPlugin {
     }
 
     /// Collects [`ReplicationMessages`] and sends them.
-    #[allow(clippy::type_complexity, clippy::too_many_arguments)]
+    #[allow(clippy::type_complexity)]
     pub(super) fn replication_sending_system(
         mut messages: Local<ReplicationMessages>,
-        mut buffer: Local<ReplicationBuffer>,
         mut archetypes_info: Local<ReplicatedArchetypesInfo>,
         change_tick: SystemChangeTick,
         mut set: ParamSet<(
@@ -210,27 +207,20 @@ impl ServerPlugin {
         let clients_info = mem::take(&mut *set.p1()); // Take ownership to avoid borrowing issues.
         messages.prepare(clients_info);
 
-        collect_mappings(&mut messages, &mut buffer, &mut set.p2())?;
+        collect_mappings(&mut messages, &mut set.p2())?;
         collect_changes(
             &mut messages,
-            &mut buffer,
             &archetypes_info,
             &replication_rules,
             set.p0(),
             &change_tick,
         )?;
-        collect_despawns(&mut messages, &mut buffer, &mut set.p3())?;
-        collect_removals(
-            &mut messages,
-            &mut buffer,
-            &mut set.p4(),
-            change_tick.this_run(),
-        )?;
+        collect_despawns(&mut messages, &mut set.p3())?;
+        collect_removals(&mut messages, &mut set.p4(), change_tick.this_run())?;
 
         let last_change_tick = *set.p5();
         let mut client_buffers = mem::take(&mut *set.p6());
         let (last_change_tick, clients_info) = messages.send(
-            &mut buffer,
             &mut set.p7(),
             &mut client_buffers,
             last_change_tick,
@@ -243,7 +233,6 @@ impl ServerPlugin {
         *set.p1() = clients_info;
         *set.p5() = last_change_tick;
         *set.p6() = client_buffers;
-        buffer.clear();
 
         Ok(())
     }
@@ -265,7 +254,6 @@ impl ServerPlugin {
 /// On deserialization mappings should be processed first, so all referenced entities after it will behave correctly.
 fn collect_mappings(
     messages: &mut ReplicationMessages,
-    buffer: &mut ReplicationBuffer,
     entity_map: &mut ClientEntityMap,
 ) -> bincode::Result<()> {
     for (message, _, client_info) in messages.iter_mut_with_info() {
@@ -273,11 +261,11 @@ fn collect_mappings(
 
         if let Some(mappings) = entity_map.0.get_mut(&client_info.id()) {
             for mapping in mappings.drain(..) {
-                message.write_client_mapping(buffer, &mapping)?;
+                message.write_client_mapping(&mapping)?;
             }
         }
 
-        message.end_array(buffer)?;
+        message.end_array()?;
     }
     Ok(())
 }
@@ -286,7 +274,6 @@ fn collect_mappings(
 /// since the last entity tick.
 fn collect_changes(
     messages: &mut ReplicationMessages,
-    buffer: &mut ReplicationBuffer,
     archetypes_info: &ReplicatedArchetypesInfo,
     replication_rules: &ReplicationRules,
     world: &World,
@@ -310,8 +297,8 @@ fn collect_changes(
 
         for entity in archetype.entities() {
             for (init_message, update_message) in messages.iter_mut() {
-                init_message.start_entity_data();
-                update_message.start_entity_data()
+                init_message.start_entity_data(entity.entity());
+                update_message.start_entity_data(entity.entity());
             }
 
             // SAFETY: all replicated archetypes have marker component with table storage.
@@ -347,7 +334,6 @@ fn collect_changes(
                     if new_entity || ticks.is_added(change_tick.last_run(), change_tick.this_run())
                     {
                         init_message.write_component(
-                            buffer,
                             &component_info.replication_info,
                             component_info.replication_id,
                             component,
@@ -359,7 +345,6 @@ fn collect_changes(
                             .expect("entity should be present after adding component");
                         if ticks.is_changed(tick, change_tick.this_run()) {
                             update_message.write_component(
-                                buffer,
                                 &component_info.replication_info,
                                 component_info.replication_id,
                                 component,
@@ -367,7 +352,6 @@ fn collect_changes(
                         }
                     }
                 }
-                buffer.end_write();
             }
 
             for (init_message, update_message, client_info) in messages.iter_mut_with_info() {
@@ -375,22 +359,22 @@ fn collect_changes(
                 if new_entity || init_message.entity_data_size() != 0 {
                     // If there is any insertion or we must initialize, include all updates into init message
                     // and bump the last acknowledged tick to keep entity updates atomic.
-                    init_message.take_entity_data(update_message);
+                    init_message.take_entity_data(update_message)?;
                     client_info
                         .ticks
                         .insert(entity.entity(), change_tick.this_run());
                 } else {
-                    update_message.end_entity_data(buffer, entity.entity())?;
+                    update_message.end_entity_data()?;
                 }
 
-                init_message.end_entity_data(buffer, entity.entity(), new_entity)?;
+                init_message.end_entity_data(new_entity)?;
             }
         }
     }
 
     for (init_message, _, client_info) in messages.iter_mut_with_info() {
         client_info.just_connected = false;
-        init_message.end_array(buffer)?;
+        init_message.end_array()?;
     }
 
     Ok(())
@@ -429,7 +413,6 @@ unsafe fn get_component_unchecked<'w>(
 /// Collect entity despawns from this tick into init messages.
 fn collect_despawns(
     messages: &mut ReplicationMessages,
-    buffer: &mut ReplicationBuffer,
     despawn_buffer: &mut DespawnBuffer,
 ) -> bincode::Result<()> {
     for (message, _) in messages.iter_mut() {
@@ -439,13 +422,12 @@ fn collect_despawns(
     for entity in despawn_buffer.drain(..) {
         for (message, _, client_info) in messages.iter_mut_with_info() {
             client_info.ticks.remove(&entity);
-            message.write_entity(buffer, entity)?;
+            message.write_entity(entity)?;
         }
-        buffer.end_write()
     }
 
     for (message, _) in messages.iter_mut() {
-        message.end_array(buffer)?;
+        message.end_array()?;
     }
 
     Ok(())
@@ -454,7 +436,6 @@ fn collect_despawns(
 /// Collects component removals from this tick into init messages.
 fn collect_removals(
     messages: &mut ReplicationMessages,
-    buffer: &mut ReplicationBuffer,
     removal_buffer: &mut RemovalBuffer,
     tick: Tick,
 ) -> bincode::Result<()> {
@@ -463,26 +444,19 @@ fn collect_removals(
     }
 
     for (entity, components) in removal_buffer.iter() {
-        for (message, _) in messages.iter_mut() {
-            message.start_entity_data();
-        }
-
-        for &replication_id in components {
-            for (message, _, client_info) in messages.iter_mut_with_info() {
+        for (message, _, client_info) in messages.iter_mut_with_info() {
+            message.start_entity_data(entity);
+            for &replication_id in components {
                 client_info.ticks.insert(entity, tick);
-                message.write_replication_id(buffer, replication_id)?;
+                message.write_replication_id(replication_id)?;
             }
-            buffer.end_write();
-        }
-
-        for (message, _) in messages.iter_mut() {
-            message.end_entity_data(buffer, entity, false)?;
+            message.end_entity_data(false)?;
         }
     }
     removal_buffer.clear();
 
     for (message, _) in messages.iter_mut() {
-        message.end_array(buffer)?;
+        message.end_array()?;
     }
 
     Ok(())

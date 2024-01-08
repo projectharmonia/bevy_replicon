@@ -1,7 +1,6 @@
 use std::{
-    io::Cursor,
+    io::{Cursor, Write},
     mem,
-    ops::{DerefMut, Range},
     time::Duration,
 };
 
@@ -12,7 +11,6 @@ use varint_rs::VarintWriter;
 
 use super::{
     clients_info::{ClientBuffers, ClientsInfo},
-    replication_buffer::ReplicationBuffer,
     ClientInfo, ClientMapping, LastChangeTick,
 };
 use crate::replicon_core::{
@@ -79,7 +77,6 @@ impl ReplicationMessages {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn send(
         &mut self,
-        buffer: &mut ReplicationBuffer,
         server: &mut RenetServer,
         client_buffers: &mut ClientBuffers,
         mut last_change_tick: LastChangeTick,
@@ -88,7 +85,7 @@ impl ReplicationMessages {
         timestamp: Duration,
     ) -> bincode::Result<(LastChangeTick, ClientsInfo)> {
         if let Some((init_message, _)) = self.data.first() {
-            if !init_message.is_empty() {
+            if !init_message.as_slice().is_empty() {
                 last_change_tick.0 = replicon_tick;
             }
         }
@@ -96,9 +93,8 @@ impl ReplicationMessages {
         for ((init_message, update_message), client_info) in
             self.data.iter_mut().zip(self.clients_info.iter_mut())
         {
-            init_message.send(buffer, server, replicon_tick, client_info.id())?;
+            init_message.send(server, replicon_tick, client_info.id())?;
             update_message.send(
-                buffer,
                 server,
                 client_buffers,
                 client_info,
@@ -122,25 +118,30 @@ impl ReplicationMessages {
 /// Sent over [`ReplicationChannel::Reliable`] channel.
 ///
 /// See also [Limits](../index.html#limits)
-#[derive(Default)]
 pub(super) struct InitMessage {
-    /// Slices of serialized data in form of ranges that points to [`ReplicationBuffer`].
-    ranges: Vec<Range<usize>>,
-
-    /// Index of range from the last call of [`Self::start_array`].
-    array_index: usize,
+    /// Serialized data.
+    cursor: Cursor<Vec<u8>>,
 
     /// Length of the array that updated automatically after writing data.
-    array_len: usize,
+    array_len: u16,
 
-    /// The number of empty arrays at the end. Can be removed using [`Self::trim_empty_arrays`]
+    /// Position of the array from last call of [`Self::start_array`].
+    array_pos: u64,
+
+    /// The number of empty arrays at the end.
     trailing_empty_arrays: usize,
 
-    /// Index of range from the last call of [`Self::start_entity_data`].
-    entity_data_index: usize,
+    /// Entity from last call of [`Self::start_entity_data`].
+    data_entity: Entity,
 
     /// Size in bytes of the component data stored for the currently-being-written entity.
-    entity_data_size: usize,
+    entity_data_size: u16,
+
+    /// Position of entity from last call of [`Self::start_entity_data`].
+    entity_data_pos: u64,
+
+    /// Position of entity data length from last call of [`Self::write_data_entity`].
+    entity_data_size_pos: u64,
 }
 
 impl InitMessage {
@@ -148,43 +149,46 @@ impl InitMessage {
     ///
     /// Keeps allocated capacity for reuse.
     fn reset(&mut self) {
-        self.ranges.clear();
-        self.array_index = 0;
-        self.array_len = 0;
+        self.cursor.set_position(0);
         self.trailing_empty_arrays = 0;
-        self.entity_data_index = 0;
-        self.entity_data_size = 0;
     }
 
     /// Returns size in bytes of the current entity data.
     ///
     /// See also [`Self::start_entity_data`] and [`Self::end_entity_data`].
-    pub(super) fn entity_data_size(&self) -> usize {
+    pub(super) fn entity_data_size(&self) -> u16 {
         self.entity_data_size
     }
 
-    /// Starts writing array by preallocating a range for it.
+    /// Starts writing array by remembering its position to write length after.
     ///
     /// Arrays can contain entity data or despawns inside.
     /// See also [`Self::end_array`], [`Self::write_client_mapping`], [`Self::write_entity`] and [`Self::start_entity_data`].
     pub(super) fn start_array(&mut self) {
-        self.ranges.push(Default::default());
-        self.array_index = self.ranges.len() - 1;
+        debug_assert_eq!(self.array_len, 0);
+
+        self.array_pos = self.cursor.position();
+        self.cursor
+            .set_position(self.array_pos + mem::size_of_val(&self.array_len) as u64);
     }
 
-    /// Ends writing array by writing its length and updating the preallocated range.
+    /// Ends writing array by writing its length into the last remembered position.
     ///
     /// See also [`Self::start_array`].
-    pub(super) fn end_array(&mut self, buffer: &mut ReplicationBuffer) -> bincode::Result<()> {
-        let range =
-            buffer.write(|cursor| DefaultOptions::new().serialize_into(cursor, &self.array_len))?;
-
-        self.ranges[self.array_index] = range;
+    pub(super) fn end_array(&mut self) -> bincode::Result<()> {
         if self.array_len != 0 {
+            let previous_pos = self.cursor.position();
+            self.cursor.set_position(self.array_pos);
+
+            bincode::serialize_into(&mut self.cursor, &self.array_len)?;
+
+            self.cursor.set_position(previous_pos);
             self.array_len = 0;
             self.trailing_empty_arrays = 0;
         } else {
             self.trailing_empty_arrays += 1;
+            self.cursor.set_position(self.array_pos);
+            bincode::serialize_into(&mut self.cursor, &self.array_len)?;
         }
 
         Ok(())
@@ -194,17 +198,13 @@ impl InitMessage {
     ///
     /// Should be called only inside an array and increases its length by 1.
     /// See also [`Self::start_array`].
-    pub(super) fn write_client_mapping(
-        &mut self,
-        buffer: &mut ReplicationBuffer,
-        mapping: &ClientMapping,
-    ) -> bincode::Result<()> {
-        let range = buffer.write(|cursor| {
-            serialize_entity(cursor, mapping.server_entity)?;
-            serialize_entity(cursor, mapping.client_entity)
-        })?;
-        self.ranges.push(range);
-        self.array_len += 1;
+    pub(super) fn write_client_mapping(&mut self, mapping: &ClientMapping) -> bincode::Result<()> {
+        serialize_entity(&mut self.cursor, mapping.server_entity)?;
+        serialize_entity(&mut self.cursor, mapping.client_entity)?;
+        self.array_len = self
+            .array_len
+            .checked_add(1)
+            .ok_or(bincode::ErrorKind::SizeLimit)?;
 
         Ok(())
     }
@@ -214,54 +214,69 @@ impl InitMessage {
     /// Should be called only inside an array and increases its length by 1.
     /// Reuses the serialized data from the buffer from the previous call unless [`ReplicationBuffer::end_write`] is called.
     /// See also [`Self::start_array`].
-    pub(super) fn write_entity(
-        &mut self,
-        buffer: &mut ReplicationBuffer,
-        entity: Entity,
-    ) -> bincode::Result<()> {
-        let range = buffer.get_or_write(|cursor| serialize_entity(cursor, entity))?;
-        self.ranges.push(range);
-        self.array_len += 1;
+    pub(super) fn write_entity(&mut self, entity: Entity) -> bincode::Result<()> {
+        serialize_entity(&mut self.cursor, entity)?;
+        self.array_len = self
+            .array_len
+            .checked_add(1)
+            .ok_or(bincode::ErrorKind::SizeLimit)?;
 
         Ok(())
     }
 
-    /// Starts writing entity and its data size as an array element by preallocating a range for it.
+    /// Starts writing entity and its data as an array element.
     ///
-    /// Data can contain components with their IDs or IDs only.
     /// Should be called only inside an array and increases its length by 1.
-    /// See also [`Self::end_entity_data`], [`Self::write_component`]
-    /// and [`Self::write_component_id`].
-    pub(super) fn start_entity_data(&mut self) {
-        self.ranges.push(Default::default());
-        self.entity_data_index = self.ranges.len() - 1;
+    /// Data can contain components with their IDs or IDs only.
+    /// Entity will be written lazily after first data write.
+    /// See also [`Self::end_entity_data`] and [`Self::write_component`].
+    pub(super) fn start_entity_data(&mut self, entity: Entity) {
+        debug_assert_eq!(self.entity_data_size, 0);
+
+        self.data_entity = entity;
+        self.entity_data_pos = self.cursor.position();
     }
 
-    /// Ends writing entity data by writing the entity with its size and updating the preallocated range.
+    /// Writes entity for the current data and remembers the position after it to write length later.
+    ///
+    /// Should be called only after first data write.
+    fn write_data_entity(&mut self) -> bincode::Result<()> {
+        serialize_entity(&mut self.cursor, self.data_entity)?;
+        self.entity_data_size_pos = self.cursor.position();
+        self.cursor.set_position(
+            self.entity_data_size_pos + mem::size_of_val(&self.entity_data_size) as u64,
+        );
+
+        Ok(())
+    }
+
+    /// Ends writing entity data by writing its length into the last remembered position.
     ///
     /// If the entity data is empty, nothing will be written unless `save_empty` is set to true.
     /// Should be called only inside an array and increases its length by 1.
     /// See also [`Self::start_array`], [`Self::write_component`] and
     /// [`Self::write_component_id`].
-    pub(super) fn end_entity_data(
-        &mut self,
-        buffer: &mut ReplicationBuffer,
-        entity: Entity,
-        save_empty: bool,
-    ) -> bincode::Result<()> {
+    pub(super) fn end_entity_data(&mut self, save_empty: bool) -> bincode::Result<()> {
         if !save_empty && self.entity_data_size == 0 {
-            self.ranges.pop();
+            self.cursor.set_position(self.entity_data_pos);
             return Ok(());
         }
 
-        let range = buffer.write(|cursor| {
-            serialize_entity(cursor, entity)?;
-            DefaultOptions::new().serialize_into(cursor, &self.entity_data_size)
-        })?;
+        if self.entity_data_size == 0 {
+            self.write_data_entity()?;
+        }
 
-        self.ranges[self.entity_data_index] = range;
+        let previous_pos = self.cursor.position();
+        self.cursor.set_position(self.entity_data_size_pos);
+
+        bincode::serialize_into(&mut self.cursor, &self.entity_data_size)?;
+
+        self.cursor.set_position(previous_pos);
         self.entity_data_size = 0;
-        self.array_len += 1;
+        self.array_len = self
+            .array_len
+            .checked_add(1)
+            .ok_or(bincode::ErrorKind::SizeLimit)?;
 
         Ok(())
     }
@@ -269,21 +284,28 @@ impl InitMessage {
     /// Serializes component and its replication ID as an element of entity data.
     ///
     /// Should be called only inside an entity data and increases its size.
-    /// Reuses the serialized data from the buffer from the previous call unless [`ReplicationBuffer::end_write`] is called.
     /// See also [`Self::start_entity_data`].
     pub(super) fn write_component(
         &mut self,
-        buffer: &mut ReplicationBuffer,
         replication_info: &ReplicationInfo,
         replication_id: ReplicationId,
         ptr: Ptr,
     ) -> bincode::Result<()> {
-        let range = buffer.get_or_write(|mut cursor| {
-            DefaultOptions::new().serialize_into(cursor.deref_mut(), &replication_id)?;
-            (replication_info.serialize)(ptr, cursor)
-        })?;
-        self.entity_data_size += range.end - range.start;
-        self.ranges.push(range);
+        if self.entity_data_size == 0 {
+            self.write_data_entity()?;
+        }
+
+        let previous_pos = self.cursor.position();
+        DefaultOptions::new().serialize_into(&mut self.cursor, &replication_id)?;
+        (replication_info.serialize)(ptr, &mut self.cursor)?;
+
+        let component_size = (self.cursor.position() - previous_pos)
+            .try_into()
+            .map_err(|_| bincode::ErrorKind::SizeLimit)?;
+        self.entity_data_size = self
+            .entity_data_size
+            .checked_add(component_size)
+            .ok_or(bincode::ErrorKind::SizeLimit)?;
 
         Ok(())
     }
@@ -291,69 +313,107 @@ impl InitMessage {
     /// Serializes replication ID as an element of entity data.
     ///
     /// Should be called only inside an entity data and increases its size.
-    /// Reuses the serialized data from the buffer from the previous call unless [`ReplicationBuffer::end_write`] is called.
     /// See also [`Self::start_entity_data`].
     pub(super) fn write_replication_id(
         &mut self,
-        buffer: &mut ReplicationBuffer,
         replication_id: ReplicationId,
     ) -> bincode::Result<()> {
-        let range = buffer
-            .get_or_write(|cursor| DefaultOptions::new().serialize_into(cursor, &replication_id))?;
-        self.entity_data_size += range.end - range.start;
+        if self.entity_data_size == 0 {
+            self.write_data_entity()?;
+        }
 
-        self.ranges.push(range);
+        let previous_pos = self.cursor.position();
+        DefaultOptions::new().serialize_into(&mut self.cursor, &replication_id)?;
+
+        let id_size = self.cursor.position() - previous_pos;
+        self.entity_data_size = self
+            .entity_data_size
+            .checked_add(id_size as u16)
+            .ok_or(bincode::ErrorKind::SizeLimit)?;
 
         Ok(())
     }
 
-    /// Takes all ranges related to entity data from the update message.
+    /// Removes entity data elements from update message and copies it.
     ///
     /// Ends entity data for the update message.
     /// See also [`Self::start_entity_data`] and [`Self::end_entity_data`].
-    pub(super) fn take_entity_data(&mut self, update_message: &mut UpdateMessage) {
-        self.ranges.extend(
-            update_message
-                .ranges
-                .drain(update_message.entity_data_index..)
-                .skip(1), // Drop preallocated range for entity size.
-        );
-        self.entity_data_size += update_message.entity_data_size;
-        update_message.entity_data_size = 0;
+    pub(super) fn take_entity_data(
+        &mut self,
+        update_message: &mut UpdateMessage,
+    ) -> bincode::Result<()> {
+        if update_message.entity_data_size != 0 {
+            let slice = update_message.as_slice();
+            let offset = update_message.entity_data_size_pos as usize
+                + mem::size_of_val(&update_message.entity_data_size);
+            self.cursor.write_all(&slice[offset..]).unwrap();
+
+            self.entity_data_size = self
+                .entity_data_size
+                .checked_add(update_message.entity_data_size)
+                .ok_or(bincode::ErrorKind::SizeLimit)?;
+            update_message.entity_data_size = 0;
+        }
+
+        update_message
+            .cursor
+            .set_position(update_message.entity_data_pos);
+
+        Ok(())
     }
 
-    /// Returns `true` is message contains any written data.
-    fn is_empty(&self) -> bool {
-        self.ranges.len() - self.trailing_empty_arrays == 0
+    /// Returns the serialized data as a byte array excluding trailing empty arrays.
+    fn as_slice(&self) -> &[u8] {
+        let slice = self.cursor.get_ref();
+        let position = self.cursor.position() as usize;
+        let extra_len = self.trailing_empty_arrays * mem::size_of_val(&self.array_len);
+        &slice[..position - extra_len]
     }
 
-    /// Trims empty arrays from the message and sends it to the specified client.
+    /// Sends the message excluding trailing empty arrays to the specified client.
     ///
     /// Does nothing if there is no data to send.
     fn send(
         &self,
-        buffer: &mut ReplicationBuffer,
         server: &mut RenetServer,
         replicon_tick: RepliconTick,
         client_id: ClientId,
     ) -> bincode::Result<()> {
-        if self.is_empty() {
+        debug_assert_eq!(self.array_len, 0);
+        debug_assert_eq!(self.entity_data_size, 0);
+
+        let slice = self.as_slice();
+        if slice.is_empty() {
             trace!("no init data to send for client {client_id}");
             return Ok(());
         }
 
         let mut header = [0; mem::size_of::<RepliconTick>()];
         bincode::serialize_into(&mut header[..], &replicon_tick)?;
-        let ranges = &self.ranges[..self.ranges.len() - self.trailing_empty_arrays];
 
         trace!("sending init message to client {client_id}");
         server.send_message(
             client_id,
             ReplicationChannel::Reliable,
-            Bytes::from_iter(header.into_iter().chain(buffer.iter_ranges(ranges))),
+            Bytes::from_iter(header.into_iter().chain(slice.iter().copied())),
         );
 
         Ok(())
+    }
+}
+
+impl Default for InitMessage {
+    fn default() -> Self {
+        Self {
+            cursor: Default::default(),
+            array_len: Default::default(),
+            array_pos: Default::default(),
+            trailing_empty_arrays: Default::default(),
+            entity_data_size: Default::default(),
+            entity_data_pos: Default::default(),
+            entity_data_size_pos: Default::default(),
+            data_entity: Entity::PLACEHOLDER,
+        }
     }
 }
 
@@ -368,19 +428,24 @@ impl InitMessage {
 /// Sent over the [`ReplicationChannel::Unreliable`] channel.
 ///
 /// See also [Limits](../index.html#limits)
-#[derive(Default)]
 pub(super) struct UpdateMessage {
+    /// Serialized data.
+    cursor: Cursor<Vec<u8>>,
+
     /// Entities and their sizes in the message with data.
     entities: Vec<(Entity, usize)>,
 
-    /// Message data.
-    ranges: Vec<Range<usize>>,
-
-    /// Index of range from the last call of [`Self::start_entity_data`].
-    entity_data_index: usize,
+    /// Entity from last call of [`Self::start_entity_data`].
+    data_entity: Entity,
 
     /// Size in bytes of the component data stored for the currently-being-written entity.
-    entity_data_size: usize,
+    entity_data_size: u16,
+
+    /// Position of entity from last call of [`Self::start_entity_data`].
+    entity_data_pos: u64,
+
+    /// Position of entity data length from last call of [`Self::write_data_entity`].
+    entity_data_size_pos: u64,
 }
 
 impl UpdateMessage {
@@ -388,42 +453,59 @@ impl UpdateMessage {
     ///
     /// Keeps allocated capacity for reuse.
     fn reset(&mut self) {
+        self.cursor.set_position(0);
         self.entities.clear();
-        self.ranges.clear();
-        self.entity_data_index = 0;
-        self.entity_data_size = 0;
     }
 
-    /// Starts writing entity and its data size as an array element by preallocating a range for it.
+    /// Starts writing entity and its data as an array element.
     ///
     /// Data can contain components with their IDs.
-    /// See also [`Self::end_entity_data`], [`Self::write_component`].
-    pub(super) fn start_entity_data(&mut self) {
-        self.ranges.push(Default::default());
-        self.entity_data_index = self.ranges.len() - 1;
+    /// Entity will be written lazily after first data write.
+    /// See also [`Self::end_entity_data`] and [`Self::write_component`].
+    pub(super) fn start_entity_data(&mut self, entity: Entity) {
+        debug_assert_eq!(self.entity_data_size, 0);
+
+        self.data_entity = entity;
+        self.entity_data_pos = self.cursor.position();
     }
 
-    /// Ends writing entity data by writing the entity with its size and updating the preallocated range.
+    /// Writes entity for the current data and remembers the position after it to write length later.
+    ///
+    /// Should be called only after first data write.
+    fn write_data_entity(&mut self) -> bincode::Result<()> {
+        serialize_entity(&mut self.cursor, self.data_entity)?;
+        self.entity_data_size_pos = self.cursor.position();
+        self.cursor.set_position(
+            self.entity_data_size_pos + mem::size_of_val(&self.entity_data_size) as u64,
+        );
+
+        Ok(())
+    }
+
+    /// Ends writing entity data by writing its length into the last remembered position.
     ///
     /// If the entity data is empty, nothing will be written.
-    /// See also [`Self::start_array`], [`Self::write_component`].
-    pub(super) fn end_entity_data(
-        &mut self,
-        buffer: &mut ReplicationBuffer,
-        entity: Entity,
-    ) -> bincode::Result<()> {
+    /// See also [`Self::start_array`] and [`Self::write_component`].
+    pub(super) fn end_entity_data(&mut self) -> bincode::Result<()> {
         if self.entity_data_size == 0 {
-            self.ranges.pop();
+            self.cursor.set_position(self.entity_data_pos);
             return Ok(());
         }
 
-        let range = buffer.write(|cursor| {
-            serialize_entity(cursor, entity)?;
-            DefaultOptions::new().serialize_into(cursor, &self.entity_data_size)
-        })?;
-        self.entities
-            .push((entity, range.end - range.start + self.entity_data_size));
-        self.ranges[self.entity_data_index] = range;
+        if self.entity_data_size == 0 {
+            self.write_data_entity()?;
+        }
+
+        let previous_pos = self.cursor.position();
+        self.cursor.set_position(self.entity_data_size_pos);
+
+        bincode::serialize_into(&mut self.cursor, &self.entity_data_size)?;
+
+        self.cursor.set_position(previous_pos);
+
+        let data_size = self.cursor.position() - self.entity_data_pos;
+        self.entities.push((self.data_entity, data_size as usize));
+
         self.entity_data_size = 0;
 
         Ok(())
@@ -432,28 +514,37 @@ impl UpdateMessage {
     /// Serializes component and its replication ID as an element of entity data.
     ///
     /// Should be called only inside an entity data and increases its size.
-    /// Reuses the serialized data from the buffer from the previous call unless [`ReplicationBuffer::end_write`] is called.
     /// See also [`Self::start_entity_data`].
     pub(super) fn write_component(
         &mut self,
-        buffer: &mut ReplicationBuffer,
         replication_info: &ReplicationInfo,
         replication_id: ReplicationId,
         ptr: Ptr,
     ) -> bincode::Result<()> {
-        let range = buffer.get_or_write(|mut cursor| {
-            DefaultOptions::new().serialize_into(cursor.deref_mut(), &replication_id)?;
-            (replication_info.serialize)(ptr, cursor)
-        })?;
-        self.entity_data_size += range.end - range.start;
-        self.ranges.push(range);
+        if self.entity_data_size == 0 {
+            self.write_data_entity()?;
+        }
+
+        let previous_pos = self.cursor.position();
+        DefaultOptions::new().serialize_into(&mut self.cursor, &replication_id)?;
+        (replication_info.serialize)(ptr, &mut self.cursor)?;
+
+        let component_size = (self.cursor.position() - previous_pos)
+            .try_into()
+            .map_err(|_| bincode::ErrorKind::SizeLimit)?;
+        self.entity_data_size = self
+            .entity_data_size
+            .checked_add(component_size)
+            .ok_or(bincode::ErrorKind::SizeLimit)?;
 
         Ok(())
     }
 
-    /// Returns `true` is message contains any written data.
-    fn is_empty(&self) -> bool {
-        self.ranges.is_empty()
+    /// Returns the serialized data as a byte array.
+    fn as_slice(&self) -> &[u8] {
+        let slice = self.cursor.get_ref();
+        let position = self.cursor.position() as usize;
+        &slice[..position]
     }
 
     /// Splits message according to entities inside it and sends it to the specified client.
@@ -461,8 +552,7 @@ impl UpdateMessage {
     /// Does nothing if there is no data to send.
     #[allow(clippy::too_many_arguments)]
     fn send(
-        &self,
-        buffer: &mut ReplicationBuffer,
+        &mut self,
         server: &mut RenetServer,
         client_buffers: &mut ClientBuffers,
         client_info: &mut ClientInfo,
@@ -471,7 +561,10 @@ impl UpdateMessage {
         tick: Tick,
         timestamp: Duration,
     ) -> bincode::Result<()> {
-        if self.is_empty() {
+        debug_assert_eq!(self.entity_data_size, 0);
+
+        let mut slice = self.as_slice();
+        if slice.is_empty() {
             trace!("no updates to send for client {}", client_info.id());
             return Ok(());
         }
@@ -481,7 +574,6 @@ impl UpdateMessage {
         let mut header = [0; TICKS_SIZE + mem::size_of::<u16>()];
         bincode::serialize_into(&mut header[..], &(*last_change_tick, replicon_tick))?;
 
-        let mut iter = buffer.iter_ranges(&self.ranges).peekable();
         let mut message_size = 0;
         let client_id = client_info.id();
         let (mut update_index, mut entities) =
@@ -495,7 +587,8 @@ impl UpdateMessage {
                 entities.push(entity);
                 message_size += data_size;
             } else {
-                let message_iter = iter.by_ref().take(message_size);
+                let (message, remaining) = slice.split_at(message_size);
+                slice = remaining;
                 message_size = data_size;
 
                 bincode::serialize_into(&mut header[TICKS_SIZE..], &update_index)?;
@@ -503,27 +596,40 @@ impl UpdateMessage {
                 server.send_message(
                     client_id,
                     ReplicationChannel::Unreliable,
-                    Bytes::from_iter(header.into_iter().chain(message_iter)),
+                    Bytes::from_iter(header.into_iter().chain(message.iter().copied())),
                 );
 
-                if iter.peek().is_some() {
+                if !slice.is_empty() {
                     (update_index, entities) =
                         client_info.register_update(client_buffers, tick, timestamp);
                 }
             }
         }
 
-        if iter.peek().is_some() {
+        if !slice.is_empty() {
             bincode::serialize_into(&mut header[TICKS_SIZE..], &update_index)?;
 
             server.send_message(
                 client_id,
                 ReplicationChannel::Unreliable,
-                Bytes::from_iter(header.into_iter().chain(iter)),
+                Bytes::from_iter(header.into_iter().chain(slice.iter().copied())),
             );
         }
 
         Ok(())
+    }
+}
+
+impl Default for UpdateMessage {
+    fn default() -> Self {
+        Self {
+            cursor: Default::default(),
+            entities: Default::default(),
+            entity_data_size: Default::default(),
+            entity_data_pos: Default::default(),
+            entity_data_size_pos: Default::default(),
+            data_entity: Entity::PLACEHOLDER,
+        }
     }
 }
 
