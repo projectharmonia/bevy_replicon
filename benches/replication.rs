@@ -17,10 +17,8 @@ struct StringComponent(String);
 
 impl Default for StringComponent {
     fn default() -> Self {
-        // note: this is the max size string before we hit renet's message rate limit of 60Kb
-        Self(String::from(
-            ".......................................................",
-        ))
+        // Max size string before we hit Renet's message rate limit of 60Kb
+        Self(".".repeat(55))
     }
 }
 
