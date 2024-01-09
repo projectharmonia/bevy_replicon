@@ -46,29 +46,29 @@ impl Default for StructComponent {
     }
 }
 
-fn replication<T: Component + Default + Serialize + DeserializeOwned + Clone>(c: &mut Criterion) {
+fn replication<C: Component + Default + Serialize + DeserializeOwned + Clone>(c: &mut Criterion) {
     const ENTITIES: u32 = 1000;
     const SOCKET_WAIT: Duration = Duration::from_millis(5); // Sometimes it takes time for socket to receive all data.
 
     // Use spinner to keep CPU hot in the schedule for stable benchmark results.
     let sleeper = SpinSleeper::new(1_000_000_000).with_spin_strategy(SpinStrategy::SpinLoopHint);
-    let name = any::type_name::<T>();
+    let name = any::type_name::<C>();
 
     for clients in [1, 20] {
         c.bench_function(&format!("{name}, init send, {clients} client(s)"), |b| {
             b.iter_custom(|iter| {
                 let mut elapsed = Duration::ZERO;
                 for _ in 0..iter {
-                    let mut server_app = create_app::<T>();
+                    let mut server_app = create_app::<C>();
                     let mut client_apps = Vec::new();
                     for _ in 0..clients {
-                        client_apps.push(create_app::<T>());
+                        client_apps.push(create_app::<C>());
                     }
                     connect::multiple_clients(&mut server_app, &mut client_apps);
 
                     server_app
                         .world
-                        .spawn_batch(vec![(Replication, T::default()); ENTITIES as usize]);
+                        .spawn_batch(vec![(Replication, C::default()); ENTITIES as usize]);
 
                     let instant = Instant::now();
                     server_app.update();
@@ -87,17 +87,17 @@ fn replication<T: Component + Default + Serialize + DeserializeOwned + Clone>(c:
 
         c.bench_function(&format!("{name}, update send, {clients} client(s)"), |b| {
             b.iter_custom(|iter| {
-                let mut server_app = create_app::<T>();
+                let mut server_app = create_app::<C>();
                 let mut client_apps = Vec::new();
                 for _ in 0..clients {
-                    client_apps.push(create_app::<T>());
+                    client_apps.push(create_app::<C>());
                 }
                 connect::multiple_clients(&mut server_app, &mut client_apps);
 
                 server_app
                     .world
-                    .spawn_batch(vec![(Replication, T::default()); ENTITIES as usize]);
-                let mut query = server_app.world.query::<&mut T>();
+                    .spawn_batch(vec![(Replication, C::default()); ENTITIES as usize]);
+                let mut query = server_app.world.query::<&mut C>();
 
                 server_app.update();
                 sleeper.sleep(SOCKET_WAIT);
@@ -133,13 +133,13 @@ fn replication<T: Component + Default + Serialize + DeserializeOwned + Clone>(c:
         b.iter_custom(|iter| {
             let mut elapsed = Duration::ZERO;
             for _ in 0..iter {
-                let mut server_app = create_app::<T>();
-                let mut client_app = create_app::<T>();
+                let mut server_app = create_app::<C>();
+                let mut client_app = create_app::<C>();
                 connect::single_client(&mut server_app, &mut client_app);
 
                 server_app
                     .world
-                    .spawn_batch(vec![(Replication, T::default()); ENTITIES as usize]);
+                    .spawn_batch(vec![(Replication, C::default()); ENTITIES as usize]);
 
                 server_app.update();
                 sleeper.sleep(SOCKET_WAIT);
@@ -156,14 +156,14 @@ fn replication<T: Component + Default + Serialize + DeserializeOwned + Clone>(c:
 
     c.bench_function(&format!("{name}, update receive"), |b| {
         b.iter_custom(|iter| {
-            let mut server_app = create_app::<T>();
-            let mut client_app = create_app::<T>();
+            let mut server_app = create_app::<C>();
+            let mut client_app = create_app::<C>();
             connect::single_client(&mut server_app, &mut client_app);
 
             server_app
                 .world
-                .spawn_batch(vec![(Replication, T::default()); ENTITIES as usize]);
-            let mut query = server_app.world.query::<&mut T>();
+                .spawn_batch(vec![(Replication, C::default()); ENTITIES as usize]);
+            let mut query = server_app.world.query::<&mut C>();
 
             server_app.update();
             sleeper.sleep(SOCKET_WAIT);
@@ -192,7 +192,7 @@ fn replication<T: Component + Default + Serialize + DeserializeOwned + Clone>(c:
     });
 }
 
-fn create_app<T: Component + Serialize + DeserializeOwned>() -> App {
+fn create_app<C: Component + Serialize + DeserializeOwned>() -> App {
     let mut app = App::new();
     app.add_plugins((
         MinimalPlugins,
@@ -201,7 +201,7 @@ fn create_app<T: Component + Serialize + DeserializeOwned>() -> App {
             ..Default::default()
         }),
     ))
-    .replicate::<T>();
+    .replicate::<C>();
 
     app
 }
