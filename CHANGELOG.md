@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Refactor `ServerEventQueue` to have an explicit interface.
+
 ## [0.19.0] - 2024-01-07
 
 ### Added
