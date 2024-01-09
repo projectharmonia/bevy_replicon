@@ -293,13 +293,8 @@ impl InitMessage {
             self.write_data_entity()?;
         }
 
-        let previous_pos = self.cursor.position();
-        DefaultOptions::new().serialize_into(&mut self.cursor, &replication_id)?;
-        (replication_info.serialize)(ptr, &mut self.cursor)?;
-
-        let component_size = (self.cursor.position() - previous_pos)
-            .try_into()
-            .map_err(|_| bincode::ErrorKind::SizeLimit)?;
+        let component_size =
+            serialize_component(&mut self.cursor, replication_id, replication_info, ptr)?;
         self.entity_data_size = self
             .entity_data_size
             .checked_add(component_size)
@@ -519,13 +514,8 @@ impl UpdateMessage {
             self.write_data_entity()?;
         }
 
-        let previous_pos = self.cursor.position();
-        DefaultOptions::new().serialize_into(&mut self.cursor, &replication_id)?;
-        (replication_info.serialize)(ptr, &mut self.cursor)?;
-
-        let component_size = (self.cursor.position() - previous_pos)
-            .try_into()
-            .map_err(|_| bincode::ErrorKind::SizeLimit)?;
+        let component_size =
+            serialize_component(&mut self.cursor, replication_id, replication_info, ptr)?;
         self.entity_data_size = self
             .entity_data_size
             .checked_add(component_size)
@@ -625,6 +615,23 @@ impl Default for UpdateMessage {
             data_entity: Entity::PLACEHOLDER,
         }
     }
+}
+
+/// Serializes component with replication ID and returns serialized size.
+fn serialize_component(
+    cursor: &mut Cursor<Vec<u8>>,
+    replication_id: ReplicationId,
+    replication_info: &ReplicationInfo,
+    ptr: Ptr<'_>,
+) -> bincode::Result<u16> {
+    let previous_pos = cursor.position();
+    DefaultOptions::new().serialize_into(&mut *cursor, &replication_id)?;
+    (replication_info.serialize)(ptr, cursor)?;
+    let component_size = (cursor.position() - previous_pos)
+        .try_into()
+        .map_err(|_| bincode::ErrorKind::SizeLimit)?;
+
+    Ok(component_size)
 }
 
 fn can_pack(header_size: usize, base: usize, add: usize) -> bool {
