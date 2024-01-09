@@ -9,7 +9,7 @@ use std::{
 use bevy::prelude::*;
 use bevy_replicon::prelude::*;
 use criterion::{criterion_group, criterion_main, Criterion};
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use spin_sleep::{SpinSleeper, SpinStrategy};
 
 #[derive(Clone, Component, Default, Deserialize, Serialize)]
@@ -46,9 +46,7 @@ impl Default for StructComponent {
     }
 }
 
-fn replication<T: Component + Default + Serialize + for<'de> Deserialize<'de> + Clone>(
-    c: &mut Criterion,
-) {
+fn replication<T: Component + Default + Serialize + DeserializeOwned + Clone>(c: &mut Criterion) {
     const ENTITIES: u32 = 1000;
     const SOCKET_WAIT: Duration = Duration::from_millis(5); // Sometimes it takes time for socket to receive all data.
 
@@ -194,7 +192,7 @@ fn replication<T: Component + Default + Serialize + for<'de> Deserialize<'de> + 
     });
 }
 
-fn create_app<T: Component + Default + Serialize + for<'de> Deserialize<'de> + Clone>() -> App {
+fn create_app<T: Component + Default + Serialize + DeserializeOwned + Clone>() -> App {
     let mut app = App::new();
     app.add_plugins((
         MinimalPlugins,
