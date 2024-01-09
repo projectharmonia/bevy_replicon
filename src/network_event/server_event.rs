@@ -353,15 +353,7 @@ impl<T> ServerEventQueue<T> {
     }
 
     pub fn pop_next(&mut self, replicon_tick: RepliconTick) -> Option<T> {
-        if self
-            .0
-            .front()
-            .filter(|(&tick, _)| tick <= replicon_tick)
-            .is_none()
-        {
-            return None;
-        }
-
+        self.0.front().filter(|(&tick, _)| tick <= replicon_tick)?;
         self.0.pop_front().map(|(_, event)| event)
     }
 
