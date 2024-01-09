@@ -267,7 +267,7 @@ fn apply_update_message(
 
     let (last_change_tick, message_tick, update_index) = bincode::deserialize_from(&mut cursor)?;
     if last_change_tick > replicon_tick {
-        trace!("buffering update message for {replicon_tick:?}");
+        trace!("buffering update message for {message_tick:?}");
         buffered_updates.0.push(BufferedUpdate {
             last_change_tick,
             message_tick,
@@ -276,7 +276,7 @@ fn apply_update_message(
         return Ok(update_index);
     }
 
-    trace!("applying update message for {replicon_tick:?}");
+    trace!("applying update message for {message_tick:?}");
     apply_update_components(
         &mut cursor,
         world,
