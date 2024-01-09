@@ -1,7 +1,10 @@
 #[path = "../tests/connect/mod.rs"]
 mod connect;
 
-use std::time::{Duration, Instant};
+use std::{
+    any,
+    time::{Duration, Instant},
+};
 
 use bevy::prelude::*;
 use bevy_replicon::prelude::*;
@@ -45,16 +48,16 @@ impl Default for StructComponent {
 
 fn replication<T: Component + Default + Serialize + for<'de> Deserialize<'de> + Clone>(
     c: &mut Criterion,
-    t: &'static str,
 ) {
     const ENTITIES: u32 = 1000;
     const SOCKET_WAIT: Duration = Duration::from_millis(5); // Sometimes it takes time for socket to receive all data.
 
     // Use spinner to keep CPU hot in the schedule for stable benchmark results.
     let sleeper = SpinSleeper::new(1_000_000_000).with_spin_strategy(SpinStrategy::SpinLoopHint);
+    let name = any::type_name::<T>();
 
     for clients in [1, 20] {
-        c.bench_function(&format!("[{t}]: init send, {clients} client(s)"), |b| {
+        c.bench_function(&format!("{name}, init send, {clients} client(s)"), |b| {
             b.iter_custom(|iter| {
                 let mut elapsed = Duration::ZERO;
                 for _ in 0..iter {
@@ -84,7 +87,7 @@ fn replication<T: Component + Default + Serialize + for<'de> Deserialize<'de> + 
             })
         });
 
-        c.bench_function(&format!("[{t}]: update send, {clients} client(s)"), |b| {
+        c.bench_function(&format!("{name}, update send, {clients} client(s)"), |b| {
             b.iter_custom(|iter| {
                 let mut server_app = create_app::<T>();
                 let mut client_apps = Vec::new();
@@ -128,7 +131,7 @@ fn replication<T: Component + Default + Serialize + for<'de> Deserialize<'de> + 
         });
     }
 
-    c.bench_function(&format!("[{t}]: init receive"), |b| {
+    c.bench_function(&format!("{name}, init receive"), |b| {
         b.iter_custom(|iter| {
             let mut elapsed = Duration::ZERO;
             for _ in 0..iter {
@@ -153,7 +156,7 @@ fn replication<T: Component + Default + Serialize + for<'de> Deserialize<'de> + 
         })
     });
 
-    c.bench_function(&format!("[{t}]: update receive"), |b| {
+    c.bench_function(&format!("{name}, update receive"), |b| {
         b.iter_custom(|iter| {
             let mut server_app = create_app::<T>();
             let mut client_app = create_app::<T>();
@@ -205,31 +208,19 @@ fn create_app<T: Component + Default + Serialize + for<'de> Deserialize<'de> + C
     app
 }
 
-fn int_replication(c: &mut Criterion) {
-    replication::<UintComponent>(c, "uint");
-}
-
-fn string_replication(c: &mut Criterion) {
-    replication::<StringComponent>(c, "string");
-}
-
-fn struct_replication(c: &mut Criterion) {
-    replication::<StructComponent>(c, "struct");
-}
-
 criterion_group! {
     name = int_benches;
     config = Criterion::default().sample_size(20);
-    targets = int_replication
+    targets = replication::<UintComponent>
 }
 criterion_group! {
     name = string_benches;
     config = Criterion::default().sample_size(20);
-    targets = string_replication
+    targets = replication::<StringComponent>
 }
 criterion_group! {
     name = struct_benches;
     config = Criterion::default().sample_size(20);
-    targets = struct_replication
+    targets = replication::<StructComponent>
 }
 criterion_main!(int_benches, string_benches, struct_benches);
