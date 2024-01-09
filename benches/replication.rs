@@ -111,8 +111,8 @@ fn replication<C: Component + Default + Serialize + DeserializeOwned + Clone>(c:
 
                 let mut elapsed = Duration::ZERO;
                 for _ in 0..iter {
-                    for component in query.iter_mut(&mut server_app.world) {
-                        component.into_inner();
+                    for mut component in query.iter_mut(&mut server_app.world) {
+                        component.set_changed();
                     }
 
                     sleeper.sleep(SOCKET_WAIT);
@@ -175,8 +175,8 @@ fn replication<C: Component + Default + Serialize + DeserializeOwned + Clone>(c:
 
             let mut elapsed = Duration::ZERO;
             for _ in 0..iter {
-                for component in query.iter_mut(&mut server_app.world) {
-                    component.into_inner();
+                for mut component in query.iter_mut(&mut server_app.world) {
+                    component.set_changed();
                 }
 
                 sleeper.sleep(SOCKET_WAIT);
