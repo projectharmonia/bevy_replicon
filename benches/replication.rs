@@ -192,7 +192,7 @@ fn replication<T: Component + Default + Serialize + DeserializeOwned + Clone>(c:
     });
 }
 
-fn create_app<T: Component + Default + Serialize + DeserializeOwned + Clone>() -> App {
+fn create_app<T: Component + Serialize + DeserializeOwned>() -> App {
     let mut app = App::new();
     app.add_plugins((
         MinimalPlugins,
