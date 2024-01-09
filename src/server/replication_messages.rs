@@ -393,7 +393,7 @@ impl InitMessage {
         server.send_message(
             client_id,
             ReplicationChannel::Reliable,
-            Bytes::from_iter(header.into_iter().chain(slice.iter().copied())),
+            Bytes::from([&header, slice].concat()),
         );
 
         Ok(())
@@ -590,7 +590,7 @@ impl UpdateMessage {
                 server.send_message(
                     client_id,
                     ReplicationChannel::Unreliable,
-                    Bytes::from_iter(header.into_iter().chain(message.iter().copied())),
+                    Bytes::from([&header, message].concat()),
                 );
 
                 if !slice.is_empty() {
@@ -606,7 +606,7 @@ impl UpdateMessage {
             server.send_message(
                 client_id,
                 ReplicationChannel::Unreliable,
-                Bytes::from_iter(header.into_iter().chain(slice.iter().copied())),
+                Bytes::from([&header, slice].concat()),
             );
         }
 
