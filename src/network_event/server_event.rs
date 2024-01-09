@@ -205,12 +205,7 @@ fn queue_system<T: Event>(
     mut server_events: EventWriter<T>,
     mut event_queue: ResMut<ServerEventQueue<T>>,
 ) {
-    while event_queue
-        .front()
-        .filter(|(&tick, _)| tick <= *replicon_tick)
-        .is_some()
-    {
-        let (_, event) = event_queue.pop_front().unwrap();
+    while let Some(event) = event_queue.pop_next(*replicon_tick) {
         server_events.send(event);
     }
 }
@@ -349,8 +344,31 @@ pub enum SendMode {
 ///
 /// Stores data sorted by ticks and maintains order of arrival.
 /// Needed to ensure that when an event is triggered, all the data that it affects or references already exists.
-#[derive(Deref, DerefMut, Resource)]
+#[derive(Resource)]
 pub struct ServerEventQueue<T>(ListOrderedMultimap<RepliconTick, T>);
+
+impl<T> ServerEventQueue<T> {
+    pub fn clear(&mut self) {
+        self.0.clear();
+    }
+
+    pub fn pop_next(&mut self, replicon_tick: RepliconTick) -> Option<T> {
+        if self
+            .0
+            .front()
+            .filter(|(&tick, _)| tick <= replicon_tick)
+            .is_none()
+        {
+            return None;
+        }
+
+        self.0.pop_front().map(|(_, event)| event)
+    }
+
+    pub fn insert(&mut self, tick: RepliconTick, event: T) {
+        self.0.insert(tick, event);
+    }
+}
 
 impl<T> Default for ServerEventQueue<T> {
     fn default() -> Self {
