@@ -28,7 +28,7 @@ jobs:
 
       - name: Format
         run: |
-          cargo fmt --check
+          cargo fmt --all --check
           taplo fmt --check
 
   lint:
@@ -45,7 +45,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Clippy
-        run: cargo clippy --no-deps --tests -- -D warnings
+        run: cargo clippy --no-deps --benches --tests -- -D warnings
 
       - name: Rustdoc
         run: cargo rustdoc -- -D warnings
