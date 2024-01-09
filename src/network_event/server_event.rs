@@ -184,13 +184,13 @@ impl ServerEventAppExt for App {
             .add_systems(PreUpdate, reset_system::<T>.in_set(ClientSet::Reset))
             .add_systems(
                 PostUpdate,
-                ((
+                (
                     sending_system.run_if(resource_exists::<RenetServer>()),
                     local_resending_system::<T>.run_if(has_authority()),
                 )
                     .chain()
                     .after(ServerPlugin::replication_sending_system)
-                    .in_set(ServerSet::Send),),
+                    .in_set(ServerSet::Send),
             );
 
         self
