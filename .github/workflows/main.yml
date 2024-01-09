@@ -28,7 +28,7 @@ jobs:
 
       - name: Format
         run: |
-          cargo fmt --check
+          cargo fmt --all --check
           taplo fmt --check
 
   lint:
