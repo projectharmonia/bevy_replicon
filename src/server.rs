@@ -2,7 +2,6 @@ pub(super) mod clients_info;
 pub(super) mod despawn_buffer;
 pub(super) mod removal_buffer;
 pub(super) mod replicated_archetypes_info;
-pub(super) mod replication_buffer;
 pub(super) mod replication_messages;
 
 use std::{mem, time::Duration};
@@ -206,7 +205,7 @@ impl ServerPlugin {
         archetypes_info.update(set.p0().archetypes(), &replication_rules);
 
         let clients_info = mem::take(&mut *set.p1()); // Take ownership to avoid borrowing issues.
-        messages.prepare(clients_info, *replicon_tick)?;
+        messages.prepare(clients_info);
 
         collect_mappings(&mut messages, &mut set.p2())?;
         collect_changes(
@@ -299,7 +298,7 @@ fn collect_changes(
         for entity in archetype.entities() {
             for (init_message, update_message) in messages.iter_mut() {
                 init_message.start_entity_data(entity.entity());
-                update_message.start_entity_data(entity.entity())
+                update_message.start_entity_data(entity.entity());
             }
 
             // SAFETY: all replicated archetypes have marker component with table storage.
@@ -357,16 +356,15 @@ fn collect_changes(
 
             for (init_message, update_message, client_info) in messages.iter_mut_with_info() {
                 let new_entity = marker_added || client_info.just_connected;
-                if new_entity || init_message.entity_data_len() != 0 {
+                if new_entity || init_message.entity_data_size() != 0 {
                     // If there is any insertion or we must initialize, include all updates into init message
                     // and bump the last acknowledged tick to keep entity updates atomic.
-                    init_message.take_entity_data(update_message);
+                    init_message.take_entity_data(update_message)?;
                     client_info
                         .ticks
                         .insert(entity.entity(), change_tick.this_run());
                 } else {
-                    update_message.register_entity();
-                    update_message.end_entity_data(false)?;
+                    update_message.end_entity_data()?;
                 }
 
                 init_message.end_entity_data(new_entity)?;

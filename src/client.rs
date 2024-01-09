@@ -297,11 +297,11 @@ fn apply_entity_mappings(
     entity_map: &mut ServerEntityMap,
     stats: Option<&mut ClientStats>,
 ) -> bincode::Result<()> {
-    let array_len: u16 = bincode::deserialize_from(&mut *cursor)?;
+    let mappings_len: u16 = bincode::deserialize_from(&mut *cursor)?;
     if let Some(stats) = stats {
-        stats.mappings += array_len as u32;
+        stats.mappings += mappings_len as u32;
     }
-    for _ in 0..array_len {
+    for _ in 0..mappings_len {
         let server_entity = deserialize_entity(cursor)?;
         let client_entity = deserialize_entity(cursor)?;
 
@@ -329,15 +329,15 @@ fn apply_init_components(
     replication_rules: &ReplicationRules,
     replicon_tick: RepliconTick,
 ) -> bincode::Result<()> {
-    let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
-    for _ in 0..entities_count {
+    let entities_len: u16 = bincode::deserialize_from(&mut *cursor)?;
+    for _ in 0..entities_len {
         let entity = deserialize_entity(cursor)?;
-        let data_len: u16 = bincode::deserialize_from(&mut *cursor)?;
+        let data_size: u16 = bincode::deserialize_from(&mut *cursor)?;
         let mut entity = entity_map.get_by_server_or_spawn(world, entity);
         entity_ticks.insert(entity.id(), replicon_tick);
 
-        let end_pos = cursor.position() + data_len as u64;
-        let mut components_count = 0u32;
+        let end_pos = cursor.position() + data_size as u64;
+        let mut components_len = 0u32;
         while cursor.position() < end_pos {
             let replication_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
             // SAFETY: server and client have identical `ReplicationRules` and server always sends valid IDs.
@@ -348,11 +348,11 @@ fn apply_init_components(
                 }
                 ComponentsKind::Removal => (replication_info.remove)(&mut entity, replicon_tick),
             }
-            components_count += 1;
+            components_len += 1;
         }
         if let Some(stats) = &mut stats {
             stats.entities_changed += 1;
-            stats.components_changed += components_count;
+            stats.components_changed += components_len;
         }
     }
 
@@ -369,11 +369,11 @@ fn apply_despawns(
     replication_rules: &ReplicationRules,
     replicon_tick: RepliconTick,
 ) -> bincode::Result<()> {
-    let entities_count: u16 = bincode::deserialize_from(&mut *cursor)?;
+    let entities_len: u16 = bincode::deserialize_from(&mut *cursor)?;
     if let Some(stats) = stats {
-        stats.despawns += entities_count as u32;
+        stats.despawns += entities_len as u32;
     }
-    for _ in 0..entities_count {
+    for _ in 0..entities_len {
         // The entity might have already been despawned because of hierarchy or
         // with the last replication message, but the server might not yet have received confirmation
         // from the client and could include the deletion in the this message.
@@ -402,14 +402,14 @@ fn apply_update_components(
     replication_rules: &ReplicationRules,
     message_tick: RepliconTick,
 ) -> bincode::Result<()> {
-    let len = cursor.get_ref().len() as u64;
-    while cursor.position() < len {
+    let message_end = cursor.get_ref().len() as u64;
+    while cursor.position() < message_end {
         let entity = deserialize_entity(cursor)?;
-        let data_len: u16 = bincode::deserialize_from(&mut *cursor)?;
+        let data_size: u16 = bincode::deserialize_from(&mut *cursor)?;
         let Some(mut entity) = entity_map.get_by_server(world, entity) else {
             // Update could arrive after a despawn from init message.
             debug!("ignoring update received for unknown server's {entity:?}");
-            cursor.set_position(cursor.position() + data_len as u64);
+            cursor.set_position(cursor.position() + data_size as u64);
             continue;
         };
         let entity_tick = entity_ticks
@@ -417,12 +417,12 @@ fn apply_update_components(
             .expect("all entities from update should have assigned ticks");
         if message_tick <= *entity_tick {
             trace!("ignoring outdated update for client's {:?}", entity.id());
-            cursor.set_position(cursor.position() + data_len as u64);
+            cursor.set_position(cursor.position() + data_size as u64);
             continue;
         }
         *entity_tick = message_tick;
 
-        let end_pos = cursor.position() + data_len as u64;
+        let end_pos = cursor.position() + data_size as u64;
         let mut components_count = 0u32;
         while cursor.position() < end_pos {
             let replication_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
