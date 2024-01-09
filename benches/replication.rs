@@ -49,10 +49,13 @@ impl Default for StructComponent {
 fn replication<C: Component + Default + Serialize + DeserializeOwned + Clone>(c: &mut Criterion) {
     const ENTITIES: u32 = 1000;
     const SOCKET_WAIT: Duration = Duration::from_millis(5); // Sometimes it takes time for socket to receive all data.
+    const MODULE_PREFIX_LEN: usize = module_path!().len() + 2;
+
+    let mut name = any::type_name::<C>();
+    name = &name[MODULE_PREFIX_LEN..];
 
     // Use spinner to keep CPU hot in the schedule for stable benchmark results.
     let sleeper = SpinSleeper::new(1_000_000_000).with_spin_strategy(SpinStrategy::SpinLoopHint);
-    let name = any::type_name::<C>();
 
     for clients in [1, 20] {
         c.bench_function(&format!("{name}, init send, {clients} client(s)"), |b| {
