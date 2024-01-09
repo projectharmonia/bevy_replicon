@@ -9,14 +9,8 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use serde::{Deserialize, Serialize};
 use spin_sleep::{SpinSleeper, SpinStrategy};
 
-#[derive(Component, Clone, Serialize, Deserialize)]
+#[derive(Clone, Component, Default, Deserialize, Serialize)]
 struct UintComponent(usize);
-
-impl Default for UintComponent {
-    fn default() -> Self {
-        Self(0)
-    }
-}
 
 #[derive(Component, Clone, Serialize, Deserialize)]
 struct StringComponent(String);
