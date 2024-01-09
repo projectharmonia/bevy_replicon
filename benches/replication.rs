@@ -52,7 +52,8 @@ impl Default for StructComponent {
 }
 
 fn replication<T: Component + Default + Serialize + for<'de> Deserialize<'de> + Clone>(
-    c: &mut Criterion, t: &'static str,
+    c: &mut Criterion,
+    t: &'static str,
 ) {
     const ENTITIES: u32 = 1000;
     const SOCKET_WAIT: Duration = Duration::from_millis(5); // Sometimes it takes time for socket to receive all data.
@@ -212,18 +213,15 @@ fn create_app<T: Component + Default + Serialize + for<'de> Deserialize<'de> + C
     app
 }
 
-fn int_replication(c: &mut Criterion)
-{
+fn int_replication(c: &mut Criterion) {
     replication::<UintComponent>(c, "uint");
 }
 
-fn string_replication(c: &mut Criterion)
-{
+fn string_replication(c: &mut Criterion) {
     replication::<StringComponent>(c, "string");
 }
 
-fn struct_replication(c: &mut Criterion)
-{
+fn struct_replication(c: &mut Criterion) {
     replication::<StructComponent>(c, "struct");
 }
 
