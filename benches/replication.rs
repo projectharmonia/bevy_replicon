@@ -13,7 +13,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use spin_sleep::{SpinSleeper, SpinStrategy};
 
 #[derive(Clone, Component, Default, Deserialize, Serialize)]
-struct UintComponent(usize);
+struct UsizeComponent(usize);
 
 #[derive(Component, Clone, Serialize, Deserialize)]
 struct StringComponent(String);
@@ -209,7 +209,7 @@ fn create_app<T: Component + Default + Serialize + DeserializeOwned + Clone>() -
 criterion_group! {
     name = int_benches;
     config = Criterion::default().sample_size(20);
-    targets = replication::<UintComponent>
+    targets = replication::<UsizeComponent>
 }
 criterion_group! {
     name = string_benches;
