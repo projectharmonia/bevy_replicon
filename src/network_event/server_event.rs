@@ -181,7 +181,7 @@ impl ServerEventAppExt for App {
                     .in_set(ClientSet::Receive)
                     .run_if(client_connected()),
             )
-            .add_systems(PreUpdate, reset_system::<T>.in_set(ClientSet::Reset))
+            .add_systems(PreUpdate, reset_system::<T>.in_set(ClientSet::ResetEvents))
             .add_systems(
                 PostUpdate,
                 (
