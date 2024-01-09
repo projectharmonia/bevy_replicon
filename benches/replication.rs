@@ -9,10 +9,51 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use serde::{Deserialize, Serialize};
 use spin_sleep::{SpinSleeper, SpinStrategy};
 
-#[derive(Component, Clone, Copy, Serialize, Deserialize)]
-struct DummyComponent(usize);
+#[derive(Component, Clone, Serialize, Deserialize)]
+struct UintComponent(usize);
 
-fn replication(c: &mut Criterion) {
+impl Default for UintComponent {
+    fn default() -> Self {
+        Self(0)
+    }
+}
+
+#[derive(Component, Clone, Serialize, Deserialize)]
+struct StringComponent(String);
+
+impl Default for StringComponent {
+    fn default() -> Self {
+        // note: this is the max size string before we hit renet's message rate limit of 60Kb
+        Self(String::from(
+            ".......................................................",
+        ))
+    }
+}
+
+#[derive(Component, Clone, Serialize, Deserialize)]
+struct StructComponent {
+    x: u32,
+    y: u32,
+    b: f32,
+    a: f32,
+    n: String,
+}
+
+impl Default for StructComponent {
+    fn default() -> Self {
+        Self {
+            x: 22u32,
+            y: 22u32,
+            b: 1.5f32,
+            a: 20.0f32,
+            n: String::from("abcdef123"),
+        }
+    }
+}
+
+fn replication<T: Component + Default + Serialize + for<'de> Deserialize<'de> + Clone>(
+    c: &mut Criterion, t: &'static str,
+) {
     const ENTITIES: u32 = 1000;
     const SOCKET_WAIT: Duration = Duration::from_millis(5); // Sometimes it takes time for socket to receive all data.
 
@@ -20,20 +61,20 @@ fn replication(c: &mut Criterion) {
     let sleeper = SpinSleeper::new(1_000_000_000).with_spin_strategy(SpinStrategy::SpinLoopHint);
 
     for clients in [1, 20] {
-        c.bench_function(&format!("init send, {clients} client(s)"), |b| {
+        c.bench_function(&format!("[{t}]: init send, {clients} client(s)"), |b| {
             b.iter_custom(|iter| {
                 let mut elapsed = Duration::ZERO;
                 for _ in 0..iter {
-                    let mut server_app = create_app();
+                    let mut server_app = create_app::<T>();
                     let mut client_apps = Vec::new();
                     for _ in 0..clients {
-                        client_apps.push(create_app());
+                        client_apps.push(create_app::<T>());
                     }
                     connect::multiple_clients(&mut server_app, &mut client_apps);
 
                     server_app
                         .world
-                        .spawn_batch([(Replication, DummyComponent(0)); ENTITIES as usize]);
+                        .spawn_batch(vec![(Replication, T::default()); ENTITIES as usize]);
 
                     let instant = Instant::now();
                     server_app.update();
@@ -50,19 +91,19 @@ fn replication(c: &mut Criterion) {
             })
         });
 
-        c.bench_function(&format!("update send, {clients} client(s)"), |b| {
+        c.bench_function(&format!("[{t}]: update send, {clients} client(s)"), |b| {
             b.iter_custom(|iter| {
-                let mut server_app = create_app();
+                let mut server_app = create_app::<T>();
                 let mut client_apps = Vec::new();
                 for _ in 0..clients {
-                    client_apps.push(create_app());
+                    client_apps.push(create_app::<T>());
                 }
                 connect::multiple_clients(&mut server_app, &mut client_apps);
 
                 server_app
                     .world
-                    .spawn_batch([(Replication, DummyComponent(0)); ENTITIES as usize]);
-                let mut query = server_app.world.query::<&mut DummyComponent>();
+                    .spawn_batch(vec![(Replication, T::default()); ENTITIES as usize]);
+                let mut query = server_app.world.query::<&mut T>();
 
                 server_app.update();
                 sleeper.sleep(SOCKET_WAIT);
@@ -73,8 +114,8 @@ fn replication(c: &mut Criterion) {
 
                 let mut elapsed = Duration::ZERO;
                 for _ in 0..iter {
-                    for mut dummy_component in query.iter_mut(&mut server_app.world) {
-                        dummy_component.0 += 1;
+                    for component in query.iter_mut(&mut server_app.world) {
+                        component.into_inner();
                     }
 
                     sleeper.sleep(SOCKET_WAIT);
@@ -94,17 +135,17 @@ fn replication(c: &mut Criterion) {
         });
     }
 
-    c.bench_function("init receive", |b| {
+    c.bench_function(&format!("[{t}]: init receive"), |b| {
         b.iter_custom(|iter| {
             let mut elapsed = Duration::ZERO;
             for _ in 0..iter {
-                let mut server_app = create_app();
-                let mut client_app = create_app();
+                let mut server_app = create_app::<T>();
+                let mut client_app = create_app::<T>();
                 connect::single_client(&mut server_app, &mut client_app);
 
                 server_app
                     .world
-                    .spawn_batch([(Replication, DummyComponent(0)); ENTITIES as usize]);
+                    .spawn_batch(vec![(Replication, T::default()); ENTITIES as usize]);
 
                 server_app.update();
                 sleeper.sleep(SOCKET_WAIT);
@@ -119,16 +160,16 @@ fn replication(c: &mut Criterion) {
         })
     });
 
-    c.bench_function("update receive", |b| {
+    c.bench_function(&format!("[{t}]: update receive"), |b| {
         b.iter_custom(|iter| {
-            let mut server_app = create_app();
-            let mut client_app = create_app();
+            let mut server_app = create_app::<T>();
+            let mut client_app = create_app::<T>();
             connect::single_client(&mut server_app, &mut client_app);
 
             server_app
                 .world
-                .spawn_batch([(Replication, DummyComponent(0)); ENTITIES as usize]);
-            let mut query = server_app.world.query::<&mut DummyComponent>();
+                .spawn_batch(vec![(Replication, T::default()); ENTITIES as usize]);
+            let mut query = server_app.world.query::<&mut T>();
 
             server_app.update();
             sleeper.sleep(SOCKET_WAIT);
@@ -137,8 +178,8 @@ fn replication(c: &mut Criterion) {
 
             let mut elapsed = Duration::ZERO;
             for _ in 0..iter {
-                for mut dummy_component in query.iter_mut(&mut server_app.world) {
-                    dummy_component.0 += 1;
+                for component in query.iter_mut(&mut server_app.world) {
+                    component.into_inner();
                 }
 
                 sleeper.sleep(SOCKET_WAIT);
@@ -157,7 +198,7 @@ fn replication(c: &mut Criterion) {
     });
 }
 
-fn create_app() -> App {
+fn create_app<T: Component + Default + Serialize + for<'de> Deserialize<'de> + Clone>() -> App {
     let mut app = App::new();
     app.add_plugins((
         MinimalPlugins,
@@ -166,14 +207,39 @@ fn create_app() -> App {
             ..Default::default()
         }),
     ))
-    .replicate::<DummyComponent>();
+    .replicate::<T>();
 
     app
 }
 
-criterion_group! {
-    name = benches;
-    config = Criterion::default().sample_size(20);
-    targets = replication
+fn int_replication(c: &mut Criterion)
+{
+    replication::<UintComponent>(c, "uint");
 }
-criterion_main!(benches);
+
+fn string_replication(c: &mut Criterion)
+{
+    replication::<StringComponent>(c, "string");
+}
+
+fn struct_replication(c: &mut Criterion)
+{
+    replication::<StructComponent>(c, "struct");
+}
+
+criterion_group! {
+    name = int_benches;
+    config = Criterion::default().sample_size(20);
+    targets = int_replication
+}
+criterion_group! {
+    name = string_benches;
+    config = Criterion::default().sample_size(20);
+    targets = string_replication
+}
+criterion_group! {
+    name = struct_benches;
+    config = Criterion::default().sample_size(20);
+    targets = struct_replication
+}
+criterion_main!(int_benches, string_benches, struct_benches);
