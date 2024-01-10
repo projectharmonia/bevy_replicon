@@ -173,14 +173,16 @@ impl ServerEventAppExt for App {
             .init_resource::<Events<ToClients<T>>>()
             .init_resource::<ServerEventQueue<T>>()
             .insert_resource(ServerEventChannel::<T>::new(channel_id))
-            .add_systems(PreUpdate, reset_system::<T>.in_set(ClientSet::ResetEvents))
             .add_systems(
                 PreUpdate,
-                (queue_system::<T>, receiving_system)
-                    .chain()
-                    .after(ClientPlugin::replication_receiving_system)
-                    .in_set(ClientSet::Receive)
-                    .run_if(client_connected()),
+                (
+                    reset_system::<T>.in_set(ClientSet::ResetEvents),
+                    (queue_system::<T>, receiving_system)
+                        .chain()
+                        .after(ClientPlugin::replication_receiving_system)
+                        .in_set(ClientSet::Receive)
+                        .run_if(client_connected()),
+                ),
             )
             .add_systems(
                 PostUpdate,

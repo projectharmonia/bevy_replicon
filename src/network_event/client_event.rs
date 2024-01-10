@@ -139,12 +139,14 @@ impl ClientEventAppExt for App {
         self.add_event::<T>()
             .init_resource::<Events<FromClient<T>>>()
             .insert_resource(ClientEventChannel::<T>::new(channel_id))
-            .add_systems(PreUpdate, reset_system::<T>.in_set(ClientSet::ResetEvents))
             .add_systems(
                 PreUpdate,
-                receiving_system
-                    .in_set(ServerSet::Receive)
-                    .run_if(resource_exists::<RenetServer>()),
+                (
+                    reset_system::<T>.in_set(ClientSet::ResetEvents),
+                    receiving_system
+                        .in_set(ServerSet::Receive)
+                        .run_if(resource_exists::<RenetServer>()),
+                ),
             )
             .add_systems(
                 PostUpdate,
