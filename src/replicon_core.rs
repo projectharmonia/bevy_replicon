@@ -38,22 +38,22 @@ impl From<ReplicationChannel> for u8 {
     }
 }
 
-/// A resource to configure and setup channels for [`ConnectionConfig`](bevy_renet::renet::ConnectionConfig)
+/// A resource to configure and setup channels for [`ConnectionConfig`](bevy_renet::renet::ConnectionConfig).
 #[derive(Clone, Resource)]
 pub struct NetworkChannels {
-    /// Stores delivery guarantee and maximum usage bytes (if set) for each server channel.
+    /// Stores the delivery guarantee and maximum usage bytes (if set) for each server channel.
     server: Vec<(SendType, Option<usize>)>,
 
     /// Same as [`Self::server`], but for client.
     client: Vec<(SendType, Option<usize>)>,
 
-    /// Stores default max memory usage bytes for all channels.
+    /// Stores the default max memory usage bytes for all channels.
     ///
     /// This value will be used instead of `None`.
     default_max_bytes: usize,
 }
 
-/// Stores only replication channel by default.
+/// Only stores the replication channel by default.
 impl Default for NetworkChannels {
     fn default() -> Self {
         let replication_channels = vec![
@@ -85,7 +85,7 @@ impl NetworkChannels {
         self.get_configs(&self.client)
     }
 
-    /// Sets maximum usage bytes for specific client channel.
+    /// Sets the maximum usage bytes for a specific server channel.
     ///
     /// [`ReplicationChannel`] or [`ServerEventChannel<T>`](crate::network_event::ServerEventChannel) can be passed as `id`.
     /// Without calling this function, the default value will be used.
@@ -100,7 +100,7 @@ impl NetworkChannels {
         *bytes = Some(max_bytes);
     }
 
-    /// Same as [`Self::set_server_max_bytes`], but for client.
+    /// Same as [`Self::set_server_max_bytes`], but for a client channel.
     pub fn set_client_max_bytes(&mut self, id: impl Into<u8>, max_bytes: usize) {
         let id = id.into();
         let (_, bytes) = self
@@ -111,12 +111,13 @@ impl NetworkChannels {
         *bytes = Some(max_bytes);
     }
 
-    /// Sets maximum usage bytes that will be used by default for all channels if not set.
+    /// Sets the maximum usage bytes that will be used by default for all channels if not set.
     pub fn set_default_max_bytes(&mut self, max_bytes: usize) {
         self.default_max_bytes = max_bytes;
     }
 
-    pub(super) fn create_client_channel(&mut self, send_type: SendType) -> u8 {
+    /// Creates a new client channel with the specified send type.
+    pub fn create_client_channel(&mut self, send_type: SendType) -> u8 {
         if self.client.len() == u8::MAX as usize {
             panic!("number of client channels shouldn't exceed u8::MAX");
         }
@@ -125,7 +126,8 @@ impl NetworkChannels {
         self.client.len() as u8 - 1
     }
 
-    pub(super) fn create_server_channel(&mut self, send_type: SendType) -> u8 {
+    /// Creates a new server channel with the specified send type.
+    pub fn create_server_channel(&mut self, send_type: SendType) -> u8 {
         if self.server.len() == u8::MAX as usize {
             panic!("number of server channels shouldn't exceed u8::MAX");
         }
