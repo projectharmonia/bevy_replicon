@@ -203,7 +203,7 @@ fn queue_system<T: Event>(
     mut server_events: EventWriter<T>,
     mut event_queue: ResMut<ServerEventQueue<T>>,
 ) {
-    while let Some(event) = event_queue.pop_next(*replicon_tick) {
+    while let Some(event) = event_queue.try_pop(*replicon_tick) {
         server_events.send(event);
     }
 }
@@ -291,7 +291,7 @@ fn local_resending_system<T: Event>(
 }
 
 fn reset_system<T: Event>(mut event_queue: ResMut<ServerEventQueue<T>>) {
-    event_queue.clear();
+    event_queue.0.clear();
 }
 
 /// Sends serialized `message` to clients.
@@ -346,21 +346,15 @@ pub enum SendMode {
 pub struct ServerEventQueue<T>(ListOrderedMultimap<RepliconTick, T>);
 
 impl<T> ServerEventQueue<T> {
-    /// Clears the event queue.
-    pub fn clear(&mut self) {
-        self.0.clear();
-    }
-
     /// Inserts a new event.
     ///
-    /// The event will be queued until [`Self::pop_next`] is called with a replicon tick >= the tick specified here,
-    /// or until [`Self::clear`] is called.
+    /// The event will be queued until [`RepliconTick`] is bigger or equal to the tick specified here.
     pub fn insert(&mut self, tick: RepliconTick, event: T) {
         self.0.insert(tick, event);
     }
 
     /// Pops the next event that is at least as old as the specified replicon tick.
-    pub fn pop_next(&mut self, replicon_tick: RepliconTick) -> Option<T> {
+    fn try_pop(&mut self, replicon_tick: RepliconTick) -> Option<T> {
         let (tick, _) = self.0.front()?;
         if *tick > replicon_tick {
             return None;
