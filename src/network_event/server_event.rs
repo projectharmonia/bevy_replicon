@@ -181,18 +181,16 @@ impl ServerEventAppExt for App {
                     .in_set(ClientSet::Receive)
                     .run_if(client_connected()),
             )
+            .add_systems(PreUpdate, reset_system::<T>.in_set(ClientSet::ResetEvents))
             .add_systems(
                 PostUpdate,
                 (
-                    (
-                        sending_system.run_if(resource_exists::<RenetServer>()),
-                        local_resending_system::<T>.run_if(has_authority()),
-                    )
-                        .chain()
-                        .after(ServerPlugin::replication_sending_system)
-                        .in_set(ServerSet::Send),
-                    reset_system::<T>.run_if(resource_removed::<RenetClient>()),
-                ),
+                    sending_system.run_if(resource_exists::<RenetServer>()),
+                    local_resending_system::<T>.run_if(has_authority()),
+                )
+                    .chain()
+                    .after(ServerPlugin::replication_sending_system)
+                    .in_set(ServerSet::Send),
             );
 
         self

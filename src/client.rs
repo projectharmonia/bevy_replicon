@@ -36,6 +36,12 @@ impl Plugin for ClientPlugin {
                     .run_if(bevy_renet::client_just_disconnected()),
             )
             .configure_sets(
+                PreUpdate,
+                ClientSet::ResetEvents
+                    .after(NetcodeClientPlugin::update_system)
+                    .run_if(bevy_renet::client_just_disconnected()),
+            )
+            .configure_sets(
                 PostUpdate,
                 ClientSet::Send.before(NetcodeClientPlugin::send_packets),
             )
@@ -483,6 +489,14 @@ pub enum ClientSet {
     /// If this set is disabled, then you need to manually clean up the client after a disconnect or when
     /// reconnecting.
     Reset,
+    /// Systems that reset queued server events.
+    ///
+    /// Runs in `PreUpdate`.
+    ///
+    /// This is a separate set from `ClientSet::Reset` in case you want to enable/disable it separately.
+    /// In general it is best practice to clear queued server events after a disconnect, whereas you may want to
+    /// preserve replication state (in which case `ClientSet::Reset` should be disabled).
+    ResetEvents,
 }
 
 /// Last received tick for each entity.
