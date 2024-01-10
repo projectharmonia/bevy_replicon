@@ -227,6 +227,8 @@ server.
 
 To send specific events from client to server, you need to register the event
 with [`ClientEventAppExt::add_client_event()`] instead of `add_event()`.
+The event must be registered on both the client and the server.
+
 These events will appear on server as [`FromClient`] wrapper event that
 contains sender ID and the sent event. We consider the authority machine
 (a single-player session or you are a server) to be a client with ID
@@ -291,10 +293,10 @@ Don't forget to validate the contents of every `Box<dyn Reflect>` from a client,
 
 A similar technique is used to send events from server to clients. To do this,
 register the event with [`ServerEventAppExt::add_server_event()`] server event
-and send it from server using [`ToClients`]. This wrapper contains send
-parameters and the event itself. Just like events sent from the client,
-they will be emitted locally on the server (if [`SERVER_ID`] is not excluded
-from the send list):
+and send it from server using [`ToClients`]. The event must be registered on
+both the client and the server. This wrapper contains send parameters and the
+event itself. Just like events sent from the client, they will be emitted
+locally on the server (if [`SERVER_ID`] is not excluded from the send list):
 
 ```
 # use bevy::prelude::*;
