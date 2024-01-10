@@ -72,7 +72,7 @@ impl<T> From<ClientEventChannel<T>> for u8 {
 ///
 /// Mirrors [`SendType`] and can be converted into it with `resend_time` set to 300ms for reliable types.
 /// Provided for convenient defaults.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum EventType {
     /// Unreliable and unordered.
     Unreliable,
