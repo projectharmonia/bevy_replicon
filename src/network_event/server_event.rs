@@ -354,7 +354,7 @@ impl<T> ServerEventQueue<T> {
     }
 
     /// Pops the next event that is at least as old as the specified replicon tick.
-    pub fn try_pop(&mut self, replicon_tick: RepliconTick) -> Option<T> {
+    fn try_pop(&mut self, replicon_tick: RepliconTick) -> Option<T> {
         let (tick, _) = self.0.front()?;
         if *tick > replicon_tick {
             return None;
