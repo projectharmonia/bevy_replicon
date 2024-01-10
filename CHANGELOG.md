@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Refactor `ServerEventQueue` to have an explicit interface.
 - Moved server event reset system to new set `ClientSet::ResetEvents` in `PreUpdate`.
+- Make `NetworkChannels` channel-creation methods public (`create_client_channel()` and `create_server_channel()`).
 
 ## [0.19.0] - 2024-01-07
 
