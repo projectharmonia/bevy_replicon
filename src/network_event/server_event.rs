@@ -175,13 +175,15 @@ impl ServerEventAppExt for App {
             .insert_resource(ServerEventChannel::<T>::new(channel_id))
             .add_systems(
                 PreUpdate,
-                (queue_system::<T>, receiving_system)
-                    .chain()
-                    .after(ClientPlugin::replication_receiving_system)
-                    .in_set(ClientSet::Receive)
-                    .run_if(client_connected()),
+                (
+                    (queue_system::<T>, receiving_system)
+                        .chain()
+                        .after(ClientPlugin::replication_receiving_system)
+                        .in_set(ClientSet::Receive)
+                        .run_if(client_connected()),
+                    reset_system::<T>.in_set(ClientSet::ResetEvents),
+                ),
             )
-            .add_systems(PreUpdate, reset_system::<T>.in_set(ClientSet::ResetEvents))
             .add_systems(
                 PostUpdate,
                 (
@@ -290,7 +292,11 @@ fn local_resending_system<T: Event>(
     }
 }
 
-fn reset_system<T: Event>(mut event_queue: ResMut<ServerEventQueue<T>>) {
+fn reset_system<T: Event>(
+    mut events: ResMut<Events<T>>,
+    mut event_queue: ResMut<ServerEventQueue<T>>,
+) {
+    events.clear();
     event_queue.clear();
 }
 
