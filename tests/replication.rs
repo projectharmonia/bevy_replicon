@@ -1,7 +1,5 @@
 mod connect;
 
-use std::ops::DerefMut;
-
 use bevy::{prelude::*, utils::Duration};
 use bevy_replicon::{prelude::*, scene};
 
@@ -820,12 +818,11 @@ fn diagnostics() {
     server_app.update();
     client_app.update();
 
-    // Trigger change detection.
     server_app
         .world
         .get_mut::<TableComponent>(server_entity)
         .unwrap()
-        .deref_mut();
+        .set_changed();
 
     server_app.update();
     client_app.update();
