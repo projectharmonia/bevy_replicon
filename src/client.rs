@@ -495,7 +495,7 @@ pub enum ClientSet {
     ///
     /// This is a separate set from `ClientSet::Reset` in case you want to enable/disable it separately.
     /// In general it is best practice to clear queued server events after a disconnect, whereas you may want to
-    /// preserve replication state (in which cse `ClientSet::Reset` should be disabled).
+    /// preserve replication state (in which case `ClientSet::Reset` should be disabled).
     ResetEvents,
 }
 
