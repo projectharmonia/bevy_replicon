@@ -4,7 +4,7 @@ pub mod diagnostics;
 use std::io::Cursor;
 
 use bevy::{prelude::*, utils::EntityHashMap};
-use bevy_renet::{client_connected, renet::Bytes};
+use bevy_renet::{client_connected, client_just_connected, client_just_disconnected, renet::Bytes};
 use bevy_renet::{renet::RenetClient, transport::NetcodeClientPlugin, RenetClientPlugin};
 use bincode::{DefaultOptions, Options};
 use varint_rs::VarintReader;
@@ -27,19 +27,20 @@ impl Plugin for ClientPlugin {
             .init_resource::<BufferedUpdates>()
             .configure_sets(
                 PreUpdate,
+                ClientSet::ResetEvents
+                    .after(NetcodeClientPlugin::update_system)
+                    .before(ClientSet::Receive)
+                    .run_if(client_just_connected()),
+            )
+            .configure_sets(
+                PreUpdate,
                 ClientSet::Receive.after(NetcodeClientPlugin::update_system),
             )
             .configure_sets(
                 PreUpdate,
                 ClientSet::Reset
                     .after(NetcodeClientPlugin::update_system)
-                    .run_if(bevy_renet::client_just_disconnected()),
-            )
-            .configure_sets(
-                PreUpdate,
-                ClientSet::ResetEvents
-                    .after(NetcodeClientPlugin::update_system)
-                    .run_if(bevy_renet::client_just_disconnected()),
+                    .run_if(client_just_disconnected()),
             )
             .configure_sets(
                 PostUpdate,
@@ -484,18 +485,22 @@ pub enum ClientSet {
     Send,
     /// Systems that reset the client.
     ///
-    /// Runs in `PreUpdate`.
+    /// Runs in `PreUpdate` when the client just disconnected.
     ///
     /// If this set is disabled, then you need to manually clean up the client after a disconnect or when
     /// reconnecting.
+    /// You may want to disable this set if you want to preserve client replication state across reconnects.
+    /// In that case, you need to manually repair the client state (or use something like
+    /// [bevy_replicon_repair](https://github.com/UkoeHB/bevy_replicon_repair)).
     Reset,
     /// Systems that reset queued server events.
     ///
-    /// Runs in `PreUpdate`.
+    /// Runs in `PreUpdate` immediately after the client connects to ensure client sessions have a fresh start.
     ///
-    /// This is a separate set from `ClientSet::Reset` in case you want to enable/disable it separately.
-    /// In general it is best practice to clear queued server events after a disconnect, whereas you may want to
-    /// preserve replication state (in which case `ClientSet::Reset` should be disabled).
+    /// This is a separate set from `ClientSet::Reset` because the reset requirements for events are different
+    /// from the replicon client internals.
+    /// It is best practice to discard client-sent and server-received events while the client is not connected
+    /// in order to guarantee clean separation between connection sessions.
     ResetEvents,
 }
 
