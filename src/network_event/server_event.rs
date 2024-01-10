@@ -203,13 +203,7 @@ fn queue_system<T: Event>(
     mut server_events: EventWriter<T>,
     mut event_queue: ResMut<ServerEventQueue<T>>,
 ) {
-    while event_queue
-        .0
-        .front()
-        .filter(|(&tick, _)| tick <= *replicon_tick)
-        .is_some()
-    {
-        let (_, event) = event_queue.0.pop_front().unwrap();
+    while let Some(event) = event_queue.try_pop(*replicon_tick) {
         server_events.send(event);
     }
 }
@@ -354,9 +348,18 @@ pub struct ServerEventQueue<T>(ListOrderedMultimap<RepliconTick, T>);
 impl<T> ServerEventQueue<T> {
     /// Inserts a new event.
     ///
-    /// The event will be queued until [`RepliconTick`] will be bigger or equal to the tick specified here.
+    /// The event will be queued until [`RepliconTick`] is bigger or equal to the tick specified here.
     pub fn insert(&mut self, tick: RepliconTick, event: T) {
         self.0.insert(tick, event);
+    }
+
+    /// Pops the next event that is at least as old as the specified replicon tick.
+    pub fn try_pop(&mut self, replicon_tick: RepliconTick) -> Option<T> {
+        let (tick, _) = self.0.front()?;
+        if *tick > replicon_tick {
+            return None;
+        }
+        self.0.pop_front().map(|(_, event)| event)
     }
 }
 
