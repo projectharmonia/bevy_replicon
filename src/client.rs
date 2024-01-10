@@ -4,8 +4,12 @@ pub mod diagnostics;
 use std::io::Cursor;
 
 use bevy::{prelude::*, utils::EntityHashMap};
-use bevy_renet::{client_connected, client_just_connected, client_just_disconnected, renet::Bytes};
-use bevy_renet::{renet::RenetClient, transport::NetcodeClientPlugin, RenetClientPlugin};
+use bevy_renet::{
+    client_connected, client_just_connected, client_just_disconnected,
+    renet::{Bytes, RenetClient},
+    transport::NetcodeClientPlugin,
+    RenetClientPlugin,
+};
 use bincode::{DefaultOptions, Options};
 use varint_rs::VarintReader;
 
