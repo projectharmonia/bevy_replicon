@@ -141,9 +141,12 @@ impl ClientEventAppExt for App {
             .insert_resource(ClientEventChannel::<T>::new(channel_id))
             .add_systems(
                 PreUpdate,
-                receiving_system
-                    .in_set(ServerSet::Receive)
-                    .run_if(resource_exists::<RenetServer>()),
+                (
+                    reset_system::<T>.in_set(ClientSet::ResetEvents),
+                    receiving_system
+                        .in_set(ServerSet::Receive)
+                        .run_if(resource_exists::<RenetServer>()),
+                ),
             )
             .add_systems(
                 PostUpdate,
@@ -217,6 +220,16 @@ fn local_resending_system<T: Event>(
             client_id: SERVER_ID,
             event,
         })
+    }
+}
+
+/// Discards all pending events.
+///
+/// We discard events while waiting to connect to ensure clean reconnects.
+fn reset_system<T: Event>(mut events: ResMut<Events<T>>) {
+    let drained_count = events.drain().count();
+    if drained_count > 0 {
+        warn!("discarded {drained_count} client events due to a disconnect");
     }
 }
 
