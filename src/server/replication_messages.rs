@@ -210,6 +210,7 @@ impl InitMessage {
 
     /// Serializes entity as an array element.
     ///
+    /// Reuses previously shared bytes if they exist, or updates them.
     /// Should be called only inside an array and increases its length by 1.
     /// See also [`Self::start_array`].
     pub(super) fn write_entity<'a>(
@@ -288,6 +289,7 @@ impl InitMessage {
 
     /// Serializes component and its replication ID as an element of entity data.
     ///
+    /// Reuses previously shared bytes if they exist, or updates them.
     /// Should be called only inside an entity data and increases its size.
     /// See also [`Self::start_entity_data`].
     pub(super) fn write_component<'a>(
@@ -513,6 +515,7 @@ impl UpdateMessage {
 
     /// Serializes component and its replication ID as an element of entity data.
     ///
+    /// Reuses previously shared bytes if they exist, or updates them.
     /// Should be called only inside an entity data and increases its size.
     /// See also [`Self::start_entity_data`].
     pub(super) fn write_component<'a>(
@@ -632,6 +635,10 @@ impl Default for UpdateMessage {
     }
 }
 
+/// Writes a new data into cursor returns serialized size.
+///
+/// Reuses previously shared bytes if they exist, or updates them.
+/// Serialized size should be less then [`u16`].
 fn write_with<'a>(
     shared_bytes: &mut Option<&'a [u8]>,
     cursor: &'a mut Cursor<Vec<u8>>,
