@@ -10,7 +10,7 @@ use bincode::{DefaultOptions, Options};
 
 use super::{
     clients_info::{ClientBuffers, ClientsInfo},
-    copy_buffer::{CopyBuffer, serialize_entity},
+    copy_buffer::{serialize_entity, CopyBuffer},
     ClientInfo, ClientMapping, LastChangeTick,
 };
 use crate::replicon_core::{
@@ -212,7 +212,11 @@ impl InitMessage {
     ///
     /// Should be called only inside an array and increases its length by 1.
     /// See also [`Self::start_array`].
-    pub(super) fn write_entity(&mut self, buffer: &mut CopyBuffer, entity: Entity) -> bincode::Result<()> {
+    pub(super) fn write_entity(
+        &mut self,
+        buffer: &mut CopyBuffer,
+        entity: Entity,
+    ) -> bincode::Result<()> {
         buffer.write_entity(&mut self.cursor, entity)?;
         self.array_len = self
             .array_len
@@ -254,7 +258,11 @@ impl InitMessage {
     /// Should be called only inside an array and increases its length by 1.
     /// See also [`Self::start_array`], [`Self::write_component`] and
     /// [`Self::write_component_id`].
-    pub(super) fn end_entity_data(&mut self, buffer: &mut CopyBuffer, save_empty: bool) -> bincode::Result<()> {
+    pub(super) fn end_entity_data(
+        &mut self,
+        buffer: &mut CopyBuffer,
+        save_empty: bool,
+    ) -> bincode::Result<()> {
         if self.entity_data_size == 0 && !save_empty {
             self.cursor.set_position(self.entity_data_pos);
             return Ok(());

@@ -24,7 +24,11 @@ impl CopyBuffer {
     /// Serializes the entity if unset, then writes to the cursor.
     ///
     /// If there is a saved entity, the `entity` passed in must equal it (unchecked invariant).
-    pub(super) fn write_entity(&mut self, cursor: &mut Cursor<Vec<u8>>, entity: Entity) -> bincode::Result<()> {
+    pub(super) fn write_entity(
+        &mut self,
+        cursor: &mut Cursor<Vec<u8>>,
+        entity: Entity,
+    ) -> bincode::Result<()> {
         if !self.entity_set {
             self.entity_set = true;
             serialize_entity(&mut self.entity, entity)?;
@@ -39,11 +43,11 @@ impl CopyBuffer {
     ///
     /// If there is a saved component, the `component` passed in must equal it (unchecked invariant).
     pub(super) fn write_component(
-        &mut self, 
+        &mut self,
         cursor: &mut Cursor<Vec<u8>>,
         replication_id: ReplicationId,
         replication_info: &ReplicationInfo,
-        ptr: Ptr<'_>
+        ptr: Ptr<'_>,
     ) -> bincode::Result<u16> {
         if !self.component_set {
             self.component_set = true;
@@ -72,7 +76,7 @@ impl CopyBuffer {
 
 impl Default for CopyBuffer {
     fn default() -> Self {
-        Self{
+        Self {
             entity_set: false,
             entity: Cursor::new(Vec::new()),
             component_set: false,
@@ -85,7 +89,10 @@ impl Default for CopyBuffer {
 ///
 /// The index is first prepended with a bit flag to indicate if the generation
 /// is serialized or not (it is not serialized if equal to zero).
-pub(super) fn serialize_entity(cursor: &mut Cursor<Vec<u8>>, entity: Entity) -> bincode::Result<()> {
+pub(super) fn serialize_entity(
+    cursor: &mut Cursor<Vec<u8>>,
+    entity: Entity,
+) -> bincode::Result<()> {
     let mut flagged_index = (entity.index() as u64) << 1;
     let flag = entity.generation() > 0;
     flagged_index |= flag as u64;

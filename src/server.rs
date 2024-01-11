@@ -1,9 +1,9 @@
 pub(super) mod clients_info;
+pub(super) mod copy_buffer;
 pub(super) mod despawn_buffer;
 pub(super) mod removal_buffer;
 pub(super) mod replicated_archetypes_info;
 pub(super) mod replication_messages;
-pub(super) mod copy_buffer;
 
 use std::{mem, time::Duration};
 
@@ -221,7 +221,12 @@ impl ServerPlugin {
             &change_tick,
         )?;
         collect_despawns(&mut messages, &mut buffer, &mut set.p3())?;
-        collect_removals(&mut messages, &mut buffer, &mut set.p4(), change_tick.this_run())?;
+        collect_removals(
+            &mut messages,
+            &mut buffer,
+            &mut set.p4(),
+            change_tick.this_run(),
+        )?;
 
         let last_change_tick = *set.p5();
         let mut client_buffers = mem::take(&mut *set.p6());
