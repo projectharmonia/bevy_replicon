@@ -9,8 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Speedup serialization for multiple clients by reusing already serialized components and entities.
 - Hide extra functionality from `ServerEventQueue`.
-- Moved server event reset system to new set `ClientSet::ResetEvents` in `PreUpdate`.
+- Move server event reset system to new set `ClientSet::ResetEvents` in `PreUpdate`.
 - Make `NetworkChannels` channel-creation methods public (`create_client_channel()` and `create_server_channel()`).
 - Implement `Eq` and `PartialEq` on `EventType`.
 

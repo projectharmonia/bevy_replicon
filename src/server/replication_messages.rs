@@ -635,7 +635,7 @@ impl Default for UpdateMessage {
     }
 }
 
-/// Writes a new data into cursor returns serialized size.
+/// Writes new data into a cursor and returns the serialized size.
 ///
 /// Reuses previously shared bytes if they exist, or updates them.
 /// Serialized size should be less then [`u16`].
