@@ -7,10 +7,10 @@ use std::{
 use bevy::{ecs::component::Tick, prelude::*, ptr::Ptr};
 use bevy_renet::renet::{Bytes, ClientId, RenetServer};
 use bincode::{DefaultOptions, Options};
-use varint_rs::VarintWriter;
 
 use super::{
     clients_info::{ClientBuffers, ClientsInfo},
+    copy_buffer::{CopyBuffer, serialize_entity},
     ClientInfo, ClientMapping, LastChangeTick,
 };
 use crate::replicon_core::{
@@ -212,8 +212,8 @@ impl InitMessage {
     ///
     /// Should be called only inside an array and increases its length by 1.
     /// See also [`Self::start_array`].
-    pub(super) fn write_entity(&mut self, entity: Entity) -> bincode::Result<()> {
-        serialize_entity(&mut self.cursor, entity)?;
+    pub(super) fn write_entity(&mut self, buffer: &mut CopyBuffer, entity: Entity) -> bincode::Result<()> {
+        buffer.write_entity(&mut self.cursor, entity)?;
         self.array_len = self
             .array_len
             .checked_add(1)
@@ -238,8 +238,8 @@ impl InitMessage {
     /// Writes entity for the current data and remembers the position after it to write length later.
     ///
     /// Should be called only after first data write.
-    fn write_data_entity(&mut self) -> bincode::Result<()> {
-        serialize_entity(&mut self.cursor, self.data_entity)?;
+    fn write_data_entity(&mut self, buffer: &mut CopyBuffer) -> bincode::Result<()> {
+        buffer.write_entity(&mut self.cursor, self.data_entity)?;
         self.entity_data_size_pos = self.cursor.position();
         self.cursor.set_position(
             self.entity_data_size_pos + mem::size_of_val(&self.entity_data_size) as u64,
@@ -254,14 +254,14 @@ impl InitMessage {
     /// Should be called only inside an array and increases its length by 1.
     /// See also [`Self::start_array`], [`Self::write_component`] and
     /// [`Self::write_component_id`].
-    pub(super) fn end_entity_data(&mut self, save_empty: bool) -> bincode::Result<()> {
+    pub(super) fn end_entity_data(&mut self, buffer: &mut CopyBuffer, save_empty: bool) -> bincode::Result<()> {
         if self.entity_data_size == 0 && !save_empty {
             self.cursor.set_position(self.entity_data_pos);
             return Ok(());
         }
 
         if self.entity_data_size == 0 {
-            self.write_data_entity()?;
+            self.write_data_entity(buffer)?;
         }
 
         let previous_pos = self.cursor.position();
@@ -285,16 +285,17 @@ impl InitMessage {
     /// See also [`Self::start_entity_data`].
     pub(super) fn write_component(
         &mut self,
+        buffer: &mut CopyBuffer,
         replication_info: &ReplicationInfo,
         replication_id: ReplicationId,
         ptr: Ptr,
     ) -> bincode::Result<()> {
         if self.entity_data_size == 0 {
-            self.write_data_entity()?;
+            self.write_data_entity(buffer)?;
         }
 
         let component_size =
-            serialize_component(&mut self.cursor, replication_id, replication_info, ptr)?;
+            buffer.write_component(&mut self.cursor, replication_id, replication_info, ptr)?;
         self.entity_data_size = self
             .entity_data_size
             .checked_add(component_size)
@@ -309,10 +310,11 @@ impl InitMessage {
     /// See also [`Self::start_entity_data`].
     pub(super) fn write_replication_id(
         &mut self,
+        buffer: &mut CopyBuffer,
         replication_id: ReplicationId,
     ) -> bincode::Result<()> {
         if self.entity_data_size == 0 {
-            self.write_data_entity()?;
+            self.write_data_entity(buffer)?;
         }
 
         let previous_pos = self.cursor.position();
@@ -465,8 +467,8 @@ impl UpdateMessage {
     /// Writes entity for the current data and remembers the position after it to write length later.
     ///
     /// Should be called only after first data write.
-    fn write_data_entity(&mut self) -> bincode::Result<()> {
-        serialize_entity(&mut self.cursor, self.data_entity)?;
+    fn write_data_entity(&mut self, buffer: &mut CopyBuffer) -> bincode::Result<()> {
+        buffer.write_entity(&mut self.cursor, self.data_entity)?;
         self.entity_data_size_pos = self.cursor.position();
         self.cursor.set_position(
             self.entity_data_size_pos + mem::size_of_val(&self.entity_data_size) as u64,
@@ -506,16 +508,17 @@ impl UpdateMessage {
     /// See also [`Self::start_entity_data`].
     pub(super) fn write_component(
         &mut self,
+        buffer: &mut CopyBuffer,
         replication_info: &ReplicationInfo,
         replication_id: ReplicationId,
         ptr: Ptr,
     ) -> bincode::Result<()> {
         if self.entity_data_size == 0 {
-            self.write_data_entity()?;
+            self.write_data_entity(buffer)?;
         }
 
         let component_size =
-            serialize_component(&mut self.cursor, replication_id, replication_info, ptr)?;
+            buffer.write_component(&mut self.cursor, replication_id, replication_info, ptr)?;
         self.entity_data_size = self
             .entity_data_size
             .checked_add(component_size)
@@ -617,45 +620,11 @@ impl Default for UpdateMessage {
     }
 }
 
-/// Serializes component with replication ID and returns serialized size.
-fn serialize_component(
-    cursor: &mut Cursor<Vec<u8>>,
-    replication_id: ReplicationId,
-    replication_info: &ReplicationInfo,
-    ptr: Ptr<'_>,
-) -> bincode::Result<u16> {
-    let previous_pos = cursor.position();
-    DefaultOptions::new().serialize_into(&mut *cursor, &replication_id)?;
-    (replication_info.serialize)(ptr, cursor)?;
-    let component_size = (cursor.position() - previous_pos)
-        .try_into()
-        .map_err(|_| bincode::ErrorKind::SizeLimit)?;
-
-    Ok(component_size)
-}
-
 fn can_pack(header_size: usize, base: usize, add: usize) -> bool {
     const MAX_PACKET_SIZE: usize = 1200; // https://github.com/lucaspoffo/renet/blob/acee8b470e34c70d35700d96c00fb233d9cf6919/renet/src/packet.rs#L7
 
     let dangling = (base + header_size) % MAX_PACKET_SIZE;
     (dangling > 0) && ((dangling + add) <= MAX_PACKET_SIZE)
-}
-
-/// Serializes `entity` by writing its index and generation as separate varints.
-///
-/// The index is first prepended with a bit flag to indicate if the generation
-/// is serialized or not (it is not serialized if equal to zero).
-fn serialize_entity(cursor: &mut Cursor<Vec<u8>>, entity: Entity) -> bincode::Result<()> {
-    let mut flagged_index = (entity.index() as u64) << 1;
-    let flag = entity.generation() > 0;
-    flagged_index |= flag as u64;
-
-    cursor.write_u64_varint(flagged_index)?;
-    if flag {
-        cursor.write_u32_varint(entity.generation())?;
-    }
-
-    Ok(())
 }
 
 #[cfg(test)]

@@ -3,6 +3,7 @@ pub(super) mod despawn_buffer;
 pub(super) mod removal_buffer;
 pub(super) mod replicated_archetypes_info;
 pub(super) mod replication_messages;
+pub(super) mod copy_buffer;
 
 use std::{mem, time::Duration};
 
@@ -28,6 +29,7 @@ use crate::replicon_core::{
     replication_rules::ReplicationRules, replicon_tick::RepliconTick, ReplicationChannel,
 };
 use clients_info::{ClientBuffers, ClientInfo, ClientsInfo};
+use copy_buffer::CopyBuffer;
 use despawn_buffer::{DespawnBuffer, DespawnBufferPlugin};
 use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
 use replicated_archetypes_info::ReplicatedArchetypesInfo;
@@ -186,6 +188,7 @@ impl ServerPlugin {
     #[allow(clippy::type_complexity)]
     pub(super) fn replication_sending_system(
         mut messages: Local<ReplicationMessages>,
+        mut buffer: Local<CopyBuffer>,
         mut archetypes_info: Local<ReplicatedArchetypesInfo>,
         change_tick: SystemChangeTick,
         mut set: ParamSet<(
@@ -206,17 +209,19 @@ impl ServerPlugin {
 
         let clients_info = mem::take(&mut *set.p1()); // Take ownership to avoid borrowing issues.
         messages.prepare(clients_info);
+        buffer.reset();
 
         collect_mappings(&mut messages, &mut set.p2())?;
         collect_changes(
             &mut messages,
+            &mut buffer,
             &archetypes_info,
             &replication_rules,
             set.p0(),
             &change_tick,
         )?;
-        collect_despawns(&mut messages, &mut set.p3())?;
-        collect_removals(&mut messages, &mut set.p4(), change_tick.this_run())?;
+        collect_despawns(&mut messages, &mut buffer, &mut set.p3())?;
+        collect_removals(&mut messages, &mut buffer, &mut set.p4(), change_tick.this_run())?;
 
         let last_change_tick = *set.p5();
         let mut client_buffers = mem::take(&mut *set.p6());
@@ -274,6 +279,7 @@ fn collect_mappings(
 /// since the last entity tick.
 fn collect_changes(
     messages: &mut ReplicationMessages,
+    buffer: &mut CopyBuffer,
     archetypes_info: &ReplicatedArchetypesInfo,
     replication_rules: &ReplicationRules,
     world: &World,
@@ -334,6 +340,7 @@ fn collect_changes(
                     if new_entity || ticks.is_added(change_tick.last_run(), change_tick.this_run())
                     {
                         init_message.write_component(
+                            buffer,
                             &component_info.replication_info,
                             component_info.replication_id,
                             component,
@@ -345,6 +352,7 @@ fn collect_changes(
                             .expect("entity should be present after adding component");
                         if ticks.is_changed(tick, change_tick.this_run()) {
                             update_message.write_component(
+                                buffer,
                                 &component_info.replication_info,
                                 component_info.replication_id,
                                 component,
@@ -352,6 +360,8 @@ fn collect_changes(
                         }
                     }
                 }
+
+                buffer.end_component();
             }
 
             for (init_message, update_message, client_info) in messages.iter_mut_with_info() {
@@ -367,8 +377,10 @@ fn collect_changes(
                     update_message.end_entity_data()?;
                 }
 
-                init_message.end_entity_data(new_entity)?;
+                init_message.end_entity_data(buffer, new_entity)?;
             }
+
+            buffer.end_entity();
         }
     }
 
@@ -413,6 +425,7 @@ unsafe fn get_component_unchecked<'w>(
 /// Collect entity despawns from this tick into init messages.
 fn collect_despawns(
     messages: &mut ReplicationMessages,
+    buffer: &mut CopyBuffer,
     despawn_buffer: &mut DespawnBuffer,
 ) -> bincode::Result<()> {
     for (message, _) in messages.iter_mut() {
@@ -422,8 +435,10 @@ fn collect_despawns(
     for entity in despawn_buffer.drain(..) {
         for (message, _, client_info) in messages.iter_mut_with_info() {
             client_info.ticks.remove(&entity);
-            message.write_entity(entity)?;
+            message.write_entity(buffer, entity)?;
         }
+
+        buffer.end_entity();
     }
 
     for (message, _) in messages.iter_mut() {
@@ -436,6 +451,7 @@ fn collect_despawns(
 /// Collects component removals from this tick into init messages.
 fn collect_removals(
     messages: &mut ReplicationMessages,
+    buffer: &mut CopyBuffer,
     removal_buffer: &mut RemovalBuffer,
     tick: Tick,
 ) -> bincode::Result<()> {
@@ -448,10 +464,12 @@ fn collect_removals(
             message.start_entity_data(entity);
             for &replication_id in components {
                 client_info.ticks.insert(entity, tick);
-                message.write_replication_id(replication_id)?;
+                message.write_replication_id(buffer, replication_id)?;
             }
-            message.end_entity_data(false)?;
+            message.end_entity_data(buffer, false)?;
         }
+
+        buffer.end_entity();
     }
     removal_buffer.clear();
 

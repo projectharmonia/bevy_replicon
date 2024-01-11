@@ -453,7 +453,7 @@ fn apply_update_components(
 
 /// Deserializes `entity` from compressed index and generation.
 ///
-/// For details see [`ReplicationBuffer::write_entity`](crate::server::replication_message::replication_buffer::write_entity).
+/// For details see [`serialize_entity`](crate::server::copy_buffer::serialize_entity).
 fn deserialize_entity(cursor: &mut Cursor<&[u8]>) -> bincode::Result<Entity> {
     let flagged_index: u64 = cursor.read_u64_varint()?;
     let has_generation = (flagged_index & 1) > 0;
