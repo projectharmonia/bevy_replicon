@@ -329,11 +329,13 @@ fn collect_changes(
                     )
                 };
 
+                let mut shared_bytes = None;
                 for (init_message, update_message, client_info) in messages.iter_mut_with_info() {
                     let new_entity = marker_added || client_info.just_connected;
                     if new_entity || ticks.is_added(change_tick.last_run(), change_tick.this_run())
                     {
                         init_message.write_component(
+                            &mut shared_bytes,
                             &component_info.replication_info,
                             component_info.replication_id,
                             component,
@@ -345,6 +347,7 @@ fn collect_changes(
                             .expect("entity should be present after adding component");
                         if ticks.is_changed(tick, change_tick.this_run()) {
                             update_message.write_component(
+                                &mut shared_bytes,
                                 &component_info.replication_info,
                                 component_info.replication_id,
                                 component,
@@ -420,9 +423,10 @@ fn collect_despawns(
     }
 
     for entity in despawn_buffer.drain(..) {
+        let mut shared_bytes = None;
         for (message, _, client_info) in messages.iter_mut_with_info() {
             client_info.ticks.remove(&entity);
-            message.write_entity(entity)?;
+            message.write_entity(&mut shared_bytes, entity)?;
         }
     }
 
