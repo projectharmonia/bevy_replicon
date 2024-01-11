@@ -212,8 +212,15 @@ impl InitMessage {
     ///
     /// Should be called only inside an array and increases its length by 1.
     /// See also [`Self::start_array`].
-    pub(super) fn write_entity(&mut self, entity: Entity) -> bincode::Result<()> {
-        serialize_entity(&mut self.cursor, entity)?;
+    pub(super) fn write_entity<'a>(
+        &'a mut self,
+        shared_bytes: &mut Option<&'a [u8]>,
+        entity: Entity,
+    ) -> bincode::Result<()> {
+        write_with(shared_bytes, &mut self.cursor, |cursor| {
+            serialize_entity(cursor, entity)
+        })?;
+
         self.array_len = self
             .array_len
             .checked_add(1)
@@ -283,8 +290,9 @@ impl InitMessage {
     ///
     /// Should be called only inside an entity data and increases its size.
     /// See also [`Self::start_entity_data`].
-    pub(super) fn write_component(
-        &mut self,
+    pub(super) fn write_component<'a>(
+        &'a mut self,
+        shared_bytes: &mut Option<&'a [u8]>,
         replication_info: &ReplicationInfo,
         replication_id: ReplicationId,
         ptr: Ptr,
@@ -293,11 +301,14 @@ impl InitMessage {
             self.write_data_entity()?;
         }
 
-        let component_size =
-            serialize_component(&mut self.cursor, replication_id, replication_info, ptr)?;
+        let size = write_with(shared_bytes, &mut self.cursor, |cursor| {
+            DefaultOptions::new().serialize_into(&mut *cursor, &replication_id)?;
+            (replication_info.serialize)(ptr, cursor)
+        })?;
+
         self.entity_data_size = self
             .entity_data_size
-            .checked_add(component_size)
+            .checked_add(size)
             .ok_or(bincode::ErrorKind::SizeLimit)?;
 
         Ok(())
@@ -504,8 +515,9 @@ impl UpdateMessage {
     ///
     /// Should be called only inside an entity data and increases its size.
     /// See also [`Self::start_entity_data`].
-    pub(super) fn write_component(
-        &mut self,
+    pub(super) fn write_component<'a>(
+        &'a mut self,
+        shared_bytes: &mut Option<&'a [u8]>,
         replication_info: &ReplicationInfo,
         replication_id: ReplicationId,
         ptr: Ptr,
@@ -514,11 +526,14 @@ impl UpdateMessage {
             self.write_data_entity()?;
         }
 
-        let component_size =
-            serialize_component(&mut self.cursor, replication_id, replication_info, ptr)?;
+        let size = write_with(shared_bytes, &mut self.cursor, |cursor| {
+            DefaultOptions::new().serialize_into(&mut *cursor, &replication_id)?;
+            (replication_info.serialize)(ptr, cursor)
+        })?;
+
         self.entity_data_size = self
             .entity_data_size
-            .checked_add(component_size)
+            .checked_add(size)
             .ok_or(bincode::ErrorKind::SizeLimit)?;
 
         Ok(())
@@ -617,21 +632,32 @@ impl Default for UpdateMessage {
     }
 }
 
-/// Serializes component with replication ID and returns serialized size.
-fn serialize_component(
-    cursor: &mut Cursor<Vec<u8>>,
-    replication_id: ReplicationId,
-    replication_info: &ReplicationInfo,
-    ptr: Ptr<'_>,
+fn write_with<'a>(
+    shared_bytes: &mut Option<&'a [u8]>,
+    cursor: &'a mut Cursor<Vec<u8>>,
+    write_fn: impl FnOnce(&mut Cursor<Vec<u8>>) -> bincode::Result<()>,
 ) -> bincode::Result<u16> {
-    let previous_pos = cursor.position();
-    DefaultOptions::new().serialize_into(&mut *cursor, &replication_id)?;
-    (replication_info.serialize)(ptr, cursor)?;
-    let component_size = (cursor.position() - previous_pos)
+    let bytes = if let Some(bytes) = shared_bytes {
+        cursor.write_all(bytes)?;
+        bytes
+    } else {
+        let previous_pos = cursor.position() as usize;
+        (write_fn(cursor))?;
+        let current_pos = cursor.position() as usize;
+
+        let buffer = cursor.get_ref();
+        let bytes = &buffer[previous_pos..current_pos];
+        *shared_bytes = Some(bytes);
+
+        bytes
+    };
+
+    let size = bytes
+        .len()
         .try_into()
         .map_err(|_| bincode::ErrorKind::SizeLimit)?;
 
-    Ok(component_size)
+    Ok(size)
 }
 
 fn can_pack(header_size: usize, base: usize, add: usize) -> bool {
