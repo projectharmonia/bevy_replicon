@@ -7,6 +7,10 @@ use bevy::{
 };
 use bevy_renet::renet::ClientId;
 
+/// Stores meta-information about connected clients.
+#[derive(Default, Resource)]
+pub struct ClientsInfo(Vec<ClientInfo>);
+
 /// Reusable buffers for [`ClientsInfo`] and [`ClientInfo`].
 #[derive(Default, Resource)]
 pub(crate) struct ClientBuffers {
@@ -20,10 +24,6 @@ pub(crate) struct ClientBuffers {
     /// Stored to reuse allocated capacity.
     entities: Vec<Vec<Entity>>,
 }
-
-/// Stores meta-information about connected clients.
-#[derive(Default, Resource)]
-pub struct ClientsInfo(Vec<ClientInfo>);
 
 impl ClientsInfo {
     /// Returns a mutable iterator over clients information.

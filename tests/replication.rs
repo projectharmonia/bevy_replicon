@@ -1,8 +1,7 @@
 mod connect;
 
 use bevy::{prelude::*, utils::Duration};
-use bevy_replicon::server::clients_info::ClientsInfo;
-use bevy_replicon::{prelude::*, scene};
+use bevy_replicon::{prelude::*, scene, server::clients_info::ClientsInfo};
 
 use bevy_renet::renet::{
     transport::{NetcodeClientTransport, NetcodeServerTransport},
@@ -451,10 +450,8 @@ fn update_and_removal_with_stale_ack_replication() {
         .replicate::<BoolComponent>();
     }
 
-    // 1. Connect a client.
     connect::single_client(&mut server_app, &mut client_app);
 
-    // 2. Spawn an entity and replicate it to the client.
     let server_entity = server_app
         .world
         .spawn((Replication, BoolComponent(false)))
@@ -465,8 +462,7 @@ fn update_and_removal_with_stale_ack_replication() {
 
     assert_eq!(client_app.world.entities().len(), 1);
 
-    // 3. Update the component and replicate it to the client.
-    // - The client will send an update ack.
+    // The client will send an update ack.
     let mut component = server_app
         .world
         .get_mut::<BoolComponent>(server_entity)
@@ -482,11 +478,10 @@ fn update_and_removal_with_stale_ack_replication() {
         .single(&client_app.world);
     assert!(component.0);
 
-    // 4. Despawn the entity.
     server_app.world.entity_mut(server_entity).despawn();
 
-    // 5. Detect the despawn before collecting the client ack.
-    // - Due to networking race conditions we need to do this manually.
+    // Detect the despawn before collecting the client ack.
+    // Due to networking race conditions we need to do this manually.
     server_app
         .world
         .resource_mut::<ClientsInfo>()
@@ -495,13 +490,11 @@ fn update_and_removal_with_stale_ack_replication() {
         .unwrap()
         .remove_despawned(server_entity);
 
-    // 6. Collect entity acks from the client and send the desapwn to the client.
-    // - Entity acks should be ignored for the despawned entity.
+    // Collect entity acks from the client and send the desapwn to the client.
+    // Entity acks should be ignored for the despawned entity.
     server_app.update();
 
-    // 7. Update the client
     client_app.update();
-
     assert_eq!(client_app.world.entities().len(), 0);
 }
 
