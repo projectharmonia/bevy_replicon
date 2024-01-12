@@ -9,7 +9,7 @@ use bevy_renet::renet::ClientId;
 
 /// Stores meta-information about connected clients.
 #[derive(Default, Resource)]
-pub struct ClientsInfo(Vec<ClientInfo>);
+pub(crate) struct ClientsInfo(Vec<ClientInfo>);
 
 /// Reusable buffers for [`ClientsInfo`] and [`ClientInfo`].
 #[derive(Default, Resource)]
@@ -27,7 +27,7 @@ pub(crate) struct ClientBuffers {
 
 impl ClientsInfo {
     /// Returns a mutable iterator over clients information.
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut ClientInfo> {
+    pub(super) fn iter_mut(&mut self) -> impl Iterator<Item = &mut ClientInfo> {
         self.0.iter_mut()
     }
 
@@ -75,7 +75,7 @@ impl ClientsInfo {
     }
 }
 
-pub struct ClientInfo {
+pub(super) struct ClientInfo {
     id: ClientId,
     pub(super) just_connected: bool,
     ticks: EntityHashMap<Entity, Tick>,
@@ -204,8 +204,8 @@ impl ClientInfo {
     /// Removes a despawned entity tracked by this client.
     pub fn remove_despawned(&mut self, entity: Entity) {
         self.ticks.remove(&entity);
-        // We don't clean up `self.updates` for efficiency reasons. Self::acknowledge() will properly
-        // ignore despawned entities.
+        // We don't clean up `self.updates` for efficiency reasons.
+        // `Self::acknowledge()` will properly ignore despawned entities.
     }
 
     /// Removes all updates older then `min_timestamp`.
