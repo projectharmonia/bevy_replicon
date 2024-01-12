@@ -362,6 +362,7 @@ fn serialize_with(
     }
 }
 
+/// Deserializes event change tick first and then calls the specified deserialization function to get the event itself.
 pub fn deserialize_with<T>(
     message: &[u8],
     deserialize_fn: impl FnOnce(&mut Cursor<&[u8]>) -> bincode::Result<T>,
