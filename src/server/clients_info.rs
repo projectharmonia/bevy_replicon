@@ -7,10 +7,6 @@ use bevy::{
 };
 use bevy_renet::renet::ClientId;
 
-/// Stores meta-information about connected clients.
-#[derive(Default, Resource)]
-pub(crate) struct ClientsInfo(Vec<ClientInfo>);
-
 /// Reusable buffers for [`ClientsInfo`] and [`ClientInfo`].
 #[derive(Default, Resource)]
 pub(crate) struct ClientBuffers {
@@ -25,9 +21,13 @@ pub(crate) struct ClientBuffers {
     entities: Vec<Vec<Entity>>,
 }
 
+/// Stores meta-information about connected clients.
+#[derive(Default, Resource)]
+pub struct ClientsInfo(Vec<ClientInfo>);
+
 impl ClientsInfo {
     /// Returns a mutable iterator over clients information.
-    pub(super) fn iter_mut(&mut self) -> impl Iterator<Item = &mut ClientInfo> {
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut ClientInfo> {
         self.0.iter_mut()
     }
 
@@ -75,10 +75,10 @@ impl ClientsInfo {
     }
 }
 
-pub(super) struct ClientInfo {
+pub struct ClientInfo {
     id: ClientId,
     pub(super) just_connected: bool,
-    pub(super) ticks: EntityHashMap<Entity, Tick>,
+    ticks: EntityHashMap<Entity, Tick>,
     updates: HashMap<u16, UpdateInfo>,
     next_update_index: u16,
 }
@@ -148,9 +148,22 @@ impl ClientInfo {
         (update_index, &mut update_info.entities)
     }
 
+    /// Sets the change limit for an entity that is replicated to this client.
+    ///
+    /// The change limit is the reference point for determining if components on an entity have changed and
+    /// need to be replicated. Component changes older than the change limit are assumed to be acked by the client.
+    pub(super) fn set_change_limit(&mut self, entity: Entity, tick: Tick) {
+        self.ticks.insert(entity, tick);
+    }
+
+    /// Gets the change limit for an entity that is replicated to this client.
+    pub(super) fn get_change_limit(&mut self, entity: Entity) -> Option<Tick> {
+        self.ticks.get(&entity).copied()
+    }
+
     /// Marks update with the specified index as acknowledged.
     ///
-    /// Ticks for all entities from this update will be set to the update's tick if it's higher.
+    /// Change limits for all entities from this update will be set to the update's tick if it's higher.
     ///
     /// Keeps allocated memory in the buffers for reuse.
     pub(super) fn acknowledge(
@@ -168,10 +181,10 @@ impl ClientInfo {
         };
 
         for entity in &update_info.entities {
-            let last_tick = self
-                .ticks
-                .get_mut(entity)
-                .expect("tick should be inserted on any component insertion");
+            let Some(last_tick) = self.ticks.get_mut(entity) else {
+                // We ignore missing entities, since they were probably despawned.
+                continue;
+            };
 
             // Received tick could be outdated because we bump it
             // if we detect any insertion on the entity in `collect_changes`.
@@ -186,6 +199,13 @@ impl ClientInfo {
             self.id,
             update_info.tick,
         );
+    }
+
+    /// Removes a despawned entity tracked by this client.
+    pub fn remove_despawned(&mut self, entity: Entity) {
+        self.ticks.remove(&entity);
+        // We don't clean up `self.updates` for efficiency reasons. Self::acknowledge() will properly
+        // ignore despawned entities.
     }
 
     /// Removes all updates older then `min_timestamp`.
