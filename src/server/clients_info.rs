@@ -86,7 +86,7 @@ pub(crate) struct ClientInfo {
     /// Client's ID.
     id: ClientId,
 
-    /// Indicates whether the client is connected at this tick.
+    /// Indicates whether the client connected in this tick.
     pub(super) just_connected: bool,
 
     /// Last acknowledged tick for each entity.
@@ -97,10 +97,10 @@ pub(crate) struct ClientInfo {
     /// It should be included in update messages and server events to avoid needless waiting for the next init message to arrive.
     pub(crate) change_tick: RepliconTick,
 
-    /// Update message indexes mapped the their info.
+    /// Update message indexes mapped to their info.
     updates: HashMap<u16, UpdateInfo>,
 
-    /// Next index for update message.
+    /// Index for the next update message to be sent to this client.
     ///
     /// See also [`Self::register_update`].
     next_update_index: u16,

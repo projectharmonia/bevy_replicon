@@ -71,7 +71,7 @@ impl ReplicationMessages {
 
     /// Sends cached messages to clients specified in the last [`Self::prepare`] call.
     ///
-    /// Updates change tick for each client, which will equal the latest replicon tick if any init
+    /// The change tick of each client with an init message is updated to equal the latest replicon tick.
     /// messages were sent to clients. If only update messages were sent (or no messages at all) then
     /// it will equal the input `last_change_tick`.
     pub(super) fn send(

@@ -286,10 +286,9 @@ fn reset_system<T: Event>(mut event_queue: ResMut<ServerEventQueue<T>>) {
     event_queue.0.clear();
 }
 
-/// Sends serialized `message` to clients.
-///
 /// Helper for custom sending systems.
-/// See also [`ServerEventAppExt::add_server_event_with`]
+///
+/// See also [`ServerEventAppExt::add_server_event_with`].
 pub fn send_with<T>(
     server: &mut RenetServer,
     clients_info: &ClientsInfo,
