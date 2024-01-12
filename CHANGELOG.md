@@ -9,11 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- API for custom server messages now use `server_event::serialize_with`  and `server_event::deserialize_with`, for more details see the example in the docs.
 - Speedup serialization for multiple clients by reusing already serialized components and entities.
 - Hide extra functionality from `ServerEventQueue`.
 - Move server event reset system to new set `ClientSet::ResetEvents` in `PreUpdate`.
 - Make `NetworkChannels` channel-creation methods public (`create_client_channel()` and `create_server_channel()`).
 - Implement `Eq` and `PartialEq` on `EventType`.
+
+### Removed
+
+- `LastChangeTick` resource, `ClientsInfo` should be used instead.
+- `SendMode::BroadcastExcept`, use multiple `SendMode::Direct`.
 
 ## [0.19.0] - 2024-01-07
 
