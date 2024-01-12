@@ -349,10 +349,11 @@ fn serialize_with(
 
         let mut bytes = Vec::with_capacity(previous_message.bytes.len());
         DefaultOptions::new().serialize_into(&mut bytes, &client_info.change_tick)?;
+        let tick_size = bytes.len();
         bytes.extend_from_slice(previous_message.event_bytes());
         let message = SerializedMessage {
             tick: client_info.change_tick,
-            tick_size: previous_message.tick_size,
+            tick_size,
             bytes: bytes.into(),
         };
 
