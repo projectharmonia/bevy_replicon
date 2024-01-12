@@ -30,7 +30,7 @@ pub(super) fn multiple_clients(server_app: &mut App, client_apps: &mut [App]) {
     }
 }
 
-fn setup_client(app: &mut App, client_id: u64, port: u16) {
+pub(super) fn setup_client(app: &mut App, client_id: u64, port: u16) {
     let network_channels = app.world.resource::<NetworkChannels>();
 
     let server_channels_config = network_channels.get_server_configs();
@@ -46,7 +46,7 @@ fn setup_client(app: &mut App, client_id: u64, port: u16) {
     app.insert_resource(client).insert_resource(transport);
 }
 
-fn setup_server(app: &mut App, max_clients: usize) -> u16 {
+pub(super) fn setup_server(app: &mut App, max_clients: usize) -> u16 {
     let network_channels = app.world.resource::<NetworkChannels>();
 
     let server_channels_config = network_channels.get_server_configs();
@@ -65,7 +65,7 @@ fn setup_server(app: &mut App, max_clients: usize) -> u16 {
     port
 }
 
-fn wait_for_connection(server_app: &mut App, client_app: &mut App) {
+pub(super) fn wait_for_connection(server_app: &mut App, client_app: &mut App) {
     loop {
         client_app.update();
         server_app.update();

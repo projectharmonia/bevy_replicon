@@ -201,8 +201,57 @@ fn event_queue() {
 
     client_app.update();
 
-    let dummy_events = client_app.world.resource::<Events<DummyEvent>>();
-    assert_eq!(dummy_events.len(), 1);
+    assert_eq!(client_app.world.resource::<Events<DummyEvent>>().len(), 1);
+}
+
+#[test]
+fn different_ticks() {
+    let mut server_app = App::new();
+    let mut client_app1 = App::new();
+    let mut client_app2 = App::new();
+    for app in [&mut server_app, &mut client_app1, &mut client_app2] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<DummyComponent>()
+        .add_server_event::<DummyEvent>(EventType::Ordered);
+    }
+
+    let port = connect::setup_server(&mut server_app, 2);
+
+    // Connect client 1 first.
+    connect::setup_client(&mut client_app1, 1u64, port);
+    connect::wait_for_connection(&mut server_app, &mut client_app1);
+
+    // Spawn entity to trigger world change.
+    server_app.world.spawn((Replication, DummyComponent));
+
+    // Update client 1 to initialize their replicon tick.
+    server_app.update();
+    client_app1.update();
+
+    // Connect client 2 later to make it have a higher replicon tick than client 1,
+    // since only client 1 will recieve an init message here.
+    connect::setup_client(&mut client_app2, 2u64, port);
+    connect::wait_for_connection(&mut server_app, &mut client_app2);
+
+    server_app.world.send_event(ToClients {
+        mode: SendMode::Broadcast,
+        event: DummyEvent,
+    });
+
+    // If any client does not have a replicon tick >= the change tick associated with this event,
+    // then they will not receive the event until their replicon tick is updated.
+    server_app.update();
+    client_app1.update();
+    client_app2.update();
+
+    assert_eq!(client_app1.world.resource::<Events<DummyEvent>>().len(), 1);
+    assert_eq!(client_app2.world.resource::<Events<DummyEvent>>().len(), 1);
 }
 
 #[derive(Component, Serialize, Deserialize)]
