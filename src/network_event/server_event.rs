@@ -358,9 +358,9 @@ fn serialize_with(
 
         Ok(message)
     } else {
-        let tick_size = DefaultOptions::new().serialized_size(&client_info.change_tick)? as usize;
         let mut cursor = Cursor::new(Vec::new());
         DefaultOptions::new().serialize_into(&mut cursor, &client_info.change_tick)?;
+        let tick_size = cursor.get_ref().len();
         (serialize_fn)(&mut cursor)?;
         let message = SerializedMessage {
             tick: client_info.change_tick,
