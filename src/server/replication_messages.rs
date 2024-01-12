@@ -5,13 +5,13 @@ use std::{
 };
 
 use bevy::{ecs::component::Tick, prelude::*, ptr::Ptr};
-use bevy_renet::renet::{Bytes, ClientId, RenetServer};
+use bevy_renet::renet::{Bytes, RenetServer};
 use bincode::{DefaultOptions, Options};
 use varint_rs::VarintWriter;
 
 use super::{
     clients_info::{ClientBuffers, ClientsInfo},
-    ClientInfo, ClientMapping, LastChangeTick,
+    ClientInfo, ClientMapping,
 };
 use crate::replicon_core::{
     replication_rules::{ReplicationId, ReplicationInfo},
@@ -71,33 +71,25 @@ impl ReplicationMessages {
 
     /// Sends cached messages to clients specified in the last [`Self::prepare`] call.
     ///
-    /// Returns the server's last change tick, which will equal the latest replicon tick if any init
+    /// The change tick of each client with an init message is updated to equal the latest replicon tick.
     /// messages were sent to clients. If only update messages were sent (or no messages at all) then
     /// it will equal the input `last_change_tick`.
     pub(super) fn send(
         &mut self,
         server: &mut RenetServer,
         client_buffers: &mut ClientBuffers,
-        mut last_change_tick: LastChangeTick,
         replicon_tick: RepliconTick,
         tick: Tick,
         timestamp: Duration,
-    ) -> bincode::Result<(LastChangeTick, ClientsInfo)> {
-        if let Some((init_message, _)) = self.data.first() {
-            if !init_message.as_slice().is_empty() {
-                last_change_tick.0 = replicon_tick;
-            }
-        }
-
+    ) -> bincode::Result<ClientsInfo> {
         for ((init_message, update_message), client_info) in
             self.data.iter_mut().zip(self.clients_info.iter_mut())
         {
-            init_message.send(server, replicon_tick, client_info.id())?;
+            init_message.send(server, client_info, replicon_tick)?;
             update_message.send(
                 server,
                 client_buffers,
                 client_info,
-                last_change_tick,
                 replicon_tick,
                 tick,
                 timestamp,
@@ -106,7 +98,7 @@ impl ReplicationMessages {
 
         let clients_info = mem::take(&mut self.clients_info);
 
-        Ok((last_change_tick, clients_info))
+        Ok(clients_info)
     }
 }
 
@@ -378,28 +370,31 @@ impl InitMessage {
 
     /// Sends the message, excluding trailing empty arrays, to the specified client.
     ///
+    /// Updates change tick for the client if there are data to send.
     /// Does nothing if there is no data to send.
     fn send(
         &self,
         server: &mut RenetServer,
+        client_info: &mut ClientInfo,
         replicon_tick: RepliconTick,
-        client_id: ClientId,
     ) -> bincode::Result<()> {
         debug_assert_eq!(self.array_len, 0);
         debug_assert_eq!(self.entity_data_size, 0);
 
         let slice = self.as_slice();
         if slice.is_empty() {
-            trace!("no init data to send for client {client_id}");
+            trace!("no init data to send for client {}", client_info.id());
             return Ok(());
         }
+
+        client_info.change_tick = replicon_tick;
 
         let mut header = [0; mem::size_of::<RepliconTick>()];
         bincode::serialize_into(&mut header[..], &replicon_tick)?;
 
-        trace!("sending init message to client {client_id}");
+        trace!("sending init message to client {}", client_info.id());
         server.send_message(
-            client_id,
+            client_info.id(),
             ReplicationChannel::Reliable,
             Bytes::from([&header, slice].concat()),
         );
@@ -425,8 +420,8 @@ impl Default for InitMessage {
 
 /// A reusable message with replicated component updates.
 ///
-/// Contains last change tick, current tick and component updates since the last acknowledged tick for each entity.
-/// Cannot be applied on the client until the init message matching this update message's last change tick
+/// Contains change tick, current tick and component updates since the last acknowledged tick for each entity.
+/// Cannot be applied on the client until the init message matching this update message's change tick
 /// has been applied to the client world.
 /// The message will be manually split into packets up to max size, and each packet will be applied
 /// independently on the client.
@@ -552,13 +547,11 @@ impl UpdateMessage {
     /// Splits message according to entities inside it and sends it to the specified client.
     ///
     /// Does nothing if there is no data to send.
-    #[allow(clippy::too_many_arguments)]
     fn send(
         &mut self,
         server: &mut RenetServer,
         client_buffers: &mut ClientBuffers,
         client_info: &mut ClientInfo,
-        last_change_tick: LastChangeTick,
         replicon_tick: RepliconTick,
         tick: Tick,
         timestamp: Duration,
@@ -574,7 +567,7 @@ impl UpdateMessage {
         trace!("sending update message(s) to client {}", client_info.id());
         const TICKS_SIZE: usize = 2 * mem::size_of::<RepliconTick>();
         let mut header = [0; TICKS_SIZE + mem::size_of::<u16>()];
-        bincode::serialize_into(&mut header[..], &(*last_change_tick, replicon_tick))?;
+        bincode::serialize_into(&mut header[..], &(client_info.change_tick, replicon_tick))?;
 
         let mut message_size = 0;
         let client_id = client_info.id();

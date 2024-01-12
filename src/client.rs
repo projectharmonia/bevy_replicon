@@ -161,7 +161,7 @@ fn apply_replication(
 
     let mut result = Ok(());
     buffered_updates.0.retain(|update| {
-        if update.last_change_tick > replicon_tick {
+        if update.change_tick > replicon_tick {
             return true;
         }
 
@@ -276,11 +276,11 @@ fn apply_update_message(
         stats.bytes += end_pos;
     }
 
-    let (last_change_tick, message_tick, update_index) = bincode::deserialize_from(&mut cursor)?;
-    if last_change_tick > replicon_tick {
+    let (change_tick, message_tick, update_index) = bincode::deserialize_from(&mut cursor)?;
+    if change_tick > replicon_tick {
         trace!("buffering update message for {message_tick:?}");
         buffered_updates.0.push(BufferedUpdate {
-            last_change_tick,
+            change_tick,
             message_tick,
             message: message.slice(cursor.position() as usize..),
         });
@@ -534,9 +534,7 @@ impl BufferedUpdates {
 /// See also [`crate::server::replication_messages::UpdateMessage`].
 pub(super) struct BufferedUpdate {
     /// Required tick to wait for.
-    ///
-    /// See also [`crate::server::LastChangeTick`].
-    last_change_tick: RepliconTick,
+    change_tick: RepliconTick,
 
     /// The tick this update corresponds to.
     message_tick: RepliconTick,
