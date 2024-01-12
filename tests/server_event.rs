@@ -210,7 +210,7 @@ fn client_mismatch() {
     let mut server_app = App::new();
     let mut client_app1 = App::new();
     let mut client_app2 = App::new();
-    for app in [&mut server_app, &mut client_app1,  &mut client_app2] {
+    for app in [&mut server_app, &mut client_app1, &mut client_app2] {
         app.add_plugins((
             MinimalPlugins,
             ReplicationPlugins.set(ServerPlugin {
