@@ -303,28 +303,22 @@ pub fn send_with<T>(
 ) -> bincode::Result<()> {
     match mode {
         SendMode::Broadcast => {
-            let mut shared_bytes = None;
+            let mut previous_message = None;
             for client_info in clients_info.iter() {
-                let (message, tick_size) =
-                    serialize_with(client_info, &shared_bytes, &serialize_fn)?;
-                if shared_bytes.is_none() {
-                    shared_bytes = Some(message.slice(tick_size..));
-                }
-                server.send_message(client_info.id(), channel, message);
+                let message = serialize_with(client_info, previous_message, &serialize_fn)?;
+                server.send_message(client_info.id(), channel, message.bytes.clone());
+                previous_message = Some(message);
             }
         }
         SendMode::BroadcastExcept(client_id) => {
-            let mut shared_bytes = None;
+            let mut previous_message = None;
             for client_info in clients_info.iter() {
                 if client_info.id() == client_id {
                     continue;
                 }
-                let (message, tick_size) =
-                    serialize_with(client_info, &shared_bytes, &serialize_fn)?;
-                if shared_bytes.is_none() {
-                    shared_bytes = Some(message.slice(tick_size..));
-                }
-                server.send_message(client_info.id(), channel, message);
+                let message = serialize_with(client_info, previous_message, &serialize_fn)?;
+                server.send_message(client_info.id(), channel, message.bytes.clone());
+                previous_message = Some(message);
             }
         }
         SendMode::Direct(client_id) => {
@@ -333,8 +327,8 @@ pub fn send_with<T>(
                     .iter()
                     .find(|client_info| client_info.id() == client_id)
                 {
-                    let (message, _) = serialize_with(client_info, &None, &serialize_fn)?;
-                    server.send_message(client_info.id(), channel, message);
+                    let message = serialize_with(client_info, None, &serialize_fn)?;
+                    server.send_message(client_info.id(), channel, message.bytes);
                 }
             }
         }
@@ -345,20 +339,48 @@ pub fn send_with<T>(
 
 fn serialize_with(
     client_info: &ClientInfo,
-    shared_bytes: &Option<Bytes>,
+    previous_message: Option<SerializedMessage>,
     serialize_fn: impl Fn(&mut Cursor<Vec<u8>>) -> bincode::Result<()>,
-) -> bincode::Result<(Bytes, usize)> {
-    let tick_size = DefaultOptions::new().serialized_size(&client_info.change_tick)? as usize;
-    if let Some(shared_bytes) = shared_bytes {
-        let mut message = Vec::with_capacity(tick_size + shared_bytes.len());
-        DefaultOptions::new().serialize_into(&mut message, &client_info.change_tick)?;
-        message.extend_from_slice(shared_bytes);
-        Ok((message.into(), tick_size))
+) -> bincode::Result<SerializedMessage> {
+    if let Some(previous_message) = previous_message {
+        if previous_message.tick == client_info.change_tick {
+            return Ok(previous_message);
+        }
+
+        let mut bytes = Vec::with_capacity(previous_message.bytes.len());
+        DefaultOptions::new().serialize_into(&mut bytes, &client_info.change_tick)?;
+        bytes.extend_from_slice(previous_message.event_bytes());
+        let message = SerializedMessage {
+            tick: client_info.change_tick,
+            tick_size: previous_message.tick_size,
+            bytes: bytes.into(),
+        };
+
+        Ok(message)
     } else {
+        let tick_size = DefaultOptions::new().serialized_size(&client_info.change_tick)? as usize;
         let mut cursor = Cursor::new(Vec::new());
         DefaultOptions::new().serialize_into(&mut cursor, &client_info.change_tick)?;
         (serialize_fn)(&mut cursor)?;
-        Ok((cursor.into_inner().into(), tick_size))
+        let message = SerializedMessage {
+            tick: client_info.change_tick,
+            tick_size,
+            bytes: cursor.into_inner().into(),
+        };
+
+        Ok(message)
+    }
+}
+
+struct SerializedMessage {
+    tick: RepliconTick,
+    tick_size: usize,
+    bytes: Bytes,
+}
+
+impl SerializedMessage {
+    fn event_bytes(&self) -> &[u8] {
+        &self.bytes[self.tick_size..]
     }
 }
 
