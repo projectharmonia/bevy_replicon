@@ -1,8 +1,8 @@
 mod connect;
 
 use bevy::{prelude::*, utils::Duration};
-use bevy_replicon::{prelude::*, scene};
 use bevy_replicon::server::clients_info::ClientsInfo;
+use bevy_replicon::{prelude::*, scene};
 
 use bevy_renet::renet::{
     transport::{NetcodeClientTransport, NetcodeServerTransport},
@@ -483,14 +483,17 @@ fn update_and_removal_with_stale_ack_replication() {
     assert!(component.0);
 
     // 4. Despawn the entity.
-    server_app
-        .world
-        .entity_mut(server_entity)
-        .despawn();
+    server_app.world.entity_mut(server_entity).despawn();
 
     // 5. Detect the despawn before collecting the client ack.
     // - Due to networking race conditions we need to do this manually.
-    server_app.world.resource_mut::<ClientsInfo>().iter_mut().next().unwrap().remove_despawned(server_entity);
+    server_app
+        .world
+        .resource_mut::<ClientsInfo>()
+        .iter_mut()
+        .next()
+        .unwrap()
+        .remove_despawned(server_entity);
 
     // 6. Collect entity acks from the client and send the desapwn to the client.
     // - Entity acks should be ignored for the despawned entity.
