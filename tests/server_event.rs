@@ -201,8 +201,7 @@ fn event_queue() {
 
     client_app.update();
 
-    let dummy_events = client_app.world.resource::<Events<DummyEvent>>();
-    assert_eq!(dummy_events.len(), 1);
+    assert_eq!(client_app.world.resource::<Events<DummyEvent>>().len(), 1);
 }
 
 #[test]
