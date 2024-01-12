@@ -301,7 +301,7 @@ pub fn send_with<T>(
         SendMode::Broadcast => {
             let mut shared_bytes = None;
             for client_info in clients_info.iter() {
-                let message = serialize_with(&client_info, shared_bytes, &serialize_fn)?;
+                let message = serialize_with(client_info, shared_bytes, &serialize_fn)?;
                 shared_bytes = Some(message.clone());
                 server.send_message(client_info.id(), channel, message);
             }
@@ -312,7 +312,7 @@ pub fn send_with<T>(
                     .iter()
                     .find(|client_info| client_info.id() == client_id)
                 {
-                    let message = serialize_with(&client_info, None, &serialize_fn)?;
+                    let message = serialize_with(client_info, None, &serialize_fn)?;
                     server.send_message(client_info.id(), channel, message);
                 }
             }
