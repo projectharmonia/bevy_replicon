@@ -64,7 +64,6 @@ impl Plugin for ServerPlugin {
         ))
         .init_resource::<ClientsInfo>()
         .init_resource::<ClientBuffers>()
-        .init_resource::<LastChangeTick>()
         .init_resource::<ClientEntityMap>()
         .configure_sets(PreUpdate, ServerSet::Receive.after(RenetReceive))
         .configure_sets(PostUpdate, ServerSet::Send.before(RenetSend))
@@ -194,7 +193,6 @@ impl ServerPlugin {
             ResMut<ClientEntityMap>,
             ResMut<DespawnBuffer>,
             ResMut<RemovalBuffer>,
-            ResMut<LastChangeTick>,
             ResMut<ClientBuffers>,
             ResMut<RenetServer>,
         )>,
@@ -218,12 +216,10 @@ impl ServerPlugin {
         collect_despawns(&mut messages, &mut set.p3())?;
         collect_removals(&mut messages, &mut set.p4(), change_tick.this_run())?;
 
-        let last_change_tick = *set.p5();
-        let mut client_buffers = mem::take(&mut *set.p6());
-        let (last_change_tick, clients_info) = messages.send(
-            &mut set.p7(),
+        let mut client_buffers = mem::take(&mut *set.p5());
+        let clients_info = messages.send(
+            &mut set.p6(),
             &mut client_buffers,
-            last_change_tick,
             *replicon_tick,
             change_tick.this_run(),
             time.elapsed(),
@@ -231,8 +227,7 @@ impl ServerPlugin {
 
         // Return borrowed data back.
         *set.p1() = clients_info;
-        *set.p5() = last_change_tick;
-        *set.p6() = client_buffers;
+        *set.p5() = client_buffers;
 
         Ok(())
     }
@@ -500,13 +495,6 @@ pub enum TickPolicy {
     /// [`RepliconTick`].
     Manual,
 }
-
-/// Contains the last tick in which a replicated entity was spawned, despawned, or gained/lost a component.
-///
-/// It should be included in update messages and server events instead of the current tick
-/// to avoid needless waiting for the next init message to arrive.
-#[derive(Clone, Copy, Debug, Default, Deref, Resource)]
-pub struct LastChangeTick(RepliconTick);
 
 /**
 A resource that exists on the server for mapping server entities to

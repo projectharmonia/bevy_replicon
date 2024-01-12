@@ -7,9 +7,11 @@ use bevy::{
 };
 use bevy_renet::renet::ClientId;
 
+use crate::replicon_core::replicon_tick::RepliconTick;
+
 /// Stores meta-information about connected clients.
 #[derive(Default, Resource)]
-pub(crate) struct ClientsInfo(Vec<ClientInfo>);
+pub struct ClientsInfo(Vec<ClientInfo>);
 
 /// Reusable buffers for [`ClientsInfo`] and [`ClientInfo`].
 #[derive(Default, Resource)]
@@ -26,6 +28,11 @@ pub(crate) struct ClientBuffers {
 }
 
 impl ClientsInfo {
+    /// Returns an iterator over clients information.
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &ClientInfo> {
+        self.0.iter()
+    }
+
     /// Returns a mutable iterator over clients information.
     pub(super) fn iter_mut(&mut self) -> impl Iterator<Item = &mut ClientInfo> {
         self.0.iter_mut()
@@ -75,11 +82,28 @@ impl ClientsInfo {
     }
 }
 
-pub(super) struct ClientInfo {
+pub(crate) struct ClientInfo {
+    /// Client's ID.
     id: ClientId,
+
+    /// Indicates whether the client connected in this tick.
     pub(super) just_connected: bool,
+
+    /// Lowest tick for use in change detection for each entity.
     ticks: EntityHashMap<Entity, Tick>,
+
+    /// The last tick in which a replicated entity was spawned, despawned, or gained/lost a component from the perspective
+    /// of the client.
+    ///
+    /// It should be included in update messages and server events to avoid needless waiting for the next init message to arrive.
+    pub(crate) change_tick: RepliconTick,
+
+    /// Update message indexes mapped to their info.
     updates: HashMap<u16, UpdateInfo>,
+
+    /// Index for the next update message to be sent to this client.
+    ///
+    /// See also [`Self::register_update`].
     next_update_index: u16,
 }
 
@@ -89,13 +113,14 @@ impl ClientInfo {
             id,
             just_connected: true,
             ticks: Default::default(),
+            change_tick: Default::default(),
             updates: Default::default(),
             next_update_index: Default::default(),
         }
     }
 
     // Returns associated client ID.
-    pub(super) fn id(&self) -> ClientId {
+    pub(crate) fn id(&self) -> ClientId {
         self.id
     }
 

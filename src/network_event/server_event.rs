@@ -1,7 +1,9 @@
+use std::io::Cursor;
+
 use bevy::{ecs::event::Event, prelude::*};
 use bevy_renet::{
     client_connected,
-    renet::{ClientId, RenetClient, RenetServer, SendType},
+    renet::{Bytes, ClientId, RenetClient, RenetServer, SendType},
 };
 use bincode::{DefaultOptions, Options};
 use ordered_multimap::ListOrderedMultimap;
@@ -15,7 +17,10 @@ use crate::{
     replicon_core::{
         replication_rules::MapNetworkEntities, replicon_tick::RepliconTick, NetworkChannels,
     },
-    server::{has_authority, LastChangeTick, ServerSet, SERVER_ID},
+    server::{
+        clients_info::{ClientInfo, ClientsInfo},
+        has_authority, ServerSet, SERVER_ID,
+    },
 };
 
 /// An extension trait for [`App`] for creating server events.
@@ -66,16 +71,17 @@ pub trait ServerEventAppExt {
     fn sending_reflect_system(
         mut server: ResMut<RenetServer>,
         mut reflect_events: EventReader<ToClients<ReflectEvent>>,
-        last_change_tick: Res<LastChangeTick>,
+        clients_info: Res<ClientsInfo>,
         channel: Res<ServerEventChannel<ReflectEvent>>,
         registry: Res<AppTypeRegistry>,
     ) {
         let registry = registry.read();
         for ToClients { event, mode } in reflect_events.read() {
-            let message = serialize_reflect_event(**last_change_tick, &event, &registry)
-                .expect("server event should be serializable");
-
-            server_event::send(&mut server, *channel, *mode, message)
+            server_event::send_with(&mut server, &clients_info, *channel, *mode, |cursor| {
+                let serializer = ReflectSerializer::new(&*event.0, &registry);
+                DefaultOptions::new().serialize_into(cursor, &serializer)
+            })
+            .expect("server event should be serializable");
         }
     }
 
@@ -89,8 +95,13 @@ pub trait ServerEventAppExt {
     ) {
         let registry = registry.read();
         while let Some(message) = client.receive_message(*channel) {
-            let (tick, event) = deserialize_reflect_event(&message, &registry)
-                .expect("server should send valid events");
+            let (tick, event) = server_event::deserialize_with(&message, |cursor| {
+                let mut deserializer =
+                    bincode::Deserializer::with_reader(cursor, DefaultOptions::new());
+                let reflect = UntypedReflectDeserializer::new(&registry).deserialize(&mut deserializer)?;
+                Ok(ReflectEvent(reflect))
+            })
+            .expect("server should send valid events");
 
             // Event should be sent to the queue if replication message with its tick has not yet arrived.
             if tick <= *replicon_tick {
@@ -103,32 +114,6 @@ pub trait ServerEventAppExt {
 
     #[derive(Event)]
     struct ReflectEvent(Box<dyn Reflect>);
-
-    fn serialize_reflect_event(
-        tick: RepliconTick,
-        event: &ReflectEvent,
-        registry: &TypeRegistry,
-    ) -> bincode::Result<Vec<u8>> {
-        let mut message = Vec::new();
-        DefaultOptions::new().serialize_into(&mut message, &tick)?;
-        let serializer = ReflectSerializer::new(&*event.0, registry);
-        DefaultOptions::new().serialize_into(&mut message, &serializer)?;
-
-        Ok(message)
-    }
-
-    fn deserialize_reflect_event(
-        message: &[u8],
-        registry: &TypeRegistry,
-    ) -> bincode::Result<(RepliconTick, ReflectEvent)> {
-        let mut cursor = Cursor::new(message);
-        let tick = DefaultOptions::new().deserialize_from(&mut cursor)?;
-        let mut deserializer =
-            bincode::Deserializer::with_reader(&mut cursor, DefaultOptions::new());
-        let reflect = UntypedReflectDeserializer::new(registry).deserialize(&mut deserializer)?;
-
-        Ok((tick, ReflectEvent(reflect)))
-    }
     ```
     */
     fn add_server_event_with<T: Event, Marker1, Marker2>(
@@ -218,9 +203,10 @@ fn receiving_system<T: Event + DeserializeOwned>(
     channel: Res<ServerEventChannel<T>>,
 ) {
     while let Some(message) = client.receive_message(*channel) {
-        let (tick, event) = DefaultOptions::new()
-            .deserialize(&message)
-            .expect("server should send valid events");
+        let (tick, event) = deserialize_with(&message, |cursor| {
+            DefaultOptions::new().deserialize_from(cursor)
+        })
+        .expect("server should send valid events");
 
         if tick <= *replicon_tick {
             server_events.send(event);
@@ -239,9 +225,10 @@ fn receiving_and_mapping_system<T: Event + MapNetworkEntities + DeserializeOwned
     channel: Res<ServerEventChannel<T>>,
 ) {
     while let Some(message) = client.receive_message(*channel) {
-        let (tick, mut event): (_, T) = DefaultOptions::new()
-            .deserialize(&message)
-            .expect("server should send valid mapped events");
+        let (tick, mut event): (_, T) = deserialize_with(&message, |cursor| {
+            DefaultOptions::new().deserialize_from(cursor)
+        })
+        .expect("server should send valid events");
 
         event.map_entities(&mut EventMapper(entity_map.to_client()));
         if tick <= *replicon_tick {
@@ -255,15 +242,14 @@ fn receiving_and_mapping_system<T: Event + MapNetworkEntities + DeserializeOwned
 fn sending_system<T: Event + Serialize>(
     mut server: ResMut<RenetServer>,
     mut server_events: EventReader<ToClients<T>>,
-    last_change_tick: Res<LastChangeTick>,
+    clients_info: Res<ClientsInfo>,
     channel: Res<ServerEventChannel<T>>,
 ) {
     for ToClients { event, mode } in server_events.read() {
-        let message = DefaultOptions::new()
-            .serialize(&(**last_change_tick, event))
-            .expect("server event should be serializable");
-
-        send(&mut server, *channel, *mode, message);
+        send_with(&mut server, &clients_info, *channel, *mode, |cursor| {
+            DefaultOptions::new().serialize_into(cursor, &event)
+        })
+        .expect("server event should be serializable");
     }
 }
 
@@ -305,33 +291,110 @@ fn reset_system<T: Event>(mut event_queue: ResMut<ServerEventQueue<T>>) {
     event_queue.0.clear();
 }
 
-/// Sends serialized `message` to clients.
-///
 /// Helper for custom sending systems.
-/// See also [`ServerEventAppExt::add_server_event_with`]
-pub fn send<T>(
+///
+/// See also [`ServerEventAppExt::add_server_event_with`].
+pub fn send_with<T>(
     server: &mut RenetServer,
+    clients_info: &ClientsInfo,
     channel: ServerEventChannel<T>,
     mode: SendMode,
-    message: Vec<u8>,
-) {
+    serialize_fn: impl Fn(&mut Cursor<Vec<u8>>) -> bincode::Result<()>,
+) -> bincode::Result<()> {
     match mode {
         SendMode::Broadcast => {
-            server.broadcast_message(channel, message);
+            let mut previous_message = None;
+            for client_info in clients_info.iter() {
+                let message = serialize_with(client_info, previous_message, &serialize_fn)?;
+                server.send_message(client_info.id(), channel, message.bytes.clone());
+                previous_message = Some(message);
+            }
         }
         SendMode::BroadcastExcept(client_id) => {
-            if client_id == SERVER_ID {
-                server.broadcast_message(channel, message);
-            } else {
-                server.broadcast_message_except(client_id, channel, message);
+            let mut previous_message = None;
+            for client_info in clients_info.iter() {
+                if client_info.id() == client_id {
+                    continue;
+                }
+                let message = serialize_with(client_info, previous_message, &serialize_fn)?;
+                server.send_message(client_info.id(), channel, message.bytes.clone());
+                previous_message = Some(message);
             }
         }
         SendMode::Direct(client_id) => {
             if client_id != SERVER_ID {
-                server.send_message(client_id, channel, message);
+                if let Some(client_info) = clients_info
+                    .iter()
+                    .find(|client_info| client_info.id() == client_id)
+                {
+                    let message = serialize_with(client_info, None, &serialize_fn)?;
+                    server.send_message(client_info.id(), channel, message.bytes);
+                }
             }
         }
     }
+
+    Ok(())
+}
+
+fn serialize_with(
+    client_info: &ClientInfo,
+    previous_message: Option<SerializedMessage>,
+    serialize_fn: impl Fn(&mut Cursor<Vec<u8>>) -> bincode::Result<()>,
+) -> bincode::Result<SerializedMessage> {
+    if let Some(previous_message) = previous_message {
+        if previous_message.tick == client_info.change_tick {
+            return Ok(previous_message);
+        }
+
+        let tick_size = DefaultOptions::new().serialized_size(&client_info.change_tick)? as usize;
+        let mut bytes = Vec::with_capacity(tick_size + previous_message.event_bytes().len());
+        DefaultOptions::new().serialize_into(&mut bytes, &client_info.change_tick)?;
+        bytes.extend_from_slice(previous_message.event_bytes());
+        let message = SerializedMessage {
+            tick: client_info.change_tick,
+            tick_size,
+            bytes: bytes.into(),
+        };
+
+        Ok(message)
+    } else {
+        let mut cursor = Cursor::new(Vec::new());
+        DefaultOptions::new().serialize_into(&mut cursor, &client_info.change_tick)?;
+        let tick_size = cursor.get_ref().len();
+        (serialize_fn)(&mut cursor)?;
+        let message = SerializedMessage {
+            tick: client_info.change_tick,
+            tick_size,
+            bytes: cursor.into_inner().into(),
+        };
+
+        Ok(message)
+    }
+}
+
+struct SerializedMessage {
+    tick: RepliconTick,
+    tick_size: usize,
+    bytes: Bytes,
+}
+
+impl SerializedMessage {
+    fn event_bytes(&self) -> &[u8] {
+        &self.bytes[self.tick_size..]
+    }
+}
+
+/// Deserializes event change tick first and then calls the specified deserialization function to get the event itself.
+pub fn deserialize_with<T>(
+    message: &[u8],
+    deserialize_fn: impl FnOnce(&mut Cursor<&[u8]>) -> bincode::Result<T>,
+) -> bincode::Result<(RepliconTick, T)> {
+    let mut cursor = Cursor::new(message);
+    let tick = DefaultOptions::new().deserialize_from(&mut cursor)?;
+    let event = (deserialize_fn)(&mut cursor)?;
+
+    Ok((tick, event))
 }
 
 /// An event that will be send to client(s).
