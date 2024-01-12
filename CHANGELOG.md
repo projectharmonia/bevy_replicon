@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Make `NetworkChannels` channel-creation methods public (`create_client_channel()` and `create_server_channel()`).
 - Implement `Eq` and `PartialEq` on `EventType`.
 
+### Fixed
+
+- Don't panic when handling client acks if the ack references a despawned entity.
+
 ## [0.19.0] - 2024-01-07
 
 ### Added
