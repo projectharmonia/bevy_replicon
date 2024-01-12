@@ -347,9 +347,9 @@ fn serialize_with(
             return Ok(previous_message);
         }
 
-        let mut bytes = Vec::with_capacity(previous_message.bytes.len());
+        let tick_size = DefaultOptions::new().serialized_size(&client_info.change_tick)? as usize;
+        let mut bytes = Vec::with_capacity(tick_size + previous_message.event_bytes().len());
         DefaultOptions::new().serialize_into(&mut bytes, &client_info.change_tick)?;
-        let tick_size = bytes.len();
         bytes.extend_from_slice(previous_message.event_bytes());
         let message = SerializedMessage {
             tick: client_info.change_tick,
