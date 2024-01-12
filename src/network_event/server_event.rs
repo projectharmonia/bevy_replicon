@@ -305,8 +305,11 @@ pub fn send_with<T>(
         SendMode::Broadcast => {
             let mut shared_bytes = None;
             for client_info in clients_info.iter() {
-                let message = serialize_with(client_info, shared_bytes, &serialize_fn)?;
-                shared_bytes = Some(message.clone());
+                let (message, tick_size) =
+                    serialize_with(client_info, &shared_bytes, &serialize_fn)?;
+                if shared_bytes.is_none() {
+                    shared_bytes = Some(message.slice(tick_size..));
+                }
                 server.send_message(client_info.id(), channel, message);
             }
         }
@@ -316,8 +319,11 @@ pub fn send_with<T>(
                 if client_info.id() == client_id {
                     continue;
                 }
-                let message = serialize_with(client_info, shared_bytes, &serialize_fn)?;
-                shared_bytes = Some(message.clone());
+                let (message, tick_size) =
+                    serialize_with(client_info, &shared_bytes, &serialize_fn)?;
+                if shared_bytes.is_none() {
+                    shared_bytes = Some(message.slice(tick_size..));
+                }
                 server.send_message(client_info.id(), channel, message);
             }
         }
@@ -327,7 +333,7 @@ pub fn send_with<T>(
                     .iter()
                     .find(|client_info| client_info.id() == client_id)
                 {
-                    let message = serialize_with(client_info, None, &serialize_fn)?;
+                    let (message, _) = serialize_with(client_info, &None, &serialize_fn)?;
                     server.send_message(client_info.id(), channel, message);
                 }
             }
@@ -339,18 +345,20 @@ pub fn send_with<T>(
 
 fn serialize_with(
     client_info: &ClientInfo,
-    shared_bytes: Option<Bytes>,
+    shared_bytes: &Option<Bytes>,
     serialize_fn: impl Fn(&mut Cursor<Vec<u8>>) -> bincode::Result<()>,
-) -> bincode::Result<Bytes> {
-    if let Some(shared_bytes) = &shared_bytes {
-        let mut message = Vec::from(&shared_bytes[..]);
-        DefaultOptions::new().serialize_into(&mut message[..], &client_info.change_tick)?;
-        Ok(message.into())
+) -> bincode::Result<(Bytes, usize)> {
+    let mut cursor = Cursor::new(Vec::new());
+    DefaultOptions::new().serialize_into(&mut cursor, &client_info.change_tick)?;
+    let tick_size = cursor.position() as usize;
+
+    if let Some(shared_bytes) = shared_bytes {
+        let mut message = cursor.into_inner();
+        message.extend_from_slice(shared_bytes);
+        Ok((message.into(), tick_size))
     } else {
-        let mut cursor = Default::default();
-        DefaultOptions::new().serialize_into(&mut cursor, &client_info.change_tick)?;
         (serialize_fn)(&mut cursor)?;
-        Ok(cursor.into_inner().into())
+        Ok((cursor.into_inner().into(), tick_size))
     }
 }
 
