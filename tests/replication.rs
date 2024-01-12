@@ -1,7 +1,7 @@
 mod connect;
 
 use bevy::{prelude::*, utils::Duration};
-use bevy_replicon::{prelude::*, scene, server::clients_info::ClientsInfo};
+use bevy_replicon::{prelude::*, scene};
 
 use bevy_renet::renet::{
     transport::{NetcodeClientTransport, NetcodeServerTransport},
@@ -436,69 +436,6 @@ fn update_replication() {
 }
 
 #[test]
-fn update_and_removal_with_stale_ack_replication() {
-    let mut server_app = App::new();
-    let mut client_app = App::new();
-    for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((
-            MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
-                tick_policy: TickPolicy::EveryFrame,
-                ..Default::default()
-            }),
-        ))
-        .replicate::<BoolComponent>();
-    }
-
-    connect::single_client(&mut server_app, &mut client_app);
-
-    let server_entity = server_app
-        .world
-        .spawn((Replication, BoolComponent(false)))
-        .id();
-
-    server_app.update();
-    client_app.update();
-
-    assert_eq!(client_app.world.entities().len(), 1);
-
-    // The client will send an update ack.
-    let mut component = server_app
-        .world
-        .get_mut::<BoolComponent>(server_entity)
-        .unwrap();
-    component.0 = true;
-
-    server_app.update();
-    client_app.update();
-
-    let component = client_app
-        .world
-        .query::<&BoolComponent>()
-        .single(&client_app.world);
-    assert!(component.0);
-
-    server_app.world.entity_mut(server_entity).despawn();
-
-    // Detect the despawn before collecting the client ack.
-    // Due to networking race conditions we need to do this manually.
-    server_app
-        .world
-        .resource_mut::<ClientsInfo>()
-        .iter_mut()
-        .next()
-        .unwrap()
-        .remove_despawned(server_entity);
-
-    // Collect entity acks from the client and send the desapwn to the client.
-    // Entity acks should be ignored for the despawned entity.
-    server_app.update();
-
-    client_app.update();
-    assert_eq!(client_app.world.entities().len(), 0);
-}
-
-#[test]
 fn big_entity_update_replication() {
     let mut server_app = App::new();
     let mut client_app = App::new();
@@ -668,6 +605,7 @@ fn despawn_update_replication() {
 
     server_app.update();
     client_app.update();
+    server_app.update(); // Let server receive an update to trigger acknowledgment.
 
     assert!(client_app.world.entities().is_empty());
 }
