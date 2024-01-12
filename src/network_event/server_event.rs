@@ -264,6 +264,11 @@ fn local_resending_system<T: Event>(
             SendMode::Broadcast => {
                 local_events.send(event);
             }
+            SendMode::BroadcastExcept(client_id) => {
+                if client_id != SERVER_ID {
+                    local_events.send(event);
+                }
+            }
             SendMode::Direct(client_id) => {
                 if client_id == SERVER_ID {
                     local_events.send(event);
@@ -300,6 +305,17 @@ pub fn send_with<T>(
         SendMode::Broadcast => {
             let mut shared_bytes = None;
             for client_info in clients_info.iter() {
+                let message = serialize_with(client_info, shared_bytes, &serialize_fn)?;
+                shared_bytes = Some(message.clone());
+                server.send_message(client_info.id(), channel, message);
+            }
+        }
+        SendMode::BroadcastExcept(client_id) => {
+            let mut shared_bytes = None;
+            for client_info in clients_info.iter() {
+                if client_info.id() == client_id {
+                    continue;
+                }
                 let message = serialize_with(client_info, shared_bytes, &serialize_fn)?;
                 shared_bytes = Some(message.clone());
                 server.send_message(client_info.id(), channel, message);
@@ -360,6 +376,7 @@ pub struct ToClients<T> {
 #[derive(Clone, Copy, Debug)]
 pub enum SendMode {
     Broadcast,
+    BroadcastExcept(ClientId),
     Direct(ClientId),
 }
 

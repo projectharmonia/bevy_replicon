@@ -52,6 +52,8 @@ fn sending_receiving() {
         (SendMode::Broadcast, 1),
         (SendMode::Direct(SERVER_ID), 0),
         (SendMode::Direct(client_id), 1),
+        (SendMode::BroadcastExcept(SERVER_ID), 1),
+        (SendMode::BroadcastExcept(client_id), 0),
     ] {
         server_app
             .world
@@ -134,6 +136,8 @@ fn local_resending() {
         (SendMode::Broadcast, 1),
         (SendMode::Direct(SERVER_ID), 1),
         (SendMode::Direct(DUMMY_CLIENT_ID), 0),
+        (SendMode::BroadcastExcept(SERVER_ID), 0),
+        (SendMode::BroadcastExcept(DUMMY_CLIENT_ID), 1),
     ] {
         app.world
             .resource_mut::<Events<ToClients<DummyEvent>>>()
