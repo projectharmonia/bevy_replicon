@@ -348,15 +348,15 @@ fn serialize_with(
     shared_bytes: &Option<Bytes>,
     serialize_fn: impl Fn(&mut Cursor<Vec<u8>>) -> bincode::Result<()>,
 ) -> bincode::Result<(Bytes, usize)> {
-    let mut cursor = Cursor::new(Vec::new());
-    DefaultOptions::new().serialize_into(&mut cursor, &client_info.change_tick)?;
-    let tick_size = cursor.position() as usize;
-
+    let tick_size = DefaultOptions::new().serialized_size(&client_info.change_tick)? as usize;
     if let Some(shared_bytes) = shared_bytes {
-        let mut message = cursor.into_inner();
+        let mut message = Vec::with_capacity(tick_size + shared_bytes.len());
+        DefaultOptions::new().serialize_into(&mut message, &client_info.change_tick)?;
         message.extend_from_slice(shared_bytes);
         Ok((message.into(), tick_size))
     } else {
+        let mut cursor = Cursor::new(Vec::new());
+        DefaultOptions::new().serialize_into(&mut cursor, &client_info.change_tick)?;
         (serialize_fn)(&mut cursor)?;
         Ok((cursor.into_inner().into(), tick_size))
     }
