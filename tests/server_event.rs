@@ -205,7 +205,7 @@ fn event_queue() {
 }
 
 #[test]
-fn client_mismatch() {
+fn different_ticks() {
     let mut server_app = App::new();
     let mut client_app1 = App::new();
     let mut client_app2 = App::new();
@@ -221,33 +221,31 @@ fn client_mismatch() {
         .add_server_event::<DummyEvent>(EventType::Ordered);
     }
 
-    // 1. Connect client 1.
     let port = connect::setup_server(&mut server_app, 2);
+
+    // Connect client 1 first.
     connect::setup_client(&mut client_app1, 1u64, port);
     connect::wait_for_connection(&mut server_app, &mut client_app1);
 
-    // 2. Spawn entity to trigger world change.
+    // Spawn entity to trigger world change.
     server_app.world.spawn((Replication, DummyComponent));
 
-    // 3. Update client 1 to initialize their replicon tick.
+    // Update client 1 to initialize their replicon tick.
     server_app.update();
     client_app1.update();
 
-    // 3. Connect client 2.
-    // - Client 2 will have a higher replicon tick than client 1, since only client 1 will recieve an init message
-    //   here.
+    // Connect client 2 later to make it have a higher replicon tick than client 1,
+    // since only client 1 will recieve an init message here.
     connect::setup_client(&mut client_app2, 2u64, port);
     connect::wait_for_connection(&mut server_app, &mut client_app2);
 
-    // 4. Send event to all clients.
     server_app.world.send_event(ToClients {
         mode: SendMode::Broadcast,
         event: DummyEvent,
     });
 
-    // 5. Update clients to recieve the event.
-    // - If any client does not have a replicon tick >= the change tick associated with this event, then they
-    //   will not receive the event until their replicon tick is updated.
+    // If any client does not have a replicon tick >= the change tick associated with this event,
+    // then they will not receive the event until their replicon tick is updated.
     server_app.update();
     client_app1.update();
     client_app2.update();
