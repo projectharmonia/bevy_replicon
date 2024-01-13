@@ -1,3 +1,5 @@
+pub mod client_visibility;
+
 use std::mem;
 
 use bevy::{
@@ -7,11 +9,15 @@ use bevy::{
 };
 use bevy_renet::renet::ClientId;
 
-use crate::replicon_core::replicon_tick::RepliconTick;
+use crate::{replicon_core::replicon_tick::RepliconTick, server::VisibilityPolicy};
+use client_visibility::ClientVisibility;
 
 /// Stores meta-information about connected clients.
-#[derive(Default, Resource)]
-pub struct ClientsInfo(Vec<ClientInfo>);
+#[derive(Resource, Default)]
+pub struct ClientsInfo {
+    info: Vec<ClientInfo>,
+    policy: VisibilityPolicy,
+}
 
 /// Reusable buffers for [`ClientsInfo`] and [`ClientInfo`].
 #[derive(Default, Resource)]
@@ -28,19 +34,38 @@ pub(crate) struct ClientBuffers {
 }
 
 impl ClientsInfo {
+    pub(super) fn new(policy: VisibilityPolicy) -> Self {
+        Self {
+            info: Default::default(),
+            policy,
+        }
+    }
+
+    pub fn get(&self, client_id: ClientId) -> Option<&ClientInfo> {
+        self.info.iter().find(|info| info.id == client_id)
+    }
+
+    pub fn get_mut(&mut self, client_id: ClientId) -> Option<&mut ClientInfo> {
+        self.info.iter_mut().find(|info| info.id == client_id)
+    }
+
     /// Returns an iterator over clients information.
-    pub(crate) fn iter(&self) -> impl Iterator<Item = &ClientInfo> {
-        self.0.iter()
+    pub fn iter(&self) -> impl Iterator<Item = &ClientInfo> {
+        self.info.iter()
     }
 
     /// Returns a mutable iterator over clients information.
-    pub(super) fn iter_mut(&mut self) -> impl Iterator<Item = &mut ClientInfo> {
-        self.0.iter_mut()
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut ClientInfo> {
+        self.info.iter_mut()
     }
 
     /// Returns number of connected clients.
-    pub(super) fn len(&self) -> usize {
-        self.0.len()
+    pub fn len(&self) -> usize {
+        self.info.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.info.is_empty()
     }
 
     /// Initializes a new [`ClientInfo`] for this client.
@@ -51,10 +76,10 @@ impl ClientsInfo {
             client_info.reset(client_id);
             client_info
         } else {
-            ClientInfo::new(client_id)
+            ClientInfo::new(client_id, self.policy)
         };
 
-        self.0.push(client_info);
+        self.info.push(client_info);
     }
 
     /// Removes info for the client.
@@ -62,11 +87,11 @@ impl ClientsInfo {
     /// Keeps allocated memory in the buffers for reuse.
     pub(super) fn remove(&mut self, client_buffers: &mut ClientBuffers, client_id: ClientId) {
         let index = self
-            .0
+            .info
             .iter()
             .position(|info| info.id == client_id)
             .expect("clients info should contain all connected clients");
-        let mut client_info = self.0.remove(index);
+        let mut client_info = self.info.remove(index);
         client_buffers.entities.extend(client_info.drain_entities());
         client_buffers.info.push(client_info);
     }
@@ -75,22 +100,21 @@ impl ClientsInfo {
     ///
     /// Keeps allocated memory in the buffers for reuse.
     pub(super) fn clear(&mut self, client_buffers: &mut ClientBuffers) {
-        for mut client_info in self.0.drain(..) {
+        for mut client_info in self.info.drain(..) {
             client_buffers.entities.extend(client_info.drain_entities());
             client_buffers.info.push(client_info);
         }
     }
 }
 
-pub(crate) struct ClientInfo {
+pub struct ClientInfo {
     /// Client's ID.
     id: ClientId,
 
-    /// Indicates whether the client connected in this tick.
-    pub(super) just_connected: bool,
-
     /// Lowest tick for use in change detection for each entity.
     ticks: EntityHashMap<Entity, Tick>,
+
+    visibility: ClientVisibility,
 
     /// The last tick in which a replicated entity was spawned, despawned, or gained/lost a component from the perspective
     /// of the client.
@@ -108,11 +132,11 @@ pub(crate) struct ClientInfo {
 }
 
 impl ClientInfo {
-    fn new(id: ClientId) -> Self {
+    fn new(id: ClientId, policy: VisibilityPolicy) -> Self {
         Self {
             id,
-            just_connected: true,
             ticks: Default::default(),
+            visibility: ClientVisibility::new(policy),
             change_tick: Default::default(),
             updates: Default::default(),
             next_update_index: Default::default(),
@@ -122,6 +146,14 @@ impl ClientInfo {
     // Returns associated client ID.
     pub(crate) fn id(&self) -> ClientId {
         self.id
+    }
+
+    pub fn visibility_mut(&mut self) -> &mut ClientVisibility {
+        &mut self.visibility
+    }
+
+    pub fn visibility(&self) -> &ClientVisibility {
+        &self.visibility
     }
 
     /// Clears all entities for unacknowledged updates, returning them as an iterator.
@@ -138,7 +170,7 @@ impl ClientInfo {
     /// Keeps the allocated memory for reuse.
     fn reset(&mut self, id: ClientId) {
         self.id = id;
-        self.just_connected = true;
+        self.visibility.clear();
         self.ticks.clear();
         self.updates.clear();
         self.next_update_index = 0;
@@ -229,8 +261,15 @@ impl ClientInfo {
     /// Removes a despawned entity tracked by this client.
     pub fn remove_despawned(&mut self, entity: Entity) {
         self.ticks.remove(&entity);
+        self.visibility.remove_despawned(entity);
         // We don't clean up `self.updates` for efficiency reasons.
         // `Self::acknowledge()` will properly ignore despawned entities.
+    }
+
+    pub(super) fn remove_hidden(&mut self) -> impl Iterator<Item = Entity> + '_ {
+        self.visibility.iter_hidden().inspect(|entity| {
+            self.ticks.remove(entity);
+        })
     }
 
     /// Removes all updates older then `min_timestamp`.
