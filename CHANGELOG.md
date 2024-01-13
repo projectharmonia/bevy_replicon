@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Don't panic when handling client acks if the ack references a despawned entity.
+
 ### Changed
 
 - API for custom server messages now uses `server_event::serialize_with`  and `server_event::deserialize_with`. For more details see the example in the docs.
@@ -15,10 +19,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Move server event reset system to new set `ClientSet::ResetEvents` in `PreUpdate`.
 - Make `NetworkChannels` channel-creation methods public (`create_client_channel()` and `create_server_channel()`).
 - Implement `Eq` and `PartialEq` on `EventType`.
-
-### Fixed
-
-- Don't panic when handling client acks if the ack references a despawned entity.
 
 ### Removed
 
@@ -41,26 +41,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.18.2] - 2023-12-27
 
-### Changed
+### Fixed
 
 - Fix missing removals and despawns caused by events cleanup.
 
 ## [0.18.1] - 2023-12-21
 
-### Changed
+### Fixed
 
-- Cache replicated archetypes for faster iteration.
 - Fix crash caused by registering the same type for client and server events.
 - Fix replication for entities when `Replication` component is added after spawn.
 
+### Changed
+
+- Cache replicated archetypes for faster iteration.
+
 ## [0.18.0] - 2023-12-19
+
+### Fixed
+
+- Fix missing reset of `RepliconTick` on server disconnect.
+- Fix replication of removals that happened after replication on the same frame.
 
 ### Changed
 
 - Send all component mappings, inserts, removals and despawns over reliable channel in form of deltas and component updates over unreliable channel packed by packet size. This significantly reduces the possibility of packet loss.
 - Replace `REPLICATION_CHANNEL_ID` with `ReplicationChannel` enum. The previous constant corresponded to the unreliable channel.
 - Server events use tick with the last change instead of waiting for replication message without changes.
-- Fix replication of removals that happened after replication on the same frame.
 - Include despawns before removals to optimize space for case where despawns are presents and removals aren't.
 - `TickPolicy::EveryFrame` and `TickPolicy::MaxTickRate` now increment tick only if `RenetServer` exists.
 - `ServerSet::Send` now always runs. Replication sending system still runs on `RepliconTick` change.
@@ -69,7 +76,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Use `Cursor<&[u8]>` instead of `Cursor<Bytes>`.
 - Replace `LastRepliconTick` with `RepliconTick` on client.
 - Move `ClientMapper` and `ServerEntityMap` to `client_mapper` submodule.
-- Fix missing reset of `RepliconTick` on server disconnect.
 - Rename `replicate_into_scene` into `replicate_into` and move it to `scene` module.
 - Derive `Debug` for `Replication` and `Ignored<T>`.
 
@@ -143,14 +149,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The ability to set custom despawn and component removal functions.
 - `TickPolicy::EveryFrame` to update `RepliconTick` every frame.
 
+### Fixed
+
+- Fix the entire world was always sent instead of changes.
+- Fix crash with several entities spawned and updated.
+
 ### Changed
 
 - Use more compact varint encoding for entities.
 - Now all replication functions accept `RepliconTick`.
 - Rename `NetworkTick` into `RepliconTick` and move it into `server` module.
-- Fix crash with several entities spawned and updated.
 - Rename `LastTick` into `LastRepliconTick`.
-- Fix the entire world was always sent instead of changes.
 
 ### Removed
 
@@ -197,7 +206,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.9.1] - 2023-08-05
 
-### Changed
+### Fixed
 
 - Fix event cleanup.
 
@@ -258,14 +267,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `ServerSet::ReceiveEvent` and `ServerSet::SendEvent` for more fine-grained control of scheduling for event handling.
 
-### Changed
-
-- Update server to use `TickPolicy` instead of requiring a tick rate.
-
 ### Fixed
 
 - Unspecified system ordering could cause tick acks to be ordered on the wrong side of world diff handling.
 - Crash after adding events without `ServerPlugin` or `ClientPlugin`.
+
+### Changed
+
+- Update server to use `TickPolicy` instead of requiring a tick rate.
 
 ## [0.4.0] - 2023-05-26
 
