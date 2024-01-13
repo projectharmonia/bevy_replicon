@@ -677,6 +677,7 @@ fn update_replication_cleanup() {
             ReplicationPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 update_timeout: Duration::ZERO, // Will cause dropping updates after each frame.
+                ..Default::default()
             }),
         ))
         .replicate::<BoolComponent>();
