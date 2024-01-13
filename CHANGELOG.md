@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0] - 2024-01-13
+
 ### Fixed
 
 - Don't panic when handling client acks if the ack references a despawned entity.
@@ -326,7 +328,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release after separation from [lifescape](https://github.com/lifescapegame/lifescape).
 
-[unreleased]: https://github.com/lifescapegame/bevy_replicon/compare/v0.19.0...HEAD
+[unreleased]: https://github.com/lifescapegame/bevy_replicon/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/lifescapegame/bevy_replicon/compare/v0.18.2...v0.19.0
 [0.18.2]: https://github.com/lifescapegame/bevy_replicon/compare/v0.18.1...v0.18.2
 [0.18.1]: https://github.com/lifescapegame/bevy_replicon/compare/v0.18.0...v0.18.1
