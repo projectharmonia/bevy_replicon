@@ -1,4 +1,4 @@
-pub(super) mod clients_info;
+pub mod clients_info;
 pub(super) mod despawn_buffer;
 pub(super) mod removal_buffer;
 pub(super) mod replicated_archetypes_info;
@@ -336,9 +336,8 @@ fn collect_changes(
                             component,
                         )?;
                     } else {
-                        let tick = *client_info
-                            .ticks
-                            .get(&entity.entity())
+                        let tick = client_info
+                            .get_change_limit(entity.entity())
                             .expect("entity should be present after adding component");
                         if ticks.is_changed(tick, change_tick.this_run()) {
                             update_message.write_component(
@@ -358,9 +357,7 @@ fn collect_changes(
                     // If there is any insertion or we must initialize, include all updates into init message
                     // and bump the last acknowledged tick to keep entity updates atomic.
                     init_message.take_entity_data(update_message)?;
-                    client_info
-                        .ticks
-                        .insert(entity.entity(), change_tick.this_run());
+                    client_info.set_change_limit(entity.entity(), change_tick.this_run());
                 } else {
                     update_message.end_entity_data()?;
                 }
@@ -420,7 +417,7 @@ fn collect_despawns(
     for entity in despawn_buffer.drain(..) {
         let mut shared_bytes = None;
         for (message, _, client_info) in messages.iter_mut_with_info() {
-            client_info.ticks.remove(&entity);
+            client_info.remove_despawned(entity);
             message.write_entity(&mut shared_bytes, entity)?;
         }
     }
@@ -446,7 +443,7 @@ fn collect_removals(
         for (message, _, client_info) in messages.iter_mut_with_info() {
             message.start_entity_data(entity);
             for &replication_id in components {
-                client_info.ticks.insert(entity, tick);
+                client_info.set_change_limit(entity, tick);
                 message.write_replication_id(replication_id)?;
             }
             message.end_entity_data(false)?;

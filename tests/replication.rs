@@ -605,6 +605,7 @@ fn despawn_update_replication() {
 
     server_app.update();
     client_app.update();
+    server_app.update(); // Let server receive an update to trigger acknowledgment.
 
     assert!(client_app.world.entities().is_empty());
 }
