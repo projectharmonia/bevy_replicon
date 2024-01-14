@@ -91,16 +91,21 @@ impl ClientVisibility {
 
     /// Sets visibility for specific entity.
     ///
-    /// # Panics
-    ///
-    /// Panics if the server plugin was previously configured with [`VisibilityPolicy::All`].
+    /// Does nothing if visibility policy for the server plugin is set to [`VisibilityPolicy::All`].
     pub fn set(&mut self, entity: Entity, visibile: bool) {
         match self {
             ClientVisibility::All { .. } => {
-                panic!(
-                    "visibility shouldn't be set with {:?}",
-                    VisibilityPolicy::All
-                )
+                if visibile {
+                    debug!(
+                        "ignoring visibility enable due to {:?}",
+                        VisibilityPolicy::All
+                    );
+                } else {
+                    warn!(
+                        "ignoring visibility disable due to {:?}",
+                        VisibilityPolicy::All
+                    );
+                }
             }
             ClientVisibility::Blacklist { list, removed } => {
                 if !visibile {
