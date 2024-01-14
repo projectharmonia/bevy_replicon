@@ -753,7 +753,7 @@ fn update_replication_cleanup() {
 }
 
 #[test]
-fn all_replication() {
+fn all_visibility() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
@@ -775,20 +775,6 @@ fn all_replication() {
     let client_id = ClientId::from_raw(client_transport.client_id());
     let mut clients_info = server_app.world.resource_mut::<ClientsInfo>();
     let visibility = clients_info.get_mut(client_id).unwrap().visibility_mut();
-    visibility.set_visible(server_entity, true);
-    assert!(visibility.is_visible(server_entity));
-
-    server_app.update();
-    client_app.update();
-
-    client_app
-        .world
-        .query_filtered::<(), (With<Replication>, With<TableComponent>)>()
-        .single(&client_app.world);
-
-    // Reverse visibility.
-    let mut clients_info = server_app.world.resource_mut::<ClientsInfo>();
-    let visibility = clients_info.get_mut(client_id).unwrap().visibility_mut();
     visibility.set_visible(server_entity, false);
     assert!(
         visibility.is_visible(server_entity),
@@ -796,17 +782,12 @@ fn all_replication() {
         VisibilityPolicy::All
     );
 
-    server_app.update();
-    client_app.update();
-
-    client_app
-        .world
-        .query_filtered::<(), (With<Replication>, With<TableComponent>)>()
-        .single(&client_app.world);
+    visibility.set_visible(server_entity, true);
+    assert!(visibility.is_visible(server_entity));
 }
 
 #[test]
-fn blacklist_replication() {
+fn blacklist_visibility() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
@@ -824,51 +805,70 @@ fn blacklist_replication() {
     connect::single_client(&mut server_app, &mut client_app);
 
     let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
-    let hidden_entity = server_app.world.spawn((Replication, TableComponent)).id();
+
+    let client_transport = client_app.world.resource::<NetcodeClientTransport>();
+    let client_id = ClientId::from_raw(client_transport.client_id());
+    let clients_info = server_app.world.resource::<ClientsInfo>();
+    let visibility = clients_info.get(client_id).unwrap().visibility();
+    assert!(visibility.is_visible(server_entity));
+
+    server_app.update();
+    client_app.update();
+
+    client_app
+        .world
+        .query_filtered::<(), (With<Replication>, With<TableComponent>)>()
+        .single(&client_app.world);
+}
+
+#[test]
+fn blacklist_visibility_add_remove() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                visibility_policy: VisibilityPolicy::Blacklist,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<TableComponent>();
+    }
+
+    connect::single_client(&mut server_app, &mut client_app);
+
+    let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
 
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
     let client_id = ClientId::from_raw(client_transport.client_id());
     let mut clients_info = server_app.world.resource_mut::<ClientsInfo>();
     let visibility = clients_info.get_mut(client_id).unwrap().visibility_mut();
-    visibility.set_visible(hidden_entity, false);
-    assert!(visibility.is_visible(server_entity));
-    assert!(!visibility.is_visible(hidden_entity));
+    visibility.set_visible(server_entity, false);
+    assert!(!visibility.is_visible(server_entity));
 
     server_app.update();
     client_app.update();
 
-    let client_entity = client_app
-        .world
-        .query_filtered::<Entity, (With<Replication>, With<TableComponent>)>()
-        .single(&client_app.world);
+    assert!(client_app.world.entities().is_empty());
 
-    let entity_map = client_app.world.resource::<ServerEntityMap>();
-    assert_eq!(
-        entity_map.to_client().get(&server_entity),
-        Some(&client_entity),
-    );
-
-    // Reverse visibility.
+    // Reverse visibility back.
     let mut clients_info = server_app.world.resource_mut::<ClientsInfo>();
     let visibility = clients_info.get_mut(client_id).unwrap().visibility_mut();
-    visibility.set_visible(hidden_entity, true);
+    visibility.set_visible(server_entity, true);
 
     server_app.update();
     client_app.update();
 
-    let entities_count = client_app
+    client_app
         .world
-        .query_filtered::<Entity, (With<Replication>, With<TableComponent>)>()
-        .iter(&client_app.world)
-        .count();
-    assert_eq!(
-        entities_count, 2,
-        "hidden entity should be spawned on client after removing from blacklist"
-    );
+        .query_filtered::<(), (With<Replication>, With<TableComponent>)>()
+        .single(&client_app.world);
 }
 
 #[test]
-fn whitelist_replication() {
+fn whitelist_visibility() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
@@ -886,7 +886,41 @@ fn whitelist_replication() {
     connect::single_client(&mut server_app, &mut client_app);
 
     let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
-    let hidden_entity = server_app.world.spawn((Replication, TableComponent)).id();
+
+    let client_transport = client_app.world.resource::<NetcodeClientTransport>();
+    let client_id = ClientId::from_raw(client_transport.client_id());
+    let clients_info = server_app.world.resource::<ClientsInfo>();
+    let visibility = clients_info.get(client_id).unwrap().visibility();
+    assert!(!visibility.is_visible(server_entity));
+
+    server_app.update();
+    client_app.update();
+
+    assert!(
+        client_app.world.entities().is_empty(),
+        "no entities should be replicated without adding to whitelist"
+    );
+}
+
+#[test]
+fn whitelist_visibility_add_remove() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                visibility_policy: VisibilityPolicy::Whitelist,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<TableComponent>();
+    }
+
+    connect::single_client(&mut server_app, &mut client_app);
+
+    let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
 
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
     let client_id = ClientId::from_raw(client_transport.client_id());
@@ -894,21 +928,14 @@ fn whitelist_replication() {
     let visibility = clients_info.get_mut(client_id).unwrap().visibility_mut();
     visibility.set_visible(server_entity, true);
     assert!(visibility.is_visible(server_entity));
-    assert!(!visibility.is_visible(hidden_entity));
 
     server_app.update();
     client_app.update();
 
-    let client_entity = client_app
+    client_app
         .world
-        .query_filtered::<Entity, (With<Replication>, With<TableComponent>)>()
+        .query_filtered::<(), (With<Replication>, With<TableComponent>)>()
         .single(&client_app.world);
-
-    let entity_map = client_app.world.resource::<ServerEntityMap>();
-    assert_eq!(
-        entity_map.to_client().get(&server_entity),
-        Some(&client_entity),
-    );
 
     // Reverse visibility.
     let mut clients_info = server_app.world.resource_mut::<ClientsInfo>();
@@ -920,7 +947,7 @@ fn whitelist_replication() {
 
     assert!(
         client_app.world.entities().is_empty(),
-        "server entity should be despawned after removing from whitelist"
+        "entity should be despawned after removing from whitelist"
     );
 }
 
