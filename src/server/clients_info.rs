@@ -41,7 +41,7 @@ impl ClientsInfo {
         }
     }
 
-    /// Returns reference to connected client info.
+    /// Returns a reference to a connected client's info.
     ///
     /// This operation is *O*(*n*).
     pub fn get(&self, client_id: ClientId) -> Option<&ClientInfo> {
