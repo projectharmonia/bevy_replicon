@@ -41,10 +41,16 @@ impl ClientsInfo {
         }
     }
 
+    /// Returns reference to connected client info.
+    ///
+    /// This operation is *O*(*n*).
     pub fn get(&self, client_id: ClientId) -> Option<&ClientInfo> {
         self.info.iter().find(|info| info.id == client_id)
     }
 
+    /// Returns mutable reference to connected client info.
+    ///
+    /// This operation is *O*(*n*).
     pub fn get_mut(&mut self, client_id: ClientId) -> Option<&mut ClientInfo> {
         self.info.iter_mut().find(|info| info.id == client_id)
     }
@@ -64,6 +70,7 @@ impl ClientsInfo {
         self.info.len()
     }
 
+    /// Returns `true` if no clients connected.
     pub fn is_empty(&self) -> bool {
         self.info.is_empty()
     }
@@ -148,12 +155,14 @@ impl ClientInfo {
         self.id
     }
 
-    pub fn visibility_mut(&mut self) -> &mut ClientVisibility {
-        &mut self.visibility
-    }
-
+    /// Returns reference to client visibility settings.
     pub fn visibility(&self) -> &ClientVisibility {
         &self.visibility
+    }
+
+    /// Returns mutable reference to client visibility settings.
+    pub fn visibility_mut(&mut self) -> &mut ClientVisibility {
+        &mut self.visibility
     }
 
     /// Clears all entities for unacknowledged updates, returning them as an iterator.
@@ -266,6 +275,9 @@ impl ClientInfo {
         // `Self::acknowledge()` will properly ignore despawned entities.
     }
 
+    /// Iterates over all entities for which visibility was lost during this tick and removes them.
+    ///
+    /// Removal happens lazily during the iteration.
     pub(super) fn remove_lost_visibility(&mut self) -> impl Iterator<Item = Entity> + '_ {
         self.visibility.iter_lost_visibility().inspect(|entity| {
             self.ticks.remove(entity);
