@@ -78,7 +78,7 @@ impl ClientVisibility {
         }
     }
 
-    pub(super) fn iter_hidden(&self) -> Box<dyn Iterator<Item = Entity> + '_> {
+    pub(super) fn iter_lost_visibility(&self) -> Box<dyn Iterator<Item = Entity> + '_> {
         match self {
             ClientVisibility::All { .. } => Box::new(iter::empty()),
             ClientVisibility::Blacklist { list, .. } => Box::new(
@@ -131,24 +131,24 @@ impl ClientVisibility {
         match self {
             ClientVisibility::All { just_connected } => {
                 if *just_connected {
-                    EntityVisibility::JustVisible
+                    EntityVisibility::Gained
                 } else {
-                    EntityVisibility::Visible
+                    EntityVisibility::Maintained
                 }
             }
             ClientVisibility::Blacklist { list, removed } => {
                 if list.contains_key(&entity) {
-                    EntityVisibility::Hidden
+                    EntityVisibility::None
                 } else if removed.contains(&entity) {
-                    EntityVisibility::JustVisible
+                    EntityVisibility::Gained
                 } else {
-                    EntityVisibility::Visible
+                    EntityVisibility::Maintained
                 }
             }
             ClientVisibility::Whitelist { list, .. } => match list.get(&entity) {
-                Some(true) => EntityVisibility::JustVisible,
-                Some(false) => EntityVisibility::Visible,
-                None => EntityVisibility::Hidden,
+                Some(true) => EntityVisibility::Gained,
+                Some(false) => EntityVisibility::Maintained,
+                None => EntityVisibility::None,
             },
         }
     }
@@ -156,7 +156,7 @@ impl ClientVisibility {
 
 #[derive(PartialEq)]
 pub enum EntityVisibility {
-    JustVisible,
-    Visible,
-    Hidden,
+    Gained,
+    Maintained,
+    None,
 }

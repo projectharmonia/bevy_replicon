@@ -266,8 +266,8 @@ impl ClientInfo {
         // `Self::acknowledge()` will properly ignore despawned entities.
     }
 
-    pub(super) fn remove_hidden(&mut self) -> impl Iterator<Item = Entity> + '_ {
-        self.visibility.iter_hidden().inspect(|entity| {
+    pub(super) fn remove_lost_visibility(&mut self) -> impl Iterator<Item = Entity> + '_ {
+        self.visibility.iter_lost_visibility().inspect(|entity| {
             self.ticks.remove(entity);
         })
     }
