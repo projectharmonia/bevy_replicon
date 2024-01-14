@@ -31,7 +31,7 @@ impl ClientVisibility {
         }
     }
 
-    /// Creates a new instance with specific filter.
+    /// Creates a new instance with a specific filter.
     fn with_filter(filter: VisibilityFilter) -> Self {
         Self {
             filter,
@@ -119,7 +119,7 @@ impl ClientVisibility {
         }
     }
 
-    /// Returns an iterator of entities that lost visibility at this tick.
+    /// Returns an iterator of entities the client lost visibility of this tick.
     pub(super) fn iter_lost_visibility(&self) -> impl Iterator<Item = Entity> + '_ {
         match &self.filter {
             VisibilityFilter::All { .. } => VisibilityLostIter::AllVisible,
@@ -132,9 +132,9 @@ impl ClientVisibility {
         }
     }
 
-    /// Sets visibility for specific entity.
+    /// Sets visibility for a specific entity.
     ///
-    /// Does nothing if visibility policy for the server plugin is set to [`VisibilityPolicy::All`].
+    /// Does nothing if the visibility policy for the server plugin is set to [`VisibilityPolicy::All`].
     pub fn set_visible(&mut self, entity: Entity, visibile: bool) {
         match &mut self.filter {
             VisibilityFilter::All { .. } => {
@@ -184,7 +184,7 @@ impl ClientVisibility {
         }
     }
 
-    /// Gets visibility for specific entity.
+    /// Gets visibility for a specific entity.
     pub fn is_visible(&self, entity: Entity) -> bool {
         match &self.filter {
             VisibilityFilter::All { .. } => true,

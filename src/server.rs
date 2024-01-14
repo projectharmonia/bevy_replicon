@@ -522,9 +522,9 @@ pub enum VisibilityPolicy {
     /// All entities are visible by default and visibility can't be changed.
     #[default]
     All,
-    /// All entities are hidden by default and should be explicitly marked to be visible.
+    /// All entities are hidden by default and should be explicitly registered to be visible.
     Blacklist,
-    /// All entities are visible by default and should be explicitly marked to be hidden.
+    /// All entities are visible by default and should be explicitly registered to be hidden.
     Whitelist,
 }
 

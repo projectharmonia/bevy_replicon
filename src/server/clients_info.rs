@@ -48,29 +48,29 @@ impl ClientsInfo {
         self.info.iter().find(|info| info.id == client_id)
     }
 
-    /// Returns mutable reference to connected client info.
+    /// Returns a mutable reference to a connected client's info.
     ///
     /// This operation is *O*(*n*).
     pub fn get_mut(&mut self, client_id: ClientId) -> Option<&mut ClientInfo> {
         self.info.iter_mut().find(|info| info.id == client_id)
     }
 
-    /// Returns an iterator over clients information.
+    /// Returns an iterator over client information.
     pub fn iter(&self) -> impl Iterator<Item = &ClientInfo> {
         self.info.iter()
     }
 
-    /// Returns a mutable iterator over clients information.
+    /// Returns a mutable iterator over client information.
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut ClientInfo> {
         self.info.iter_mut()
     }
 
-    /// Returns number of connected clients.
+    /// Returns the number of connected clients.
     pub fn len(&self) -> usize {
         self.info.len()
     }
 
-    /// Returns `true` if no clients connected.
+    /// Returns `true` if no clients are connected.
     pub fn is_empty(&self) -> bool {
         self.info.is_empty()
     }
@@ -156,12 +156,12 @@ impl ClientInfo {
         self.id
     }
 
-    /// Returns reference to client visibility settings.
+    /// Returns a reference to the client's visibility settings.
     pub fn visibility(&self) -> &ClientVisibility {
         &self.visibility
     }
 
-    /// Returns mutable reference to client visibility settings.
+    /// Returns a mutable reference to the client's visibility settings.
     pub fn visibility_mut(&mut self) -> &mut ClientVisibility {
         &mut self.visibility
     }
