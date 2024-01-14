@@ -434,7 +434,7 @@ pub mod prelude {
         server::{
             clients_info::{client_visibility::ClientVisibility, ClientInfo, ClientsInfo},
             has_authority, ClientEntityMap, ClientMapping, ServerPlugin, ServerSet, TickPolicy,
-            SERVER_ID,
+            VisibilityPolicy, SERVER_ID,
         },
         ReplicationPlugins,
     };
