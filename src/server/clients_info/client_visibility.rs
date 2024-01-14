@@ -1,5 +1,3 @@
-use std::iter;
-
 use bevy::{
     prelude::*,
     utils::{EntityHashMap, EntityHashSet},
@@ -130,11 +128,15 @@ impl ClientVisibility {
     }
 
     /// Returns an iterator of entities that lost visibility at this tick.
-    pub(super) fn iter_lost_visibility(&self) -> Box<dyn Iterator<Item = Entity> + '_> {
+    pub(super) fn iter_lost_visibility(&self) -> impl Iterator<Item = Entity> + '_ {
         match self {
-            ClientVisibility::All { .. } => Box::new(iter::empty()),
-            ClientVisibility::Blacklist { added, .. } => Box::new(added.iter().copied()),
-            ClientVisibility::Whitelist { removed, .. } => Box::new(removed.iter().copied()),
+            ClientVisibility::All { .. } => VisibilityLostIter::AllVisible,
+            ClientVisibility::Blacklist { added, .. } => {
+                VisibilityLostIter::Lost(added.iter().copied())
+            }
+            ClientVisibility::Whitelist { removed, .. } => {
+                VisibilityLostIter::Lost(removed.iter().copied())
+            }
         }
     }
 
@@ -219,3 +221,28 @@ pub enum EntityVisibility {
     Maintained,
     None,
 }
+
+enum VisibilityLostIter<T> {
+    AllVisible,
+    Lost(T),
+}
+
+impl<T: Iterator> Iterator for VisibilityLostIter<T> {
+    type Item = T::Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            VisibilityLostIter::AllVisible => None,
+            VisibilityLostIter::Lost(entities) => entities.next(),
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        match self {
+            VisibilityLostIter::AllVisible => (0, Some(0)),
+            VisibilityLostIter::Lost(entities) => entities.size_hint(),
+        }
+    }
+}
+
+impl<T: ExactSizeIterator> ExactSizeIterator for VisibilityLostIter<T> {}
