@@ -7,16 +7,26 @@ use bevy::{
 
 use super::VisibilityPolicy;
 
+/// Entity visibility settings for a client.
 pub enum ClientVisibility {
     All {
+        /// Indicates that the client has just connected to the server.
         just_connected: bool,
     },
     Blacklist {
+        /// All blacklisted entities and an indicator of whether it is in the queue for deletion at this tick.
         list: EntityHashMap<Entity, bool>,
+        /// All entities that were removed from the list on this tick.
+        added: EntityHashSet<Entity>,
+        /// All entities that were added to the list on this tick.
         removed: EntityHashSet<Entity>,
     },
     Whitelist {
+        /// All whitelisted entities and an indicator whether it was added to the list on this tick.
         list: EntityHashMap<Entity, bool>,
+        /// All entities that were added to the list on this tick.
+        added: EntityHashSet<Entity>,
+        /// All entities that were removed from the list on this tick.
         removed: EntityHashSet<Entity>,
     },
 }
@@ -30,10 +40,12 @@ impl ClientVisibility {
             },
             VisibilityPolicy::Blacklist => Self::Blacklist {
                 list: Default::default(),
+                added: Default::default(),
                 removed: Default::default(),
             },
             VisibilityPolicy::Whitelist => Self::Whitelist {
                 list: Default::default(),
+                added: Default::default(),
                 removed: Default::default(),
             },
         }
@@ -43,9 +55,18 @@ impl ClientVisibility {
     pub(super) fn clear(&mut self) {
         match self {
             ClientVisibility::All { just_connected } => *just_connected = true,
-            ClientVisibility::Blacklist { list, removed }
-            | ClientVisibility::Whitelist { list, removed } => {
+            ClientVisibility::Blacklist {
+                list,
+                added,
+                removed,
+            }
+            | ClientVisibility::Whitelist {
+                list,
+                added,
+                removed,
+            } => {
                 list.clear();
+                added.clear();
                 removed.clear();
             }
         }
@@ -57,34 +78,62 @@ impl ClientVisibility {
     pub(crate) fn update(&mut self) {
         match self {
             ClientVisibility::All { just_connected } => *just_connected = false,
-            ClientVisibility::Blacklist { list, removed }
-            | ClientVisibility::Whitelist { list, removed } => {
-                for just_added in list.values_mut() {
-                    *just_added = false;
+            ClientVisibility::Blacklist {
+                list,
+                added,
+                removed,
+            } => {
+                for entity in removed.drain() {
+                    list.remove(&entity);
+                }
+                added.clear();
+            }
+            ClientVisibility::Whitelist {
+                list,
+                added,
+                removed,
+            } => {
+                for entity in added.drain() {
+                    list.insert(entity, false);
                 }
                 removed.clear();
             }
         }
     }
 
+    /// Removes a despawned entity tracked by this client.
     pub(super) fn remove_despawned(&mut self, entity: Entity) {
         match self {
             ClientVisibility::All { .. } => (),
-            ClientVisibility::Blacklist { list, removed }
-            | ClientVisibility::Whitelist { list, removed } => {
-                list.remove(&entity);
-                removed.remove(&entity);
+            ClientVisibility::Blacklist {
+                list,
+                added,
+                removed,
+            } => {
+                if let Some(just_removed) = list.get_mut(&entity) {
+                    *just_removed = true;
+                    removed.remove(&entity);
+                    added.remove(&entity);
+                }
+            }
+            ClientVisibility::Whitelist {
+                list,
+                added,
+                removed,
+            } => {
+                if list.remove(&entity).is_some() {
+                    added.remove(&entity);
+                    removed.remove(&entity);
+                }
             }
         }
     }
 
+    /// Returns an iterator of entities that lost visibility at this tick.
     pub(super) fn iter_lost_visibility(&self) -> Box<dyn Iterator<Item = Entity> + '_> {
         match self {
             ClientVisibility::All { .. } => Box::new(iter::empty()),
-            ClientVisibility::Blacklist { list, .. } => Box::new(
-                list.iter()
-                    .filter_map(|(&entity, just_added)| just_added.then_some(entity)),
-            ),
+            ClientVisibility::Blacklist { added, .. } => Box::new(added.iter().copied()),
             ClientVisibility::Whitelist { removed, .. } => Box::new(removed.iter().copied()),
         }
     }
@@ -107,20 +156,34 @@ impl ClientVisibility {
                     );
                 }
             }
-            ClientVisibility::Blacklist { list, removed } => {
+            ClientVisibility::Blacklist {
+                list,
+                added,
+                removed,
+            } => {
                 if !visibile {
-                    list.insert(entity, true);
-                    removed.remove(&entity);
+                    if list.insert(entity, false).is_none() {
+                        removed.remove(&entity);
+                        added.insert(entity);
+                    }
                 } else if list.remove(&entity).is_some() {
                     removed.insert(entity);
+                    added.remove(&entity);
                 }
             }
-            ClientVisibility::Whitelist { list, removed } => {
+            ClientVisibility::Whitelist {
+                list,
+                added,
+                removed,
+            } => {
                 if visibile {
-                    list.insert(entity, true);
-                    removed.remove(&entity);
+                    if list.insert(entity, true).is_none() {
+                        removed.remove(&entity);
+                        added.insert(entity);
+                    }
                 } else if list.remove(&entity).is_some() {
                     removed.insert(entity);
+                    added.remove(&entity);
                 }
             }
         }
@@ -136,15 +199,11 @@ impl ClientVisibility {
                     EntityVisibility::Maintained
                 }
             }
-            ClientVisibility::Blacklist { list, removed } => {
-                if list.contains_key(&entity) {
-                    EntityVisibility::None
-                } else if removed.contains(&entity) {
-                    EntityVisibility::Gained
-                } else {
-                    EntityVisibility::Maintained
-                }
-            }
+            ClientVisibility::Blacklist { list, .. } => match list.get(&entity) {
+                Some(true) => EntityVisibility::Gained,
+                Some(false) => EntityVisibility::None,
+                None => EntityVisibility::Maintained,
+            },
             ClientVisibility::Whitelist { list, .. } => match list.get(&entity) {
                 Some(true) => EntityVisibility::Gained,
                 Some(false) => EntityVisibility::Maintained,
