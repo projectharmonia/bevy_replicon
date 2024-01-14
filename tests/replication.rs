@@ -775,14 +775,14 @@ fn all_visibility() {
     let client_id = ClientId::from_raw(client_transport.client_id());
     let mut clients_info = server_app.world.resource_mut::<ClientsInfo>();
     let visibility = clients_info.get_mut(client_id).unwrap().visibility_mut();
-    visibility.set_visible(server_entity, false);
+    visibility.set_visibility(server_entity, false);
     assert!(
         visibility.is_visible(server_entity),
         "shouldn't have any effect with {:?}",
         VisibilityPolicy::All
     );
 
-    visibility.set_visible(server_entity, true);
+    visibility.set_visibility(server_entity, true);
     assert!(visibility.is_visible(server_entity));
 }
 
@@ -845,7 +845,7 @@ fn blacklist_visibility_add_remove() {
     let client_id = ClientId::from_raw(client_transport.client_id());
     let mut clients_info = server_app.world.resource_mut::<ClientsInfo>();
     let visibility = clients_info.get_mut(client_id).unwrap().visibility_mut();
-    visibility.set_visible(server_entity, false);
+    visibility.set_visibility(server_entity, false);
     assert!(!visibility.is_visible(server_entity));
 
     server_app.update();
@@ -856,7 +856,7 @@ fn blacklist_visibility_add_remove() {
     // Reverse visibility back.
     let mut clients_info = server_app.world.resource_mut::<ClientsInfo>();
     let visibility = clients_info.get_mut(client_id).unwrap().visibility_mut();
-    visibility.set_visible(server_entity, true);
+    visibility.set_visibility(server_entity, true);
 
     server_app.update();
     client_app.update();
@@ -926,7 +926,7 @@ fn whitelist_visibility_add_remove() {
     let client_id = ClientId::from_raw(client_transport.client_id());
     let mut clients_info = server_app.world.resource_mut::<ClientsInfo>();
     let visibility = clients_info.get_mut(client_id).unwrap().visibility_mut();
-    visibility.set_visible(server_entity, true);
+    visibility.set_visibility(server_entity, true);
     assert!(visibility.is_visible(server_entity));
 
     server_app.update();
@@ -940,7 +940,7 @@ fn whitelist_visibility_add_remove() {
     // Reverse visibility.
     let mut clients_info = server_app.world.resource_mut::<ClientsInfo>();
     let visibility = clients_info.get_mut(client_id).unwrap().visibility_mut();
-    visibility.set_visible(server_entity, false);
+    visibility.set_visibility(server_entity, false);
 
     server_app.update();
     client_app.update();

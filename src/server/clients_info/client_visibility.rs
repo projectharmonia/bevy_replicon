@@ -135,7 +135,7 @@ impl ClientVisibility {
     /// Sets visibility for a specific entity.
     ///
     /// Does nothing if the visibility policy for the server plugin is set to [`VisibilityPolicy::All`].
-    pub fn set_visible(&mut self, entity: Entity, visibile: bool) {
+    pub fn set_visibility(&mut self, entity: Entity, visibile: bool) {
         match &mut self.filter {
             VisibilityFilter::All { .. } => {
                 if visibile {
