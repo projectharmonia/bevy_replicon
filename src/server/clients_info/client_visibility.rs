@@ -160,7 +160,8 @@ impl ClientVisibility {
                         removed.remove(&entity);
                         added.insert(entity);
                     }
-                } else if list.remove(&entity).is_some() {
+                } else if let Some(just_removed) = list.get_mut(&entity) {
+                    *just_removed = true;
                     removed.insert(entity);
                     added.remove(&entity);
                 }
