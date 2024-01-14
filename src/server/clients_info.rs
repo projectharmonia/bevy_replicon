@@ -121,6 +121,7 @@ pub struct ClientInfo {
     /// Lowest tick for use in change detection for each entity.
     ticks: EntityHashMap<Entity, Tick>,
 
+    /// Entity visibility settings.
     visibility: ClientVisibility,
 
     /// The last tick in which a replicated entity was spawned, despawned, or gained/lost a component from the perspective

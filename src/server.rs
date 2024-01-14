@@ -516,7 +516,7 @@ pub enum TickPolicy {
     Manual,
 }
 
-/// Controls how visibility will be controlled via [`ClientVisibility`](clients_info::client_visibility::ClientVisibility).
+/// Controls how visibility will be managed via [`ClientVisibility`](clients_info::client_visibility::ClientVisibility).
 #[derive(Default, Debug, Clone, Copy)]
 pub enum VisibilityPolicy {
     /// All entities are visible by default and visibility can't be changed.
