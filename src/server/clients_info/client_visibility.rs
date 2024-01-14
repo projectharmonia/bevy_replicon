@@ -231,19 +231,20 @@ enum VisibilityFilter {
         just_connected: bool,
     },
     Blacklist {
-        /// All blacklisted entities and an indicator of whether it is in the queue for deletion at this tick.
+        /// All blacklisted entities and an indicator of whether it is in the queue for deletion
+        /// at the end of this tick.
         list: EntityHashMap<Entity, bool>,
-        /// All entities that were removed from the list on this tick.
+        /// All entities that were removed from the list in this tick.
         added: EntityHashSet<Entity>,
-        /// All entities that were added to the list on this tick.
+        /// All entities that were added to the list in this tick.
         removed: EntityHashSet<Entity>,
     },
     Whitelist {
-        /// All whitelisted entities and an indicator whether it was added to the list on this tick.
+        /// All whitelisted entities and an indicator whether it was added to the list in this tick.
         list: EntityHashMap<Entity, bool>,
-        /// All entities that were added to the list on this tick.
+        /// All entities that were added to the list in this tick.
         added: EntityHashSet<Entity>,
-        /// All entities that were removed from the list on this tick.
+        /// All entities that were removed from the list in this tick.
         removed: EntityHashSet<Entity>,
     },
 }
