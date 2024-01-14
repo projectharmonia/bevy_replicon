@@ -143,7 +143,7 @@ impl ClientVisibility {
     /// Sets visibility for specific entity.
     ///
     /// Does nothing if visibility policy for the server plugin is set to [`VisibilityPolicy::All`].
-    pub fn set(&mut self, entity: Entity, visibile: bool) {
+    pub fn set_visible(&mut self, entity: Entity, visibile: bool) {
         match self {
             ClientVisibility::All { .. } => {
                 if visibile {
@@ -192,31 +192,40 @@ impl ClientVisibility {
     }
 
     /// Gets visibility for specific entity.
-    pub fn get(&self, entity: Entity) -> EntityVisibility {
+    pub fn is_visible(&self, entity: Entity) -> bool {
+        match self {
+            ClientVisibility::All { .. } => true,
+            ClientVisibility::Blacklist { list, .. } => !list.contains_key(&entity),
+            ClientVisibility::Whitelist { list, .. } => list.contains_key(&entity),
+        }
+    }
+
+    /// Gets visibility with change information included for specific entity.
+    pub(crate) fn get_info(&self, entity: Entity) -> VisibilityInfo {
         match self {
             ClientVisibility::All { just_connected } => {
                 if *just_connected {
-                    EntityVisibility::Gained
+                    VisibilityInfo::Gained
                 } else {
-                    EntityVisibility::Maintained
+                    VisibilityInfo::Maintained
                 }
             }
             ClientVisibility::Blacklist { list, .. } => match list.get(&entity) {
-                Some(true) => EntityVisibility::Gained,
-                Some(false) => EntityVisibility::None,
-                None => EntityVisibility::Maintained,
+                Some(true) => VisibilityInfo::Gained,
+                Some(false) => VisibilityInfo::None,
+                None => VisibilityInfo::Maintained,
             },
             ClientVisibility::Whitelist { list, .. } => match list.get(&entity) {
-                Some(true) => EntityVisibility::Gained,
-                Some(false) => EntityVisibility::Maintained,
-                None => EntityVisibility::None,
+                Some(true) => VisibilityInfo::Gained,
+                Some(false) => VisibilityInfo::Maintained,
+                None => VisibilityInfo::None,
             },
         }
     }
 }
 
 #[derive(PartialEq)]
-pub enum EntityVisibility {
+pub(crate) enum VisibilityInfo {
     Gained,
     Maintained,
     None,

@@ -27,7 +27,7 @@ use bevy_renet::{
 use crate::replicon_core::{
     replication_rules::ReplicationRules, replicon_tick::RepliconTick, ReplicationChannel,
 };
-use clients_info::{client_visibility::EntityVisibility, ClientBuffers, ClientInfo, ClientsInfo};
+use clients_info::{client_visibility::VisibilityInfo, ClientBuffers, ClientInfo, ClientsInfo};
 use despawn_buffer::{DespawnBuffer, DespawnBufferPlugin};
 use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
 use replicated_archetypes_info::ReplicatedArchetypesInfo;
@@ -330,8 +330,8 @@ fn collect_changes(
 
                 let mut shared_bytes = None;
                 for (init_message, update_message, client_info) in messages.iter_mut_with_info() {
-                    let visibility = client_info.visibility().get(entity.entity());
-                    let new_entity = marker_added || visibility == EntityVisibility::Gained;
+                    let visibility = client_info.visibility().get_info(entity.entity());
+                    let new_entity = marker_added || visibility == VisibilityInfo::Gained;
                     if new_entity || ticks.is_added(change_tick.last_run(), change_tick.this_run())
                     {
                         init_message.write_component(
@@ -340,7 +340,7 @@ fn collect_changes(
                             component_info.replication_id,
                             component,
                         )?;
-                    } else if visibility == EntityVisibility::Maintained {
+                    } else if visibility == VisibilityInfo::Maintained {
                         let tick = client_info
                             .get_change_limit(entity.entity())
                             .expect("entity should be present after adding component");
@@ -357,8 +357,8 @@ fn collect_changes(
             }
 
             for (init_message, update_message, client_info) in messages.iter_mut_with_info() {
-                let visibility = client_info.visibility().get(entity.entity());
-                let new_entity = marker_added || visibility == EntityVisibility::Gained;
+                let visibility = client_info.visibility().get_info(entity.entity());
+                let new_entity = marker_added || visibility == VisibilityInfo::Gained;
                 if new_entity || init_message.entity_data_size() != 0 {
                     // If there is any insertion or we must initialize, include all updates into init message
                     // and bump the last acknowledged tick to keep entity updates atomic.
