@@ -431,9 +431,7 @@ fn collect_despawns(
         for entity in client_info.remove_lost_visibility() {
             message.write_entity(&mut None, entity)?;
         }
-    }
 
-    for (message, _) in messages.iter_mut() {
         message.end_array()?;
     }
 
