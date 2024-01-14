@@ -6,21 +6,24 @@ use bevy::{
 use super::VisibilityPolicy;
 
 /// Entity visibility settings for a client.
-pub struct ClientVisibility(VisibilityFilter);
+pub struct ClientVisibility {
+    filter: VisibilityFilter,
+    entity_state: EntityState,
+}
 
 impl ClientVisibility {
     /// Creates a new instance based on the preconfigured policy.
     pub(super) fn new(policy: VisibilityPolicy) -> Self {
         match policy {
-            VisibilityPolicy::All => Self(VisibilityFilter::All {
+            VisibilityPolicy::All => Self::with_filter(VisibilityFilter::All {
                 just_connected: true,
             }),
-            VisibilityPolicy::Blacklist => Self(VisibilityFilter::Blacklist {
+            VisibilityPolicy::Blacklist => Self::with_filter(VisibilityFilter::Blacklist {
                 list: Default::default(),
                 added: Default::default(),
                 removed: Default::default(),
             }),
-            VisibilityPolicy::Whitelist => Self(VisibilityFilter::Whitelist {
+            VisibilityPolicy::Whitelist => Self::with_filter(VisibilityFilter::Whitelist {
                 list: Default::default(),
                 added: Default::default(),
                 removed: Default::default(),
@@ -28,9 +31,19 @@ impl ClientVisibility {
         }
     }
 
-    /// Resets the state to as it was after [`Self::new`].
+    /// Creates a new instance with specific filter.
+    fn with_filter(filter: VisibilityFilter) -> Self {
+        Self {
+            filter,
+            entity_state: Default::default(),
+        }
+    }
+
+    /// Resets the filter state to as it was after [`Self::new`].
+    ///
+    /// `entity_state` remains untouched.
     pub(super) fn clear(&mut self) {
-        match &mut self.0 {
+        match &mut self.filter {
             VisibilityFilter::All { just_connected } => *just_connected = true,
             VisibilityFilter::Blacklist {
                 list,
@@ -53,7 +66,7 @@ impl ClientVisibility {
     ///
     /// Should be called after each tick.
     pub(crate) fn update(&mut self) {
-        match &mut self.0 {
+        match &mut self.filter {
             VisibilityFilter::All { just_connected } => *just_connected = false,
             VisibilityFilter::Blacklist {
                 list,
@@ -80,7 +93,7 @@ impl ClientVisibility {
 
     /// Removes a despawned entity tracked by this client.
     pub(super) fn remove_despawned(&mut self, entity: Entity) {
-        match &mut self.0 {
+        match &mut self.filter {
             VisibilityFilter::All { .. } => (),
             VisibilityFilter::Blacklist {
                 list,
@@ -108,7 +121,7 @@ impl ClientVisibility {
 
     /// Returns an iterator of entities that lost visibility at this tick.
     pub(super) fn iter_lost_visibility(&self) -> impl Iterator<Item = Entity> + '_ {
-        match &self.0 {
+        match &self.filter {
             VisibilityFilter::All { .. } => VisibilityLostIter::AllVisible,
             VisibilityFilter::Blacklist { added, .. } => {
                 VisibilityLostIter::Lost(added.iter().copied())
@@ -123,7 +136,7 @@ impl ClientVisibility {
     ///
     /// Does nothing if visibility policy for the server plugin is set to [`VisibilityPolicy::All`].
     pub fn set_visible(&mut self, entity: Entity, visibile: bool) {
-        match &mut self.0 {
+        match &mut self.filter {
             VisibilityFilter::All { .. } => {
                 if visibile {
                     debug!(
@@ -172,38 +185,45 @@ impl ClientVisibility {
 
     /// Gets visibility for specific entity.
     pub fn is_visible(&self, entity: Entity) -> bool {
-        match &self.0 {
+        match &self.filter {
             VisibilityFilter::All { .. } => true,
             VisibilityFilter::Blacklist { list, .. } => !list.contains_key(&entity),
             VisibilityFilter::Whitelist { list, .. } => list.contains_key(&entity),
         }
     }
 
-    /// Gets visibility with change information included for specific entity.
-    pub(crate) fn get_info(&self, entity: Entity) -> VisibilityInfo {
-        match &self.0 {
+    /// Reads entity visibility state for specific entity.
+    ///
+    /// Can be obtained later from [`Self::entity_state`].
+    pub(crate) fn read_entity_state(&mut self, entity: Entity) {
+        match &mut self.filter {
             VisibilityFilter::All { just_connected } => {
                 if *just_connected {
-                    VisibilityInfo::Gained
+                    self.entity_state = EntityState::JustVisible
                 } else {
-                    VisibilityInfo::Maintained
+                    self.entity_state = EntityState::Visible
                 }
             }
             VisibilityFilter::Blacklist { list, .. } => match list.get(&entity) {
-                Some(true) => VisibilityInfo::Gained,
-                Some(false) => VisibilityInfo::None,
-                None => VisibilityInfo::Maintained,
+                Some(true) => self.entity_state = EntityState::JustVisible,
+                Some(false) => self.entity_state = EntityState::Hidden,
+                None => self.entity_state = EntityState::Visible,
             },
             VisibilityFilter::Whitelist { list, .. } => match list.get(&entity) {
-                Some(true) => VisibilityInfo::Gained,
-                Some(false) => VisibilityInfo::Maintained,
-                None => VisibilityInfo::None,
+                Some(true) => self.entity_state = EntityState::JustVisible,
+                Some(false) => self.entity_state = EntityState::Visible,
+                None => self.entity_state = EntityState::Hidden,
             },
         }
     }
+
+    /// Returns state obtained from last call of [`Self::read_entity_state`].
+    pub(crate) fn entity_state(&self) -> EntityState {
+        self.entity_state
+    }
 }
 
-/// Since enums can't have private fields, it's wrapped into [`ClientVisibility`] to make fields private, while keeping the struct public.
+/// Filter for [`ClientVisibility`] based on [`VisibilityPolicy`].
 enum VisibilityFilter {
     All {
         /// Indicates that the client has just connected to the server.
@@ -227,11 +247,14 @@ enum VisibilityFilter {
     },
 }
 
-#[derive(PartialEq)]
-pub(crate) enum VisibilityInfo {
-    Gained,
-    Maintained,
+/// Visibility state for an entity.
+#[derive(PartialEq, Default, Clone, Copy)]
+pub(crate) enum EntityState {
+    #[default]
     None,
+    Hidden,
+    Visible,
+    JustVisible,
 }
 
 enum VisibilityLostIter<T> {
