@@ -789,7 +789,7 @@ fn all_replication() {
     // Reverse visibility.
     let mut clients_info = server_app.world.resource_mut::<ClientsInfo>();
     let visibility = clients_info.get_mut(client_id).unwrap().visibility_mut();
-    visibility.set_visible(server_entity, true);
+    visibility.set_visible(server_entity, false);
     assert!(
         visibility.is_visible(server_entity),
         "shouldn't have any effect with {:?}",
