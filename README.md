@@ -8,13 +8,25 @@ ECS-focused high-level networking crate for the [Bevy game engine](https://bevye
 
 The crate provides component-oriented world state replication and exposes an events-based messaging API.
 
-Prediction and interpolation are not implemented in this crate, but the crate API is designed to be extensible so if your game needs something, you can implement it on top. Also check out [related crates](#Related-crates).
-
 ## Getting Started
 
 Check out the [quick start guide](https://docs.rs/bevy_replicon/latest/bevy_replicon).
 
 See also [examples](https://github.com/lifescapegame/bevy_replicon/tree/master/examples).
+
+## Features
+
+- Authentication and encryption, using [`renetcode`](https://github.com/lucaspoffo/renet/tree/master/renetcode).
+- Packet fragmentation and reassembly.
+- Support for client and server both in one `App` and in separate.
+- Customizable transport layer. Right now only Netcode is supported, but Steam, WebTransport and memory channels are on the way (new Renet release is needed).
+- Component-oriented world state replication.
+- Events-based messaging API with different guarantees (reliable, reliable unordered and unreliable).
+- Clients visibility control.
+- Replication into scene to save server state.
+- API focused on writing logic once that automatically works for singleplayer, client, server and listen server (when server is also a player).
+
+Prediction and interpolation are not implemented in this crate and considered out of scope. But the idea of the crate is to provide extensible core, so if your game needs something, you can implement it on top. Also check out [related crates](#Related-crates).
 
 ## Related Crates
 
