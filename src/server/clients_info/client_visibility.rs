@@ -166,7 +166,8 @@ impl ClientVisibility {
                         added.remove(&entity);
                     }
                 } else {
-                    if list.insert(entity, BlacklistInfo::Hidden).is_none() {
+                    if *list.entry(entity).or_insert(BlacklistInfo::Hidden) == BlacklistInfo::Hidden
+                    {
                         // Do not mark an entry as newly added if the entry was already in the list.
                         added.insert(entity);
                     }
@@ -183,7 +184,9 @@ impl ClientVisibility {
                     // Instead we mark it as 'just added' and then set it to 'visible' in `Self::update`.
                     // This allows us to avoid accessing the whitelist's `added` field in
                     // `Self::cache_visibility`.
-                    if list.insert(entity, WhitelistInfo::JustAdded).is_none() {
+                    if *list.entry(entity).or_insert(WhitelistInfo::JustAdded)
+                        == WhitelistInfo::JustAdded
+                    {
                         // Do not mark an entry as newly added if the entry was already in the list.
                         added.insert(entity);
                     }
@@ -278,11 +281,13 @@ enum VisibilityFilter {
     },
 }
 
+#[derive(PartialEq, Clone, Copy)]
 enum WhitelistInfo {
     Visible,
     JustAdded,
 }
 
+#[derive(PartialEq, Clone, Copy)]
 enum BlacklistInfo {
     Hidden,
     QueuedForRemoval,
