@@ -179,10 +179,10 @@ impl ClientVisibility {
                 removed,
             } => {
                 if visibile {
-                    /// Similar to Blacklist removal, we don't just add the entity to the list.
-                    /// Instead we mark it as 'just added' and then set it to 'visible' in `Self::update`.
-                    /// This allows us to avoid accessing the whitelist's `added` field in
-                    /// `Self::cache_visibility`.
+                    // Similar to blacklist removal, we don't just add the entity to the list.
+                    // Instead we mark it as 'just added' and then set it to 'visible' in `Self::update`.
+                    // This allows us to avoid accessing the whitelist's `added` field in
+                    // `Self::cache_visibility`.
                     if list.insert(entity, WhitelistInfo::JustAdded).is_none() {
                         // Do not mark an entry as newly added if the entry was already in the list.
                         added.insert(entity);
