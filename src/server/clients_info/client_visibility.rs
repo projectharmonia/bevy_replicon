@@ -459,6 +459,8 @@ mod tests {
     #[test]
     fn blacklist_insertion_removal() {
         let mut visibility = ClientVisibility::new(VisibilityPolicy::Blacklist);
+
+        // Insert and remove from the list.
         visibility.set_visibility(Entity::PLACEHOLDER, false);
         visibility.set_visibility(Entity::PLACEHOLDER, true);
         assert!(visibility.is_visible(Entity::PLACEHOLDER));
@@ -574,6 +576,8 @@ mod tests {
     #[test]
     fn whitelist_insertion_removal() {
         let mut visibility = ClientVisibility::new(VisibilityPolicy::Whitelist);
+
+        // Insert and remove from the list.
         visibility.set_visibility(Entity::PLACEHOLDER, true);
         visibility.set_visibility(Entity::PLACEHOLDER, false);
         assert!(!visibility.is_visible(Entity::PLACEHOLDER));
