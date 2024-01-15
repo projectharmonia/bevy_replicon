@@ -76,20 +76,28 @@ impl ClientVisibility {
     pub(crate) fn update(&mut self) {
         match &mut self.filter {
             VisibilityFilter::All { just_connected } => *just_connected = false,
-            VisibilityFilter::Blacklist { list, removed, .. } => {
+            VisibilityFilter::Blacklist {
+                list,
+                added,
+                removed,
+            } => {
                 // Remove all entities queued for removal.
                 for entity in removed.drain() {
                     list.remove(&entity);
                 }
-                // `added` is drained in `Self::drain_lost_visibility`.
+                added.clear();
             }
-            VisibilityFilter::Whitelist { list, added, .. } => {
+            VisibilityFilter::Whitelist {
+                list,
+                added,
+                removed,
+            } => {
                 // Change all recently added entities to `WhitelistInfo::Visible`
                 // from `WhitelistInfo::JustVisible`.
                 for entity in added.drain() {
                     list.insert(entity, WhitelistInfo::Visible);
                 }
-                // `removed` is drained in `Self::drain_lost_visibility`.
+                removed.clear();
             }
         }
     }
