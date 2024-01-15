@@ -242,24 +242,38 @@ impl ClientVisibility {
 enum VisibilityFilter {
     All {
         /// Indicates that the client has just connected to the server.
+        ///
+        /// If true, then visibility of all entities has been gained.
         just_connected: bool,
     },
     Blacklist {
         /// All blacklisted entities and an indicator of whether they are in the queue for deletion
         /// at the end of this tick.
         list: EntityHashMap<Entity, BlacklistInfo>,
+
         /// All entities that were removed from the list in this tick.
+        ///
+        /// Visibility of these entities has been lost.
         added: EntityHashSet<Entity>,
+
         /// All entities that were added to the list in this tick.
+        ///
+        /// Visibility of these entities has been gained.
         removed: EntityHashSet<Entity>,
     },
     Whitelist {
         /// All whitelisted entities and an indicator of whether they were added to the list in
         /// this tick.
         list: EntityHashMap<Entity, WhitelistInfo>,
-        /// All entities that were added to the list in this tick.
+
+        /// All entities that were added to the list in tVisibility of these entities has been gained.his tick.
+        ///
+        /// Visibility of these entities has been gained.
         added: EntityHashSet<Entity>,
+
         /// All entities that were removed from the list in this tick.
+        ///
+        /// Visibility of these entities has been lost.
         removed: EntityHashSet<Entity>,
     },
 }
