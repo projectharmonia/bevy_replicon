@@ -45,7 +45,7 @@ impl ClientVisibility {
 
     /// Resets the filter state to as it was after [`Self::new`].
     ///
-    /// `visibility` remains untouched.
+    /// `cached_visibility` remains untouched.
     pub(super) fn clear(&mut self) {
         match &mut self.filter {
             VisibilityFilter::All { just_connected } => *just_connected = true,
@@ -165,8 +165,8 @@ impl ClientVisibility {
                 if visibile {
                     // For blacklist we don't remove the entity right away.
                     // Instead we mark it as queued for removal and remove it
-                    // later in `Self::update`. This allows us to avoid extra lookup
-                    // into `removed` inside `cache_visibility`.
+                    // later in `Self::update`. This allows us to avoid accessing
+                    // the blacklist's `removed` field in `Self::cache_visibility`.
                     if let Some(info) = list.get_mut(&entity) {
                         *info = BlacklistInfo::QueuedForRemoval;
                         removed.insert(entity);
@@ -186,6 +186,10 @@ impl ClientVisibility {
                 removed,
             } => {
                 if visibile {
+                    /// Similar to Blacklist removal, we don't just add the entity to the list.
+                    /// Instead we mark it as 'just added' and then set it to 'visible' in `Self::update`.
+                    /// This allows us to avoid accessing the whitelist's `added` field in
+                    /// `Self::cache_visibility`.
                     if list.insert(entity, WhitelistInfo::JustAdded).is_none() {
                         // Do not mark an entry as newly added if the entry was already in the list.
                         added.insert(entity);
@@ -208,7 +212,7 @@ impl ClientVisibility {
         }
     }
 
-    /// Reads entity visibility state for specific entity.
+    /// Caches visibility for a specific entity.
     ///
     /// Can be obtained later from [`Self::cached_visibility`].
     pub(crate) fn cache_visibility(&mut self, entity: Entity) {
@@ -235,7 +239,7 @@ impl ClientVisibility {
         }
     }
 
-    /// Returns state obtained from last call of [`Self::cache_visibility`].
+    /// Returns visibility cached by the last call of [`Self::cache_visibility`].
     pub(crate) fn cached_visibility(&self) -> Visibility {
         self.cached_visibility
     }
@@ -248,7 +252,7 @@ enum VisibilityFilter {
         just_connected: bool,
     },
     Blacklist {
-        /// All blacklisted entities and an indicator of whether it is in the queue for deletion
+        /// All blacklisted entities and an indicator of whether they are in the queue for deletion
         /// at the end of this tick.
         list: EntityHashMap<Entity, BlacklistInfo>,
         /// All entities that were removed from the list in this tick.
@@ -257,7 +261,8 @@ enum VisibilityFilter {
         removed: EntityHashSet<Entity>,
     },
     Whitelist {
-        /// All whitelisted entities and an indicator whether it was added to the list in this tick.
+        /// All whitelisted entities and an indicator of whether they were added to the list in
+        /// this tick.
         list: EntityHashMap<Entity, WhitelistInfo>,
         /// All entities that were added to the list in this tick.
         added: EntityHashSet<Entity>,

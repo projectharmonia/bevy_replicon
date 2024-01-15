@@ -48,7 +48,7 @@ impl ClientsInfo {
     ///
     /// # Panics
     ///
-    /// Panics if passed client ID is not connected.
+    /// Panics if the passed client ID is not connected.
     pub fn client(&self, client_id: ClientId) -> &ClientInfo {
         self.get_client(client_id)
             .unwrap_or_else(|| panic!("{client_id:?} should be connected"))
@@ -61,7 +61,7 @@ impl ClientsInfo {
     ///
     /// # Panics
     ///
-    /// Panics if passed client ID is not connected.
+    /// Panics if the passed client ID is not connected.
     pub fn client_mut(&mut self, client_id: ClientId) -> &mut ClientInfo {
         self.get_client_mut(client_id)
             .unwrap_or_else(|| panic!("{client_id:?} should be connected"))
