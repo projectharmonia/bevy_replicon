@@ -201,10 +201,9 @@ impl ClientVisibility {
 
     /// Gets visibility for a specific entity.
     pub fn is_visible(&self, entity: Entity) -> bool {
-        match &self.filter {
-            VisibilityFilter::All { .. } => true,
-            VisibilityFilter::Blacklist { list, .. } => !list.contains_key(&entity),
-            VisibilityFilter::Whitelist { list, .. } => list.contains_key(&entity),
+        match self.get_visibility_state(entity) {
+            Visibility::Hidden => false,
+            Visibility::Gained | Visibility::Visible => true,
         }
     }
 
@@ -212,32 +211,35 @@ impl ClientVisibility {
     ///
     /// Can be obtained later from [`Self::cached_visibility`].
     pub(crate) fn cache_visibility(&mut self, entity: Entity) {
-        match &mut self.filter {
-            VisibilityFilter::All { just_connected } => {
-                if *just_connected {
-                    self.cached_visibility = Visibility::Gained
-                } else {
-                    self.cached_visibility = Visibility::Visible
-                }
-            }
-            VisibilityFilter::Blacklist { list, .. } => match list.get(&entity) {
-                Some(BlacklistInfo::QueuedForRemoval) => {
-                    self.cached_visibility = Visibility::Gained
-                }
-                Some(BlacklistInfo::Hidden) => self.cached_visibility = Visibility::Hidden,
-                None => self.cached_visibility = Visibility::Visible,
-            },
-            VisibilityFilter::Whitelist { list, .. } => match list.get(&entity) {
-                Some(WhitelistInfo::JustAdded) => self.cached_visibility = Visibility::Gained,
-                Some(WhitelistInfo::Visible) => self.cached_visibility = Visibility::Visible,
-                None => self.cached_visibility = Visibility::Hidden,
-            },
-        }
+        self.cached_visibility = self.get_visibility_state(entity);
     }
 
     /// Returns visibility cached by the last call of [`Self::cache_visibility`].
     pub(crate) fn cached_visibility(&self) -> Visibility {
         self.cached_visibility
+    }
+
+    /// Returns visibility including
+    fn get_visibility_state(&self, entity: Entity) -> Visibility {
+        match &self.filter {
+            VisibilityFilter::All { just_connected } => {
+                if *just_connected {
+                    Visibility::Gained
+                } else {
+                    Visibility::Visible
+                }
+            }
+            VisibilityFilter::Blacklist { list, .. } => match list.get(&entity) {
+                Some(BlacklistInfo::QueuedForRemoval) => Visibility::Gained,
+                Some(BlacklistInfo::Hidden) => Visibility::Hidden,
+                None => Visibility::Visible,
+            },
+            VisibilityFilter::Whitelist { list, .. } => match list.get(&entity) {
+                Some(WhitelistInfo::JustAdded) => Visibility::Gained,
+                Some(WhitelistInfo::Visible) => Visibility::Visible,
+                None => Visibility::Hidden,
+            },
+        }
     }
 }
 
