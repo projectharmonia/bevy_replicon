@@ -8,7 +8,7 @@ use super::VisibilityPolicy;
 /// Entity visibility settings for a client.
 pub struct ClientVisibility {
     filter: VisibilityFilter,
-    entity_state: EntityState,
+    entity_state: Visibility,
 }
 
 impl ClientVisibility {
@@ -200,26 +200,26 @@ impl ClientVisibility {
         match &mut self.filter {
             VisibilityFilter::All { just_connected } => {
                 if *just_connected {
-                    self.entity_state = EntityState::JustVisible
+                    self.entity_state = Visibility::Gained
                 } else {
-                    self.entity_state = EntityState::Visible
+                    self.entity_state = Visibility::Visible
                 }
             }
             VisibilityFilter::Blacklist { list, .. } => match list.get(&entity) {
-                Some(true) => self.entity_state = EntityState::JustVisible,
-                Some(false) => self.entity_state = EntityState::Hidden,
-                None => self.entity_state = EntityState::Visible,
+                Some(true) => self.entity_state = Visibility::Gained,
+                Some(false) => self.entity_state = Visibility::Hidden,
+                None => self.entity_state = Visibility::Visible,
             },
             VisibilityFilter::Whitelist { list, .. } => match list.get(&entity) {
-                Some(true) => self.entity_state = EntityState::JustVisible,
-                Some(false) => self.entity_state = EntityState::Visible,
-                None => self.entity_state = EntityState::Hidden,
+                Some(true) => self.entity_state = Visibility::Gained,
+                Some(false) => self.entity_state = Visibility::Visible,
+                None => self.entity_state = Visibility::Hidden,
             },
         }
     }
 
     /// Returns state obtained from last call of [`Self::read_entity_state`].
-    pub(crate) fn entity_state(&self) -> EntityState {
+    pub(crate) fn entity_state(&self) -> Visibility {
         self.entity_state
     }
 }
@@ -249,14 +249,21 @@ enum VisibilityFilter {
     },
 }
 
-/// Visibility state for an entity.
+/// Visibility state for an entity in the current tick, from the perspective of one client.
+///
+/// Note that the distinction between 'lost visibility' and 'don't have visibility' is not exposed here.
+/// There is only `Visibility::Hidden` to encompass both variants.
+///
+/// Lost visibility is handled separately with [`ClientVisibility::iter_lost_visibility`].
 #[derive(PartialEq, Default, Clone, Copy)]
-pub(crate) enum EntityState {
+pub(crate) enum Visibility {
+    /// The client does not have visibility of the entity in this tick.
     #[default]
-    None,
     Hidden,
+    /// The client gained visibility of the entity in this tick (it was not visible in the previous tick).
+    Gained,
+    /// The entity is visible to the client (and was visible in the previous tick).
     Visible,
-    JustVisible,
 }
 
 enum VisibilityLostIter<T> {

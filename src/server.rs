@@ -27,7 +27,7 @@ use bevy_renet::{
 use crate::replicon_core::{
     replication_rules::ReplicationRules, replicon_tick::RepliconTick, ReplicationChannel,
 };
-use clients_info::{client_visibility::EntityState, ClientBuffers, ClientInfo, ClientsInfo};
+use clients_info::{client_visibility::Visibility, ClientBuffers, ClientInfo, ClientsInfo};
 use despawn_buffer::{DespawnBuffer, DespawnBufferPlugin};
 use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
 use replicated_archetypes_info::ReplicatedArchetypesInfo;
@@ -334,11 +334,11 @@ fn collect_changes(
                 let mut shared_bytes = None;
                 for (init_message, update_message, client_info) in messages.iter_mut_with_info() {
                     let entity_state = client_info.visibility().entity_state();
-                    if entity_state == EntityState::Hidden {
+                    if entity_state == Visibility::Hidden {
                         continue;
                     }
 
-                    let new_entity = marker_added || entity_state == EntityState::JustVisible;
+                    let new_entity = marker_added || entity_state == Visibility::Gained;
                     if new_entity || ticks.is_added(change_tick.last_run(), change_tick.this_run())
                     {
                         init_message.write_component(
@@ -365,11 +365,11 @@ fn collect_changes(
 
             for (init_message, update_message, client_info) in messages.iter_mut_with_info() {
                 let entity_state = client_info.visibility().entity_state();
-                if entity_state == EntityState::Hidden {
+                if entity_state == Visibility::Hidden {
                     continue;
                 }
 
-                let new_entity = marker_added || entity_state == EntityState::JustVisible;
+                let new_entity = marker_added || entity_state == Visibility::Gained;
                 if new_entity || init_message.entity_data_size() != 0 {
                     // If there is any insertion or we must initialize, include all updates into init message
                     // and bump the last acknowledged tick to keep entity updates atomic.
