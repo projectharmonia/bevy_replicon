@@ -312,13 +312,4 @@ impl<T: Iterator> Iterator for VisibilityLostIter<T> {
             VisibilityLostIter::Lost(entities) => entities.next(),
         }
     }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        match self {
-            VisibilityLostIter::AllVisible => (0, Some(0)),
-            VisibilityLostIter::Lost(entities) => entities.size_hint(),
-        }
-    }
 }
-
-impl<T: ExactSizeIterator> ExactSizeIterator for VisibilityLostIter<T> {}
