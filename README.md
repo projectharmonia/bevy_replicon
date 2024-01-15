@@ -6,13 +6,6 @@
 
 ECS-focused high-level networking crate for the [Bevy game engine](https://bevyengine.org) using the [Renet](https://github.com/lucaspoffo/renet) library.
 
-
-## Getting Started
-
-Check out the [quick start guide](https://docs.rs/bevy_replicon/latest/bevy_replicon).
-
-See also [examples](https://github.com/lifescapegame/bevy_replicon/tree/master/examples).
-
 ## Features
 
 - Authentication and encryption, using [`renetcode`](https://github.com/lucaspoffo/renet/tree/master/renetcode).
@@ -26,6 +19,12 @@ See also [examples](https://github.com/lifescapegame/bevy_replicon/tree/master/e
 - API focused on writing logic once that automatically works for singleplayer, client, server and listen server (when server is also a player).
 
 Prediction and interpolation are not implemented in this crate and are considered out of scope. But the idea of the crate is to provide an extensible core, so if your game needs something, you can implement it on top. Also check out [related crates](#Related-crates).
+
+## Getting Started
+
+Check out the [quick start guide](https://docs.rs/bevy_replicon/latest/bevy_replicon).
+
+See also [examples](https://github.com/lifescapegame/bevy_replicon/tree/master/examples).
 
 ## Related Crates
 
