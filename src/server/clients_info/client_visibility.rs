@@ -53,8 +53,12 @@ impl ClientVisibility {
                 list,
                 added,
                 removed,
+            } => {
+                list.clear();
+                added.clear();
+                removed.clear();
             }
-            | VisibilityFilter::Whitelist {
+            VisibilityFilter::Whitelist {
                 list,
                 added,
                 removed,
@@ -88,7 +92,7 @@ impl ClientVisibility {
                 removed,
             } => {
                 for entity in added.drain() {
-                    list.insert(entity, false);
+                    list.insert(entity, WhitelistInfo::Visible);
                 }
                 removed.clear();
             }
@@ -103,8 +107,13 @@ impl ClientVisibility {
                 list,
                 added,
                 removed,
+            } => {
+                if list.remove(&entity).is_some() {
+                    added.remove(&entity);
+                    removed.remove(&entity);
+                }
             }
-            | VisibilityFilter::Whitelist {
+            VisibilityFilter::Whitelist {
                 list,
                 added,
                 removed,
@@ -153,15 +162,19 @@ impl ClientVisibility {
                 added,
                 removed,
             } => {
-                if !visibile {
-                    if list.insert(entity, false).is_none() {
-                        removed.remove(&entity);
-                        added.insert(entity);
+                if visibile {
+                    // For blacklist we don't remove the entity right away.
+                    // Instead we mark it as queued for removal and remove it
+                    // later in `Self::update`. This allows us to avoid extra lookup
+                    // into `removed` inside `cache_visibility`.
+                    if let Some(info) = list.get_mut(&entity) {
+                        *info = BlacklistInfo::QueuedForRemoval;
+                        removed.insert(entity);
+                        added.remove(&entity);
                     }
-                } else if let Some(just_removed) = list.get_mut(&entity) {
-                    *just_removed = true;
-                    removed.insert(entity);
-                    added.remove(&entity);
+                } else if list.insert(entity, BlacklistInfo::Hidden).is_none() {
+                    removed.remove(&entity);
+                    added.insert(entity);
                 }
             }
             VisibilityFilter::Whitelist {
@@ -170,7 +183,7 @@ impl ClientVisibility {
                 removed,
             } => {
                 if visibile {
-                    if list.insert(entity, true).is_none() {
+                    if list.insert(entity, WhitelistInfo::JustAdded).is_none() {
                         removed.remove(&entity);
                         added.insert(entity);
                     }
@@ -204,13 +217,15 @@ impl ClientVisibility {
                 }
             }
             VisibilityFilter::Blacklist { list, .. } => match list.get(&entity) {
-                Some(true) => self.cached_visibility = Visibility::Gained,
-                Some(false) => self.cached_visibility = Visibility::Hidden,
+                Some(BlacklistInfo::QueuedForRemoval) => {
+                    self.cached_visibility = Visibility::Gained
+                }
+                Some(BlacklistInfo::Hidden) => self.cached_visibility = Visibility::Hidden,
                 None => self.cached_visibility = Visibility::Visible,
             },
             VisibilityFilter::Whitelist { list, .. } => match list.get(&entity) {
-                Some(true) => self.cached_visibility = Visibility::Gained,
-                Some(false) => self.cached_visibility = Visibility::Visible,
+                Some(WhitelistInfo::JustAdded) => self.cached_visibility = Visibility::Gained,
+                Some(WhitelistInfo::Visible) => self.cached_visibility = Visibility::Visible,
                 None => self.cached_visibility = Visibility::Hidden,
             },
         }
@@ -231,7 +246,7 @@ enum VisibilityFilter {
     Blacklist {
         /// All blacklisted entities and an indicator of whether it is in the queue for deletion
         /// at the end of this tick.
-        list: EntityHashMap<Entity, bool>,
+        list: EntityHashMap<Entity, BlacklistInfo>,
         /// All entities that were removed from the list in this tick.
         added: EntityHashSet<Entity>,
         /// All entities that were added to the list in this tick.
@@ -239,12 +254,22 @@ enum VisibilityFilter {
     },
     Whitelist {
         /// All whitelisted entities and an indicator whether it was added to the list in this tick.
-        list: EntityHashMap<Entity, bool>,
+        list: EntityHashMap<Entity, WhitelistInfo>,
         /// All entities that were added to the list in this tick.
         added: EntityHashSet<Entity>,
         /// All entities that were removed from the list in this tick.
         removed: EntityHashSet<Entity>,
     },
+}
+
+enum WhitelistInfo {
+    Visible,
+    JustAdded,
+}
+
+enum BlacklistInfo {
+    Hidden,
+    QueuedForRemoval,
 }
 
 /// Visibility state for an entity in the current tick, from the perspective of one client.
