@@ -8,7 +8,11 @@ use super::VisibilityPolicy;
 /// Entity visibility settings for a client.
 pub struct ClientVisibility {
     filter: VisibilityFilter,
-    entity_state: Visibility,
+
+    /// Visibility for a specific entity that has been cached for re-referencing.
+    ///
+    /// Used as an optimization by server replication.
+    cached_visibility: Visibility,
 }
 
 impl ClientVisibility {
@@ -35,13 +39,13 @@ impl ClientVisibility {
     fn with_filter(filter: VisibilityFilter) -> Self {
         Self {
             filter,
-            entity_state: Default::default(),
+            cached_visibility: Default::default(),
         }
     }
 
     /// Resets the filter state to as it was after [`Self::new`].
     ///
-    /// `entity_state` remains untouched.
+    /// `visibility` remains untouched.
     pub(super) fn clear(&mut self) {
         match &mut self.filter {
             VisibilityFilter::All { just_connected } => *just_connected = true,
@@ -195,32 +199,32 @@ impl ClientVisibility {
 
     /// Reads entity visibility state for specific entity.
     ///
-    /// Can be obtained later from [`Self::entity_state`].
-    pub(crate) fn read_entity_state(&mut self, entity: Entity) {
+    /// Can be obtained later from [`Self::cached_visibility`].
+    pub(crate) fn cache_visibility(&mut self, entity: Entity) {
         match &mut self.filter {
             VisibilityFilter::All { just_connected } => {
                 if *just_connected {
-                    self.entity_state = Visibility::Gained
+                    self.cached_visibility = Visibility::Gained
                 } else {
-                    self.entity_state = Visibility::Visible
+                    self.cached_visibility = Visibility::Visible
                 }
             }
             VisibilityFilter::Blacklist { list, .. } => match list.get(&entity) {
-                Some(true) => self.entity_state = Visibility::Gained,
-                Some(false) => self.entity_state = Visibility::Hidden,
-                None => self.entity_state = Visibility::Visible,
+                Some(true) => self.cached_visibility = Visibility::Gained,
+                Some(false) => self.cached_visibility = Visibility::Hidden,
+                None => self.cached_visibility = Visibility::Visible,
             },
             VisibilityFilter::Whitelist { list, .. } => match list.get(&entity) {
-                Some(true) => self.entity_state = Visibility::Gained,
-                Some(false) => self.entity_state = Visibility::Visible,
-                None => self.entity_state = Visibility::Hidden,
+                Some(true) => self.cached_visibility = Visibility::Gained,
+                Some(false) => self.cached_visibility = Visibility::Visible,
+                None => self.cached_visibility = Visibility::Hidden,
             },
         }
     }
 
-    /// Returns state obtained from last call of [`Self::read_entity_state`].
-    pub(crate) fn entity_state(&self) -> Visibility {
-        self.entity_state
+    /// Returns state obtained from last call of [`Self::cache_visibility`].
+    pub(crate) fn cached_visibility(&self) -> Visibility {
+        self.cached_visibility
     }
 }
 

@@ -300,7 +300,7 @@ fn collect_changes(
                 update_message.start_entity_data(entity.entity());
                 client_info
                     .visibility_mut()
-                    .read_entity_state(entity.entity());
+                    .cache_visibility(entity.entity());
             }
 
             // SAFETY: all replicated archetypes have marker component with table storage.
@@ -333,12 +333,12 @@ fn collect_changes(
 
                 let mut shared_bytes = None;
                 for (init_message, update_message, client_info) in messages.iter_mut_with_info() {
-                    let entity_state = client_info.visibility().entity_state();
-                    if entity_state == Visibility::Hidden {
+                    let visibility = client_info.visibility().cached_visibility();
+                    if visibility == Visibility::Hidden {
                         continue;
                     }
 
-                    let new_entity = marker_added || entity_state == Visibility::Gained;
+                    let new_entity = marker_added || visibility == Visibility::Gained;
                     if new_entity || ticks.is_added(change_tick.last_run(), change_tick.this_run())
                     {
                         init_message.write_component(
@@ -364,12 +364,12 @@ fn collect_changes(
             }
 
             for (init_message, update_message, client_info) in messages.iter_mut_with_info() {
-                let entity_state = client_info.visibility().entity_state();
-                if entity_state == Visibility::Hidden {
+                let visibility = client_info.visibility().cached_visibility();
+                if visibility == Visibility::Hidden {
                     continue;
                 }
 
-                let new_entity = marker_added || entity_state == Visibility::Gained;
+                let new_entity = marker_added || visibility == Visibility::Gained;
                 if new_entity || init_message.entity_data_size() != 0 {
                     // If there is any insertion or we must initialize, include all updates into init message
                     // and bump the last acknowledged tick to keep entity updates atomic.
