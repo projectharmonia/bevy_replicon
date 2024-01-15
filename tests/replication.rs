@@ -905,8 +905,8 @@ fn blacklist_despawn_visibility() {
 
     assert!(client_app.world.entities().is_empty());
 
-    let mut clients_info = server_app.world.resource_mut::<ClientsInfo>();
-    let visibility = clients_info.client_mut(client_id).visibility_mut();
+    let clients_info = server_app.world.resource::<ClientsInfo>();
+    let visibility = clients_info.client(client_id).visibility();
     assert!(visibility.is_visible(server_entity)); // The missing entity must be removed from the list, so this should return `true`.
 }
 
@@ -1019,8 +1019,8 @@ fn whitelist_despawn_visibility() {
 
     assert!(client_app.world.entities().is_empty());
 
-    let mut clients_info = server_app.world.resource_mut::<ClientsInfo>();
-    let visibility = clients_info.client_mut(client_id).visibility_mut();
+    let clients_info = server_app.world.resource::<ClientsInfo>();
+    let visibility = clients_info.client(client_id).visibility();
     assert!(!visibility.is_visible(server_entity));
 }
 
