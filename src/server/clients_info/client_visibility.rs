@@ -1,6 +1,6 @@
 use bevy::{
     prelude::*,
-    utils::{EntityHashMap, EntityHashSet},
+    utils::{hashbrown::hash_map::Entry, EntityHashMap, EntityHashSet},
 };
 
 use super::VisibilityPolicy;
@@ -164,14 +164,18 @@ impl ClientVisibility {
                 removed,
             } => {
                 if visibile {
-                    // For blacklist we don't remove the entity right away.
-                    // Instead we mark it as queued for removal and remove it
-                    // later in `Self::update`. This allows us to avoid accessing
-                    // the blacklist's `removed` field in `Self::cache_visibility`.
-                    if let Some(info) = list.get_mut(&entity) {
-                        *info = BlacklistInfo::QueuedForRemoval;
-                        removed.insert(entity);
-                        added.remove(&entity);
+                    if let Entry::Occupied(mut entry) = list.entry(entity) {
+                        if !added.remove(&entity) {
+                            removed.insert(entity);
+                            // For blacklist we don't remove the entity right away.
+                            // Instead we mark it as queued for removal and remove it
+                            // later in `Self::update`. This allows us to avoid accessing
+                            // the blacklist's `removed` field in `Self::cache_visibility`.
+                            entry.insert(BlacklistInfo::QueuedForRemoval);
+                        } else {
+                            // If the entity was previously added in this tick, then do not consider it removed.
+                            entry.remove();
+                        }
                     }
                 } else {
                     if *list.entry(entity).or_insert(BlacklistInfo::Hidden) == BlacklistInfo::Hidden
@@ -189,7 +193,8 @@ impl ClientVisibility {
             } => {
                 if visibile {
                     // Similar to blacklist removal, we don't just add the entity to the list.
-                    // Instead we mark it as 'just added' and then set it to 'visible' in `Self::update`.
+                    // Instead we mark it as `WhitelistInfo::JustAdded` and then set it to
+                    // 'WhitelistInfo::Visible' in `Self::update`.
                     // This allows us to avoid accessing the whitelist's `added` field in
                     // `Self::cache_visibility`.
                     if *list.entry(entity).or_insert(WhitelistInfo::JustAdded)
@@ -200,8 +205,10 @@ impl ClientVisibility {
                     }
                     removed.remove(&entity);
                 } else if list.remove(&entity).is_some() {
-                    removed.insert(entity);
-                    added.remove(&entity);
+                    if !added.remove(&entity) {
+                        // If the entity wasn't previously added in this tick, then consider it removed.
+                        removed.insert(entity);
+                    }
                 }
             }
         }
@@ -450,6 +457,27 @@ mod tests {
     }
 
     #[test]
+    fn blacklist_insertion_removal() {
+        let mut visibility = ClientVisibility::new(VisibilityPolicy::Blacklist);
+        visibility.set_visibility(Entity::PLACEHOLDER, false);
+        visibility.set_visibility(Entity::PLACEHOLDER, true);
+        assert!(visibility.is_visible(Entity::PLACEHOLDER));
+
+        let VisibilityFilter::Blacklist {
+            list,
+            added,
+            removed,
+        } = visibility.filter
+        else {
+            panic!("filter should be a blacklist");
+        };
+
+        assert!(!list.contains_key(&Entity::PLACEHOLDER));
+        assert!(!added.contains(&Entity::PLACEHOLDER));
+        assert!(!removed.contains(&Entity::PLACEHOLDER));
+    }
+
+    #[test]
     fn whitelist_insertion() {
         let mut visibility = ClientVisibility::new(VisibilityPolicy::Whitelist);
         visibility.set_visibility(Entity::PLACEHOLDER, true);
@@ -534,6 +562,27 @@ mod tests {
             added,
             removed,
         } = &visibility.filter
+        else {
+            panic!("filter should be a blacklist");
+        };
+
+        assert!(!list.contains_key(&Entity::PLACEHOLDER));
+        assert!(!added.contains(&Entity::PLACEHOLDER));
+        assert!(!removed.contains(&Entity::PLACEHOLDER));
+    }
+
+    #[test]
+    fn whitelist_insertion_removal() {
+        let mut visibility = ClientVisibility::new(VisibilityPolicy::Whitelist);
+        visibility.set_visibility(Entity::PLACEHOLDER, true);
+        visibility.set_visibility(Entity::PLACEHOLDER, false);
+        assert!(!visibility.is_visible(Entity::PLACEHOLDER));
+
+        let VisibilityFilter::Whitelist {
+            list,
+            added,
+            removed,
+        } = visibility.filter
         else {
             panic!("filter should be a blacklist");
         };
