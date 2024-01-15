@@ -874,6 +874,43 @@ fn blacklist_visibility() {
 }
 
 #[test]
+fn blacklist_despawn_visibility() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                visibility_policy: VisibilityPolicy::Blacklist,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<TableComponent>();
+    }
+
+    connect::single_client(&mut server_app, &mut client_app);
+
+    let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
+
+    let client_transport = client_app.world.resource::<NetcodeClientTransport>();
+    let client_id = ClientId::from_raw(client_transport.client_id());
+    let mut clients_info = server_app.world.resource_mut::<ClientsInfo>();
+    let visibility = clients_info.client_mut(client_id).visibility_mut();
+    visibility.set_visibility(server_entity, false);
+    server_app.world.despawn(server_entity);
+
+    server_app.update();
+    client_app.update();
+
+    assert!(client_app.world.entities().is_empty());
+
+    let mut clients_info = server_app.world.resource_mut::<ClientsInfo>();
+    let visibility = clients_info.client_mut(client_id).visibility_mut();
+    assert!(visibility.is_visible(server_entity)); // The missing entity must be removed from the list, so this should return `true`.
+}
+
+#[test]
 fn empty_whitelist_visibility() {
     let mut server_app = App::new();
     let mut client_app = App::new();
