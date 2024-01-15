@@ -164,19 +164,23 @@ impl ClientVisibility {
                 removed,
             } => {
                 if visibile {
-                    if let Entry::Occupied(mut entry) = list.entry(entity) {
-                        if !added.remove(&entity) {
-                            removed.insert(entity);
-                            // For blacklist we don't remove the entity right away.
-                            // Instead we mark it as queued for removal and remove it
-                            // later in `Self::update`. This allows us to avoid accessing
-                            // the blacklist's `removed` field in `Self::cache_visibility`.
-                            entry.insert(BlacklistInfo::QueuedForRemoval);
-                        } else {
-                            // If the entity was previously added in this tick, then do not consider it removed.
-                            entry.remove();
-                        }
+                    // If the entity is already visibile, do nothing.
+                    let Entry::Occupied(mut entry) = list.entry(entity) else {
+                        return;
+                    };
+
+                    // If the entity was previously added in this tick, then undo it.
+                    if added.remove(&entity) {
+                        entry.remove();
+                        return;
                     }
+
+                    // For blacklisting an entity we don't remove the entity right away.
+                    // Instead we mark it as queued for removal and remove it
+                    // later in `Self::update`. This allows us to avoid accessing
+                    // the blacklist's `removed` field in `Self::get_visibility_state`.
+                    entry.insert(BlacklistInfo::QueuedForRemoval);
+                    removed.insert(entity);
                 } else {
                     if *list.entry(entity).or_insert(BlacklistInfo::Hidden) == BlacklistInfo::Hidden
                     {
@@ -196,7 +200,7 @@ impl ClientVisibility {
                     // Instead we mark it as `WhitelistInfo::JustAdded` and then set it to
                     // 'WhitelistInfo::Visible' in `Self::update`.
                     // This allows us to avoid accessing the whitelist's `added` field in
-                    // `Self::cache_visibility`.
+                    // `Self::get_visibility_state`.
                     if *list.entry(entity).or_insert(WhitelistInfo::JustAdded)
                         == WhitelistInfo::JustAdded
                     {
@@ -204,15 +208,24 @@ impl ClientVisibility {
                         added.insert(entity);
                     }
                     removed.remove(&entity);
-                } else if list.remove(&entity).is_some() && !added.remove(&entity) {
-                    // If the entity wasn't previously added in this tick, then consider it removed.
+                } else {
+                    // If the entity is not in the whitelist, do nothing.
+                    if list.remove(&entity).is_none() {
+                        return;
+                    }
+
+                    // If the entity was added in this tick, then undo it.
+                    if added.remove(&entity) {
+                        return;
+                    }
+
                     removed.insert(entity);
                 }
             }
         }
     }
 
-    /// Gets visibility for a specific entity.
+    /// Checks if a specific entity is visible.
     pub fn is_visible(&self, entity: Entity) -> bool {
         match self.get_visibility_state(entity) {
             Visibility::Hidden => false,
@@ -232,7 +245,7 @@ impl ClientVisibility {
         self.cached_visibility
     }
 
-    /// Returns visibility including
+    /// Returns visibility of a specific entity.
     fn get_visibility_state(&self, entity: Entity) -> Visibility {
         match &self.filter {
             VisibilityFilter::All { just_connected } => {
@@ -284,7 +297,7 @@ enum VisibilityFilter {
         /// this tick.
         list: EntityHashMap<Entity, WhitelistInfo>,
 
-        /// All entities that were added to the list in tVisibility of these entities has been gained.his tick.
+        /// All entities that were added to the list in this tick.
         ///
         /// Visibility of these entities has been gained.
         added: EntityHashSet<Entity>,
@@ -313,7 +326,7 @@ enum BlacklistInfo {
 /// Note that the distinction between 'lost visibility' and 'don't have visibility' is not exposed here.
 /// There is only `Visibility::Hidden` to encompass both variants.
 ///
-/// Lost visibility is handled separately with [`ClientVisibility::iter_lost_visibility`].
+/// Lost visibility is handled separately with [`ClientVisibility::drain_lost_visibility`].
 #[derive(PartialEq, Default, Clone, Copy)]
 pub(crate) enum Visibility {
     /// The client does not have visibility of the entity in this tick.
@@ -396,7 +409,7 @@ mod tests {
     }
 
     #[test]
-    fn blacklist_emtpy_removal() {
+    fn blacklist_empty_removal() {
         let mut visibility = ClientVisibility::new(VisibilityPolicy::Blacklist);
         assert!(visibility.is_visible(Entity::PLACEHOLDER));
 
@@ -513,7 +526,7 @@ mod tests {
     }
 
     #[test]
-    fn whitelist_emtpy_removal() {
+    fn whitelist_empty_removal() {
         let mut visibility = ClientVisibility::new(VisibilityPolicy::Whitelist);
         assert!(!visibility.is_visible(Entity::PLACEHOLDER));
 
