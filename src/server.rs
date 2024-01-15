@@ -439,7 +439,7 @@ fn collect_despawns(
     }
 
     for (message, _, client_info) in messages.iter_mut_with_info() {
-        for entity in client_info.remove_lost_visibility() {
+        for entity in client_info.drain_lost_visibility() {
             message.write_entity(&mut None, entity)?;
         }
 

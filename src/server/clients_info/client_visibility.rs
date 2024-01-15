@@ -70,31 +70,26 @@ impl ClientVisibility {
         }
     }
 
-    /// Marks all entities as not "just added" and clears the removed.
+    /// Updates list information and its sets based on the filter.
     ///
     /// Should be called after each tick.
     pub(crate) fn update(&mut self) {
         match &mut self.filter {
             VisibilityFilter::All { just_connected } => *just_connected = false,
-            VisibilityFilter::Blacklist {
-                list,
-                added,
-                removed,
-            } => {
+            VisibilityFilter::Blacklist { list, removed, .. } => {
+                // Remove all entities queued for removal.
                 for entity in removed.drain() {
                     list.remove(&entity);
                 }
-                added.clear();
+                // `added` is drained in `Self::drain_lost_visibility`.
             }
-            VisibilityFilter::Whitelist {
-                list,
-                added,
-                removed,
-            } => {
+            VisibilityFilter::Whitelist { list, added, .. } => {
+                // Change all recently added entities to `WhitelistInfo::Visible`
+                // from `WhitelistInfo::JustVisible`.
                 for entity in added.drain() {
                     list.insert(entity, WhitelistInfo::Visible);
                 }
-                removed.clear();
+                // `removed` is drained in `Self::drain_lost_visibility`.
             }
         }
     }
@@ -126,15 +121,13 @@ impl ClientVisibility {
         }
     }
 
-    /// Returns an iterator of entities the client lost visibility of this tick.
-    pub(super) fn iter_lost_visibility(&self) -> impl Iterator<Item = Entity> + '_ {
-        match &self.filter {
+    /// Drains all entities for which visibility was lost during this tick.
+    pub(super) fn drain_lost_visibility(&mut self) -> impl Iterator<Item = Entity> + '_ {
+        match &mut self.filter {
             VisibilityFilter::All { .. } => VisibilityLostIter::AllVisible,
-            VisibilityFilter::Blacklist { added, .. } => {
-                VisibilityLostIter::Lost(added.iter().copied())
-            }
+            VisibilityFilter::Blacklist { added, .. } => VisibilityLostIter::Lost(added.drain()),
             VisibilityFilter::Whitelist { removed, .. } => {
-                VisibilityLostIter::Lost(removed.iter().copied())
+                VisibilityLostIter::Lost(removed.drain())
             }
         }
     }

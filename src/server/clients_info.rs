@@ -304,11 +304,11 @@ impl ClientInfo {
         // `Self::acknowledge()` will properly ignore despawned entities.
     }
 
-    /// Iterates over all entities for which visibility was lost during this tick and removes them.
+    /// Drains all entities for which visibility was lost during this tick.
     ///
-    /// Removal happens lazily during the iteration.
-    pub(super) fn remove_lost_visibility(&mut self) -> impl Iterator<Item = Entity> + '_ {
-        self.visibility.iter_lost_visibility().inspect(|entity| {
+    /// Internal cleanup happens lazily during the iteration.
+    pub(super) fn drain_lost_visibility(&mut self) -> impl Iterator<Item = Entity> + '_ {
+        self.visibility.drain_lost_visibility().inspect(|entity| {
             self.ticks.remove(entity);
         })
     }
