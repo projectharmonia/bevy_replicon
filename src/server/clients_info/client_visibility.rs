@@ -182,12 +182,13 @@ impl ClientVisibility {
                     entry.insert(BlacklistInfo::QueuedForRemoval);
                     removed.insert(entity);
                 } else {
-                    if *list.entry(entity).or_insert(BlacklistInfo::Hidden) == BlacklistInfo::Hidden
-                    {
-                        // Do not mark an entry as newly added if the entry was already in the list.
-                        added.insert(entity);
-                    }
-                    removed.remove(&entity);
+                    // If the entity is already registered, reset its removal status.
+                    if list.insert(entity, BlacklistInfo::Hidden).is_some() {
+                        removed.remove(&entity);
+                        return;
+                    };
+
+                    added.insert(entity);
                 }
             }
             VisibilityFilter::Whitelist {
@@ -491,6 +492,29 @@ mod tests {
     }
 
     #[test]
+    fn blacklist_duplicate_insertion() {
+        let mut visibility = ClientVisibility::new(VisibilityPolicy::Blacklist);
+        visibility.set_visibility(Entity::PLACEHOLDER, false);
+        visibility.update();
+
+        // Duplicate insertion.
+        visibility.set_visibility(Entity::PLACEHOLDER, false);
+
+        let VisibilityFilter::Blacklist {
+            list,
+            added,
+            removed,
+        } = visibility.filter
+        else {
+            panic!("filter should be a blacklist");
+        };
+
+        assert!(list.contains_key(&Entity::PLACEHOLDER));
+        assert!(!added.contains(&Entity::PLACEHOLDER));
+        assert!(!removed.contains(&Entity::PLACEHOLDER));
+    }
+
+    #[test]
     fn whitelist_insertion() {
         let mut visibility = ClientVisibility::new(VisibilityPolicy::Whitelist);
         visibility.set_visibility(Entity::PLACEHOLDER, true);
@@ -603,6 +627,29 @@ mod tests {
         };
 
         assert!(!list.contains_key(&Entity::PLACEHOLDER));
+        assert!(!added.contains(&Entity::PLACEHOLDER));
+        assert!(!removed.contains(&Entity::PLACEHOLDER));
+    }
+
+    #[test]
+    fn whitelist_duplicate_insertion() {
+        let mut visibility = ClientVisibility::new(VisibilityPolicy::Whitelist);
+        visibility.set_visibility(Entity::PLACEHOLDER, true);
+        visibility.update();
+
+        // Duplicate insertion.
+        visibility.set_visibility(Entity::PLACEHOLDER, true);
+
+        let VisibilityFilter::Whitelist {
+            list,
+            added,
+            removed,
+        } = visibility.filter
+        else {
+            panic!("filter should be a blacklist");
+        };
+
+        assert!(list.contains_key(&Entity::PLACEHOLDER));
         assert!(!added.contains(&Entity::PLACEHOLDER));
         assert!(!removed.contains(&Entity::PLACEHOLDER));
     }
