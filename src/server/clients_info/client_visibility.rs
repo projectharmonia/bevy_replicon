@@ -103,14 +103,8 @@ impl ClientVisibility {
                 list,
                 added,
                 removed,
-            } => {
-                if let Some(just_removed) = list.get_mut(&entity) {
-                    *just_removed = true;
-                    removed.remove(&entity);
-                    added.remove(&entity);
-                }
             }
-            VisibilityFilter::Whitelist {
+            | VisibilityFilter::Whitelist {
                 list,
                 added,
                 removed,
