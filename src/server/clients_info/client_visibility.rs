@@ -172,9 +172,12 @@ impl ClientVisibility {
                         removed.insert(entity);
                         added.remove(&entity);
                     }
-                } else if list.insert(entity, BlacklistInfo::Hidden).is_none() {
+                } else {
+                    if list.insert(entity, BlacklistInfo::Hidden).is_none() {
+                        // Do not mark an entry as newly added if the entry was already in the list.
+                        added.insert(entity);
+                    }
                     removed.remove(&entity);
-                    added.insert(entity);
                 }
             }
             VisibilityFilter::Whitelist {
@@ -184,9 +187,10 @@ impl ClientVisibility {
             } => {
                 if visibile {
                     if list.insert(entity, WhitelistInfo::JustAdded).is_none() {
-                        removed.remove(&entity);
+                        // Do not mark an entry as newly added if the entry was already in the list.
                         added.insert(entity);
                     }
+                    removed.remove(&entity);
                 } else if list.remove(&entity).is_some() {
                     removed.insert(entity);
                     added.remove(&entity);
