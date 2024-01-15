@@ -6,7 +6,6 @@
 
 ECS-focused high-level networking crate for the [Bevy game engine](https://bevyengine.org) using the [Renet](https://github.com/lucaspoffo/renet) library.
 
-The crate provides component-oriented world state replication and exposes an events-based messaging API.
 
 ## Getting Started
 
