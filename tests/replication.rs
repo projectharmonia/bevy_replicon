@@ -891,7 +891,7 @@ fn blacklist_despawn_visibility() {
 
     connect::single_client(&mut server_app, &mut client_app);
 
-    let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
+    let server_entity = server_app.world.spawn(Replication).id();
 
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
     let client_id = ClientId::from_raw(client_transport.client_id());
@@ -1005,7 +1005,7 @@ fn whitelist_despawn_visibility() {
 
     connect::single_client(&mut server_app, &mut client_app);
 
-    let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
+    let server_entity = server_app.world.spawn(Replication).id();
 
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
     let client_id = ClientId::from_raw(client_transport.client_id());
