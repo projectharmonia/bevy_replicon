@@ -499,6 +499,7 @@ mod tests {
 
         // Duplicate insertion.
         visibility.set_visibility(Entity::PLACEHOLDER, false);
+        assert!(!visibility.is_visible(Entity::PLACEHOLDER));
 
         let VisibilityFilter::Blacklist {
             list,
@@ -639,6 +640,7 @@ mod tests {
 
         // Duplicate insertion.
         visibility.set_visibility(Entity::PLACEHOLDER, true);
+        assert!(visibility.is_visible(Entity::PLACEHOLDER));
 
         let VisibilityFilter::Whitelist {
             list,
