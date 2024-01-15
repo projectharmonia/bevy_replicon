@@ -323,10 +323,7 @@ pub fn send_with<T>(
         }
         SendMode::Direct(client_id) => {
             if client_id != SERVER_ID {
-                if let Some(client_info) = clients_info
-                    .iter()
-                    .find(|client_info| client_info.id() == client_id)
-                {
+                if let Some(client_info) = clients_info.get_client(client_id) {
                     let message = serialize_with(client_info, None, &serialize_fn)?;
                     server.send_message(client_info.id(), channel, message.bytes);
                 }

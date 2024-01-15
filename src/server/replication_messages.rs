@@ -94,6 +94,7 @@ impl ReplicationMessages {
                 tick,
                 timestamp,
             )?;
+            client_info.visibility_mut().update();
         }
 
         let clients_info = mem::take(&mut self.clients_info);

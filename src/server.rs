@@ -27,7 +27,7 @@ use bevy_renet::{
 use crate::replicon_core::{
     replication_rules::ReplicationRules, replicon_tick::RepliconTick, ReplicationChannel,
 };
-use clients_info::{ClientBuffers, ClientInfo, ClientsInfo};
+use clients_info::{client_visibility::Visibility, ClientBuffers, ClientInfo, ClientsInfo};
 use despawn_buffer::{DespawnBuffer, DespawnBufferPlugin};
 use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
 use replicated_archetypes_info::ReplicatedArchetypesInfo;
@@ -39,6 +39,9 @@ pub struct ServerPlugin {
     /// Tick configuration.
     pub tick_policy: TickPolicy,
 
+    /// Visibility configuration.
+    pub visibility_policy: VisibilityPolicy,
+
     /// The time after which updates will be considered lost if an acknowledgment is not received for them.
     ///
     /// In practice updates will live at least `update_timeout`, and at most `2*update_timeout`.
@@ -49,6 +52,7 @@ impl Default for ServerPlugin {
     fn default() -> Self {
         Self {
             tick_policy: TickPolicy::MaxTickRate(30),
+            visibility_policy: Default::default(),
             update_timeout: Duration::from_secs(10),
         }
     }
@@ -62,9 +66,9 @@ impl Plugin for ServerPlugin {
             RenetServerPlugin,
             NetcodeServerPlugin,
         ))
-        .init_resource::<ClientsInfo>()
         .init_resource::<ClientBuffers>()
         .init_resource::<ClientEntityMap>()
+        .insert_resource(ClientsInfo::new(self.visibility_policy))
         .configure_sets(PreUpdate, ServerSet::Receive.after(RenetReceive))
         .configure_sets(PostUpdate, ServerSet::Send.before(RenetSend))
         .add_systems(
@@ -291,9 +295,12 @@ fn collect_changes(
         };
 
         for entity in archetype.entities() {
-            for (init_message, update_message) in messages.iter_mut() {
+            for (init_message, update_message, client_info) in messages.iter_mut_with_info() {
                 init_message.start_entity_data(entity.entity());
                 update_message.start_entity_data(entity.entity());
+                client_info
+                    .visibility_mut()
+                    .cache_visibility(entity.entity());
             }
 
             // SAFETY: all replicated archetypes have marker component with table storage.
@@ -326,7 +333,12 @@ fn collect_changes(
 
                 let mut shared_bytes = None;
                 for (init_message, update_message, client_info) in messages.iter_mut_with_info() {
-                    let new_entity = marker_added || client_info.just_connected;
+                    let visibility = client_info.visibility().cached_visibility();
+                    if visibility == Visibility::Hidden {
+                        continue;
+                    }
+
+                    let new_entity = marker_added || visibility == Visibility::Gained;
                     if new_entity || ticks.is_added(change_tick.last_run(), change_tick.this_run())
                     {
                         init_message.write_component(
@@ -352,7 +364,12 @@ fn collect_changes(
             }
 
             for (init_message, update_message, client_info) in messages.iter_mut_with_info() {
-                let new_entity = marker_added || client_info.just_connected;
+                let visibility = client_info.visibility().cached_visibility();
+                if visibility == Visibility::Hidden {
+                    continue;
+                }
+
+                let new_entity = marker_added || visibility == Visibility::Gained;
                 if new_entity || init_message.entity_data_size() != 0 {
                     // If there is any insertion or we must initialize, include all updates into init message
                     // and bump the last acknowledged tick to keep entity updates atomic.
@@ -367,8 +384,7 @@ fn collect_changes(
         }
     }
 
-    for (init_message, _, client_info) in messages.iter_mut_with_info() {
-        client_info.just_connected = false;
+    for (init_message, _) in messages.iter_mut() {
         init_message.end_array()?;
     }
 
@@ -422,7 +438,11 @@ fn collect_despawns(
         }
     }
 
-    for (message, _) in messages.iter_mut() {
+    for (message, _, client_info) in messages.iter_mut_with_info() {
+        for entity in client_info.drain_lost_visibility() {
+            message.write_entity(&mut None, entity)?;
+        }
+
         message.end_array()?;
     }
 
@@ -494,6 +514,18 @@ pub enum TickPolicy {
     /// The user should manually configure [`ServerPlugin::increment_tick`] or manually increment
     /// [`RepliconTick`].
     Manual,
+}
+
+/// Controls how visibility will be managed via [`ClientVisibility`](clients_info::client_visibility::ClientVisibility).
+#[derive(Default, Debug, Clone, Copy)]
+pub enum VisibilityPolicy {
+    /// All entities are visible by default and visibility can't be changed.
+    #[default]
+    All,
+    /// All entities are hidden by default and should be explicitly registered to be visible.
+    Blacklist,
+    /// All entities are visible by default and should be explicitly registered to be hidden.
+    Whitelist,
 }
 
 /**
