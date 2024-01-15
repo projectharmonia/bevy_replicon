@@ -204,11 +204,9 @@ impl ClientVisibility {
                         added.insert(entity);
                     }
                     removed.remove(&entity);
-                } else if list.remove(&entity).is_some() {
-                    if !added.remove(&entity) {
-                        // If the entity wasn't previously added in this tick, then consider it removed.
-                        removed.insert(entity);
-                    }
+                } else if list.remove(&entity).is_some() && !added.remove(&entity) {
+                    // If the entity wasn't previously added in this tick, then consider it removed.
+                    removed.insert(entity);
                 }
             }
         }
