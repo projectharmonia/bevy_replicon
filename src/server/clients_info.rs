@@ -44,14 +44,42 @@ impl ClientsInfo {
     /// Returns a reference to a connected client's info.
     ///
     /// This operation is *O*(*n*).
-    pub fn get(&self, client_id: ClientId) -> Option<&ClientInfo> {
+    /// See also [`Self::get_client`] for the fallible version.
+    ///
+    /// # Panics
+    ///
+    /// Panics if passed client ID is not connected.
+    pub fn client(&self, client_id: ClientId) -> &ClientInfo {
+        self.get_client(client_id)
+            .unwrap_or_else(|| panic!("{client_id:?} should be connected"))
+    }
+
+    /// Returns a mutable reference to a connected client's info.
+    ///
+    /// This operation is *O*(*n*).
+    /// See also [`Self::get_client_mut`] for the fallible version.
+    ///
+    /// # Panics
+    ///
+    /// Panics if passed client ID is not connected.
+    pub fn client_mut(&mut self, client_id: ClientId) -> &mut ClientInfo {
+        self.get_client_mut(client_id)
+            .unwrap_or_else(|| panic!("{client_id:?} should be connected"))
+    }
+
+    /// Returns a reference to a connected client's info.
+    ///
+    /// This operation is *O*(*n*).
+    /// See also [`Self::client`] for the panicking version.
+    pub fn get_client(&self, client_id: ClientId) -> Option<&ClientInfo> {
         self.info.iter().find(|info| info.id == client_id)
     }
 
     /// Returns a mutable reference to a connected client's info.
     ///
     /// This operation is *O*(*n*).
-    pub fn get_mut(&mut self, client_id: ClientId) -> Option<&mut ClientInfo> {
+    /// See also [`Self::client`] for the panicking version.
+    pub fn get_client_mut(&mut self, client_id: ClientId) -> Option<&mut ClientInfo> {
         self.info.iter_mut().find(|info| info.id == client_id)
     }
 

@@ -774,7 +774,7 @@ fn all_visibility() {
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
     let client_id = ClientId::from_raw(client_transport.client_id());
     let mut clients_info = server_app.world.resource_mut::<ClientsInfo>();
-    let visibility = clients_info.get_mut(client_id).unwrap().visibility_mut();
+    let visibility = clients_info.client_mut(client_id).visibility_mut();
     visibility.set_visibility(server_entity, false);
     assert!(
         visibility.is_visible(server_entity),
@@ -809,7 +809,7 @@ fn blacklist_visibility() {
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
     let client_id = ClientId::from_raw(client_transport.client_id());
     let clients_info = server_app.world.resource::<ClientsInfo>();
-    let visibility = clients_info.get(client_id).unwrap().visibility();
+    let visibility = clients_info.client(client_id).visibility();
     assert!(visibility.is_visible(server_entity));
 
     server_app.update();
@@ -844,7 +844,7 @@ fn blacklist_visibility_add_remove() {
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
     let client_id = ClientId::from_raw(client_transport.client_id());
     let mut clients_info = server_app.world.resource_mut::<ClientsInfo>();
-    let visibility = clients_info.get_mut(client_id).unwrap().visibility_mut();
+    let visibility = clients_info.client_mut(client_id).visibility_mut();
     visibility.set_visibility(server_entity, false);
     assert!(!visibility.is_visible(server_entity));
 
@@ -855,7 +855,7 @@ fn blacklist_visibility_add_remove() {
 
     // Reverse visibility back.
     let mut clients_info = server_app.world.resource_mut::<ClientsInfo>();
-    let visibility = clients_info.get_mut(client_id).unwrap().visibility_mut();
+    let visibility = clients_info.client_mut(client_id).visibility_mut();
     visibility.set_visibility(server_entity, true);
 
     server_app.update();
@@ -890,7 +890,7 @@ fn whitelist_visibility() {
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
     let client_id = ClientId::from_raw(client_transport.client_id());
     let clients_info = server_app.world.resource::<ClientsInfo>();
-    let visibility = clients_info.get(client_id).unwrap().visibility();
+    let visibility = clients_info.client(client_id).visibility();
     assert!(!visibility.is_visible(server_entity));
 
     server_app.update();
@@ -925,7 +925,7 @@ fn whitelist_visibility_add_remove() {
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
     let client_id = ClientId::from_raw(client_transport.client_id());
     let mut clients_info = server_app.world.resource_mut::<ClientsInfo>();
-    let visibility = clients_info.get_mut(client_id).unwrap().visibility_mut();
+    let visibility = clients_info.client_mut(client_id).visibility_mut();
     visibility.set_visibility(server_entity, true);
     assert!(visibility.is_visible(server_entity));
 
@@ -939,7 +939,7 @@ fn whitelist_visibility_add_remove() {
 
     // Reverse visibility.
     let mut clients_info = server_app.world.resource_mut::<ClientsInfo>();
-    let visibility = clients_info.get_mut(client_id).unwrap().visibility_mut();
+    let visibility = clients_info.client_mut(client_id).visibility_mut();
     visibility.set_visibility(server_entity, false);
 
     server_app.update();
