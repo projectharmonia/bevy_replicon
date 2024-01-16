@@ -3,17 +3,15 @@ use std::{any, marker::PhantomData};
 
 use bevy::{ecs::system::EntityCommands, prelude::*};
 
-use super::replication_rules::Replication;
-
 pub trait CommandDontReplicateExt {
     /**
     Disables replication for component `T`.
 
-    May only be called on an entity if  [`Replication`] was inserted on it this tick.
+    May only be called on an entity if  [`T`] was inserted on it this tick.
 
     # Panics
 
-    Panics if called on an entity without [`Replication`] or if [`Replication`] was inserted in a different tick.
+    Panics if called on an entity without [`T`] or if [`T`] was inserted in a different tick.
 
     # Examples
 
@@ -53,15 +51,14 @@ impl EntityDontReplicateExt for EntityWorldMut<'_> {
         self.insert(DontReplicate::<T>(PhantomData));
 
         let component_name = any::type_name::<T>();
-        let replication_name = any::type_name::<Replication>();
-        let replication_ticks = self.get_change_ticks::<Replication>().unwrap_or_else(|| {
-            panic!("disabling replication for `{component_name}` should only be done for entities with `{replication_name}`")
+        let replication_ticks = self.get_change_ticks::<T>().unwrap_or_else(|| {
+            panic!("disabling replication for `{component_name}` should only be done for entities with this component")
         });
 
         assert_eq!(
             tick,
             replication_ticks.added_tick(),
-            "disabling replication for `{component_name}` should be done only with `{replication_name}` insertion",
+            "disabling replication for `{component_name}` should be done only with its insertion",
         );
 
         self
@@ -80,7 +77,7 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn without_replication() {
+    fn without_component() {
         let mut world = World::new();
 
         let mut queue = CommandQueue::default();
@@ -96,7 +93,7 @@ mod tests {
 
         let mut queue = CommandQueue::default();
         let mut commands = Commands::new(&mut queue, &world);
-        let entity = commands.spawn(Replication).id();
+        let entity = commands.spawn(Transform::default()).id();
         queue.apply(&mut world);
 
         world.increment_change_tick();

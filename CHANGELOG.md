@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Control over client visibility of entities.
 
+### Changed
+
+- Allow calling `dont_replicate::<T>` with the insertion of `T` instead of after `Replication` insertion.
+
 ## [0.20.0] - 2024-01-13
 
 ### Fixed
