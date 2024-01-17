@@ -290,7 +290,7 @@ fn despawn_with_heirarchy() {
 }
 
 #[test]
-fn despawn_with_spawn() {
+fn despawn_after_spawn() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
@@ -307,6 +307,35 @@ fn despawn_with_spawn() {
     connect::single_client(&mut server_app, &mut client_app);
 
     // Insert and remove `Replication` to trigger spawn and despawn for client at the same time.
+    server_app
+        .world
+        .spawn((Replication, TableComponent))
+        .remove::<Replication>();
+
+    server_app.update();
+    client_app.update();
+
+    assert!(client_app.world.entities().is_empty());
+}
+
+#[test]
+fn spawn_after_despawn() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<TableComponent>();
+    }
+
+    connect::single_client(&mut server_app, &mut client_app);
+
+    // Remove and insert `Replication` to trigger despawn and spawn for client at the same time.
     server_app
         .world
         .spawn((Replication, TableComponent))
@@ -428,7 +457,47 @@ fn removal() {
 }
 
 #[test]
-fn removal_with_insertion() {
+fn removal_after_insertion() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<TableComponent>()
+        .replicate::<SparseSetComponent>()
+        .replicate::<NotReplicatedComponent>()
+        .replicate_mapped::<MappedComponent>();
+    }
+
+    connect::single_client(&mut server_app, &mut client_app);
+
+    // Insert and remove at the same time.
+    let server_entity = server_app
+        .world
+        .spawn((Replication, TableComponent))
+        .remove::<TableComponent>()
+        .id();
+    let client_entity = client_app.world.spawn(Replication).id();
+
+    client_app
+        .world
+        .resource_mut::<ServerEntityMap>()
+        .insert(server_entity, client_entity);
+
+    server_app.update();
+    client_app.update();
+
+    let client_entity = client_app.world.entity(client_entity);
+    assert!(!client_entity.contains::<TableComponent>());
+}
+
+#[test]
+fn insertion_after_removal() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
