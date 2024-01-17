@@ -49,7 +49,7 @@ impl EntityDontReplicateExt for EntityWorldMut<'_> {
         if cfg!(debug_assertions) {
             let component_name = any::type_name::<T>();
             assert!(
-                !self.contains::<T>(),
+                !self.contains::<DontReplicate<T>>(),
                 "`dont_replicate::<{component_name}>` shouldn't be called twice for the same entity"
             );
 
