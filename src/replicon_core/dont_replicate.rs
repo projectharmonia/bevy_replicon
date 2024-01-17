@@ -11,7 +11,8 @@ pub trait CommandDontReplicateExt {
 
     # Panics
 
-    Panics if called on an entity without `T` or if `T` was inserted in a different tick.
+    Panics if was called on this entity before, or `T` component is missing,
+    or if `T` was inserted in a different tick.
 
     # Examples
 
