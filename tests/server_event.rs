@@ -1,9 +1,10 @@
 mod connect;
 
 use bevy::{ecs::event::Events, prelude::*, time::TimePlugin};
-use bevy_renet::renet::{transport::NetcodeClientTransport, ClientId};
-use bevy_replicon::prelude::*;
-
+use bevy_replicon::{
+    prelude::*,
+    renet::{transport::NetcodeClientTransport, ClientId},
+};
 use serde::{Deserialize, Serialize};
 
 #[test]
