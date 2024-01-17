@@ -2,7 +2,7 @@
 
 [![crates.io](https://img.shields.io/crates/v/bevy_replicon)](https://crates.io/crates/bevy_replicon)
 [![docs.rs](https://docs.rs/bevy_replicon/badge.svg)](https://docs.rs/bevy_replicon)
-[![codecov](https://codecov.io/gh/lifescapegame/bevy_replicon/branch/master/graph/badge.svg?token=N1G28NQB1L)](https://codecov.io/gh/lifescapegame/bevy_replicon)
+[![codecov](https://codecov.io/gh/projectharmonia/bevy_replicon/graph/badge.svg?token=N1G28NQB1L)](https://codecov.io/gh/projectharmonia/bevy_replicon)
 
 ECS-focused high-level networking crate for the [Bevy game engine](https://bevyengine.org) using the [Renet](https://github.com/lucaspoffo/renet) library.
 
@@ -24,7 +24,7 @@ Prediction and interpolation are not implemented in this crate and are considere
 
 Check out the [quick start guide](https://docs.rs/bevy_replicon/latest/bevy_replicon).
 
-See also [examples](https://github.com/lifescapegame/bevy_replicon/tree/master/examples).
+See also [examples](https://github.com/projectharmonia/bevy_replicon/tree/master/examples).
 
 ## Related Crates
 

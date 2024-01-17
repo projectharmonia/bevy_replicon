@@ -6,7 +6,7 @@ edition = "2021"
 rust-version = "1.65"
 description = "High level networking for the Bevy game engine"
 readme = "README.md"
-repository = "https://github.com/lifescape-game/bevy_replicon"
+repository = "https://github.com/projectharmonia/bevy_replicon"
 keywords = [
   "bevy",
   "multiplayer",
