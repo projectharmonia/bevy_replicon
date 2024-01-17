@@ -208,64 +208,6 @@ fn client_spawn() {
 }
 
 #[test]
-fn insertion() {
-    let mut server_app = App::new();
-    let mut client_app = App::new();
-    for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((
-            MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
-                tick_policy: TickPolicy::EveryFrame,
-                ..Default::default()
-            }),
-        ))
-        .replicate::<TableComponent>()
-        .replicate::<SparseSetComponent>()
-        .replicate::<NotReplicatedComponent>()
-        .replicate_mapped::<MappedComponent>();
-    }
-
-    connect::single_client(&mut server_app, &mut client_app);
-
-    // Make client and server have different entity IDs.
-    server_app.world.spawn_empty();
-
-    let server_map_entity = server_app.world.spawn_empty().id();
-    let client_map_entity = client_app.world.spawn_empty().id();
-
-    let client_entity = client_app.world.spawn(Replication).id();
-    let server_entity = server_app
-        .world
-        .spawn((
-            Replication,
-            TableComponent,
-            SparseSetComponent,
-            NonReplicatingComponent,
-            MappedComponent(server_map_entity),
-            NotReplicatedComponent,
-        ))
-        .dont_replicate::<NotReplicatedComponent>()
-        .id();
-
-    let mut entity_map = client_app.world.resource_mut::<ServerEntityMap>();
-    entity_map.insert(server_map_entity, client_map_entity);
-    entity_map.insert(server_entity, client_entity);
-
-    server_app.update();
-    client_app.update();
-
-    let client_entity = client_app.world.entity(client_entity);
-    assert!(client_entity.contains::<SparseSetComponent>());
-    assert!(client_entity.contains::<TableComponent>());
-    assert!(!client_entity.contains::<NonReplicatingComponent>());
-    assert!(!client_entity.contains::<NotReplicatedComponent>());
-    assert_eq!(
-        client_entity.get::<MappedComponent>().unwrap().0,
-        client_map_entity
-    );
-}
-
-#[test]
 fn despawn() {
     let mut server_app = App::new();
     let mut client_app = App::new();
@@ -345,6 +287,64 @@ fn despawn_with_heirarchy() {
     server_app.world.despawn(server_child_entity);
 
     assert!(client_app.world.entities().is_empty());
+}
+
+#[test]
+fn insertion() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<TableComponent>()
+        .replicate::<SparseSetComponent>()
+        .replicate::<NotReplicatedComponent>()
+        .replicate_mapped::<MappedComponent>();
+    }
+
+    connect::single_client(&mut server_app, &mut client_app);
+
+    // Make client and server have different entity IDs.
+    server_app.world.spawn_empty();
+
+    let server_map_entity = server_app.world.spawn_empty().id();
+    let client_map_entity = client_app.world.spawn_empty().id();
+
+    let client_entity = client_app.world.spawn(Replication).id();
+    let server_entity = server_app
+        .world
+        .spawn((
+            Replication,
+            TableComponent,
+            SparseSetComponent,
+            NonReplicatingComponent,
+            MappedComponent(server_map_entity),
+            NotReplicatedComponent,
+        ))
+        .dont_replicate::<NotReplicatedComponent>()
+        .id();
+
+    let mut entity_map = client_app.world.resource_mut::<ServerEntityMap>();
+    entity_map.insert(server_map_entity, client_map_entity);
+    entity_map.insert(server_entity, client_entity);
+
+    server_app.update();
+    client_app.update();
+
+    let client_entity = client_app.world.entity(client_entity);
+    assert!(client_entity.contains::<SparseSetComponent>());
+    assert!(client_entity.contains::<TableComponent>());
+    assert!(!client_entity.contains::<NonReplicatingComponent>());
+    assert!(!client_entity.contains::<NotReplicatedComponent>());
+    assert_eq!(
+        client_entity.get::<MappedComponent>().unwrap().0,
+        client_map_entity
+    );
 }
 
 #[test]
