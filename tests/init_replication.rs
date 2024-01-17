@@ -290,6 +290,39 @@ fn despawn_with_heirarchy() {
 }
 
 #[test]
+fn despawn_with_spawn() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<TableComponent>();
+    }
+
+    connect::single_client(&mut server_app, &mut client_app);
+
+    // Insert and remove `Replication` to trigger spawn and despawn for client at the same time.
+    server_app
+        .world
+        .spawn((Replication, TableComponent))
+        .remove::<Replication>()
+        .insert(Replication);
+
+    server_app.update();
+    client_app.update();
+
+    client_app
+        .world
+        .query_filtered::<(), (With<Replication>, With<TableComponent>)>()
+        .single(&client_app.world);
+}
+
+#[test]
 fn insertion() {
     let mut server_app = App::new();
     let mut client_app = App::new();
@@ -392,6 +425,47 @@ fn removal() {
     let client_entity = client_app.world.entity(client_entity);
     assert!(!client_entity.contains::<TableComponent>());
     assert!(client_entity.contains::<NonReplicatingComponent>());
+}
+
+#[test]
+fn removal_with_insertion() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<TableComponent>()
+        .replicate::<SparseSetComponent>()
+        .replicate::<NotReplicatedComponent>()
+        .replicate_mapped::<MappedComponent>();
+    }
+
+    connect::single_client(&mut server_app, &mut client_app);
+
+    // Insert and remove at the same time.
+    let server_entity = server_app
+        .world
+        .spawn((Replication, TableComponent))
+        .remove::<TableComponent>()
+        .insert(TableComponent)
+        .id();
+    let client_entity = client_app.world.spawn(Replication).id();
+
+    client_app
+        .world
+        .resource_mut::<ServerEntityMap>()
+        .insert(server_entity, client_entity);
+
+    server_app.update();
+    client_app.update();
+
+    let client_entity = client_app.world.entity(client_entity);
+    assert!(client_entity.contains::<TableComponent>());
 }
 
 #[derive(Component, Deserialize, Serialize)]
