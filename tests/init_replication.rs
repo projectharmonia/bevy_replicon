@@ -537,6 +537,48 @@ fn insertion_after_removal() {
     assert!(client_entity.contains::<TableComponent>());
 }
 
+#[test]
+fn removal_with_despawn() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<TableComponent>()
+        .replicate::<SparseSetComponent>()
+        .replicate::<NotReplicatedComponent>()
+        .replicate_mapped::<MappedComponent>();
+    }
+
+    connect::single_client(&mut server_app, &mut client_app);
+
+    // Remove component first.
+    let server_entity = server_app
+        .world
+        .spawn((Replication, TableComponent))
+        .remove::<TableComponent>()
+        .id();
+    let client_entity = client_app.world.spawn(Replication).id();
+
+    client_app
+        .world
+        .resource_mut::<ServerEntityMap>()
+        .insert(server_entity, client_entity);
+
+    // Then despawn the same entity.
+    server_app.world.despawn(server_entity);
+
+    server_app.update();
+    client_app.update();
+
+    assert!(client_app.world.entities().is_empty());
+}
+
 #[derive(Component, Deserialize, Serialize)]
 struct MappedComponent(Entity);
 
