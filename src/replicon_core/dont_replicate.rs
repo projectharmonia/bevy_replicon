@@ -45,21 +45,26 @@ pub trait EntityDontReplicateExt {
 
 impl EntityDontReplicateExt for EntityWorldMut<'_> {
     fn dont_replicate<T: Component>(&mut self) -> &mut Self {
-        // SAFETY: world is not mutated and used only to obtain the tick without atomic synchronization.
-        let tick = unsafe { self.world_mut().change_tick() };
+        if cfg!(debug_assertions) {
+            let component_name = any::type_name::<T>();
+            assert!(
+                !self.contains::<T>(),
+                "`dont_replicate::<{component_name}>` shouldn't be called twice for the same entity"
+            );
+
+            // SAFETY: world is not mutated and used only to obtain the tick without atomic synchronization.
+            let tick = unsafe { self.world_mut().change_tick() };
+            let component_ticks = self.get_change_ticks::<T>().unwrap_or_else(|| {
+                panic!("disabling replication for `{component_name}` should only be done for entities with this component")
+            });
+            assert_eq!(
+                tick,
+                component_ticks.added_tick(),
+                "disabling replication for `{component_name}` should be done only with its insertion",
+            );
+        }
 
         self.insert(DontReplicate::<T>(PhantomData));
-
-        let component_name = any::type_name::<T>();
-        let replication_ticks = self.get_change_ticks::<T>().unwrap_or_else(|| {
-            panic!("disabling replication for `{component_name}` should only be done for entities with this component")
-        });
-
-        assert_eq!(
-            tick,
-            replication_ticks.added_tick(),
-            "disabling replication for `{component_name}` should be done only with its insertion",
-        );
 
         self
     }
@@ -83,6 +88,21 @@ mod tests {
         let mut queue = CommandQueue::default();
         let mut commands = Commands::new(&mut queue, &world);
         commands.spawn_empty().dont_replicate::<Transform>();
+        queue.apply(&mut world);
+    }
+
+    #[test]
+    #[should_panic]
+    fn called_twice() {
+        let mut world = World::new();
+
+        let mut queue = CommandQueue::default();
+        let mut commands = Commands::new(&mut queue, &world);
+        commands
+            .spawn(Transform::default())
+            .dont_replicate::<Transform>()
+            .dont_replicate::<Transform>();
+
         queue.apply(&mut world);
     }
 
