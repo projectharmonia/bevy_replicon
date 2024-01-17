@@ -377,23 +377,28 @@ fn insertion() {
     let server_map_entity = server_app.world.spawn_empty().id();
     let client_map_entity = client_app.world.spawn_empty().id();
 
-    let client_entity = client_app.world.spawn(Replication).id();
     let server_entity = server_app
         .world
-        .spawn((
-            Replication,
-            TableComponent,
-            SparseSetComponent,
-            NonReplicatingComponent,
-            MappedComponent(server_map_entity),
-            NotReplicatedComponent,
-        ))
+        .spawn(Replication)
         .dont_replicate::<NotReplicatedComponent>()
         .id();
+    let client_entity = client_app.world.spawn(Replication).id();
 
     let mut entity_map = client_app.world.resource_mut::<ServerEntityMap>();
     entity_map.insert(server_map_entity, client_map_entity);
     entity_map.insert(server_entity, client_entity);
+
+    server_app.update();
+    client_app.update();
+
+    server_app.world.entity_mut(server_entity).insert((
+        Replication,
+        TableComponent,
+        SparseSetComponent,
+        NonReplicatingComponent,
+        MappedComponent(server_map_entity),
+        NotReplicatedComponent,
+    ));
 
     server_app.update();
     client_app.update();
@@ -430,14 +435,6 @@ fn removal() {
         .world
         .spawn((Replication, TableComponent, NonReplicatingComponent))
         .id();
-
-    server_app.update();
-
-    server_app
-        .world
-        .entity_mut(server_entity)
-        .remove::<TableComponent>();
-
     let client_entity = client_app
         .world
         .spawn((Replication, TableComponent, NonReplicatingComponent))
@@ -447,6 +444,14 @@ fn removal() {
         .world
         .resource_mut::<ServerEntityMap>()
         .insert(server_entity, client_entity);
+
+    server_app.update();
+    client_app.update();
+
+    server_app
+        .world
+        .entity_mut(server_entity)
+        .remove::<TableComponent>();
 
     server_app.update();
     client_app.update();
@@ -476,18 +481,23 @@ fn removal_after_insertion() {
 
     connect::single_client(&mut server_app, &mut client_app);
 
-    // Insert and remove at the same time.
-    let server_entity = server_app
-        .world
-        .spawn((Replication, TableComponent))
-        .remove::<TableComponent>()
-        .id();
-    let client_entity = client_app.world.spawn(Replication).id();
+    let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
+    let client_entity = client_app.world.spawn((Replication, TableComponent)).id();
 
     client_app
         .world
         .resource_mut::<ServerEntityMap>()
         .insert(server_entity, client_entity);
+
+    server_app.update();
+    client_app.update();
+
+    // Insert and remove at the same time.
+    server_app
+        .world
+        .entity_mut(server_entity)
+        .insert(TableComponent)
+        .remove::<TableComponent>();
 
     server_app.update();
     client_app.update();
@@ -516,19 +526,23 @@ fn insertion_after_removal() {
 
     connect::single_client(&mut server_app, &mut client_app);
 
-    // Insert and remove at the same time.
-    let server_entity = server_app
-        .world
-        .spawn((Replication, TableComponent))
-        .remove::<TableComponent>()
-        .insert(TableComponent)
-        .id();
-    let client_entity = client_app.world.spawn(Replication).id();
+    let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
+    let client_entity = client_app.world.spawn((Replication, TableComponent)).id();
 
     client_app
         .world
         .resource_mut::<ServerEntityMap>()
         .insert(server_entity, client_entity);
+
+    server_app.update();
+    client_app.update();
+
+    // Insert and remove at the same time.
+    server_app
+        .world
+        .entity_mut(server_entity)
+        .remove::<TableComponent>()
+        .insert(TableComponent);
 
     server_app.update();
     client_app.update();
@@ -557,21 +571,21 @@ fn removal_with_despawn() {
 
     connect::single_client(&mut server_app, &mut client_app);
 
-    // Remove component first.
-    let server_entity = server_app
-        .world
-        .spawn((Replication, TableComponent))
-        .remove::<TableComponent>()
-        .id();
-    let client_entity = client_app.world.spawn(Replication).id();
+    let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
+    let client_entity = client_app.world.spawn((Replication, TableComponent)).id();
 
     client_app
         .world
         .resource_mut::<ServerEntityMap>()
         .insert(server_entity, client_entity);
 
-    // Then despawn the same entity.
-    server_app.world.despawn(server_entity);
+    server_app.update();
+    client_app.update();
+
+    // Insert and remove at the same time.
+    let mut server_entity = server_app.world.entity_mut(server_entity);
+    server_entity.remove::<TableComponent>();
+    server_entity.despawn();
 
     server_app.update();
     client_app.update();
