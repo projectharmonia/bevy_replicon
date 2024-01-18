@@ -1,4 +1,3 @@
-use core::panic;
 use std::{any, marker::PhantomData};
 
 use bevy::{ecs::system::EntityCommands, prelude::*};
@@ -7,12 +6,11 @@ pub trait CommandDontReplicateExt {
     /**
     Disables replication for component `T`.
 
-    May only be called on an entity if  `T` was inserted on it this tick.
+    May only be called on an entity without `T` or if it inserted on it this tick.
 
     # Panics
 
-    Panics if was called on this entity before, or `T` component is missing,
-    or if `T` was inserted in a different tick.
+    Panics if was called on this entity before or if `T` component was present before this tick.
 
     # Examples
 
@@ -55,14 +53,13 @@ impl EntityDontReplicateExt for EntityWorldMut<'_> {
 
             // SAFETY: world is not mutated and used only to obtain the tick without atomic synchronization.
             let tick = unsafe { self.world_mut().change_tick() };
-            let component_ticks = self.get_change_ticks::<T>().unwrap_or_else(|| {
-                panic!("disabling replication for `{component_name}` should only be done for entities with this component")
-            });
-            assert_eq!(
-                tick,
-                component_ticks.added_tick(),
-                "disabling replication for `{component_name}` should be done only with its insertion",
-            );
+            if let Some(component_ticks) = self.get_change_ticks::<T>() {
+                assert_eq!(
+                    tick,
+                    component_ticks.added_tick(),
+                    "disabling replication for `{component_name}` should be done only with its insertion",
+                );
+            }
         }
 
         self.insert(DontReplicate::<T>(PhantomData));
@@ -80,17 +77,6 @@ mod tests {
     use bevy::ecs::system::CommandQueue;
 
     use super::*;
-
-    #[test]
-    #[should_panic]
-    fn without_component() {
-        let mut world = World::new();
-
-        let mut queue = CommandQueue::default();
-        let mut commands = Commands::new(&mut queue, &world);
-        commands.spawn_empty().dont_replicate::<Transform>();
-        queue.apply(&mut world);
-    }
 
     #[test]
     #[should_panic]
