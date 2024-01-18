@@ -210,6 +210,8 @@ impl ServerPlugin {
         messages.prepare(clients_info);
 
         collect_mappings(&mut messages, &mut set.p2())?;
+        collect_despawns(&mut messages, &mut set.p3())?;
+        collect_removals(&mut messages, &mut set.p4(), change_tick.this_run())?;
         collect_changes(
             &mut messages,
             &archetypes_info,
@@ -217,8 +219,6 @@ impl ServerPlugin {
             set.p0(),
             &change_tick,
         )?;
-        collect_despawns(&mut messages, &mut set.p3())?;
-        collect_removals(&mut messages, &mut set.p4(), change_tick.this_run())?;
 
         let mut client_buffers = mem::take(&mut *set.p5());
         let clients_info = messages.send(

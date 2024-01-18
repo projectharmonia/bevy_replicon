@@ -211,20 +211,6 @@ fn apply_init_message(
         return Ok(());
     }
 
-    apply_init_components(
-        &mut cursor,
-        world,
-        entity_map,
-        entity_ticks,
-        stats.as_deref_mut(),
-        ComponentsKind::Insert,
-        replication_rules,
-        replicon_tick,
-    )?;
-    if cursor.position() == end_pos {
-        return Ok(());
-    }
-
     apply_despawns(
         &mut cursor,
         world,
@@ -243,8 +229,22 @@ fn apply_init_message(
         world,
         entity_map,
         entity_ticks,
-        stats,
+        stats.as_deref_mut(),
         ComponentsKind::Removal,
+        replication_rules,
+        replicon_tick,
+    )?;
+    if cursor.position() == end_pos {
+        return Ok(());
+    }
+
+    apply_init_components(
+        &mut cursor,
+        world,
+        entity_map,
+        entity_ticks,
+        stats,
+        ComponentsKind::Insert,
         replication_rules,
         replicon_tick,
     )?;
