@@ -10,7 +10,8 @@ pub trait CommandDontReplicateExt {
 
     # Panics
 
-    Panics if was called on this entity before or if `T` component was present before this tick.
+    Panics if `debug_assertions` is enabled and if was called on this entity before
+    or if `T` component was present before this tick.
 
     # Examples
 
@@ -63,7 +64,6 @@ impl EntityDontReplicateExt for EntityWorldMut<'_> {
         }
 
         self.insert(DontReplicate::<T>(PhantomData));
-
         self
     }
 }
