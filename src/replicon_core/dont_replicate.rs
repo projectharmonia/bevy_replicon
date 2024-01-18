@@ -11,7 +11,7 @@ pub trait CommandDontReplicateExt {
 
     # Panics
 
-    Panics if `debug_assertions` is enabled and if was called on this entity before
+    Panics if `debug_assertions` is enabled and if called on this entity once before
     or if `T` component was present before this tick.
 
     # Examples
