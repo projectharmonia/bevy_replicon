@@ -331,7 +331,7 @@ impl ClientState {
 /// Reusable buffers for [`ClientCache`] and [`ClientState`].
 #[derive(Default, Resource)]
 pub(crate) struct ClientBuffers {
-    /// [`ClientCache`]'s of previously disconnected clients.
+    /// [`ClientState`]'s of previously disconnected clients.
     ///
     /// Stored to reuse allocated memory.
     states: Vec<ClientState>,
