@@ -6,7 +6,8 @@ pub trait CommandDontReplicateExt {
     /**
     Disables replication for component `T`.
 
-    May only be called on an entity without `T` or if it inserted on it this tick.
+    May only be called on an entity without `T` or if `T` was inserted on it this tick.
+    May only be called once per entity.
 
     # Panics
 

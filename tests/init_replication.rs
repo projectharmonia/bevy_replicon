@@ -442,7 +442,7 @@ fn dont_replicate_after_insertion() {
     server_app.update();
     client_app.update();
 
-    // Reinsert and disable replication.
+    // Insert and disable replication.
     server_app
         .world
         .entity_mut(server_entity)
