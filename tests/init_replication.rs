@@ -582,10 +582,12 @@ fn removal_with_despawn() {
     server_app.update();
     client_app.update();
 
-    // Insert and remove at the same time.
-    let mut server_entity = server_app.world.entity_mut(server_entity);
-    server_entity.remove::<TableComponent>();
-    server_entity.despawn();
+    // Un-replicate and remove at the same time.
+    server_app
+        .world
+        .entity_mut(server_entity)
+        .remove::<TableComponent>()
+        .remove::<Replication>();
 
     server_app.update();
     client_app.update();
