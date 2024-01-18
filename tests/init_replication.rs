@@ -415,6 +415,91 @@ fn insertion() {
 }
 
 #[test]
+fn dont_replicate_after_insertion() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<TableComponent>();
+    }
+
+    connect::single_client(&mut server_app, &mut client_app);
+
+    let server_entity = server_app.world.spawn(Replication).id();
+    let client_entity = client_app.world.spawn(Replication).id();
+
+    client_app
+        .world
+        .resource_mut::<ServerEntityMap>()
+        .insert(server_entity, client_entity);
+
+    server_app.update();
+    client_app.update();
+
+    // Insert and disable replication.
+    server_app
+        .world
+        .entity_mut(server_entity)
+        .insert(TableComponent)
+        .dont_replicate::<TableComponent>();
+
+    server_app.update();
+    client_app.update();
+
+    let client_entity = client_app.world.entity(client_entity);
+    assert!(!client_entity.contains::<TableComponent>());
+}
+
+#[test]
+fn dont_replicate_after_reinsertion() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            ReplicationPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<TableComponent>();
+    }
+
+    connect::single_client(&mut server_app, &mut client_app);
+
+    let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
+    let client_entity = client_app.world.spawn((Replication, TableComponent)).id();
+
+    client_app
+        .world
+        .resource_mut::<ServerEntityMap>()
+        .insert(server_entity, client_entity);
+
+    server_app.update();
+    client_app.update();
+
+    // Reinsert and disable replication.
+    server_app
+        .world
+        .entity_mut(server_entity)
+        .remove::<TableComponent>()
+        .insert(TableComponent)
+        .dont_replicate::<TableComponent>();
+
+    server_app.update();
+    client_app.update();
+
+    let client_entity = client_app.world.entity(client_entity);
+    assert!(!client_entity.contains::<TableComponent>());
+}
+
+#[test]
 fn removal() {
     let mut server_app = App::new();
     let mut client_app = App::new();
