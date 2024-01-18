@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Rename `ClientsInfo` into `ClientCache`.
+- Rename `ClientInfo` into `ClientState`.
 - Allow calling `dont_replicate::<T>` with the insertion of `T` instead of after `Replication` insertion.
 - `dont_replicate::<T>` can panic only in `debug_assertions` is enabled.
 
