@@ -18,7 +18,7 @@ use crate::{
         replication_rules::MapNetworkEntities, replicon_tick::RepliconTick, NetworkChannels,
     },
     server::{
-        clients_info::{ClientInfo, ClientsInfo},
+        client_cache::{ClientCache, ClientState},
         has_authority, ServerSet, SERVER_ID,
     },
 };
@@ -71,13 +71,13 @@ pub trait ServerEventAppExt {
     fn sending_reflect_system(
         mut server: ResMut<RenetServer>,
         mut reflect_events: EventReader<ToClients<ReflectEvent>>,
-        clients_info: Res<ClientsInfo>,
+        client_cache: Res<ClientCache>,
         channel: Res<ServerEventChannel<ReflectEvent>>,
         registry: Res<AppTypeRegistry>,
     ) {
         let registry = registry.read();
         for ToClients { event, mode } in reflect_events.read() {
-            server_event::send_with(&mut server, &clients_info, *channel, *mode, |cursor| {
+            server_event::send_with(&mut server, &client_cache, *channel, *mode, |cursor| {
                 let serializer = ReflectSerializer::new(&*event.0, &registry);
                 DefaultOptions::new().serialize_into(cursor, &serializer)
             })
@@ -242,11 +242,11 @@ fn receiving_and_mapping_system<T: Event + MapNetworkEntities + DeserializeOwned
 fn sending_system<T: Event + Serialize>(
     mut server: ResMut<RenetServer>,
     mut server_events: EventReader<ToClients<T>>,
-    clients_info: Res<ClientsInfo>,
+    client_cache: Res<ClientCache>,
     channel: Res<ServerEventChannel<T>>,
 ) {
     for ToClients { event, mode } in server_events.read() {
-        send_with(&mut server, &clients_info, *channel, *mode, |cursor| {
+        send_with(&mut server, &client_cache, *channel, *mode, |cursor| {
             DefaultOptions::new().serialize_into(cursor, &event)
         })
         .expect("server event should be serializable");
@@ -296,7 +296,7 @@ fn reset_system<T: Event>(mut event_queue: ResMut<ServerEventQueue<T>>) {
 /// See also [`ServerEventAppExt::add_server_event_with`].
 pub fn send_with<T>(
     server: &mut RenetServer,
-    clients_info: &ClientsInfo,
+    client_cache: &ClientCache,
     channel: ServerEventChannel<T>,
     mode: SendMode,
     serialize_fn: impl Fn(&mut Cursor<Vec<u8>>) -> bincode::Result<()>,
@@ -304,28 +304,28 @@ pub fn send_with<T>(
     match mode {
         SendMode::Broadcast => {
             let mut previous_message = None;
-            for client_info in clients_info.iter() {
-                let message = serialize_with(client_info, previous_message, &serialize_fn)?;
-                server.send_message(client_info.id(), channel, message.bytes.clone());
+            for client_state in client_cache.iter() {
+                let message = serialize_with(client_state, previous_message, &serialize_fn)?;
+                server.send_message(client_state.id(), channel, message.bytes.clone());
                 previous_message = Some(message);
             }
         }
         SendMode::BroadcastExcept(client_id) => {
             let mut previous_message = None;
-            for client_info in clients_info.iter() {
-                if client_info.id() == client_id {
+            for client_state in client_cache.iter() {
+                if client_state.id() == client_id {
                     continue;
                 }
-                let message = serialize_with(client_info, previous_message, &serialize_fn)?;
-                server.send_message(client_info.id(), channel, message.bytes.clone());
+                let message = serialize_with(client_state, previous_message, &serialize_fn)?;
+                server.send_message(client_state.id(), channel, message.bytes.clone());
                 previous_message = Some(message);
             }
         }
         SendMode::Direct(client_id) => {
             if client_id != SERVER_ID {
-                if let Some(client_info) = clients_info.get_client(client_id) {
-                    let message = serialize_with(client_info, None, &serialize_fn)?;
-                    server.send_message(client_info.id(), channel, message.bytes);
+                if let Some(client_state) = client_cache.get_client(client_id) {
+                    let message = serialize_with(client_state, None, &serialize_fn)?;
+                    server.send_message(client_state.id(), channel, message.bytes);
                 }
             }
         }
@@ -335,21 +335,21 @@ pub fn send_with<T>(
 }
 
 fn serialize_with(
-    client_info: &ClientInfo,
+    client_state: &ClientState,
     previous_message: Option<SerializedMessage>,
     serialize_fn: impl Fn(&mut Cursor<Vec<u8>>) -> bincode::Result<()>,
 ) -> bincode::Result<SerializedMessage> {
     if let Some(previous_message) = previous_message {
-        if previous_message.tick == client_info.change_tick {
+        if previous_message.tick == client_state.change_tick {
             return Ok(previous_message);
         }
 
-        let tick_size = DefaultOptions::new().serialized_size(&client_info.change_tick)? as usize;
+        let tick_size = DefaultOptions::new().serialized_size(&client_state.change_tick)? as usize;
         let mut bytes = Vec::with_capacity(tick_size + previous_message.event_bytes().len());
-        DefaultOptions::new().serialize_into(&mut bytes, &client_info.change_tick)?;
+        DefaultOptions::new().serialize_into(&mut bytes, &client_state.change_tick)?;
         bytes.extend_from_slice(previous_message.event_bytes());
         let message = SerializedMessage {
-            tick: client_info.change_tick,
+            tick: client_state.change_tick,
             tick_size,
             bytes: bytes.into(),
         };
@@ -357,11 +357,11 @@ fn serialize_with(
         Ok(message)
     } else {
         let mut cursor = Cursor::new(Vec::new());
-        DefaultOptions::new().serialize_into(&mut cursor, &client_info.change_tick)?;
+        DefaultOptions::new().serialize_into(&mut cursor, &client_state.change_tick)?;
         let tick_size = cursor.get_ref().len();
         (serialize_fn)(&mut cursor)?;
         let message = SerializedMessage {
-            tick: client_info.change_tick,
+            tick: client_state.change_tick,
             tick_size,
             bytes: cursor.into_inner().into(),
         };

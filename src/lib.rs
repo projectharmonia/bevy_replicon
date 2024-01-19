@@ -432,7 +432,7 @@ pub mod prelude {
             NetworkChannels, ReplicationChannel, RepliconCorePlugin,
         },
         server::{
-            clients_info::{client_visibility::ClientVisibility, ClientInfo, ClientsInfo},
+            client_cache::{client_visibility::ClientVisibility, ClientCache, ClientState},
             has_authority, ClientEntityMap, ClientMapping, ServerPlugin, ServerSet, TickPolicy,
             VisibilityPolicy, SERVER_ID,
         },
