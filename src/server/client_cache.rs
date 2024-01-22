@@ -27,6 +27,11 @@ impl ClientCache {
         }
     }
 
+    /// Returns the configured [`VisibilityPolicy`].
+    pub fn visibility_policy(&self) -> VisibilityPolicy {
+        self.policy
+    }
+
     /// Returns a reference to a connected client's state.
     ///
     /// This operation is *O*(*n*).
