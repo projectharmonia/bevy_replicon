@@ -37,7 +37,7 @@ See also [examples](https://github.com/projectharmonia/bevy_replicon/tree/master
 
 | bevy   | bevy_replicon |
 |--------|---------------|
-| 0.12.1 | 0.18-0.20     |
+| 0.12.1 | 0.18-0.21     |
 | 0.11.0 | 0.6-0.17      |
 | 0.10.1 | 0.2-0.6       |
 | 0.10.0 | 0.1           |
