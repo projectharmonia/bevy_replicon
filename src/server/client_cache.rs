@@ -155,7 +155,7 @@ pub struct ClientState {
     /// of the client.
     ///
     /// It should be included in update messages and server events to avoid needless waiting for the next init message to arrive.
-    pub(crate) change_tick: RepliconTick,
+    pub change_tick: RepliconTick,
 
     /// Update message indexes mapped to their info.
     updates: HashMap<u16, UpdateInfo>,
@@ -179,7 +179,7 @@ impl ClientState {
     }
 
     // Returns associated client ID.
-    pub(crate) fn id(&self) -> ClientId {
+    pub fn id(&self) -> ClientId {
         self.id
     }
 
@@ -251,7 +251,7 @@ impl ClientState {
     }
 
     /// Gets the change limit for an entity that is replicated to this client.
-    pub(super) fn get_change_limit(&mut self, entity: Entity) -> Option<Tick> {
+    pub fn get_change_limit(&mut self, entity: Entity) -> Option<Tick> {
         self.ticks.get(&entity).copied()
     }
 
