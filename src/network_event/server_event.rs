@@ -377,9 +377,9 @@ pub fn serialize_with(
 
 /// Cached message for use in [`serialize_with`].
 pub struct SerializedMessage {
-    tick: RepliconTick,
-    tick_size: usize,
-    bytes: Bytes,
+    pub tick: RepliconTick,
+    pub tick_size: usize,
+    pub bytes: Bytes,
 }
 
 impl SerializedMessage {
