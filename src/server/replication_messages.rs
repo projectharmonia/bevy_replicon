@@ -388,7 +388,7 @@ impl InitMessage {
             return Ok(());
         }
 
-        client_state.change_tick = replicon_tick;
+        client_state.set_change_tick(replicon_tick);
 
         let mut header = [0; mem::size_of::<RepliconTick>()];
         bincode::serialize_into(&mut header[..], &replicon_tick)?;
@@ -568,7 +568,10 @@ impl UpdateMessage {
         trace!("sending update message(s) to client {}", client_state.id());
         const TICKS_SIZE: usize = 2 * mem::size_of::<RepliconTick>();
         let mut header = [0; TICKS_SIZE + mem::size_of::<u16>()];
-        bincode::serialize_into(&mut header[..], &(client_state.change_tick, replicon_tick))?;
+        bincode::serialize_into(
+            &mut header[..],
+            &(client_state.change_tick(), replicon_tick),
+        )?;
 
         let mut message_size = 0;
         let client_id = client_state.id();

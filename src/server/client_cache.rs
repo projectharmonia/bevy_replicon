@@ -151,11 +151,12 @@ pub struct ClientState {
     /// Entity visibility settings.
     visibility: ClientVisibility,
 
-    /// The last tick in which a replicated entity was spawned, despawned, or gained/lost a component from the perspective
-    /// of the client.
+    /// The last tick in which a replicated entity was spawned, despawned, or gained/lost a component from the
+    /// perspective of the client.
     ///
-    /// It should be included in update messages and server events to avoid needless waiting for the next init message to arrive.
-    pub change_tick: RepliconTick,
+    /// It should be included in update messages and server events to avoid needless waiting for the next init
+    /// message to arrive.
+    change_tick: RepliconTick,
 
     /// Update message indexes mapped to their info.
     updates: HashMap<u16, UpdateInfo>,
@@ -191,6 +192,17 @@ impl ClientState {
     /// Returns a mutable reference to the client's visibility settings.
     pub fn visibility_mut(&mut self) -> &mut ClientVisibility {
         &mut self.visibility
+    }
+
+    /// Sets the client's change tick.
+    pub(super) fn set_change_tick(&mut self, new: RepliconTick) {
+        self.change_tick = new;
+    }
+
+    /// Returns the last tick in which a replicated entity was spawned, despawned, or gained/lost a component from the
+    /// perspective of the client.
+    pub fn change_tick(&self) -> RepliconTick {
+        self.change_tick
     }
 
     /// Clears all entities for unacknowledged updates, returning them as an iterator.
