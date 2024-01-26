@@ -334,7 +334,12 @@ pub fn send_with<T>(
     Ok(())
 }
 
-fn serialize_with(
+/// Helper for serializing a server event.
+///
+/// Will prepend the client's change tick to the injected message.
+///
+/// Optimized to avoid reallocations when consecutive clients have the same change tick.
+pub fn serialize_with(
     client_state: &ClientState,
     previous_message: Option<SerializedMessage>,
     serialize_fn: impl Fn(&mut Cursor<Vec<u8>>) -> bincode::Result<()>,
@@ -370,7 +375,8 @@ fn serialize_with(
     }
 }
 
-struct SerializedMessage {
+/// Cached message for use in [`serialize_with`].
+pub struct SerializedMessage {
     tick: RepliconTick,
     tick_size: usize,
     bytes: Bytes,

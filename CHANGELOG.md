@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changes
 
 - Increased publicity of `ClientState` API.
+- Add `serialize_with` and `SerializedMessage` to API for use in custom server event serialization.
 
 ## [0.21.1] - 2024-01-22
 

@@ -418,7 +418,10 @@ pub mod prelude {
         },
         network_event::{
             client_event::{ClientEventAppExt, FromClient},
-            server_event::{SendMode, ServerEventAppExt, ServerEventQueue, ToClients},
+            server_event::{
+                serialize_with, SendMode, SerializedMessage, ServerEventAppExt, ServerEventQueue,
+                ToClients,
+            },
             ClientEventChannel, EventMapper, EventType, ServerEventChannel,
         },
         parent_sync::{ParentSync, ParentSyncPlugin},
