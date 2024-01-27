@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changes
+
+- Increased publicity of `ClientState` API.
+
 ## [0.21.1] - 2024-01-22
 
 ### Added

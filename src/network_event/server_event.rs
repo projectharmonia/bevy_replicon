@@ -334,22 +334,28 @@ pub fn send_with<T>(
     Ok(())
 }
 
+/// Helper for serializing a server event.
+///
+/// Will prepend the client's change tick to the injected message.
+///
+/// Optimized to avoid reallocations when consecutive clients have the same change tick.
 fn serialize_with(
     client_state: &ClientState,
     previous_message: Option<SerializedMessage>,
     serialize_fn: impl Fn(&mut Cursor<Vec<u8>>) -> bincode::Result<()>,
 ) -> bincode::Result<SerializedMessage> {
     if let Some(previous_message) = previous_message {
-        if previous_message.tick == client_state.change_tick {
+        if previous_message.tick == client_state.change_tick() {
             return Ok(previous_message);
         }
 
-        let tick_size = DefaultOptions::new().serialized_size(&client_state.change_tick)? as usize;
+        let tick_size =
+            DefaultOptions::new().serialized_size(&client_state.change_tick())? as usize;
         let mut bytes = Vec::with_capacity(tick_size + previous_message.event_bytes().len());
-        DefaultOptions::new().serialize_into(&mut bytes, &client_state.change_tick)?;
+        DefaultOptions::new().serialize_into(&mut bytes, &client_state.change_tick())?;
         bytes.extend_from_slice(previous_message.event_bytes());
         let message = SerializedMessage {
-            tick: client_state.change_tick,
+            tick: client_state.change_tick(),
             tick_size,
             bytes: bytes.into(),
         };
@@ -357,11 +363,11 @@ fn serialize_with(
         Ok(message)
     } else {
         let mut cursor = Cursor::new(Vec::new());
-        DefaultOptions::new().serialize_into(&mut cursor, &client_state.change_tick)?;
+        DefaultOptions::new().serialize_into(&mut cursor, &client_state.change_tick())?;
         let tick_size = cursor.get_ref().len();
         (serialize_fn)(&mut cursor)?;
         let message = SerializedMessage {
-            tick: client_state.change_tick,
+            tick: client_state.change_tick(),
             tick_size,
             bytes: cursor.into_inner().into(),
         };
@@ -370,6 +376,7 @@ fn serialize_with(
     }
 }
 
+/// Cached message for use in [`serialize_with`].
 struct SerializedMessage {
     tick: RepliconTick,
     tick_size: usize,
