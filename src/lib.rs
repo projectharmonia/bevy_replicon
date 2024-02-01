@@ -86,7 +86,7 @@ keep the world in sync.
 By default, no components are replicated. A component will be replicated if it has been registered for replication
 **and** its entity has the [`Replication`] component.
 
-In other words you need two things to start replication :
+In other words you need two things to start replication:
 
 1. Register component type for replication. Component should implement
 [`Serialize`](serde::Serialize) and [`Deserialize`](serde::Deserialize).
