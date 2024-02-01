@@ -44,6 +44,38 @@ app.add_plugins((
 
 The plugin handles Renet initialization, you don't need to add its plugins.
 
+## Server and client creation
+
+To connect to the server or create it, you need to initialize the
+[`RenetClient`] and [`NetcodeClientTransport`](renet::transport::NetcodeClientTransport) **or**
+[`RenetServer`] and [`NetcodeServerTransport`](renet::transport::NetcodeServerTransport) resources from Renet.
+All Renet API is re-exported from this plugin.
+
+Never insert client and server resources in the same app for single-player, it will cause replication loop.
+Use the described pattern below instead.
+
+The only part of it that handled by this plugin is channels that used for
+events and component replication. These channels should be obtained from the
+[`NetworkChannels`] resource. So when creating server you need to initialize
+[`ConnectionConfig`](renet::ConnectionConfig) like this:
+
+```
+use bevy::prelude::*;
+use bevy_replicon::{prelude::*, renet::ConnectionConfig};
+
+# let mut app = App::new();
+# app.add_plugins(ReplicationPlugins);
+let network_channels = app.world.resource::<NetworkChannels>();
+let connection_config = ConnectionConfig {
+    server_channels_config: network_channels.get_server_configs(),
+    client_channels_config: network_channels.get_client_configs(),
+    ..Default::default()
+};
+```
+
+For full example of how to initialize server or client see the example in the
+repository.
+
 ## Component replication
 
 It's a process of sending component changes from server to clients in order to
@@ -328,38 +360,6 @@ Just like with client events, if the event contains an entity, then
 [`ServerEventAppExt::add_mapped_server_event()`] should be used instead.
 
 For events that require special sending and receiving functions you can use [`ServerEventAppExt::add_server_event_with()`].
-
-## Server and client creation
-
-To connect to the server or create it, you need to initialize the
-[`RenetClient`] and [`NetcodeClientTransport`](renet::transport::NetcodeClientTransport) **or**
-[`RenetServer`] and [`NetcodeServerTransport`](renet::transport::NetcodeServerTransport) resources from Renet.
-All Renet API is re-exported from this plugin.
-
-Never create client and server resources in the same app for single-player, it will cause replication loop.
-Use the described pattern instead.
-
-The only part of it that handled by this plugin is channels that used for
-events and component replication. These channels should be obtained from the
-[`NetworkChannels`] resource. So when creating server you need to initialize
-[`ConnectionConfig`](renet::ConnectionConfig) like this:
-
-```
-use bevy::prelude::*;
-use bevy_replicon::{prelude::*, renet::ConnectionConfig};
-
-# let mut app = App::new();
-# app.add_plugins(ReplicationPlugins);
-let network_channels = app.world.resource::<NetworkChannels>();
-let connection_config = ConnectionConfig {
-    server_channels_config: network_channels.get_server_configs(),
-    client_channels_config: network_channels.get_client_configs(),
-    ..Default::default()
-};
-```
-
-For full example of how to initialize server or client see the example in the
-repository.
 
 ## System sets and conditions
 
