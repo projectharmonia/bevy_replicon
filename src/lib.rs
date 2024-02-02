@@ -377,6 +377,58 @@ They rarely used for gameplay systems (since you write the same logic for
 multiplayer and single-player!), but could be used for server
 creation / connection systems and corresponding UI.
 
+## Client visibility
+
+You can control which part of the world are visible for each client by setting visibility policy
+in [`ServerPlugin`] to [`VisibilityPolicy::Whitelist`] or [`VisibilityPolicy::Blacklist`].
+
+In order to set which entity is visible, you need to use [`ClientCache`] resource
+to obtain [`ClientState`] for specific client and get its [`ClientVisibility`]:
+
+```
+# use bevy::prelude::*;
+# use bevy_replicon::{prelude::*, renet::ClientId};
+# use serde::{Deserialize, Serialize};
+# let mut app = App::new();
+app.add_plugins((
+    MinimalPlugins,
+    ReplicationPlugins.set(ServerPlugin {
+        visibility_policy: VisibilityPolicy::Whitelist, // Makes all entities invisible for clients by default.
+        ..Default::default()
+    }),
+))
+.add_systems(
+    Update,
+    visibility_system.run_if(resource_exists::<RenetServer>()),
+);
+
+/// Disables the visibility of other players' entities that are further away than the visible distance.
+fn visibility_system(
+    mut client_cache: ResMut<ClientCache>,
+    moved_players: Query<(&Transform, &Player), Changed<Transform>>,
+    other_players: Query<(Entity, &Transform, &Player)>,
+) {
+    for (moved_transform, moved_player) in &moved_players {
+        let client_state = client_cache.client_mut(moved_player.0);
+        for (entity, transform, _) in other_players
+            .iter()
+            .filter(|(.., player)| player.0 != moved_player.0)
+        {
+            const VISIBLE_DISTANCE: f32 = 100.0;
+            let distance = moved_transform.translation.distance(transform.translation);
+            client_state
+                .visibility_mut()
+                .set_visibility(entity, distance < VISIBLE_DISTANCE);
+        }
+    }
+}
+
+#[derive(Component, Deserialize, Serialize)]
+struct Player(ClientId);
+```
+
+For a higher level API consider using [`bevy_replicon_attributes`](https://crates.io/crates/bevy_replicon_attributes)
+
 ## Eventual consistency
 
 All events, inserts, removals and despawns will be applied to clients in the same order as on the server.
