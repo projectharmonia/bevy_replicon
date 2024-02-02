@@ -495,7 +495,7 @@ pub enum ClientSet {
     /// reconnecting.
     /// You may want to disable this set if you want to preserve client replication state across reconnects.
     /// In that case, you need to manually repair the client state (or use something like
-    /// [bevy_replicon_repair](https://github.com/UkoeHB/bevy_replicon_repair)).
+    /// [`bevy_replicon_repair`](https://crates.io/crates/bevy_replicon_repair)).
     Reset,
     /// Systems that reset queued server events.
     ///
