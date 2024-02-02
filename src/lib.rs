@@ -52,7 +52,8 @@ To connect to the server or create it, you need to initialize the
 All Renet API is re-exported from this plugin.
 
 Never insert client and server resources in the same app for single-player, it will cause replication loop.
-Use the described pattern below instead.
+Use the described pattern in [system sets and conditions](#system-sets-and-conditions)
+in combination with [network events](#network-events).
 
 The only part of it that handled by this plugin is channels that used for
 events and component replication. These channels should be obtained from the
