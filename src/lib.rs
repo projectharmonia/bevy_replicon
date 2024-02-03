@@ -44,6 +44,40 @@ app.add_plugins((
 
 The plugin handles Renet initialization, you don't need to add its plugins.
 
+## Server and client creation
+
+To connect to the server or create it, you need to initialize the
+[`RenetClient`] and [`NetcodeClientTransport`](renet::transport::NetcodeClientTransport) **or**
+[`RenetServer`] and [`NetcodeServerTransport`](renet::transport::NetcodeServerTransport) resources from Renet.
+All Renet API is re-exported from this plugin.
+
+Never insert client and server resources in the same app for single-player, it will cause a replication loop.
+Use the described pattern in [system sets and conditions](#system-sets-and-conditions)
+in combination with [network events](#network-events).
+
+The only part of renet setup that is handled by this plugin is defining channels
+for events and component replication.
+These channels should be obtained from the [`NetworkChannels`] resource.
+So when creating server you need to initialize [`ConnectionConfig`](renet::ConnectionConfig)
+like this:
+
+```
+use bevy::prelude::*;
+use bevy_replicon::{prelude::*, renet::ConnectionConfig};
+
+# let mut app = App::new();
+# app.add_plugins(ReplicationPlugins);
+let network_channels = app.world.resource::<NetworkChannels>();
+let connection_config = ConnectionConfig {
+    server_channels_config: network_channels.get_server_configs(),
+    client_channels_config: network_channels.get_client_configs(),
+    ..Default::default()
+};
+```
+
+For a full example of how to initialize server or client see the example in the
+repository.
+
 ## Component replication
 
 It's a process of sending component changes from server to clients in order to
@@ -54,7 +88,7 @@ keep the world in sync.
 By default, no components are replicated. A component will be replicated if it has been registered for replication
 **and** its entity has the [`Replication`] component.
 
-In other words you need two things to start replication :
+In other words you need two things to start replication:
 
 1. Register component type for replication. Component should implement
 [`Serialize`](serde::Serialize) and [`Deserialize`](serde::Deserialize).
@@ -329,38 +363,6 @@ Just like with client events, if the event contains an entity, then
 
 For events that require special sending and receiving functions you can use [`ServerEventAppExt::add_server_event_with()`].
 
-## Server and client creation
-
-To connect to the server or create it, you need to initialize the
-[`RenetClient`] and [`NetcodeClientTransport`](renet::transport::NetcodeClientTransport) **or**
-[`RenetServer`] and [`NetcodeServerTransport`](renet::transport::NetcodeServerTransport) resources from Renet.
-All Renet API is re-exported from this plugin.
-
-Never create client and server resources in the same app for single-player, it will cause replication loop.
-Use the described pattern instead.
-
-The only part of it that handled by this plugin is channels that used for
-events and component replication. These channels should be obtained from the
-[`NetworkChannels`] resource. So when creating server you need to initialize
-[`ConnectionConfig`](renet::ConnectionConfig) like this:
-
-```
-use bevy::prelude::*;
-use bevy_replicon::{prelude::*, renet::ConnectionConfig};
-
-# let mut app = App::new();
-# app.add_plugins(ReplicationPlugins);
-let network_channels = app.world.resource::<NetworkChannels>();
-let connection_config = ConnectionConfig {
-    server_channels_config: network_channels.get_server_configs(),
-    client_channels_config: network_channels.get_client_configs(),
-    ..Default::default()
-};
-```
-
-For full example of how to initialize server or client see the example in the
-repository.
-
 ## System sets and conditions
 
 When configuring systems for multiplayer game, you often want to run some
@@ -375,6 +377,58 @@ To check if you running server or client, you can use conditions based on
 They rarely used for gameplay systems (since you write the same logic for
 multiplayer and single-player!), but could be used for server
 creation / connection systems and corresponding UI.
+
+## Client visibility
+
+You can control which parts of the world are visible for each client by setting visibility policy
+in [`ServerPlugin`] to [`VisibilityPolicy::Whitelist`] or [`VisibilityPolicy::Blacklist`].
+
+In order to set which entity is visible, you need to use the [`ClientCache`] resource
+to obtain the [`ClientState`] for a specific client and get its [`ClientVisibility`]:
+
+```
+# use bevy::prelude::*;
+# use bevy_replicon::{prelude::*, renet::ClientId};
+# use serde::{Deserialize, Serialize};
+# let mut app = App::new();
+app.add_plugins((
+    MinimalPlugins,
+    ReplicationPlugins.set(ServerPlugin {
+        visibility_policy: VisibilityPolicy::Whitelist, // Makes all entities invisible for clients by default.
+        ..Default::default()
+    }),
+))
+.add_systems(
+    Update,
+    visibility_system.run_if(resource_exists::<RenetServer>()),
+);
+
+/// Disables the visibility of other players' entities that are further away than the visible distance.
+fn visibility_system(
+    mut client_cache: ResMut<ClientCache>,
+    moved_players: Query<(&Transform, &Player), Changed<Transform>>,
+    other_players: Query<(Entity, &Transform, &Player)>,
+) {
+    for (moved_transform, moved_player) in &moved_players {
+        let client_state = client_cache.client_mut(moved_player.0);
+        for (entity, transform, _) in other_players
+            .iter()
+            .filter(|(.., player)| player.0 != moved_player.0)
+        {
+            const VISIBLE_DISTANCE: f32 = 100.0;
+            let distance = moved_transform.translation.distance(transform.translation);
+            client_state
+                .visibility_mut()
+                .set_visibility(entity, distance < VISIBLE_DISTANCE);
+        }
+    }
+}
+
+#[derive(Component, Deserialize, Serialize)]
+struct Player(ClientId);
+```
+
+For a higher level API consider using [`bevy_replicon_attributes`](https://crates.io/crates/bevy_replicon_attributes).
 
 ## Eventual consistency
 
