@@ -51,14 +51,15 @@ To connect to the server or create it, you need to initialize the
 [`RenetServer`] and [`NetcodeServerTransport`](renet::transport::NetcodeServerTransport) resources from Renet.
 All Renet API is re-exported from this plugin.
 
-Never insert client and server resources in the same app for single-player, it will cause replication loop.
+Never insert client and server resources in the same app for single-player, it will cause a replication loop.
 Use the described pattern in [system sets and conditions](#system-sets-and-conditions)
 in combination with [network events](#network-events).
 
-The only part of it that handled by this plugin is channels that used for
-events and component replication. These channels should be obtained from the
-[`NetworkChannels`] resource. So when creating server you need to initialize
-[`ConnectionConfig`](renet::ConnectionConfig) like this:
+The only part of renet setup that is handled by this plugin is defining channels
+for events and component replication.
+These channels should be obtained from the [`NetworkChannels`] resource.
+So when creating server you need to initialize [`ConnectionConfig`](renet::ConnectionConfig)
+like this:
 
 ```
 use bevy::prelude::*;
@@ -74,7 +75,7 @@ let connection_config = ConnectionConfig {
 };
 ```
 
-For full example of how to initialize server or client see the example in the
+For a full example of how to initialize server or client see the example in the
 repository.
 
 ## Component replication
@@ -379,11 +380,11 @@ creation / connection systems and corresponding UI.
 
 ## Client visibility
 
-You can control which part of the world are visible for each client by setting visibility policy
+You can control which parts of the world are visible for each client by setting visibility policy
 in [`ServerPlugin`] to [`VisibilityPolicy::Whitelist`] or [`VisibilityPolicy::Blacklist`].
 
-In order to set which entity is visible, you need to use [`ClientCache`] resource
-to obtain [`ClientState`] for specific client and get its [`ClientVisibility`]:
+In order to set which entity is visible, you need to use the [`ClientCache`] resource
+to obtain the [`ClientState`] for a specific client and get its [`ClientVisibility`]:
 
 ```
 # use bevy::prelude::*;
@@ -427,7 +428,7 @@ fn visibility_system(
 struct Player(ClientId);
 ```
 
-For a higher level API consider using [`bevy_replicon_attributes`](https://crates.io/crates/bevy_replicon_attributes)
+For a higher level API consider using [`bevy_replicon_attributes`](https://crates.io/crates/bevy_replicon_attributes).
 
 ## Eventual consistency
 
