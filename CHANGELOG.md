@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Misuse of `Vec::reserve` that would cause excess allocations.
+
 ## [0.21.2] - 2024-01-27
 
 ### Changes
