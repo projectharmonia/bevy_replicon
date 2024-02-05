@@ -39,7 +39,8 @@ impl ReplicationMessages {
     /// If there are more messages than the number of clients, then the extra messages remain untouched
     /// and iteration methods will not include them.
     pub(super) fn prepare(&mut self, client_cache: ClientCache) {
-        self.data.reserve(client_cache.len());
+        self.data
+            .reserve(client_cache.len().saturating_sub(self.data.len()));
 
         for index in 0..client_cache.len() {
             if let Some((init_message, update_message)) = self.data.get_mut(index) {
