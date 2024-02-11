@@ -6,10 +6,12 @@ on:
     paths-ignore:
       - ".gitignore"
       - ".github/dependabot.yml"
+      - "deny.toml"
   pull_request:
     paths-ignore:
       - ".gitignore"
       - ".github/dependabot.yml"
+      - "deny.toml"
 env:
   CARGO_TERM_COLOR: always
 jobs:
