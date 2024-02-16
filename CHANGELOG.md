@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Changed `ClientEventAppExt::add_mapped_client_event` to clone the event instead of draining it. This means that mapped client events must now implement `Clone`
+
 ### Fixed
 
 - Misuse of `Vec::reserve` that would cause excess allocations.
