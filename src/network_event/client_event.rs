@@ -23,6 +23,15 @@ pub trait ClientEventAppExt {
     ) -> &mut Self;
 
     /// Same as [`Self::add_client_event`], but additionally maps client entities to server before sending.
+    fn add_mapped_client_event<
+        T: Event + Serialize + DeserializeOwned + MapNetworkEntities + Clone,
+    >(
+        &mut self,
+        send_type: impl Into<SendType>,
+    ) -> &mut Self;
+
+    /// Same as [`Self::add_mapped_client_event`], but drains the events, preventing them from being
+    /// read by future systems, in exchange for not requiring the event type to impl [`Clone`]
     fn add_mapped_client_event_drained<
         T: Event + Serialize + DeserializeOwned + MapNetworkEntities,
     >(
@@ -116,6 +125,19 @@ impl ClientEventAppExt for App {
         self.add_client_event_with::<T, _, _>(send_type, sending_system::<T>, receiving_system::<T>)
     }
 
+    fn add_mapped_client_event<
+        T: Event + Serialize + DeserializeOwned + MapNetworkEntities + Clone,
+    >(
+        &mut self,
+        send_type: impl Into<SendType>,
+    ) -> &mut Self {
+        self.add_client_event_with::<T, _, _>(
+            send_type,
+            mapping_and_sending_system::<T>,
+            receiving_system::<T>,
+        )
+    }
+
     fn add_mapped_client_event_drained<
         T: Event + Serialize + DeserializeOwned + MapNetworkEntities,
     >(
@@ -192,6 +214,22 @@ fn sending_system<T: Event + Serialize>(
         let message = DefaultOptions::new()
             .serialize(&event)
             .expect("client event should be serializable");
+
+        client.send_message(*channel, message);
+    }
+}
+
+fn mapping_and_sending_system<T: Event + MapNetworkEntities + Serialize + Clone>(
+    mut events: EventReader<T>,
+    mut client: ResMut<RenetClient>,
+    entity_map: Res<ServerEntityMap>,
+    channel: Res<ClientEventChannel<T>>,
+) {
+    for mut event in events.read().cloned() {
+        event.map_entities(&mut EventMapper(entity_map.to_server()));
+        let message = DefaultOptions::new()
+            .serialize(&event)
+            .expect("mapped client event should be serializable");
 
         client.send_message(*channel, message);
     }
