@@ -57,7 +57,7 @@ fn mapping_and_sending_receiving() {
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((MinimalPlugins, ReplicationPlugins))
-            .add_mapped_client_event_drained::<MappedEvent>(EventType::Ordered);
+            .add_mapped_client_event::<MappedEvent>(EventType::Ordered);
     }
 
     connect::single_client(&mut server_app, &mut client_app);
@@ -108,7 +108,7 @@ fn local_resending() {
 #[derive(Deserialize, Event, Serialize)]
 struct DummyEvent;
 
-#[derive(Deserialize, Event, Serialize)]
+#[derive(Deserialize, Event, Serialize, Clone)]
 struct MappedEvent(Entity);
 
 impl MapNetworkEntities for MappedEvent {
