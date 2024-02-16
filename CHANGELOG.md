@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.3] - 2024-02-17
+
 ### Changed
 
 - Changed `ClientEventAppExt::add_mapped_client_event` to clone the events instead of draining them. This means that mapped client events must now implement `Clone`
@@ -361,7 +363,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release after separation from [Project Harmonia](https://github.com/projectharmonia/project_harmonia).
 
-[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.21.2...HEAD
+[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.21.3...HEAD
+[0.21.3]: https://github.com/projectharmonia/bevy_replicon/compare/v0.21.2...v0.21.3
 [0.21.2]: https://github.com/projectharmonia/bevy_replicon/compare/v0.21.1...v0.21.2
 [0.21.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.21.0...v0.21.1
 [0.21.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.20.0...v0.21.0
