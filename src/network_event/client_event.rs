@@ -23,7 +23,9 @@ pub trait ClientEventAppExt {
     ) -> &mut Self;
 
     /// Same as [`Self::add_client_event`], but additionally maps client entities to server before sending.
-    fn add_mapped_client_event<T: Event + Serialize + DeserializeOwned + MapNetworkEntities>(
+    fn add_mapped_client_event_drained<
+        T: Event + Serialize + DeserializeOwned + MapNetworkEntities,
+    >(
         &mut self,
         send_type: impl Into<SendType>,
     ) -> &mut Self;
@@ -114,13 +116,15 @@ impl ClientEventAppExt for App {
         self.add_client_event_with::<T, _, _>(send_type, sending_system::<T>, receiving_system::<T>)
     }
 
-    fn add_mapped_client_event<T: Event + Serialize + DeserializeOwned + MapNetworkEntities>(
+    fn add_mapped_client_event_drained<
+        T: Event + Serialize + DeserializeOwned + MapNetworkEntities,
+    >(
         &mut self,
         send_type: impl Into<SendType>,
     ) -> &mut Self {
         self.add_client_event_with::<T, _, _>(
             send_type,
-            mapping_and_sending_system::<T>,
+            mapping_and_sending_system_drained::<T>,
             receiving_system::<T>,
         )
     }
@@ -193,7 +197,7 @@ fn sending_system<T: Event + Serialize>(
     }
 }
 
-fn mapping_and_sending_system<T: Event + MapNetworkEntities + Serialize>(
+fn mapping_and_sending_system_drained<T: Event + MapNetworkEntities + Serialize>(
     mut events: ResMut<Events<T>>,
     mut client: ResMut<RenetClient>,
     entity_map: Res<ServerEntityMap>,
