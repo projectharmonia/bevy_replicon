@@ -108,7 +108,7 @@ fn local_resending() {
 #[derive(Deserialize, Event, Serialize)]
 struct DummyEvent;
 
-#[derive(Deserialize, Event, Serialize)]
+#[derive(Deserialize, Event, Serialize, Clone)]
 struct MappedEvent(Entity);
 
 impl MapNetworkEntities for MappedEvent {

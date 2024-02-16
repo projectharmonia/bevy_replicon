@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Changed `ClientEventAppExt::add_mapped_client_event` to clone the events instead of draining them. This means that mapped client events must now implement `Clone`
+
 ### Fixed
 
 - Misuse of `Vec::reserve` that would cause excess allocations.
@@ -44,7 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- API for custom server messages now uses `server_event::serialize_with`  and `server_event::deserialize_with`. For more details see the example in the docs.
+- API for custom server messages now uses `server_event::serialize_with` and `server_event::deserialize_with`. For more details see the example in the docs.
 - Speedup serialization for multiple clients by reusing already serialized components and entities.
 - Hide extra functionality from `ServerEventQueue`.
 - Move server event reset system to new set `ClientSet::ResetEvents` in `PreUpdate`.

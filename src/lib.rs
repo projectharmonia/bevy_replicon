@@ -309,7 +309,7 @@ To do this, use [`ClientEventAppExt::add_mapped_client_event()`] and implement [
 # app.add_plugins(ReplicationPlugins);
 app.add_mapped_client_event::<MappedEvent>(EventType::Ordered);
 
-#[derive(Debug, Deserialize, Event, Serialize)]
+#[derive(Debug, Deserialize, Event, Serialize, Clone)]
 struct MappedEvent(Entity);
 
 impl MapNetworkEntities for MappedEvent {
@@ -318,6 +318,8 @@ impl MapNetworkEntities for MappedEvent {
     }
 }
 ```
+
+As shown above, mapped client events must also implement [`Clone`].
 
 There is also [`ClientEventAppExt::add_client_event_with()`] to register an event with special sending and receiving functions.
 This could be used for sending events that contain `Box<dyn Reflect>`, which require access to the `AppTypeRegistry` resource.
