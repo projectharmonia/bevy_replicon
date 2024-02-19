@@ -20,7 +20,7 @@ include = ["/benches", "/src", "/tests", "/LICENSE*"]
 
 [dependencies]
 bevy_renet = "0.0.10"
-bevy = { version = "0.12.1", default-features = false, features = [
+bevy = { version = "0.13.0", default-features = false, features = [
   "bevy_scene",
 ] }
 bincode = "1.3"
@@ -36,7 +36,7 @@ spin_sleep = "1.1"
 anyhow = "1.0"
 clap = { version = "4.1", features = ["derive"] }
 ron = "0.8"
-bevy = { version = "0.12", default-features = false, features = [
+bevy = { version = "0.13", default-features = false, features = [
   "bevy_asset",
   "bevy_core_pipeline",
   "bevy_render",
