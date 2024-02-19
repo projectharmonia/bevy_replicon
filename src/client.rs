@@ -3,12 +3,9 @@ pub mod diagnostics;
 
 use std::io::Cursor;
 
-use bevy::{prelude::*, utils::EntityHashMap};
+use bevy::{ecs::entity::EntityHashMap, prelude::*};
 use bevy_renet::{
-    client_connected, client_just_connected, client_just_disconnected,
-    renet::{Bytes, RenetClient},
-    transport::NetcodeClientPlugin,
-    RenetClientPlugin,
+    client_connected, client_just_connected, client_just_disconnected, renet::{Bytes, RenetClient}, transport::NetcodeClientPlugin, RenetClientPlugin, RenetReceive, RenetSend
 };
 use bincode::{DefaultOptions, Options};
 use varint_rs::VarintReader;
@@ -32,23 +29,23 @@ impl Plugin for ClientPlugin {
             .configure_sets(
                 PreUpdate,
                 ClientSet::ResetEvents
-                    .after(NetcodeClientPlugin::update_system)
+                    .after(RenetReceive)
                     .before(ClientSet::Receive)
                     .run_if(client_just_connected()),
             )
             .configure_sets(
                 PreUpdate,
-                ClientSet::Receive.after(NetcodeClientPlugin::update_system),
+                ClientSet::Receive.after(RenetReceive),
             )
             .configure_sets(
                 PreUpdate,
                 ClientSet::Reset
-                    .after(NetcodeClientPlugin::update_system)
+                    .after(RenetReceive)
                     .run_if(client_just_disconnected()),
             )
             .configure_sets(
                 PostUpdate,
-                ClientSet::Send.before(NetcodeClientPlugin::send_packets),
+                ClientSet::Send.before(RenetSend),
             )
             .add_systems(
                 PreUpdate,
@@ -514,7 +511,7 @@ pub enum ClientSet {
 ///
 /// If [`ClientSet::Reset`] is disabled, then this needs to be cleaned up manually.
 #[derive(Default, Deref, DerefMut, Resource)]
-pub struct ServerEntityTicks(EntityHashMap<Entity, RepliconTick>);
+pub struct ServerEntityTicks(EntityHashMap<RepliconTick>);
 
 /// All cached buffered updates, used by the replicon client to align replication updates with initialization
 /// messages.

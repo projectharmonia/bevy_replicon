@@ -45,7 +45,7 @@ struct TicTacToePlugin;
 
 impl Plugin for TicTacToePlugin {
     fn build(&self, app: &mut App) {
-        app.add_state::<GameState>()
+        app.init_state::<GameState>()
             .init_resource::<SymbolFont>()
             .init_resource::<CurrentTurn>()
             .replicate::<Symbol>()
@@ -70,18 +70,18 @@ impl Plugin for TicTacToePlugin {
             .add_systems(
                 Update,
                 (
-                    Self::connecting_text_system.run_if(resource_added::<RenetClient>()),
-                    Self::server_waiting_text_system.run_if(resource_added::<RenetServer>()),
-                    Self::server_event_system.run_if(resource_exists::<RenetServer>()),
+                    Self::connecting_text_system.run_if(resource_added::<RenetClient>),
+                    Self::server_waiting_text_system.run_if(resource_added::<RenetServer>),
+                    Self::server_event_system.run_if(resource_exists::<RenetServer>),
                     Self::start_game_system
-                        .run_if(client_connected())
-                        .run_if(any_component_added::<Player>()), // Wait until client replicates players before starting the game.
+                        .run_if(client_connected)
+                        .run_if(any_component_added::<Player>), // Wait until client replicates players before starting the game.
                     (
-                        Self::cell_interatction_system.run_if(local_player_turn()),
-                        Self::picking_system.run_if(has_authority()),
+                        Self::cell_interatction_system.run_if(local_player_turn),
+                        Self::picking_system.run_if(has_authority),
                         Self::symbol_init_system,
-                        Self::turn_advance_system.run_if(any_component_added::<CellIndex>()),
-                        Self::symbol_turn_text_system.run_if(resource_changed::<CurrentTurn>()),
+                        Self::turn_advance_system.run_if(any_component_added::<CellIndex>),
+                        Self::symbol_turn_text_system.run_if(resource_changed::<CurrentTurn>),
                     )
                         .run_if(in_state(GameState::InGame)),
                 ),
@@ -514,22 +514,22 @@ impl TicTacToePlugin {
 
 /// Returns `true` if the local player can select cells.
 fn local_player_turn(
-) -> impl FnMut(Res<CurrentTurn>, Option<Res<NetcodeClientTransport>>, Query<(&Player, &Symbol)>) -> bool
-{
-    |current_turn, client_transport, players| {
-        let client_id = client_transport
-            .map(|client| ClientId::from_raw(client.client_id()))
-            .unwrap_or(SERVER_ID);
+    current_turn: Res<CurrentTurn>,
+    client_transport: Option<Res<NetcodeClientTransport>>,
+    players: Query<(&Player, &Symbol)>,
+) -> bool {
+    let client_id = client_transport
+        .map(|client| client.client_id())
+        .unwrap_or(SERVER_ID);
 
-        players
-            .iter()
-            .any(|(player, &symbol)| player.0 == client_id && symbol == current_turn.0)
-    }
+    players
+        .iter()
+        .any(|(player, &symbol)| player.0 == client_id && symbol == current_turn.0)
 }
 
 /// A condition for systems to check if any component of type `T` was added to the world.
-fn any_component_added<T: Component>() -> impl FnMut(Query<(), Added<T>>) -> bool {
-    |components| !components.is_empty()
+fn any_component_added<T: Component>(components: Query<(), Added<T>>) -> bool {
+    !components.is_empty()
 }
 
 const PORT: u16 = 5000;

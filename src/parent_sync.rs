@@ -27,7 +27,7 @@ impl Plugin for ParentSyncPlugin {
             .add_systems(
                 PostUpdate,
                 (Self::update_system, Self::removal_system)
-                    .run_if(has_authority())
+                    .run_if(has_authority)
                     .before(ServerSet::Send),
             );
     }
@@ -80,9 +80,9 @@ impl ParentSyncPlugin {
 pub struct ParentSync(Option<Entity>);
 
 impl MapEntities for ParentSync {
-    fn map_entities(&mut self, entity_mapper: &mut EntityMapper) {
+    fn map_entities<T: EntityMapper>(&mut self, entity_mapper: &mut T) {
         if let Some(ref mut entity) = self.0 {
-            *entity = entity_mapper.get_or_reserve(*entity);
+            *entity = entity_mapper.map_entity(*entity);
         }
     }
 }

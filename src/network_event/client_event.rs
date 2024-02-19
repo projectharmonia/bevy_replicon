@@ -1,4 +1,7 @@
-use bevy::{ecs::event::Event, prelude::*};
+use bevy::{
+    ecs::{entity::MapEntities, event::Event},
+    prelude::*,
+};
 use bevy_renet::{
     client_connected,
     renet::{ClientId, RenetClient, RenetServer, SendType},
@@ -10,7 +13,7 @@ use super::ClientEventChannel;
 use crate::{
     client::{client_mapper::ServerEntityMap, ClientSet},
     network_event::EventMapper,
-    replicon_core::{replication_rules::MapNetworkEntities, NetworkChannels},
+    replicon_core::NetworkChannels,
     server::{has_authority, ServerSet, SERVER_ID},
 };
 
@@ -23,9 +26,7 @@ pub trait ClientEventAppExt {
     ) -> &mut Self;
 
     /// Same as [`Self::add_client_event`], but additionally maps client entities to server before sending.
-    fn add_mapped_client_event<
-        T: Event + Serialize + DeserializeOwned + MapNetworkEntities + Clone,
-    >(
+    fn add_mapped_client_event<T: Event + Serialize + DeserializeOwned + MapEntities + Clone>(
         &mut self,
         send_type: impl Into<SendType>,
     ) -> &mut Self;
@@ -116,9 +117,7 @@ impl ClientEventAppExt for App {
         self.add_client_event_with::<T, _, _>(send_type, sending_system::<T>, receiving_system::<T>)
     }
 
-    fn add_mapped_client_event<
-        T: Event + Serialize + DeserializeOwned + MapNetworkEntities + Clone,
-    >(
+    fn add_mapped_client_event<T: Event + Serialize + DeserializeOwned + MapEntities + Clone>(
         &mut self,
         send_type: impl Into<SendType>,
     ) -> &mut Self {
@@ -149,14 +148,14 @@ impl ClientEventAppExt for App {
                     reset_system::<T>.in_set(ClientSet::ResetEvents),
                     receiving_system
                         .in_set(ServerSet::Receive)
-                        .run_if(resource_exists::<RenetServer>()),
+                        .run_if(resource_exists::<RenetServer>),
                 ),
             )
             .add_systems(
                 PostUpdate,
                 (
-                    sending_system.run_if(client_connected()),
-                    local_resending_system::<T>.run_if(has_authority()),
+                    sending_system.run_if(client_connected),
+                    local_resending_system::<T>.run_if(has_authority),
                 )
                     .chain()
                     .in_set(ClientSet::Send),
@@ -197,7 +196,7 @@ fn sending_system<T: Event + Serialize>(
     }
 }
 
-fn mapping_and_sending_system<T: Event + MapNetworkEntities + Serialize + Clone>(
+fn mapping_and_sending_system<T: Event + MapEntities + Serialize + Clone>(
     mut events: EventReader<T>,
     mut client: ResMut<RenetClient>,
     entity_map: Res<ServerEntityMap>,
@@ -223,7 +222,7 @@ fn local_resending_system<T: Event>(
         client_events.send(FromClient {
             client_id: SERVER_ID,
             event,
-        })
+        });
     }
 }
 

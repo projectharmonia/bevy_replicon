@@ -1,6 +1,6 @@
 use std::io::Cursor;
 
-use bevy::{ecs::component::ComponentId, prelude::*, ptr::Ptr, utils::HashMap};
+use bevy::{ecs::{component::ComponentId, entity::MapEntities}, prelude::*, ptr::Ptr, utils::HashMap};
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
@@ -20,7 +20,7 @@ pub trait AppReplicationExt {
     /// Always use it for components that contains entities.
     fn replicate_mapped<C>(&mut self) -> &mut Self
     where
-        C: Component + Serialize + DeserializeOwned + MapNetworkEntities;
+        C: Component + Serialize + DeserializeOwned + MapEntities;
 
     /// Same as [`Self::replicate`], but uses the specified functions for serialization, deserialization, and removal.
     fn replicate_with<C>(
@@ -47,7 +47,7 @@ impl AppReplicationExt for App {
 
     fn replicate_mapped<C>(&mut self) -> &mut Self
     where
-        C: Component + Serialize + DeserializeOwned + MapNetworkEntities,
+        C: Component + Serialize + DeserializeOwned + MapEntities,
     {
         self.replicate_with::<C>(
             serialize_component::<C>,
@@ -196,11 +196,13 @@ pub(crate) struct ReplicationId(usize);
 /// Maps entities inside component.
 ///
 /// The same as [`bevy::ecs::entity::MapEntities`], but never creates new entities on mapping error.
+#[deprecated(since = "0.23.0", note = "Use `MapEntities` instead.")]
 pub trait MapNetworkEntities {
     /// Maps stored entities using specified map.
     fn map_entities<T: Mapper>(&mut self, mapper: &mut T);
 }
 
+#[deprecated(since = "0.23.0", note = "Use `MapEntities` instead.")]
 pub trait Mapper {
     fn map(&mut self, entity: Entity) -> Entity;
 }
@@ -229,7 +231,7 @@ pub fn deserialize_component<C: Component + DeserializeOwned>(
 }
 
 /// Like [`deserialize_component`], but also maps entities before insertion.
-pub fn deserialize_mapped_component<C: Component + DeserializeOwned + MapNetworkEntities>(
+pub fn deserialize_mapped_component<C: Component + DeserializeOwned + MapEntities>(
     entity: &mut EntityWorldMut,
     entity_map: &mut ServerEntityMap,
     cursor: &mut Cursor<&[u8]>,

@@ -1,11 +1,9 @@
 use bevy::{
     ecs::{
-        component::ComponentId,
-        event::ManualEventReader,
-        removal_detection::{RemovedComponentEntity, RemovedComponentEvents},
+        component::ComponentId, entity::EntityHashMap, event::ManualEventReader, removal_detection::{RemovedComponentEntity, RemovedComponentEvents}
     },
     prelude::*,
-    utils::{EntityHashMap, HashMap},
+    utils::HashMap,
 };
 use bevy_renet::renet::RenetServer;
 
@@ -28,7 +26,7 @@ impl Plugin for RemovalBufferPlugin {
                 .after(DespawnBufferPlugin::detection_system)
                 .before(ServerPlugin::replication_sending_system)
                 .in_set(ServerSet::Send)
-                .run_if(resource_exists::<RenetServer>()),
+                .run_if(resource_exists::<RenetServer>),
         );
     }
 }
@@ -61,7 +59,7 @@ impl RemovalBufferPlugin {
 #[derive(Default, Resource)]
 pub(crate) struct RemovalBuffer {
     /// Component removals grouped by entity.
-    removals: EntityHashMap<Entity, Vec<ReplicationId>>,
+    removals: EntityHashMap<Vec<ReplicationId>>,
 
     /// [`Vec`]'s from entity removals.
     ///

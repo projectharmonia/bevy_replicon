@@ -1,7 +1,4 @@
-use bevy::{
-    prelude::*,
-    utils::{hashbrown::hash_map::Entry, EntityHashMap},
-};
+use bevy::{ecs::entity::{EntityHashMap, MapEntities}, prelude::*, utils::hashbrown::hash_map::Entry};
 
 use crate::replicon_core::replication_rules::{Mapper, Replication};
 
@@ -10,8 +7,8 @@ use crate::replicon_core::replication_rules::{Mapper, Replication};
 /// Spawns new client entity if a mapping doesn't exists.
 pub struct ClientMapper<'a> {
     world: &'a mut World,
-    server_to_client: &'a mut EntityHashMap<Entity, Entity>,
-    client_to_server: &'a mut EntityHashMap<Entity, Entity>,
+    server_to_client: &'a mut EntityHashMap<Entity>,
+    client_to_server: &'a mut EntityHashMap<Entity>,
 }
 
 impl<'a> ClientMapper<'a> {
@@ -35,14 +32,24 @@ impl Mapper for ClientMapper<'_> {
     }
 }
 
+impl EntityMapper for ClientMapper<'_> {
+    fn map_entity(&mut self, entity: Entity) -> Entity {
+        *self.server_to_client.entry(entity).or_insert_with(|| {
+            let client_entity = self.world.spawn(Replication).id();
+            self.client_to_server.insert(client_entity, entity);
+            client_entity
+        })
+    }
+}
+
 /// Maps server entities to client entities and vice versa.
 ///
 /// If [`ClientSet::Reset`](crate::client::ClientSet) is disabled, then this needs to be cleaned up manually
 /// via [`Self::remove_by_client`] or [`Self::clear`].
 #[derive(Default, Resource)]
 pub struct ServerEntityMap {
-    server_to_client: EntityHashMap<Entity, Entity>,
-    client_to_server: EntityHashMap<Entity, Entity>,
+    server_to_client: EntityHashMap<Entity>,
+    client_to_server: EntityHashMap<Entity>,
 }
 
 impl ServerEntityMap {
@@ -110,12 +117,12 @@ impl ServerEntityMap {
     }
 
     #[inline]
-    pub fn to_client(&self) -> &EntityHashMap<Entity, Entity> {
+    pub fn to_client(&self) -> &EntityHashMap<Entity> {
         &self.server_to_client
     }
 
     #[inline]
-    pub fn to_server(&self) -> &EntityHashMap<Entity, Entity> {
+    pub fn to_server(&self) -> &EntityHashMap<Entity> {
         &self.client_to_server
     }
 
