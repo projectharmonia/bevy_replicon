@@ -1,6 +1,9 @@
 use std::io::Cursor;
 
-use bevy::{ecs::{entity::MapEntities, event::Event}, prelude::*};
+use bevy::{
+    ecs::{entity::MapEntities, event::Event},
+    prelude::*,
+};
 use bevy_renet::{
     client_connected,
     renet::{Bytes, ClientId, RenetClient, RenetServer, SendType},
@@ -14,9 +17,7 @@ use crate::{
     client::{client_mapper::ServerEntityMap, ClientSet},
     network_event::EventMapper,
     prelude::{ClientPlugin, ServerPlugin},
-    replicon_core::{
-        replicon_tick::RepliconTick, NetworkChannels,
-    },
+    replicon_core::{replicon_tick::RepliconTick, NetworkChannels},
     server::{
         client_cache::{ClientCache, ClientState},
         has_authority, ServerSet, SERVER_ID,

@@ -5,7 +5,10 @@ use std::io::Cursor;
 
 use bevy::{ecs::entity::EntityHashMap, prelude::*};
 use bevy_renet::{
-    client_connected, client_just_connected, client_just_disconnected, renet::{Bytes, RenetClient}, transport::NetcodeClientPlugin, RenetClientPlugin, RenetReceive, RenetSend
+    client_connected, client_just_connected, client_just_disconnected,
+    renet::{Bytes, RenetClient},
+    transport::NetcodeClientPlugin,
+    RenetClientPlugin, RenetReceive, RenetSend,
 };
 use bincode::{DefaultOptions, Options};
 use varint_rs::VarintReader;
@@ -33,20 +36,14 @@ impl Plugin for ClientPlugin {
                     .before(ClientSet::Receive)
                     .run_if(client_just_connected()),
             )
-            .configure_sets(
-                PreUpdate,
-                ClientSet::Receive.after(RenetReceive),
-            )
+            .configure_sets(PreUpdate, ClientSet::Receive.after(RenetReceive))
             .configure_sets(
                 PreUpdate,
                 ClientSet::Reset
                     .after(RenetReceive)
                     .run_if(client_just_disconnected()),
             )
-            .configure_sets(
-                PostUpdate,
-                ClientSet::Send.before(RenetSend),
-            )
+            .configure_sets(PostUpdate, ClientSet::Send.before(RenetSend))
             .add_systems(
                 PreUpdate,
                 Self::replication_receiving_system

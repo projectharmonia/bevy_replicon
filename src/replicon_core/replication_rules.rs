@@ -1,6 +1,11 @@
 use std::io::Cursor;
 
-use bevy::{ecs::{component::ComponentId, entity::MapEntities}, prelude::*, ptr::Ptr, utils::HashMap};
+use bevy::{
+    ecs::{component::ComponentId, entity::MapEntities},
+    prelude::*,
+    ptr::Ptr,
+    utils::HashMap,
+};
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 

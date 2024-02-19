@@ -1,6 +1,9 @@
 use bevy::{
     ecs::{
-        component::ComponentId, entity::EntityHashMap, event::ManualEventReader, removal_detection::{RemovedComponentEntity, RemovedComponentEvents}
+        component::ComponentId,
+        entity::EntityHashMap,
+        event::ManualEventReader,
+        removal_detection::{RemovedComponentEntity, RemovedComponentEvents},
     },
     prelude::*,
     utils::HashMap,

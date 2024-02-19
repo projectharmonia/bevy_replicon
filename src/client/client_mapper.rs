@@ -1,4 +1,8 @@
-use bevy::{ecs::entity::{EntityHashMap, MapEntities}, prelude::*, utils::hashbrown::hash_map::Entry};
+use bevy::{
+    ecs::entity::{EntityHashMap, MapEntities},
+    prelude::*,
+    utils::hashbrown::hash_map::Entry,
+};
 
 use crate::replicon_core::replication_rules::{Mapper, Replication};
 
