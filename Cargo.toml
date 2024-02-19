@@ -19,7 +19,7 @@ license = "MIT OR Apache-2.0"
 include = ["/benches", "/src", "/tests", "/LICENSE*"]
 
 [dependencies]
-bevy_renet = "0.0.11"
+bevy_renet = { git = "https://github.com/dgsantana/renet", branch="bevy_0_13" }
 bevy = { version = "0.13", default-features = false, features = [
   "bevy_scene",
 ] }
@@ -57,6 +57,3 @@ renet_serde = ["bevy_renet/serde"]
 [[bench]]
 name = "replication"
 harness = false
-
-[patch.crates-io]
-bevy_renet = { git = "https://github.com/dgsantana/renet.git", rev="0d0722bb6c4380c16c530e6f1ede283647ceb768" }
