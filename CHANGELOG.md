@@ -7,13 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Deprecated `Mapper` and `MapNetworkEntities` in favor of `EntityMapper` and `MapEntities` introduced in Bevy 0.13.0
+- Changed conditional systems to follow the new pattern, avoid returning a closure.
+
 ## [0.22.0] - 2024-02-17
 
 ### Changed
 
 - Changed `ClientEventAppExt::add_mapped_client_event` to clone the events instead of draining them. This means that mapped client events must now implement `Clone`
-- Deprecated `Mapper` and `MapNetworkEntities` in favor of `EntityMapper` and `MapEntities` introduced in Bevy 0.13.0
-- Changed conditional systems to follow the new pattern, avoid returning a closure.
 
 ### Fixed
 
