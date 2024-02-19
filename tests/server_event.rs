@@ -1,6 +1,10 @@
 mod connect;
 
-use bevy::{ecs::event::Events, prelude::*, time::TimePlugin};
+use bevy::{
+    ecs::{entity::MapEntities, event::Events},
+    prelude::*,
+    time::TimePlugin,
+};
 use bevy_replicon::{
     prelude::*,
     renet::{transport::NetcodeClientTransport, ClientId},
@@ -47,7 +51,7 @@ fn sending_receiving() {
     connect::single_client(&mut server_app, &mut client_app);
 
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
-    let client_id = ClientId::from_raw(client_transport.client_id());
+    let client_id = client_transport.client_id();
 
     for (mode, events_count) in [
         (SendMode::Broadcast, 1),
@@ -264,8 +268,15 @@ struct DummyEvent;
 #[derive(Deserialize, Event, Serialize)]
 struct MappedEvent(Entity);
 
+#[allow(deprecated)]
 impl MapNetworkEntities for MappedEvent {
     fn map_entities<T: Mapper>(&mut self, mapper: &mut T) {
         self.0 = mapper.map(self.0);
+    }
+}
+
+impl MapEntities for MappedEvent {
+    fn map_entities<T: EntityMapper>(&mut self, entity_mapper: &mut T) {
+        self.0 = entity_mapper.map_entity(self.0);
     }
 }

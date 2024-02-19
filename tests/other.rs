@@ -1,7 +1,7 @@
 mod connect;
 
 use bevy::prelude::*;
-use bevy_renet::renet::{transport::NetcodeClientTransport, ClientId};
+use bevy_renet::renet::transport::NetcodeClientTransport;
 use bevy_replicon::{prelude::*, scene};
 use serde::{Deserialize, Serialize};
 
@@ -61,7 +61,7 @@ fn diagnostics() {
     let server_entity = server_app.world.spawn((Replication, DummyComponent)).id();
 
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
-    let client_id = ClientId::from_raw(client_transport.client_id());
+    let client_id = client_transport.client_id();
     let mut entity_map = server_app.world.resource_mut::<ClientEntityMap>();
     entity_map.insert(
         client_id,
@@ -91,7 +91,7 @@ fn diagnostics() {
     assert_eq!(stats.mappings, 1);
     assert_eq!(stats.despawns, 1);
     assert_eq!(stats.packets, 2);
-    assert_eq!(stats.bytes, 33);
+    assert_eq!(stats.bytes, 38);
 }
 
 #[test]

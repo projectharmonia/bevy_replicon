@@ -34,14 +34,14 @@ impl Plugin for ClientPlugin {
                 ClientSet::ResetEvents
                     .after(RenetReceive)
                     .before(ClientSet::Receive)
-                    .run_if(client_just_connected()),
+                    .run_if(client_just_connected),
             )
             .configure_sets(PreUpdate, ClientSet::Receive.after(RenetReceive))
             .configure_sets(
                 PreUpdate,
                 ClientSet::Reset
                     .after(RenetReceive)
-                    .run_if(client_just_disconnected()),
+                    .run_if(client_just_disconnected),
             )
             .configure_sets(PostUpdate, ClientSet::Send.before(RenetSend))
             .add_systems(
@@ -49,7 +49,7 @@ impl Plugin for ClientPlugin {
                 Self::replication_receiving_system
                     .map(Result::unwrap)
                     .in_set(ClientSet::Receive)
-                    .run_if(client_connected()),
+                    .run_if(client_connected),
             )
             .add_systems(PreUpdate, Self::reset_system.in_set(ClientSet::Reset));
     }

@@ -6,6 +6,7 @@ use std::{marker::PhantomData, time::Duration};
 use bevy::{ecs::entity::EntityHashMap, prelude::*};
 use bevy_renet::renet::SendType;
 
+#[allow(deprecated)]
 use crate::replicon_core::replication_rules::Mapper;
 
 /// Holds a server's channel ID for `T`.
@@ -102,6 +103,7 @@ impl From<EventType> for SendType {
 /// Panics if a mapping doesn't exists.
 pub struct EventMapper<'a>(pub &'a EntityHashMap<Entity>);
 
+#[allow(deprecated)]
 impl Mapper for EventMapper<'_> {
     fn map(&mut self, entity: Entity) -> Entity {
         *self

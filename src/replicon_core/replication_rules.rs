@@ -204,6 +204,7 @@ pub(crate) struct ReplicationId(usize);
 #[deprecated(since = "0.23.0", note = "Use `MapEntities` instead.")]
 pub trait MapNetworkEntities {
     /// Maps stored entities using specified map.
+    #[allow(deprecated)]
     fn map_entities<T: Mapper>(&mut self, mapper: &mut T);
 }
 

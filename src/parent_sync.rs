@@ -7,6 +7,7 @@ use bevy::{
 };
 use serde::{Deserialize, Serialize};
 
+#[allow(deprecated)]
 use crate::{
     client::ClientSet,
     replicon_core::replication_rules::{AppReplicationExt, MapNetworkEntities, Mapper},
@@ -87,6 +88,7 @@ impl MapEntities for ParentSync {
     }
 }
 
+#[allow(deprecated)]
 impl MapNetworkEntities for ParentSync {
     fn map_entities<T: Mapper>(&mut self, mapper: &mut T) {
         if let Some(ref mut entity) = self.0 {

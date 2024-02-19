@@ -1,9 +1,6 @@
-use bevy::{
-    ecs::entity::{EntityHashMap, MapEntities},
-    prelude::*,
-    utils::hashbrown::hash_map::Entry,
-};
+use bevy::{ecs::entity::EntityHashMap, prelude::*, utils::hashbrown::hash_map::Entry};
 
+#[allow(deprecated)]
 use crate::replicon_core::replication_rules::{Mapper, Replication};
 
 /// Maps server entities into client entities inside components.
@@ -26,6 +23,7 @@ impl<'a> ClientMapper<'a> {
     }
 }
 
+#[allow(deprecated)]
 impl Mapper for ClientMapper<'_> {
     fn map(&mut self, entity: Entity) -> Entity {
         *self.server_to_client.entry(entity).or_insert_with(|| {
