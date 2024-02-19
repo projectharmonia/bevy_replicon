@@ -268,13 +268,6 @@ struct DummyEvent;
 #[derive(Deserialize, Event, Serialize)]
 struct MappedEvent(Entity);
 
-#[allow(deprecated)]
-impl MapNetworkEntities for MappedEvent {
-    fn map_entities<T: Mapper>(&mut self, mapper: &mut T) {
-        self.0 = mapper.map(self.0);
-    }
-}
-
 impl MapEntities for MappedEvent {
     fn map_entities<T: EntityMapper>(&mut self, entity_mapper: &mut T) {
         self.0 = entity_mapper.map_entity(self.0);

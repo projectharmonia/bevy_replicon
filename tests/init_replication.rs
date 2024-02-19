@@ -680,13 +680,6 @@ fn removal_with_despawn() {
 #[derive(Component, Deserialize, Serialize)]
 struct MappedComponent(Entity);
 
-#[allow(deprecated)]
-impl MapNetworkEntities for MappedComponent {
-    fn map_entities<T: Mapper>(&mut self, mapper: &mut T) {
-        self.0 = mapper.map(self.0);
-    }
-}
-
 impl MapEntities for MappedComponent {
     fn map_entities<M: EntityMapper>(&mut self, entity_mapper: &mut M) {
         self.0 = entity_mapper.map_entity(self.0);

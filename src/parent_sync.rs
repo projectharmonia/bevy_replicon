@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 #[allow(deprecated)]
 use crate::{
     client::ClientSet,
-    replicon_core::replication_rules::{AppReplicationExt, MapNetworkEntities, Mapper},
+    replicon_core::replication_rules::AppReplicationExt,
     server::{has_authority, ServerSet},
 };
 
@@ -84,15 +84,6 @@ impl MapEntities for ParentSync {
     fn map_entities<T: EntityMapper>(&mut self, entity_mapper: &mut T) {
         if let Some(ref mut entity) = self.0 {
             *entity = entity_mapper.map_entity(*entity);
-        }
-    }
-}
-
-#[allow(deprecated)]
-impl MapNetworkEntities for ParentSync {
-    fn map_entities<T: Mapper>(&mut self, mapper: &mut T) {
-        if let Some(ref mut entity) = self.0 {
-            *entity = mapper.map(*entity);
         }
     }
 }

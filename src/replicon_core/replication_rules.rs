@@ -198,21 +198,6 @@ pub struct Replication;
 #[derive(Clone, Copy, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub(crate) struct ReplicationId(usize);
 
-/// Maps entities inside component.
-///
-/// The same as [`bevy::ecs::entity::MapEntities`], but never creates new entities on mapping error.
-#[deprecated(since = "0.23.0", note = "Use `MapEntities` instead.")]
-pub trait MapNetworkEntities {
-    /// Maps stored entities using specified map.
-    #[allow(deprecated)]
-    fn map_entities<T: Mapper>(&mut self, mapper: &mut T);
-}
-
-#[deprecated(since = "0.23.0", note = "Use `MapEntities` instead.")]
-pub trait Mapper {
-    fn map(&mut self, entity: Entity) -> Entity;
-}
-
 /// Default serialization function.
 pub fn serialize_component<C: Component + Serialize>(
     component: Ptr,
