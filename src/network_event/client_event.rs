@@ -25,7 +25,9 @@ pub trait ClientEventAppExt {
         send_type: impl Into<SendType>,
     ) -> &mut Self;
 
-    /// Same as [`Self::add_client_event`], but additionally maps client entities to server before sending.
+    /// Same as [`Self::add_client_event`], but additionally maps client entities to server inside the event before sending.
+    ///
+    /// Always use it for events that contain entities.
     fn add_mapped_client_event<T: Event + Serialize + DeserializeOwned + MapEntities + Clone>(
         &mut self,
         send_type: impl Into<SendType>,

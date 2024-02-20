@@ -20,9 +20,9 @@ pub trait AppReplicationExt {
     where
         C: Component + Serialize + DeserializeOwned;
 
-    /// Same as [`Self::replicate`], but maps component entities using [`MapNetworkEntities`] trait.
+    /// Same as [`Self::replicate`], but additionally maps server entities to client inside the component after receiving.
     ///
-    /// Always use it for components that contains entities.
+    /// Always use it for components that contain entities.
     fn replicate_mapped<C>(&mut self) -> &mut Self
     where
         C: Component + Serialize + DeserializeOwned + MapEntities;
