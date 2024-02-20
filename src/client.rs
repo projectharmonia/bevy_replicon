@@ -453,14 +453,15 @@ fn apply_update_components(
 
 /// Deserializes `entity` from compressed index and generation.
 ///
-/// For details see [`ReplicationBuffer::write_entity`](crate::server::replication_message::replication_buffer::write_entity).
+/// For details see
+/// [`ReplicationBuffer::write_entity`](crate::server::replication_message::replication_buffer::write_entity).
 fn deserialize_entity(cursor: &mut Cursor<&[u8]>) -> bincode::Result<Entity> {
     let flagged_index: u64 = cursor.read_u64_varint()?;
     let has_generation = (flagged_index & 1) > 0;
     let generation = if has_generation {
-        cursor.read_u32_varint()?
+        cursor.read_u32_varint()? + 1
     } else {
-        0u32
+        1u32
     };
 
     let bits = (generation as u64) << 32 | (flagged_index >> 1);
