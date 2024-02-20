@@ -21,7 +21,6 @@ skip = [
   { name = "regex-automata", version = "0.1" },
   { name = "regex-syntax", version = "0.6" },
   { name = "syn", version = "1.0" },
-  { name = "toml_edit", version = "0.19" },
   { name = "tracing-log", version = "0.1" },
   { name = "windows" },
   { name = "windows-sys" },
