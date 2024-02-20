@@ -466,7 +466,6 @@ pub mod scene;
 pub mod server;
 
 pub mod prelude {
-    #[allow(deprecated)]
     pub use super::{
         client::{
             client_mapper::{ClientMapper, ServerEntityMap},
