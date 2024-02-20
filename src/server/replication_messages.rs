@@ -675,15 +675,17 @@ fn can_pack(header_size: usize, base: usize, add: usize) -> bool {
 /// Serializes `entity` by writing its index and generation as separate varints.
 ///
 /// The index is first prepended with a bit flag to indicate if the generation
-/// is serialized or not (it is not serialized if equal to zero).
+/// is serialized or not. It is not serialized if <= 1; note that generations are `NonZeroU32`
+/// and a value of zero is used in `Option<Entity>` to signify `None`, so generation 1 is the first
+/// generation.
 fn serialize_entity(cursor: &mut Cursor<Vec<u8>>, entity: Entity) -> bincode::Result<()> {
     let mut flagged_index = (entity.index() as u64) << 1;
-    let flag = entity.generation() > 0;
+    let flag = entity.generation() > 1;
     flagged_index |= flag as u64;
 
     cursor.write_u64_varint(flagged_index)?;
     if flag {
-        cursor.write_u32_varint(entity.generation())?;
+        cursor.write_u32_varint(entity.generation() - 1)?;
     }
 
     Ok(())
