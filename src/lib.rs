@@ -109,7 +109,7 @@ struct DummyComponent;
 If your component contains an entity then it cannot be deserialized as is
 because entity IDs are different on server and client. The client should do the
 mapping. Therefore, to replicate such components properly, they need implement
-[`MapEntities`] and registered using [`AppReplicationExt::replicate_mapped()`]:
+Bevy's `MapEntities` trait and registered using [`AppReplicationExt::replicate_mapped()`]:
 
 ```
 # use bevy::{prelude::*, ecs::entity::{EntityMapper, MapEntities}};
@@ -299,7 +299,7 @@ struct DummyEvent;
 
 Just like components, if an event contains an entity, then the client should
 map it before sending it to the server.
-To do this, use [`ClientEventAppExt::add_mapped_client_event()`] and implement [`MapEntities`]:
+To do this, use [`ClientEventAppExt::add_mapped_client_event()`] and implement Bevy's `MapEntities`:
 
 ```
 # use bevy::{prelude::*, ecs::entity::MapEntities};
