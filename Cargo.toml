@@ -19,7 +19,7 @@ license = "MIT OR Apache-2.0"
 include = ["/benches", "/src", "/tests", "/LICENSE*"]
 
 [dependencies]
-bevy_renet = { git = "https://github.com/dgsantana/renet", branch = "bevy_0_13" }
+bevy_renet = "0.0.11"
 bevy = { version = "0.13", default-features = false, features = ["bevy_scene"] }
 bincode = "1.3"
 serde = "1.0"
