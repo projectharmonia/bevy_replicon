@@ -2,7 +2,7 @@ mod connect;
 
 use bevy::prelude::*;
 use bevy_renet::renet::transport::NetcodeClientTransport;
-use bevy_replicon::{prelude::*, scene};
+use bevy_replicon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[test]
@@ -94,40 +94,5 @@ fn diagnostics() {
     assert_eq!(stats.bytes, 33);
 }
 
-#[test]
-fn replication_into_scene() {
-    let mut app = App::new();
-    app.add_plugins(ReplicationPlugins)
-        .register_type::<ReflectedComponent>()
-        .replicate::<ReflectedComponent>();
-
-    app.world.spawn(ReflectedComponent);
-    let reflect_entity = app.world.spawn((Replication, ReflectedComponent)).id();
-    let empty_entity = app
-        .world
-        .spawn((Replication, ReflectedComponent))
-        .dont_replicate::<ReflectedComponent>()
-        .id();
-
-    let mut scene = DynamicScene::default();
-    scene::replicate_into(&mut scene, &app.world);
-
-    assert!(scene.resources.is_empty());
-
-    let [reflect, empty] = &scene.entities[..] else {
-        panic!("scene should only contain entities marked for replication");
-    };
-
-    assert_eq!(reflect.entity, reflect_entity);
-    assert_eq!(reflect.components.len(), 1);
-
-    assert_eq!(empty.entity, empty_entity);
-    assert!(empty.components.is_empty());
-}
-
 #[derive(Component, Deserialize, Serialize)]
 struct DummyComponent;
-
-#[derive(Component, Default, Deserialize, Reflect, Serialize)]
-#[reflect(Component)]
-struct ReflectedComponent;

@@ -1,4 +1,8 @@
-use bevy::{ecs::archetype::ArchetypeId, prelude::*, scene::DynamicEntity};
+use bevy::{
+    ecs::{archetype::ArchetypeId, entity::EntityHashMap},
+    prelude::*,
+    scene::DynamicEntity,
+};
 
 use crate::replicon_core::replication_rules::ReplicationRules;
 
@@ -48,9 +52,14 @@ for entity in &mut scene.entities {
 ```
 */
 pub fn replicate_into(scene: &mut DynamicScene, world: &World) {
+    let entities_iter = scene
+        .entities
+        .drain(..)
+        .map(|dyn_entity| (dyn_entity.entity, dyn_entity.components));
+    let mut entities = EntityHashMap::from_iter(entities_iter);
+
     let registry = world.resource::<AppTypeRegistry>();
     let replication_rules = world.resource::<ReplicationRules>();
-
     let registry = registry.read();
     for archetype in world
         .archetypes()
@@ -59,12 +68,9 @@ pub fn replicate_into(scene: &mut DynamicScene, world: &World) {
         .filter(|archetype| archetype.id() != ArchetypeId::INVALID)
         .filter(|archetype| archetype.contains(replication_rules.get_marker_id()))
     {
-        let entities_offset = scene.entities.len();
+        // Populate entities ahead of time in order to extract entities without components too.
         for entity in archetype.entities() {
-            scene.entities.push(DynamicEntity {
-                entity: entity.id(),
-                components: Vec::new(),
-            });
+            entities.entry(entity.id()).or_default();
         }
 
         for component_id in archetype.components() {
@@ -88,15 +94,21 @@ pub fn replicate_into(scene: &mut DynamicScene, world: &World) {
                 .data::<ReflectComponent>()
                 .unwrap_or_else(|| panic!("{type_name} should have reflect(Component)"));
 
-            for (index, archetype_entity) in archetype.entities().iter().enumerate() {
+            for entity in archetype.entities() {
                 let component = reflect_component
-                    .reflect(world.entity(archetype_entity.id()))
+                    .reflect(world.entity(entity.id()))
                     .unwrap_or_else(|| panic!("entity should have {type_name}"));
 
-                scene.entities[entities_offset + index]
-                    .components
-                    .push(component.clone_value());
+                let components = entities
+                    .get_mut(&entity.id())
+                    .expect("all entities should be populated ahead of time");
+                components.push(component.clone_value());
             }
         }
     }
+
+    let dyn_entities_iter = entities
+        .drain()
+        .map(|(entity, components)| DynamicEntity { entity, components });
+    scene.entities.extend(dyn_entities_iter);
 }
