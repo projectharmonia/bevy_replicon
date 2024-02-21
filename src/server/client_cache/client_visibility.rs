@@ -1,6 +1,7 @@
 use bevy::{
+    ecs::entity::{EntityHashMap, EntityHashSet},
     prelude::*,
-    utils::{hashbrown::hash_map::Entry, EntityHashMap, EntityHashSet},
+    utils::hashbrown::hash_map::Entry,
 };
 
 use super::VisibilityPolicy;
@@ -281,32 +282,32 @@ enum VisibilityFilter {
     Blacklist {
         /// All blacklisted entities and an indicator of whether they are in the queue for deletion
         /// at the end of this tick.
-        list: EntityHashMap<Entity, BlacklistInfo>,
+        list: EntityHashMap<BlacklistInfo>,
 
         /// All entities that were removed from the list in this tick.
         ///
         /// Visibility of these entities has been lost.
-        added: EntityHashSet<Entity>,
+        added: EntityHashSet,
 
         /// All entities that were added to the list in this tick.
         ///
         /// Visibility of these entities has been gained.
-        removed: EntityHashSet<Entity>,
+        removed: EntityHashSet,
     },
     Whitelist {
         /// All whitelisted entities and an indicator of whether they were added to the list in
         /// this tick.
-        list: EntityHashMap<Entity, WhitelistInfo>,
+        list: EntityHashMap<WhitelistInfo>,
 
         /// All entities that were added to the list in this tick.
         ///
         /// Visibility of these entities has been gained.
-        added: EntityHashSet<Entity>,
+        added: EntityHashSet,
 
         /// All entities that were removed from the list in this tick.
         ///
         /// Visibility of these entities has been lost.
-        removed: EntityHashSet<Entity>,
+        removed: EntityHashSet,
     },
 }
 

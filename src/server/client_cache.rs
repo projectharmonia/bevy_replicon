@@ -3,9 +3,9 @@ pub mod client_visibility;
 use std::mem;
 
 use bevy::{
-    ecs::component::Tick,
+    ecs::{component::Tick, entity::EntityHashMap},
     prelude::*,
-    utils::{Duration, EntityHashMap, HashMap},
+    utils::{Duration, HashMap},
 };
 use bevy_renet::renet::ClientId;
 
@@ -146,7 +146,7 @@ pub struct ClientState {
     id: ClientId,
 
     /// Lowest tick for use in change detection for each entity.
-    ticks: EntityHashMap<Entity, Tick>,
+    ticks: EntityHashMap<Tick>,
 
     /// Entity visibility settings.
     visibility: ClientVisibility,

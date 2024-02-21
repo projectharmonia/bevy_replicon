@@ -1,10 +1,7 @@
 mod connect;
 
 use bevy::prelude::*;
-use bevy_replicon::{
-    prelude::*,
-    renet::{transport::NetcodeClientTransport, ClientId},
-};
+use bevy_replicon::{prelude::*, renet::transport::NetcodeClientTransport};
 use serde::{Deserialize, Serialize};
 
 #[test]
@@ -27,7 +24,7 @@ fn all() {
     let server_entity = server_app.world.spawn((Replication, DummyComponent)).id();
 
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
-    let client_id = ClientId::from_raw(client_transport.client_id());
+    let client_id = client_transport.client_id();
     let mut client_cache = server_app.world.resource_mut::<ClientCache>();
     let visibility = client_cache.client_mut(client_id).visibility_mut();
     visibility.set_visibility(server_entity, false); // Shouldn't have any effect for this policy.
@@ -104,7 +101,7 @@ fn blacklist() {
     let server_entity = server_app.world.spawn((Replication, DummyComponent)).id();
 
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
-    let client_id = ClientId::from_raw(client_transport.client_id());
+    let client_id = client_transport.client_id();
     let mut client_cache = server_app.world.resource_mut::<ClientCache>();
     let visibility = client_cache.client_mut(client_id).visibility_mut();
     visibility.set_visibility(server_entity, false);
@@ -149,7 +146,7 @@ fn blacklist_despawn() {
     let server_entity = server_app.world.spawn(Replication).id();
 
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
-    let client_id = ClientId::from_raw(client_transport.client_id());
+    let client_id = client_transport.client_id();
     let mut client_cache = server_app.world.resource_mut::<ClientCache>();
     let visibility = client_cache.client_mut(client_id).visibility_mut();
     visibility.set_visibility(server_entity, false);
@@ -215,7 +212,7 @@ fn whitelist() {
     let server_entity = server_app.world.spawn((Replication, DummyComponent)).id();
 
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
-    let client_id = ClientId::from_raw(client_transport.client_id());
+    let client_id = client_transport.client_id();
     let mut client_cache = server_app.world.resource_mut::<ClientCache>();
     let visibility = client_cache.client_mut(client_id).visibility_mut();
     visibility.set_visibility(server_entity, true);
@@ -263,7 +260,7 @@ fn whitelist_despawn() {
     let server_entity = server_app.world.spawn(Replication).id();
 
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
-    let client_id = ClientId::from_raw(client_transport.client_id());
+    let client_id = client_transport.client_id();
     let mut client_cache = server_app.world.resource_mut::<ClientCache>();
     let visibility = client_cache.client_mut(client_id).visibility_mut();
     visibility.set_visibility(server_entity, true);

@@ -1,6 +1,11 @@
 use std::io::Cursor;
 
-use bevy::{ecs::component::ComponentId, prelude::*, ptr::Ptr, utils::HashMap};
+use bevy::{
+    ecs::{component::ComponentId, entity::MapEntities},
+    prelude::*,
+    ptr::Ptr,
+    utils::HashMap,
+};
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
@@ -15,12 +20,12 @@ pub trait AppReplicationExt {
     where
         C: Component + Serialize + DeserializeOwned;
 
-    /// Same as [`Self::replicate`], but maps component entities using [`MapNetworkEntities`] trait.
+    /// Same as [`Self::replicate`], but additionally maps server entities to client inside the component after receiving.
     ///
-    /// Always use it for components that contains entities.
+    /// Always use it for components that contain entities.
     fn replicate_mapped<C>(&mut self) -> &mut Self
     where
-        C: Component + Serialize + DeserializeOwned + MapNetworkEntities;
+        C: Component + Serialize + DeserializeOwned + MapEntities;
 
     /// Same as [`Self::replicate`], but uses the specified functions for serialization, deserialization, and removal.
     fn replicate_with<C>(
@@ -47,7 +52,7 @@ impl AppReplicationExt for App {
 
     fn replicate_mapped<C>(&mut self) -> &mut Self
     where
-        C: Component + Serialize + DeserializeOwned + MapNetworkEntities,
+        C: Component + Serialize + DeserializeOwned + MapEntities,
     {
         self.replicate_with::<C>(
             serialize_component::<C>,
@@ -193,18 +198,6 @@ pub struct Replication;
 #[derive(Clone, Copy, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub(crate) struct ReplicationId(usize);
 
-/// Maps entities inside component.
-///
-/// The same as [`bevy::ecs::entity::MapEntities`], but never creates new entities on mapping error.
-pub trait MapNetworkEntities {
-    /// Maps stored entities using specified map.
-    fn map_entities<T: Mapper>(&mut self, mapper: &mut T);
-}
-
-pub trait Mapper {
-    fn map(&mut self, entity: Entity) -> Entity;
-}
-
 /// Default serialization function.
 pub fn serialize_component<C: Component + Serialize>(
     component: Ptr,
@@ -229,7 +222,7 @@ pub fn deserialize_component<C: Component + DeserializeOwned>(
 }
 
 /// Like [`deserialize_component`], but also maps entities before insertion.
-pub fn deserialize_mapped_component<C: Component + DeserializeOwned + MapNetworkEntities>(
+pub fn deserialize_mapped_component<C: Component + DeserializeOwned + MapEntities>(
     entity: &mut EntityWorldMut,
     entity_map: &mut ServerEntityMap,
     cursor: &mut Cursor<&[u8]>,

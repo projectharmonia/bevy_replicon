@@ -1,6 +1,10 @@
 mod connect;
 
-use bevy::{ecs::event::Events, prelude::*, time::TimePlugin};
+use bevy::{
+    ecs::{entity::MapEntities, event::Events},
+    prelude::*,
+    time::TimePlugin,
+};
 use bevy_replicon::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -111,8 +115,8 @@ struct DummyEvent;
 #[derive(Deserialize, Event, Serialize, Clone)]
 struct MappedEvent(Entity);
 
-impl MapNetworkEntities for MappedEvent {
-    fn map_entities<T: Mapper>(&mut self, mapper: &mut T) {
-        self.0 = mapper.map(self.0);
+impl MapEntities for MappedEvent {
+    fn map_entities<M: EntityMapper>(&mut self, entity_mapper: &mut M) {
+        self.0 = entity_mapper.map_entity(self.0);
     }
 }

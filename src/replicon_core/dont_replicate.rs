@@ -29,7 +29,7 @@ pub trait CommandDontReplicateExt {
     fn dont_replicate<T: Component>(&mut self) -> &mut Self;
 }
 
-impl CommandDontReplicateExt for EntityCommands<'_, '_, '_> {
+impl CommandDontReplicateExt for EntityCommands<'_> {
     fn dont_replicate<T: Component>(&mut self) -> &mut Self {
         self.add(|mut entity: EntityWorldMut| {
             entity.dont_replicate::<T>();

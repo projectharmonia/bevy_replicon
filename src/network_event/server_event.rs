@@ -1,6 +1,9 @@
 use std::io::Cursor;
 
-use bevy::{ecs::event::Event, prelude::*};
+use bevy::{
+    ecs::{entity::MapEntities, event::Event},
+    prelude::*,
+};
 use bevy_renet::{
     client_connected,
     renet::{Bytes, ClientId, RenetClient, RenetServer, SendType},
@@ -14,9 +17,7 @@ use crate::{
     client::{client_mapper::ServerEntityMap, ClientSet},
     network_event::EventMapper,
     prelude::{ClientPlugin, ServerPlugin},
-    replicon_core::{
-        replication_rules::MapNetworkEntities, replicon_tick::RepliconTick, NetworkChannels,
-    },
+    replicon_core::{replicon_tick::RepliconTick, NetworkChannels},
     server::{
         client_cache::{ClientCache, ClientState},
         has_authority, ServerSet, SERVER_ID,
@@ -31,8 +32,10 @@ pub trait ServerEventAppExt {
         send_type: impl Into<SendType>,
     ) -> &mut Self;
 
-    /// Same as [`Self::add_server_event`], but additionally maps server entities to client after receiving.
-    fn add_mapped_server_event<T: Event + Serialize + DeserializeOwned + MapNetworkEntities>(
+    /// Same as [`Self::add_server_event`], but additionally maps server entities to client inside the event after receiving.
+    ///
+    /// Always use it for events that contain entities.
+    fn add_mapped_server_event<T: Event + Serialize + DeserializeOwned + MapEntities>(
         &mut self,
         send_type: impl Into<SendType>,
     ) -> &mut Self;
@@ -132,7 +135,7 @@ impl ServerEventAppExt for App {
         self.add_server_event_with::<T, _, _>(send_type, sending_system::<T>, receiving_system::<T>)
     }
 
-    fn add_mapped_server_event<T: Event + Serialize + DeserializeOwned + MapNetworkEntities>(
+    fn add_mapped_server_event<T: Event + Serialize + DeserializeOwned + MapEntities>(
         &mut self,
         send_type: impl Into<SendType>,
     ) -> &mut Self {
@@ -166,14 +169,14 @@ impl ServerEventAppExt for App {
                         .chain()
                         .after(ClientPlugin::replication_receiving_system)
                         .in_set(ClientSet::Receive)
-                        .run_if(client_connected()),
+                        .run_if(client_connected),
                 ),
             )
             .add_systems(
                 PostUpdate,
                 (
-                    sending_system.run_if(resource_exists::<RenetServer>()),
-                    local_resending_system::<T>.run_if(has_authority()),
+                    sending_system.run_if(resource_exists::<RenetServer>),
+                    local_resending_system::<T>.run_if(has_authority),
                 )
                     .chain()
                     .after(ServerPlugin::replication_sending_system)
@@ -216,7 +219,7 @@ fn receiving_system<T: Event + DeserializeOwned>(
     }
 }
 
-fn receiving_and_mapping_system<T: Event + MapNetworkEntities + DeserializeOwned>(
+fn receiving_and_mapping_system<T: Event + MapEntities + DeserializeOwned>(
     mut server_events: EventWriter<T>,
     mut client: ResMut<RenetClient>,
     mut event_queue: ResMut<ServerEventQueue<T>>,

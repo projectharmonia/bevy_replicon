@@ -62,7 +62,7 @@ pub fn replicate_into(scene: &mut DynamicScene, world: &World) {
         let entities_offset = scene.entities.len();
         for entity in archetype.entities() {
             scene.entities.push(DynamicEntity {
-                entity: entity.entity(),
+                entity: entity.id(),
                 components: Vec::new(),
             });
         }
@@ -90,7 +90,7 @@ pub fn replicate_into(scene: &mut DynamicScene, world: &World) {
 
             for (index, archetype_entity) in archetype.entities().iter().enumerate() {
                 let component = reflect_component
-                    .reflect(world.entity(archetype_entity.entity()))
+                    .reflect(world.entity(archetype_entity.id()))
                     .unwrap_or_else(|| panic!("entity should have {type_name}"));
 
                 scene.entities[entities_offset + index]

@@ -3,12 +3,12 @@ pub mod diagnostics;
 
 use std::io::Cursor;
 
-use bevy::{prelude::*, utils::EntityHashMap};
+use bevy::{ecs::entity::EntityHashMap, prelude::*};
 use bevy_renet::{
     client_connected, client_just_connected, client_just_disconnected,
     renet::{Bytes, RenetClient},
     transport::NetcodeClientPlugin,
-    RenetClientPlugin,
+    RenetClientPlugin, RenetReceive, RenetSend,
 };
 use bincode::{DefaultOptions, Options};
 use varint_rs::VarintReader;
@@ -32,30 +32,24 @@ impl Plugin for ClientPlugin {
             .configure_sets(
                 PreUpdate,
                 ClientSet::ResetEvents
-                    .after(NetcodeClientPlugin::update_system)
+                    .after(RenetReceive)
                     .before(ClientSet::Receive)
-                    .run_if(client_just_connected()),
+                    .run_if(client_just_connected),
             )
-            .configure_sets(
-                PreUpdate,
-                ClientSet::Receive.after(NetcodeClientPlugin::update_system),
-            )
+            .configure_sets(PreUpdate, ClientSet::Receive.after(RenetReceive))
             .configure_sets(
                 PreUpdate,
                 ClientSet::Reset
-                    .after(NetcodeClientPlugin::update_system)
-                    .run_if(client_just_disconnected()),
+                    .after(RenetReceive)
+                    .run_if(client_just_disconnected),
             )
-            .configure_sets(
-                PostUpdate,
-                ClientSet::Send.before(NetcodeClientPlugin::send_packets),
-            )
+            .configure_sets(PostUpdate, ClientSet::Send.before(RenetSend))
             .add_systems(
                 PreUpdate,
                 Self::replication_receiving_system
                     .map(Result::unwrap)
                     .in_set(ClientSet::Receive)
-                    .run_if(client_connected()),
+                    .run_if(client_connected),
             )
             .add_systems(PreUpdate, Self::reset_system.in_set(ClientSet::Reset));
     }
@@ -453,14 +447,15 @@ fn apply_update_components(
 
 /// Deserializes `entity` from compressed index and generation.
 ///
-/// For details see [`ReplicationBuffer::write_entity`](crate::server::replication_message::replication_buffer::write_entity).
+/// For details see
+/// [`ReplicationBuffer::write_entity`](crate::server::replication_message::replication_buffer::write_entity).
 fn deserialize_entity(cursor: &mut Cursor<&[u8]>) -> bincode::Result<Entity> {
     let flagged_index: u64 = cursor.read_u64_varint()?;
     let has_generation = (flagged_index & 1) > 0;
     let generation = if has_generation {
-        cursor.read_u32_varint()?
+        cursor.read_u32_varint()? + 1
     } else {
-        0u32
+        1u32
     };
 
     let bits = (generation as u64) << 32 | (flagged_index >> 1);
@@ -514,7 +509,7 @@ pub enum ClientSet {
 ///
 /// If [`ClientSet::Reset`] is disabled, then this needs to be cleaned up manually.
 #[derive(Default, Deref, DerefMut, Resource)]
-pub struct ServerEntityTicks(EntityHashMap<Entity, RepliconTick>);
+pub struct ServerEntityTicks(EntityHashMap<RepliconTick>);
 
 /// All cached buffered updates, used by the replicon client to align replication updates with initialization
 /// messages.

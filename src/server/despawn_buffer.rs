@@ -16,7 +16,7 @@ impl Plugin for DespawnBufferPlugin {
             Self::detection_system
                 .before(ServerPlugin::replication_sending_system)
                 .in_set(ServerSet::Send)
-                .run_if(resource_exists::<RenetServer>()),
+                .run_if(resource_exists::<RenetServer>),
         );
     }
 }

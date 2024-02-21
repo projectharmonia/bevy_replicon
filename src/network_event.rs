@@ -3,10 +3,8 @@ pub mod server_event;
 
 use std::{marker::PhantomData, time::Duration};
 
-use bevy::{prelude::*, utils::EntityHashMap};
+use bevy::{ecs::entity::EntityHashMap, prelude::*};
 use bevy_renet::renet::SendType;
-
-use crate::replicon_core::replication_rules::Mapper;
 
 /// Holds a server's channel ID for `T`.
 #[derive(Resource)]
@@ -100,10 +98,10 @@ impl From<EventType> for SendType {
 /// Maps server entities into client entities inside events.
 ///
 /// Panics if a mapping doesn't exists.
-pub struct EventMapper<'a>(pub &'a EntityHashMap<Entity, Entity>);
+pub struct EventMapper<'a>(pub &'a EntityHashMap<Entity>);
 
-impl Mapper for EventMapper<'_> {
-    fn map(&mut self, entity: Entity) -> Entity {
+impl EntityMapper for EventMapper<'_> {
+    fn map_entity(&mut self, entity: Entity) -> Entity {
         *self
             .0
             .get(&entity)

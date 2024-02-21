@@ -1,10 +1,7 @@
 mod connect;
 
-use bevy::prelude::*;
-use bevy_replicon::{
-    prelude::*,
-    renet::{transport::NetcodeClientTransport, ClientId},
-};
+use bevy::{ecs::entity::MapEntities, prelude::*};
+use bevy_replicon::{prelude::*, renet::transport::NetcodeClientTransport};
 use serde::{Deserialize, Serialize};
 
 #[test]
@@ -164,7 +161,7 @@ fn client_spawn() {
     let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
 
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
-    let client_id = ClientId::from_raw(client_transport.client_id());
+    let client_id = client_transport.client_id();
 
     let mut entity_map = server_app.world.resource_mut::<ClientEntityMap>();
     entity_map.insert(
@@ -683,9 +680,9 @@ fn removal_with_despawn() {
 #[derive(Component, Deserialize, Serialize)]
 struct MappedComponent(Entity);
 
-impl MapNetworkEntities for MappedComponent {
-    fn map_entities<T: Mapper>(&mut self, mapper: &mut T) {
-        self.0 = mapper.map(self.0);
+impl MapEntities for MappedComponent {
+    fn map_entities<M: EntityMapper>(&mut self, entity_mapper: &mut M) {
+        self.0 = entity_mapper.map_entity(self.0);
     }
 }
 

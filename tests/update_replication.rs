@@ -3,10 +3,7 @@ mod connect;
 use bevy::{prelude::*, utils::Duration};
 use bevy_replicon::{
     prelude::*,
-    renet::{
-        transport::{NetcodeClientTransport, NetcodeServerTransport},
-        ClientId,
-    },
+    renet::transport::{NetcodeClientTransport, NetcodeServerTransport},
 };
 use serde::{Deserialize, Serialize};
 
@@ -327,7 +324,7 @@ fn cleanup() {
 
     // Take and drop received message to make systems miss it.
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
-    let client_id = ClientId::from_raw(client_transport.client_id());
+    let client_id = client_transport.client_id();
     let delta = server_app.world.resource::<Time>().delta();
     server_app
         .world

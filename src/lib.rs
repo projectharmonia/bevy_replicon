@@ -109,18 +109,18 @@ struct DummyComponent;
 If your component contains an entity then it cannot be deserialized as is
 because entity IDs are different on server and client. The client should do the
 mapping. Therefore, to replicate such components properly, they need implement
-[`MapNetworkEntities`] and registered using [`AppReplicationExt::replicate_mapped()`]:
+Bevy's `MapEntities` trait and registered using [`AppReplicationExt::replicate_mapped()`]:
 
 ```
-# use bevy::prelude::*;
+# use bevy::{prelude::*, ecs::entity::{EntityMapper, MapEntities}};
 # use bevy_replicon::prelude::*;
 # use serde::{Deserialize, Serialize};
 #[derive(Component, Deserialize, Serialize)]
 struct MappedComponent(Entity);
 
-impl MapNetworkEntities for MappedComponent {
-    fn map_entities<T: Mapper>(&mut self, mapper: &mut T) {
-        self.0 = mapper.map(self.0);
+impl MapEntities for MappedComponent {
+    fn map_entities<T: EntityMapper>(&mut self, mapper: &mut T) {
+        self.0 = mapper.map_entity(self.0);
     }
 }
 ```
@@ -224,8 +224,8 @@ fn player_init_system(
         commands.entity(entity).insert((
             GlobalTransform::default(),
             VisibilityBundle::default(),
-            meshes.add(Mesh::from(shape::Capsule::default())),
-            materials.add(Color::AZURE.into()),
+            meshes.add(Mesh::from(Capsule3d::default())),
+            materials.add(Color::AZURE),
         ));
     }
 }
@@ -284,7 +284,7 @@ app.add_client_event::<DummyEvent>(EventType::Ordered)
     .add_systems(Update, event_sending_system);
 
 fn event_sending_system(mut dummy_events: EventWriter<DummyEvent>) {
-    dummy_events.send_default()
+    dummy_events.send_default();
 }
 
 fn event_receiving_system(mut dummy_events: EventReader<FromClient<DummyEvent>>) {
@@ -299,10 +299,10 @@ struct DummyEvent;
 
 Just like components, if an event contains an entity, then the client should
 map it before sending it to the server.
-To do this, use [`ClientEventAppExt::add_mapped_client_event()`] and implement [`MapNetworkEntities`]:
+To do this, use [`ClientEventAppExt::add_mapped_client_event()`] and implement Bevy's `MapEntities`:
 
 ```
-# use bevy::prelude::*;
+# use bevy::{prelude::*, ecs::entity::MapEntities};
 # use bevy_replicon::prelude::*;
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
@@ -312,9 +312,9 @@ app.add_mapped_client_event::<MappedEvent>(EventType::Ordered);
 #[derive(Debug, Deserialize, Event, Serialize, Clone)]
 struct MappedEvent(Entity);
 
-impl MapNetworkEntities for MappedEvent {
-    fn map_entities<T: Mapper>(&mut self, mapper: &mut T) {
-        self.0 = mapper.map(self.0);
+impl MapEntities for MappedEvent {
+    fn map_entities<T: EntityMapper>(&mut self, entity_mapper: &mut T) {
+        self.0 = entity_mapper.map_entity(self.0);
     }
 }
 ```
@@ -402,7 +402,7 @@ app.add_plugins((
 ))
 .add_systems(
     Update,
-    visibility_system.run_if(resource_exists::<RenetServer>()),
+    visibility_system.run_if(resource_exists::<RenetServer>),
 );
 
 /// Disables the visibility of other players' entities that are further away than the visible distance.
@@ -481,9 +481,7 @@ pub mod prelude {
         renet::{RenetClient, RenetServer},
         replicon_core::{
             dont_replicate::{CommandDontReplicateExt, EntityDontReplicateExt},
-            replication_rules::{
-                AppReplicationExt, MapNetworkEntities, Mapper, Replication, ReplicationRules,
-            },
+            replication_rules::{AppReplicationExt, Replication, ReplicationRules},
             replicon_tick::RepliconTick,
             NetworkChannels, ReplicationChannel, RepliconCorePlugin,
         },

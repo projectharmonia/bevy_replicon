@@ -81,7 +81,7 @@ impl Plugin for ServerPlugin {
             )
                 .chain()
                 .in_set(ServerSet::Receive)
-                .run_if(resource_exists::<RenetServer>()),
+                .run_if(resource_exists::<RenetServer>),
         )
         .add_systems(
             PostUpdate,
@@ -89,8 +89,8 @@ impl Plugin for ServerPlugin {
                 Self::replication_sending_system
                     .map(Result::unwrap)
                     .in_set(ServerSet::Send)
-                    .run_if(resource_exists::<RenetServer>())
-                    .run_if(resource_changed::<RepliconTick>()),
+                    .run_if(resource_exists::<RenetServer>)
+                    .run_if(resource_changed::<RepliconTick>),
                 Self::reset_system.run_if(resource_removed::<RenetServer>()),
             ),
         );
@@ -102,7 +102,7 @@ impl Plugin for ServerPlugin {
                     PostUpdate,
                     Self::increment_tick
                         .before(Self::replication_sending_system)
-                        .run_if(resource_exists::<RenetServer>())
+                        .run_if(resource_exists::<RenetServer>)
                         .run_if(on_timer(tick_time)),
                 );
             }
@@ -111,7 +111,7 @@ impl Plugin for ServerPlugin {
                     PostUpdate,
                     Self::increment_tick
                         .before(Self::replication_sending_system)
-                        .run_if(resource_exists::<RenetServer>()),
+                        .run_if(resource_exists::<RenetServer>),
                 );
             }
             TickPolicy::Manual => (),
@@ -296,11 +296,9 @@ fn collect_changes(
 
         for entity in archetype.entities() {
             for (init_message, update_message, client_state) in messages.iter_mut_with_state() {
-                init_message.start_entity_data(entity.entity());
-                update_message.start_entity_data(entity.entity());
-                client_state
-                    .visibility_mut()
-                    .cache_visibility(entity.entity());
+                init_message.start_entity_data(entity.id());
+                update_message.start_entity_data(entity.id());
+                client_state.visibility_mut().cache_visibility(entity.id());
             }
 
             // SAFETY: all replicated archetypes have marker component with table storage.
@@ -349,7 +347,7 @@ fn collect_changes(
                         )?;
                     } else {
                         let tick = client_state
-                            .get_change_limit(entity.entity())
+                            .get_change_limit(entity.id())
                             .expect("entity should be present after adding component");
                         if ticks.is_changed(tick, change_tick.this_run()) {
                             update_message.write_component(
@@ -374,7 +372,7 @@ fn collect_changes(
                     // If there is any insertion or we must initialize, include all updates into init message
                     // and bump the last acknowledged tick to keep entity updates atomic.
                     init_message.take_entity_data(update_message)?;
-                    client_state.set_change_limit(entity.entity(), change_tick.this_run());
+                    client_state.set_change_limit(entity.id(), change_tick.this_run());
                 } else {
                     update_message.end_entity_data()?;
                 }
@@ -413,8 +411,8 @@ unsafe fn get_component_unchecked<'w>(
         }
         StorageType::SparseSet => {
             let sparse_set = sparse_sets.get(component_id).unwrap_unchecked();
-            let component = sparse_set.get(entity.entity()).unwrap_unchecked();
-            let ticks = sparse_set.get_ticks(entity.entity()).unwrap_unchecked();
+            let component = sparse_set.get(entity.id()).unwrap_unchecked();
+            let ticks = sparse_set.get_ticks(entity.id()).unwrap_unchecked();
 
             (component, ticks)
         }
@@ -479,8 +477,8 @@ fn collect_removals(
 }
 
 /// Condition that returns `true` for server or in singleplayer and `false` for client.
-pub fn has_authority() -> impl FnMut(Option<Res<RenetClient>>) -> bool + Clone {
-    move |client| client.is_none()
+pub fn has_authority(client: Option<Res<RenetClient>>) -> bool {
+    client.is_none()
 }
 
 /// Set with replication and event systems related to server.
