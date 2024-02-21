@@ -27,6 +27,9 @@ use crate::{
 /// An extension trait for [`App`] for creating server events.
 pub trait ServerEventAppExt {
     /// Registers event `T` that will be emitted on client after sending [`ToClients<T>`] on server.
+    ///
+    /// For usage example see the [corresponding section](../../index.html#from-server-to-client)
+    /// in the quick start guide.
     fn add_server_event<T: Event + Serialize + DeserializeOwned>(
         &mut self,
         send_type: impl Into<SendType>,
@@ -35,6 +38,8 @@ pub trait ServerEventAppExt {
     /// Same as [`Self::add_server_event`], but additionally maps server entities to client inside the event after receiving.
     ///
     /// Always use it for events that contain entities.
+    /// For usage example see the [corresponding section](../../index.html#from-server-to-client)
+    /// in the quick start guide.
     fn add_mapped_server_event<T: Event + Serialize + DeserializeOwned + MapEntities>(
         &mut self,
         send_type: impl Into<SendType>,
