@@ -7,8 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- Removed `Mapper` and `MapNetworkEntities` in favor of `EntityMapper` and `MapEntities` introduced in Bevy 0.13.0
-- Changed conditional systems to follow the new pattern, avoid returning a closure.
+### Changed
+
+- Common conditions now follow the new pattern without returning a closure.
+
+### Removed
+
+- `Mapper` and `MapNetworkEntities` in favor of `EntityMapper` and `MapEntities` introduced in Bevy 0.13.0
+
+### Fixed
+
+- Make `scene::replicate_into` update previously added entities.
 
 ## [0.22.0] - 2024-02-17
 
