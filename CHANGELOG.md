@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.0] - 2024-02-22
+
 ### Changed
 
 - Common conditions now follow the new pattern without returning a closure.
@@ -375,7 +377,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release after separation from [Project Harmonia](https://github.com/projectharmonia/project_harmonia).
 
-[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.22.0...HEAD
+[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.23.0...HEAD
+[0.23.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.21.2...v0.22.0
 [0.21.2]: https://github.com/projectharmonia/bevy_replicon/compare/v0.21.1...v0.21.2
 [0.21.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.21.0...v0.21.1
