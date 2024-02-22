@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Changed `ClientEventAppExt::add_mapped_client_event` to clone the events instead of draining them. This means that mapped client events must now implement `Clone`
+- Change `ClientEventAppExt::add_mapped_client_event` to clone the events instead of draining them. This means that mapped client events must now implement `Clone`
 
 ### Fixed
 
@@ -33,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changes
 
-- Increased publicity of `ClientState` API.
+- Increase publicity of `ClientState` API.
 
 ## [0.21.1] - 2024-01-22
 
