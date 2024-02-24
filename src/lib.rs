@@ -480,9 +480,11 @@ pub mod prelude {
             RepliconCorePlugin,
         },
         network_event::{
-            client_event::{ClientEventAppExt, FromClient},
-            server_event::{SendMode, ServerEventAppExt, ServerEventQueue, ToClients},
-            ClientEventChannel, EventMapper, EventType, ServerEventChannel,
+            client_event::{ClientEventAppExt, ClientEventChannel, FromClient},
+            server_event::{
+                SendMode, ServerEventAppExt, ServerEventChannel, ServerEventQueue, ToClients,
+            },
+            EventMapper, EventType,
         },
         parent_sync::{ParentSync, ParentSyncPlugin},
         renet::{RenetClient, RenetServer},
