@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Rename `ClientCache` into `ConnectedClients`.
+- Rename `ClientState` into `ConnectedClient`.
 - Rename `replicon_core` module into `core`.
 - Rename `NetworkChannels` into `RepliconChannels` and move into `replicon_channels` module.
 - Move `ClientEventChannel` to `client_event` module.

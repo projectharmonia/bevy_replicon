@@ -11,7 +11,7 @@ use varint_rs::VarintWriter;
 
 use super::{
     connected_clients::{ClientBuffers, ConnectedClients},
-    ClientMapping, ClientState,
+    ClientMapping, ConnectedClient,
 };
 use crate::core::{
     replication_rules::{ReplicationId, ReplicationInfo},
@@ -59,16 +59,14 @@ impl ReplicationMessages {
         self.data.iter_mut().take(self.connected_clients.len())
     }
 
-    /// Same as [`Self::iter_mut`], but also iterates over client states.
-    pub(super) fn iter_mut_with_state(
+    /// Same as [`Self::iter_mut`], but also includes [`ConnectedClient`].
+    pub(super) fn iter_mut_with_clients(
         &mut self,
-    ) -> impl Iterator<Item = (&mut InitMessage, &mut UpdateMessage, &mut ClientState)> {
+    ) -> impl Iterator<Item = (&mut InitMessage, &mut UpdateMessage, &mut ConnectedClient)> {
         self.data
             .iter_mut()
             .zip(self.connected_clients.iter_mut())
-            .map(|((init_message, update_message), client_state)| {
-                (init_message, update_message, client_state)
-            })
+            .map(|((init_message, update_message), client)| (init_message, update_message, client))
     }
 
     /// Sends cached messages to clients specified in the last [`Self::prepare`] call.
@@ -84,19 +82,19 @@ impl ReplicationMessages {
         tick: Tick,
         timestamp: Duration,
     ) -> bincode::Result<ConnectedClients> {
-        for ((init_message, update_message), client_state) in
+        for ((init_message, update_message), client) in
             self.data.iter_mut().zip(self.connected_clients.iter_mut())
         {
-            init_message.send(server, client_state, replicon_tick)?;
+            init_message.send(server, client, replicon_tick)?;
             update_message.send(
                 server,
                 client_buffers,
-                client_state,
+                client,
                 replicon_tick,
                 tick,
                 timestamp,
             )?;
-            client_state.visibility_mut().update();
+            client.visibility_mut().update();
         }
 
         let connected_clients = mem::take(&mut self.connected_clients);
@@ -378,7 +376,7 @@ impl InitMessage {
     fn send(
         &self,
         server: &mut RenetServer,
-        client_state: &mut ClientState,
+        client: &mut ConnectedClient,
         replicon_tick: RepliconTick,
     ) -> bincode::Result<()> {
         debug_assert_eq!(self.array_len, 0);
@@ -386,18 +384,18 @@ impl InitMessage {
 
         let slice = self.as_slice();
         if slice.is_empty() {
-            trace!("no init data to send for client {}", client_state.id());
+            trace!("no init data to send for client {}", client.id());
             return Ok(());
         }
 
-        client_state.set_change_tick(replicon_tick);
+        client.set_change_tick(replicon_tick);
 
         let mut header = [0; mem::size_of::<RepliconTick>()];
         bincode::serialize_into(&mut header[..], &replicon_tick)?;
 
-        trace!("sending init message to client {}", client_state.id());
+        trace!("sending init message to client {}", client.id());
         server.send_message(
-            client_state.id(),
+            client.id(),
             ReplicationChannel::Reliable,
             Bytes::from([&header, slice].concat()),
         );
@@ -554,7 +552,7 @@ impl UpdateMessage {
         &mut self,
         server: &mut RenetServer,
         client_buffers: &mut ClientBuffers,
-        client_state: &mut ClientState,
+        client: &mut ConnectedClient,
         replicon_tick: RepliconTick,
         tick: Tick,
         timestamp: Duration,
@@ -563,22 +561,19 @@ impl UpdateMessage {
 
         let mut slice = self.as_slice();
         if slice.is_empty() {
-            trace!("no updates to send for client {}", client_state.id());
+            trace!("no updates to send for client {}", client.id());
             return Ok(());
         }
 
-        trace!("sending update message(s) to client {}", client_state.id());
+        trace!("sending update message(s) to client {}", client.id());
         const TICKS_SIZE: usize = 2 * mem::size_of::<RepliconTick>();
         let mut header = [0; TICKS_SIZE + mem::size_of::<u16>()];
-        bincode::serialize_into(
-            &mut header[..],
-            &(client_state.change_tick(), replicon_tick),
-        )?;
+        bincode::serialize_into(&mut header[..], &(client.change_tick(), replicon_tick))?;
 
         let mut message_size = 0;
-        let client_id = client_state.id();
+        let client_id = client.id();
         let (mut update_index, mut entities) =
-            client_state.register_update(client_buffers, tick, timestamp);
+            client.register_update(client_buffers, tick, timestamp);
         for &(entity, data_size) in &self.entities {
             // Try to pack back first, then try to pack forward.
             if message_size == 0
@@ -602,7 +597,7 @@ impl UpdateMessage {
 
                 if !slice.is_empty() {
                     (update_index, entities) =
-                        client_state.register_update(client_buffers, tick, timestamp);
+                        client.register_update(client_buffers, tick, timestamp);
                 }
             }
         }
