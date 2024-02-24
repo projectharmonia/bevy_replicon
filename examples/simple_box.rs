@@ -55,15 +55,15 @@ impl SimpleBoxPlugin {
     fn cli_system(
         mut commands: Commands,
         cli: Res<Cli>,
-        network_channels: Res<NetworkChannels>,
+        channels: Res<RepliconChannels>,
     ) -> Result<(), Box<dyn Error>> {
         match *cli {
             Cli::SinglePlayer => {
                 commands.spawn(PlayerBundle::new(SERVER_ID, Vec2::ZERO, Color::GREEN));
             }
             Cli::Server { port } => {
-                let server_channels_config = network_channels.get_server_configs();
-                let client_channels_config = network_channels.get_client_configs();
+                let server_channels_config = channels.get_server_configs();
+                let client_channels_config = channels.get_client_configs();
 
                 let server = RenetServer::new(ConnectionConfig {
                     server_channels_config,
@@ -97,8 +97,8 @@ impl SimpleBoxPlugin {
                 commands.spawn(PlayerBundle::new(SERVER_ID, Vec2::ZERO, Color::GREEN));
             }
             Cli::Client { port, ip } => {
-                let server_channels_config = network_channels.get_server_configs();
-                let client_channels_config = network_channels.get_client_configs();
+                let server_channels_config = channels.get_server_configs();
+                let client_channels_config = channels.get_client_configs();
 
                 let client = RenetClient::new(ConnectionConfig {
                     server_channels_config,

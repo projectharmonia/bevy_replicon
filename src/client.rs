@@ -14,8 +14,8 @@ use bincode::{DefaultOptions, Options};
 use varint_rs::VarintReader;
 
 use crate::core::{
-    network_channels::ReplicationChannel,
     replication_rules::{Replication, ReplicationRules},
+    replicon_channels::ReplicationChannel,
     replicon_tick::RepliconTick,
 };
 use client_mapper::ServerEntityMap;
