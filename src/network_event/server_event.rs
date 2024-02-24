@@ -19,7 +19,7 @@ use crate::{
     prelude::{ClientPlugin, ServerPlugin},
     replicon_core::{replicon_tick::RepliconTick, NetworkChannels},
     server::{
-        client_cache::{ClientCache, ClientState},
+        connected_clients::{ClientState, ConnectedClients},
         has_authority, ServerSet, SERVER_ID,
     },
 };
@@ -79,13 +79,13 @@ pub trait ServerEventAppExt {
     fn sending_reflect_system(
         mut server: ResMut<RenetServer>,
         mut reflect_events: EventReader<ToClients<ReflectEvent>>,
-        client_cache: Res<ClientCache>,
+        connected_clients: Res<ConnectedClients>,
         channel: Res<ServerEventChannel<ReflectEvent>>,
         registry: Res<AppTypeRegistry>,
     ) {
         let registry = registry.read();
         for ToClients { event, mode } in reflect_events.read() {
-            server_event::send_with(&mut server, &client_cache, *channel, *mode, |cursor| {
+            server_event::send_with(&mut server, &connected_clients, *channel, *mode, |cursor| {
                 let serializer = ReflectSerializer::new(&*event.0, &registry);
                 DefaultOptions::new().serialize_into(cursor, &serializer)
             })
@@ -250,11 +250,11 @@ fn receiving_and_mapping_system<T: Event + MapEntities + DeserializeOwned>(
 fn sending_system<T: Event + Serialize>(
     mut server: ResMut<RenetServer>,
     mut server_events: EventReader<ToClients<T>>,
-    client_cache: Res<ClientCache>,
+    connected_clients: Res<ConnectedClients>,
     channel: Res<ServerEventChannel<T>>,
 ) {
     for ToClients { event, mode } in server_events.read() {
-        send_with(&mut server, &client_cache, *channel, *mode, |cursor| {
+        send_with(&mut server, &connected_clients, *channel, *mode, |cursor| {
             DefaultOptions::new().serialize_into(cursor, &event)
         })
         .expect("server event should be serializable");
@@ -304,7 +304,7 @@ fn reset_system<T: Event>(mut event_queue: ResMut<ServerEventQueue<T>>) {
 /// See also [`ServerEventAppExt::add_server_event_with`].
 pub fn send_with<T>(
     server: &mut RenetServer,
-    client_cache: &ClientCache,
+    connected_clients: &ConnectedClients,
     channel: ServerEventChannel<T>,
     mode: SendMode,
     serialize_fn: impl Fn(&mut Cursor<Vec<u8>>) -> bincode::Result<()>,
@@ -312,7 +312,7 @@ pub fn send_with<T>(
     match mode {
         SendMode::Broadcast => {
             let mut previous_message = None;
-            for client_state in client_cache.iter() {
+            for client_state in connected_clients.iter() {
                 let message = serialize_with(client_state, previous_message, &serialize_fn)?;
                 server.send_message(client_state.id(), channel, message.bytes.clone());
                 previous_message = Some(message);
@@ -320,7 +320,7 @@ pub fn send_with<T>(
         }
         SendMode::BroadcastExcept(client_id) => {
             let mut previous_message = None;
-            for client_state in client_cache.iter() {
+            for client_state in connected_clients.iter() {
                 if client_state.id() == client_id {
                     continue;
                 }
@@ -331,7 +331,7 @@ pub fn send_with<T>(
         }
         SendMode::Direct(client_id) => {
             if client_id != SERVER_ID {
-                if let Some(client_state) = client_cache.get_client(client_id) {
+                if let Some(client_state) = connected_clients.get_client(client_id) {
                     let message = serialize_with(client_state, None, &serialize_fn)?;
                     server.send_message(client_state.id(), channel, message.bytes);
                 }

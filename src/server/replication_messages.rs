@@ -10,7 +10,7 @@ use bincode::{DefaultOptions, Options};
 use varint_rs::VarintWriter;
 
 use super::{
-    client_cache::{ClientBuffers, ClientCache},
+    connected_clients::{ClientBuffers, ConnectedClients},
     ClientMapping, ClientState,
 };
 use crate::replicon_core::{
@@ -27,7 +27,7 @@ use crate::replicon_core::{
 /// Reuses allocated memory from older messages.
 #[derive(Default)]
 pub(crate) struct ReplicationMessages {
-    client_cache: ClientCache,
+    connected_clients: ConnectedClients,
     data: Vec<(InitMessage, UpdateMessage)>,
 }
 
@@ -38,11 +38,11 @@ impl ReplicationMessages {
     /// Creates new messages if the number of clients is bigger then the number of allocated messages.
     /// If there are more messages than the number of clients, then the extra messages remain untouched
     /// and iteration methods will not include them.
-    pub(super) fn prepare(&mut self, client_cache: ClientCache) {
+    pub(super) fn prepare(&mut self, connected_clients: ConnectedClients) {
         self.data
-            .reserve(client_cache.len().saturating_sub(self.data.len()));
+            .reserve(connected_clients.len().saturating_sub(self.data.len()));
 
-        for index in 0..client_cache.len() {
+        for index in 0..connected_clients.len() {
             if let Some((init_message, update_message)) = self.data.get_mut(index) {
                 init_message.reset();
                 update_message.reset();
@@ -51,23 +51,24 @@ impl ReplicationMessages {
             }
         }
 
-        self.client_cache = client_cache;
+        self.connected_clients = connected_clients;
     }
 
     /// Returns iterator over messages for each client.
     pub(super) fn iter_mut(&mut self) -> impl Iterator<Item = &mut (InitMessage, UpdateMessage)> {
-        self.data.iter_mut().take(self.client_cache.len())
+        self.data.iter_mut().take(self.connected_clients.len())
     }
 
     /// Same as [`Self::iter_mut`], but also iterates over client states.
     pub(super) fn iter_mut_with_state(
         &mut self,
     ) -> impl Iterator<Item = (&mut InitMessage, &mut UpdateMessage, &mut ClientState)> {
-        self.data.iter_mut().zip(self.client_cache.iter_mut()).map(
-            |((init_message, update_message), client_state)| {
+        self.data
+            .iter_mut()
+            .zip(self.connected_clients.iter_mut())
+            .map(|((init_message, update_message), client_state)| {
                 (init_message, update_message, client_state)
-            },
-        )
+            })
     }
 
     /// Sends cached messages to clients specified in the last [`Self::prepare`] call.
@@ -82,9 +83,9 @@ impl ReplicationMessages {
         replicon_tick: RepliconTick,
         tick: Tick,
         timestamp: Duration,
-    ) -> bincode::Result<ClientCache> {
+    ) -> bincode::Result<ConnectedClients> {
         for ((init_message, update_message), client_state) in
-            self.data.iter_mut().zip(self.client_cache.iter_mut())
+            self.data.iter_mut().zip(self.connected_clients.iter_mut())
         {
             init_message.send(server, client_state, replicon_tick)?;
             update_message.send(
@@ -98,9 +99,9 @@ impl ReplicationMessages {
             client_state.visibility_mut().update();
         }
 
-        let client_cache = mem::take(&mut self.client_cache);
+        let connected_clients = mem::take(&mut self.connected_clients);
 
-        Ok(client_cache)
+        Ok(connected_clients)
     }
 }
 
