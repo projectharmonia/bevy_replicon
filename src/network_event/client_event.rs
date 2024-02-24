@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use bevy::{
     ecs::{entity::MapEntities, event::Event},
     prelude::*,
@@ -9,7 +11,6 @@ use bevy_renet::{
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Serialize};
 
-use super::ClientEventChannel;
 use crate::{
     client::{client_mapper::ServerEntityMap, ClientSet},
     core::network_channels::NetworkChannels,
@@ -240,6 +241,36 @@ fn reset_system<T: Event>(mut events: ResMut<Events<T>>) {
     let drained_count = events.drain().count();
     if drained_count > 0 {
         warn!("discarded {drained_count} client events due to a disconnect");
+    }
+}
+
+/// Holds a client's channel ID for `T`.
+#[derive(Resource)]
+pub struct ClientEventChannel<T> {
+    id: u8,
+    marker: PhantomData<T>,
+}
+
+impl<T> ClientEventChannel<T> {
+    fn new(id: u8) -> Self {
+        Self {
+            id,
+            marker: PhantomData,
+        }
+    }
+}
+
+impl<T> Clone for ClientEventChannel<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for ClientEventChannel<T> {}
+
+impl<T> From<ClientEventChannel<T>> for u8 {
+    fn from(value: ClientEventChannel<T>) -> Self {
+        value.id
     }
 }
 

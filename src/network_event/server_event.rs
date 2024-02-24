@@ -1,4 +1,4 @@
-use std::io::Cursor;
+use std::{io::Cursor, marker::PhantomData};
 
 use bevy::{
     ecs::{entity::MapEntities, event::Event},
@@ -12,7 +12,6 @@ use bincode::{DefaultOptions, Options};
 use ordered_multimap::ListOrderedMultimap;
 use serde::{de::DeserializeOwned, Serialize};
 
-use super::ServerEventChannel;
 use crate::{
     client::{client_mapper::ServerEntityMap, ClientSet},
     core::{network_channels::NetworkChannels, replicon_tick::RepliconTick},
@@ -407,6 +406,36 @@ pub fn deserialize_with<T>(
     let event = (deserialize_fn)(&mut cursor)?;
 
     Ok((tick, event))
+}
+
+/// Holds a server's channel ID for `T`.
+#[derive(Resource)]
+pub struct ServerEventChannel<T> {
+    id: u8,
+    marker: PhantomData<T>,
+}
+
+impl<T> ServerEventChannel<T> {
+    fn new(id: u8) -> Self {
+        Self {
+            id,
+            marker: PhantomData,
+        }
+    }
+}
+
+impl<T> Clone for ServerEventChannel<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for ServerEventChannel<T> {}
+
+impl<T> From<ServerEventChannel<T>> for u8 {
+    fn from(value: ServerEventChannel<T>) -> Self {
+        value.id
+    }
 }
 
 /// An event that will be send to client(s).
