@@ -8,7 +8,7 @@ use bevy::{
     prelude::*,
 };
 
-use crate::replicon_core::replication_rules::{ReplicationId, ReplicationInfo, ReplicationRules};
+use crate::core::replication_rules::{ReplicationId, ReplicationInfo, ReplicationRules};
 
 /// Stores cached information about all replicated archetypes.
 pub(crate) struct ReplicatedArchetypesInfo {

@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     client::ClientSet,
-    replicon_core::replication_rules::AppReplicationExt,
+    core::replication_rules::AppReplicationExt,
     server::{has_authority, ServerSet},
 };
 
@@ -92,7 +92,7 @@ mod tests {
     use bevy::scene::ScenePlugin;
 
     use super::*;
-    use crate::replicon_core::RepliconCorePlugin;
+    use crate::core::RepliconCorePlugin;
 
     #[test]
     fn update() {

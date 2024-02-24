@@ -13,7 +13,7 @@ use super::{
     connected_clients::{ClientBuffers, ConnectedClients},
     ClientMapping, ClientState,
 };
-use crate::replicon_core::{
+use crate::core::{
     replication_rules::{ReplicationId, ReplicationInfo},
     replicon_tick::RepliconTick,
     ReplicationChannel,

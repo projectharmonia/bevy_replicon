@@ -132,7 +132,7 @@ you can use [`AppReplicationExt::replicate_with`]:
 ```
 use std::io::Cursor;
 use bevy::{prelude::*, ptr::Ptr};
-use bevy_replicon::{prelude::*, replicon_core::replication_rules};
+use bevy_replicon::{prelude::*, core::replication_rules};
 use serde::{Deserialize, Serialize};
 
 # let mut app = App::new();
@@ -206,7 +206,7 @@ your initialization systems to [`ClientSet::Receive`]:
 ```
 # use std::io::Cursor;
 # use bevy::{prelude::*, ptr::Ptr};
-# use bevy_replicon::{prelude::*, replicon_core::replication_rules};
+# use bevy_replicon::{prelude::*, core::replication_rules};
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
@@ -459,9 +459,9 @@ To reduce packet size there are the following limits per replication update:
 */
 
 pub mod client;
+pub mod core;
 pub mod network_event;
 pub mod parent_sync;
-pub mod replicon_core;
 pub mod scene;
 pub mod server;
 
@@ -472,6 +472,12 @@ pub mod prelude {
             diagnostics::{ClientDiagnosticsPlugin, ClientStats},
             BufferedUpdates, ClientPlugin, ClientSet, ServerEntityTicks,
         },
+        core::{
+            dont_replicate::{CommandDontReplicateExt, EntityDontReplicateExt},
+            replication_rules::{AppReplicationExt, Replication, ReplicationRules},
+            replicon_tick::RepliconTick,
+            NetworkChannels, ReplicationChannel, RepliconCorePlugin,
+        },
         network_event::{
             client_event::{ClientEventAppExt, FromClient},
             server_event::{SendMode, ServerEventAppExt, ServerEventQueue, ToClients},
@@ -479,12 +485,6 @@ pub mod prelude {
         },
         parent_sync::{ParentSync, ParentSyncPlugin},
         renet::{RenetClient, RenetServer},
-        replicon_core::{
-            dont_replicate::{CommandDontReplicateExt, EntityDontReplicateExt},
-            replication_rules::{AppReplicationExt, Replication, ReplicationRules},
-            replicon_tick::RepliconTick,
-            NetworkChannels, ReplicationChannel, RepliconCorePlugin,
-        },
         server::{
             connected_clients::{
                 client_visibility::ClientVisibility, ClientState, ConnectedClients,

@@ -24,7 +24,7 @@ use bevy_renet::{
     RenetReceive, RenetSend, RenetServerPlugin,
 };
 
-use crate::replicon_core::{
+use crate::core::{
     replication_rules::ReplicationRules, replicon_tick::RepliconTick, ReplicationChannel,
 };
 use connected_clients::{

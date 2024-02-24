@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy_renet::renet::RenetServer;
 
 use super::{ServerPlugin, ServerSet};
-use crate::replicon_core::replication_rules::Replication;
+use crate::core::replication_rules::Replication;
 
 /// Treats removals of [`Replication`] component as despawns and stores them into [`DespawnBuffer`] resource.
 ///

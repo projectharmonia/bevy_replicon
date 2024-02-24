@@ -13,7 +13,7 @@ use bevy_renet::{
 use bincode::{DefaultOptions, Options};
 use varint_rs::VarintReader;
 
-use crate::replicon_core::{
+use crate::core::{
     replication_rules::{Replication, ReplicationRules},
     replicon_tick::RepliconTick,
     ReplicationChannel,

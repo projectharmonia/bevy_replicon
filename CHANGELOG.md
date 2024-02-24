@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Rename `ClientCache` into `ConnectedClients`.
+- Rename `replicon_core` module into `core`.
 
 ## [0.23.0] - 2024-02-22
 

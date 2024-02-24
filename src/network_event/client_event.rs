@@ -12,8 +12,8 @@ use serde::{de::DeserializeOwned, Serialize};
 use super::ClientEventChannel;
 use crate::{
     client::{client_mapper::ServerEntityMap, ClientSet},
+    core::NetworkChannels,
     network_event::EventMapper,
-    replicon_core::NetworkChannels,
     server::{has_authority, ServerSet, SERVER_ID},
 };
 

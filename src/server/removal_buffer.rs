@@ -14,7 +14,7 @@ use super::{
     despawn_buffer::{DespawnBuffer, DespawnBufferPlugin},
     ServerPlugin, ServerSet,
 };
-use crate::replicon_core::replication_rules::{ReplicationId, ReplicationRules};
+use crate::core::replication_rules::{ReplicationId, ReplicationRules};
 
 /// Buffers all replicated component removals in [`RemovalBuffer`] resource.
 ///
@@ -103,7 +103,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::replicon_core::replication_rules::{AppReplicationExt, Replication};
+    use crate::core::replication_rules::{AppReplicationExt, Replication};
 
     #[test]
     fn removals() {
