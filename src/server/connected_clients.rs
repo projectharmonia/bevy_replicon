@@ -14,12 +14,12 @@ use client_visibility::ClientVisibility;
 
 /// Stores information about connected clients.
 #[derive(Resource, Default)]
-pub struct ClientCache {
+pub struct ConnectedClients {
     states: Vec<ClientState>,
     policy: VisibilityPolicy,
 }
 
-impl ClientCache {
+impl ConnectedClients {
     pub(super) fn new(policy: VisibilityPolicy) -> Self {
         Self {
             states: Default::default(),
@@ -345,7 +345,7 @@ impl ClientState {
     }
 }
 
-/// Reusable buffers for [`ClientCache`] and [`ClientState`].
+/// Reusable buffers for [`ConnectedClients`] and [`ClientState`].
 #[derive(Default, Resource)]
 pub(crate) struct ClientBuffers {
     /// [`ClientState`]'s of previously disconnected clients.

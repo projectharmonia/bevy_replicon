@@ -385,7 +385,7 @@ creation / connection systems and corresponding UI.
 You can control which parts of the world are visible for each client by setting visibility policy
 in [`ServerPlugin`] to [`VisibilityPolicy::Whitelist`] or [`VisibilityPolicy::Blacklist`].
 
-In order to set which entity is visible, you need to use the [`ClientCache`] resource
+In order to set which entity is visible, you need to use the [`ConnectedClients`] resource
 to obtain the [`ClientState`] for a specific client and get its [`ClientVisibility`]:
 
 ```
@@ -407,12 +407,12 @@ app.add_plugins((
 
 /// Disables the visibility of other players' entities that are further away than the visible distance.
 fn visibility_system(
-    mut client_cache: ResMut<ClientCache>,
+    mut connected_clients: ResMut<ConnectedClients>,
     moved_players: Query<(&Transform, &Player), Changed<Transform>>,
     other_players: Query<(Entity, &Transform, &Player)>,
 ) {
     for (moved_transform, moved_player) in &moved_players {
-        let client_state = client_cache.client_mut(moved_player.0);
+        let client_state = connected_clients.client_mut(moved_player.0);
         for (entity, transform, _) in other_players
             .iter()
             .filter(|(.., player)| player.0 != moved_player.0)
@@ -486,7 +486,9 @@ pub mod prelude {
             NetworkChannels, ReplicationChannel, RepliconCorePlugin,
         },
         server::{
-            client_cache::{client_visibility::ClientVisibility, ClientCache, ClientState},
+            connected_clients::{
+                client_visibility::ClientVisibility, ClientState, ConnectedClients,
+            },
             has_authority, ClientEntityMap, ClientMapping, ServerPlugin, ServerSet, TickPolicy,
             VisibilityPolicy, SERVER_ID,
         },

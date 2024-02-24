@@ -1,4 +1,4 @@
-pub mod client_cache;
+pub mod connected_clients;
 pub(super) mod despawn_buffer;
 pub(super) mod removal_buffer;
 pub(super) mod replicated_archetypes_info;
@@ -27,7 +27,9 @@ use bevy_renet::{
 use crate::replicon_core::{
     replication_rules::ReplicationRules, replicon_tick::RepliconTick, ReplicationChannel,
 };
-use client_cache::{client_visibility::Visibility, ClientBuffers, ClientCache, ClientState};
+use connected_clients::{
+    client_visibility::Visibility, ClientBuffers, ClientState, ConnectedClients,
+};
 use despawn_buffer::{DespawnBuffer, DespawnBufferPlugin};
 use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
 use replicated_archetypes_info::ReplicatedArchetypesInfo;
@@ -68,7 +70,7 @@ impl Plugin for ServerPlugin {
         ))
         .init_resource::<ClientBuffers>()
         .init_resource::<ClientEntityMap>()
-        .insert_resource(ClientCache::new(self.visibility_policy))
+        .insert_resource(ConnectedClients::new(self.visibility_policy))
         .configure_sets(PreUpdate, ServerSet::Receive.after(RenetReceive))
         .configure_sets(PostUpdate, ServerSet::Send.before(RenetSend))
         .add_systems(
@@ -129,17 +131,17 @@ impl ServerPlugin {
     fn handle_connections_system(
         mut server_events: EventReader<ServerEvent>,
         mut entity_map: ResMut<ClientEntityMap>,
-        mut client_cache: ResMut<ClientCache>,
+        mut connected_clients: ResMut<ConnectedClients>,
         mut client_buffers: ResMut<ClientBuffers>,
     ) {
         for event in server_events.read() {
             match *event {
                 ServerEvent::ClientDisconnected { client_id, .. } => {
                     entity_map.0.remove(&client_id);
-                    client_cache.remove(&mut client_buffers, client_id);
+                    connected_clients.remove(&mut client_buffers, client_id);
                 }
                 ServerEvent::ClientConnected { client_id } => {
-                    client_cache.init(&mut client_buffers, client_id);
+                    connected_clients.init(&mut client_buffers, client_id);
                 }
             }
         }
@@ -147,12 +149,12 @@ impl ServerPlugin {
 
     fn acks_cleanup_system(
         update_timeout: Duration,
-    ) -> impl FnMut(ResMut<ClientCache>, ResMut<ClientBuffers>, Res<Time>) {
-        move |mut client_cache: ResMut<ClientCache>,
+    ) -> impl FnMut(ResMut<ConnectedClients>, ResMut<ClientBuffers>, Res<Time>) {
+        move |mut connected_clients: ResMut<ConnectedClients>,
               mut client_buffers: ResMut<ClientBuffers>,
               time: Res<Time>| {
             let min_timestamp = time.elapsed().saturating_sub(update_timeout);
-            for client_state in client_cache.iter_mut() {
+            for client_state in connected_clients.iter_mut() {
                 client_state.remove_older_updates(&mut client_buffers, min_timestamp);
             }
         }
@@ -161,10 +163,10 @@ impl ServerPlugin {
     fn acks_receiving_system(
         change_tick: SystemChangeTick,
         mut server: ResMut<RenetServer>,
-        mut client_cache: ResMut<ClientCache>,
+        mut connected_clients: ResMut<ConnectedClients>,
         mut client_buffers: ResMut<ClientBuffers>,
     ) {
-        for client_state in client_cache.iter_mut() {
+        for client_state in connected_clients.iter_mut() {
             while let Some(message) =
                 server.receive_message(client_state.id(), ReplicationChannel::Reliable)
             {
@@ -193,7 +195,7 @@ impl ServerPlugin {
         change_tick: SystemChangeTick,
         mut set: ParamSet<(
             &World,
-            ResMut<ClientCache>,
+            ResMut<ConnectedClients>,
             ResMut<ClientEntityMap>,
             ResMut<DespawnBuffer>,
             ResMut<RemovalBuffer>,
@@ -206,8 +208,8 @@ impl ServerPlugin {
     ) -> bincode::Result<()> {
         archetypes_info.update(set.p0().archetypes(), &replication_rules);
 
-        let client_cache = mem::take(&mut *set.p1()); // Take ownership to avoid borrowing issues.
-        messages.prepare(client_cache);
+        let connected_clients = mem::take(&mut *set.p1()); // Take ownership to avoid borrowing issues.
+        messages.prepare(connected_clients);
 
         collect_mappings(&mut messages, &mut set.p2())?;
         collect_despawns(&mut messages, &mut set.p3())?;
@@ -221,7 +223,7 @@ impl ServerPlugin {
         )?;
 
         let mut client_buffers = mem::take(&mut *set.p5());
-        let client_cache = messages.send(
+        let connected_clients = messages.send(
             &mut set.p6(),
             &mut client_buffers,
             *replicon_tick,
@@ -230,7 +232,7 @@ impl ServerPlugin {
         )?;
 
         // Return borrowed data back.
-        *set.p1() = client_cache;
+        *set.p1() = connected_clients;
         *set.p5() = client_buffers;
 
         Ok(())
@@ -239,12 +241,12 @@ impl ServerPlugin {
     fn reset_system(
         mut replicon_tick: ResMut<RepliconTick>,
         mut entity_map: ResMut<ClientEntityMap>,
-        mut client_cache: ResMut<ClientCache>,
+        mut connected_clients: ResMut<ConnectedClients>,
         mut client_buffers: ResMut<ClientBuffers>,
     ) {
         *replicon_tick = Default::default();
         entity_map.0.clear();
-        client_cache.clear(&mut client_buffers);
+        connected_clients.clear(&mut client_buffers);
     }
 }
 
@@ -514,7 +516,7 @@ pub enum TickPolicy {
     Manual,
 }
 
-/// Controls how visibility will be managed via [`ClientVisibility`](client_cache::client_visibility::ClientVisibility).
+/// Controls how visibility will be managed via [`ClientVisibility`](connected_clients::client_visibility::ClientVisibility).
 #[derive(Default, Debug, Clone, Copy)]
 pub enum VisibilityPolicy {
     /// All entities are visible by default and visibility can't be changed.

@@ -25,8 +25,8 @@ fn all() {
 
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
     let client_id = client_transport.client_id();
-    let mut client_cache = server_app.world.resource_mut::<ClientCache>();
-    let visibility = client_cache.client_mut(client_id).visibility_mut();
+    let mut connected_clients = server_app.world.resource_mut::<ConnectedClients>();
+    let visibility = connected_clients.client_mut(client_id).visibility_mut();
     visibility.set_visibility(server_entity, false); // Shouldn't have any effect for this policy.
 
     server_app.update();
@@ -38,8 +38,8 @@ fn all() {
         .single(&client_app.world);
 
     // Reverse visibility back.
-    let mut client_cache = server_app.world.resource_mut::<ClientCache>();
-    let visibility = client_cache.client_mut(client_id).visibility_mut();
+    let mut connected_clients = server_app.world.resource_mut::<ConnectedClients>();
+    let visibility = connected_clients.client_mut(client_id).visibility_mut();
     visibility.set_visibility(server_entity, true);
 
     server_app.update();
@@ -102,8 +102,8 @@ fn blacklist() {
 
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
     let client_id = client_transport.client_id();
-    let mut client_cache = server_app.world.resource_mut::<ClientCache>();
-    let visibility = client_cache.client_mut(client_id).visibility_mut();
+    let mut connected_clients = server_app.world.resource_mut::<ConnectedClients>();
+    let visibility = connected_clients.client_mut(client_id).visibility_mut();
     visibility.set_visibility(server_entity, false);
 
     server_app.update();
@@ -112,8 +112,8 @@ fn blacklist() {
     assert!(client_app.world.entities().is_empty());
 
     // Reverse visibility back.
-    let mut client_cache = server_app.world.resource_mut::<ClientCache>();
-    let visibility = client_cache.client_mut(client_id).visibility_mut();
+    let mut connected_clients = server_app.world.resource_mut::<ConnectedClients>();
+    let visibility = connected_clients.client_mut(client_id).visibility_mut();
     visibility.set_visibility(server_entity, true);
 
     server_app.update();
@@ -147,8 +147,8 @@ fn blacklist_despawn() {
 
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
     let client_id = client_transport.client_id();
-    let mut client_cache = server_app.world.resource_mut::<ClientCache>();
-    let visibility = client_cache.client_mut(client_id).visibility_mut();
+    let mut connected_clients = server_app.world.resource_mut::<ConnectedClients>();
+    let visibility = connected_clients.client_mut(client_id).visibility_mut();
     visibility.set_visibility(server_entity, false);
     server_app.world.despawn(server_entity);
 
@@ -157,8 +157,8 @@ fn blacklist_despawn() {
 
     assert!(client_app.world.entities().is_empty());
 
-    let client_cache = server_app.world.resource::<ClientCache>();
-    let visibility = client_cache.client(client_id).visibility();
+    let connected_clients = server_app.world.resource::<ConnectedClients>();
+    let visibility = connected_clients.client(client_id).visibility();
     assert!(visibility.is_visible(server_entity)); // The missing entity must be removed from the list, so this should return `true`.
 }
 
@@ -213,8 +213,8 @@ fn whitelist() {
 
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
     let client_id = client_transport.client_id();
-    let mut client_cache = server_app.world.resource_mut::<ClientCache>();
-    let visibility = client_cache.client_mut(client_id).visibility_mut();
+    let mut connected_clients = server_app.world.resource_mut::<ConnectedClients>();
+    let visibility = connected_clients.client_mut(client_id).visibility_mut();
     visibility.set_visibility(server_entity, true);
 
     server_app.update();
@@ -226,8 +226,8 @@ fn whitelist() {
         .single(&client_app.world);
 
     // Reverse visibility.
-    let mut client_cache = server_app.world.resource_mut::<ClientCache>();
-    let visibility = client_cache.client_mut(client_id).visibility_mut();
+    let mut connected_clients = server_app.world.resource_mut::<ConnectedClients>();
+    let visibility = connected_clients.client_mut(client_id).visibility_mut();
     visibility.set_visibility(server_entity, false);
 
     server_app.update();
@@ -261,8 +261,8 @@ fn whitelist_despawn() {
 
     let client_transport = client_app.world.resource::<NetcodeClientTransport>();
     let client_id = client_transport.client_id();
-    let mut client_cache = server_app.world.resource_mut::<ClientCache>();
-    let visibility = client_cache.client_mut(client_id).visibility_mut();
+    let mut connected_clients = server_app.world.resource_mut::<ConnectedClients>();
+    let visibility = connected_clients.client_mut(client_id).visibility_mut();
     visibility.set_visibility(server_entity, true);
     server_app.world.despawn(server_entity);
 
@@ -271,8 +271,8 @@ fn whitelist_despawn() {
 
     assert!(client_app.world.entities().is_empty());
 
-    let client_cache = server_app.world.resource::<ClientCache>();
-    let visibility = client_cache.client(client_id).visibility();
+    let connected_clients = server_app.world.resource::<ConnectedClients>();
+    let visibility = connected_clients.client(client_id).visibility();
     assert!(!visibility.is_visible(server_entity));
 }
 
