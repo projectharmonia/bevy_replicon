@@ -41,11 +41,11 @@ impl From<ReplicationChannel> for u8 {
 /// A resource to configure and setup channels for [`ConnectionConfig`](bevy_renet::renet::ConnectionConfig).
 #[derive(Clone, Resource)]
 pub struct NetworkChannels {
-    /// Stores the delivery guarantee and maximum usage bytes (if set) for each server channel.
-    server: Vec<(SendType, Option<usize>)>,
+    /// Stores settings for each server channel.
+    server: Vec<ChannelSettings>,
 
     /// Same as [`Self::server`], but for client.
-    client: Vec<(SendType, Option<usize>)>,
+    client: Vec<ChannelSettings>,
 
     /// Stores the default max memory usage bytes for all channels.
     ///
@@ -57,13 +57,16 @@ pub struct NetworkChannels {
 impl Default for NetworkChannels {
     fn default() -> Self {
         let replication_channels = vec![
-            (
-                SendType::ReliableOrdered {
+            ChannelSettings {
+                send_type: SendType::ReliableOrdered {
                     resend_time: Duration::ZERO,
                 },
-                None,
-            ),
-            (SendType::Unreliable, None),
+                max_bytes: None,
+            },
+            ChannelSettings {
+                send_type: SendType::Unreliable,
+                max_bytes: None,
+            },
         ];
 
         Self {
@@ -92,23 +95,23 @@ impl NetworkChannels {
     /// See also [`Self::set_default_max_bytes`].
     pub fn set_server_max_bytes(&mut self, id: impl Into<u8>, max_bytes: usize) {
         let id = id.into() as usize;
-        let (_, bytes) = self
+        let settings = self
             .server
             .get_mut(id)
             .unwrap_or_else(|| panic!("there is no server channel with id {id}"));
 
-        *bytes = Some(max_bytes);
+        settings.max_bytes = Some(max_bytes);
     }
 
     /// Same as [`Self::set_server_max_bytes`], but for a client channel.
     pub fn set_client_max_bytes(&mut self, id: impl Into<u8>, max_bytes: usize) {
         let id = id.into();
-        let (_, bytes) = self
+        let settings = self
             .client
             .get_mut(id as usize)
             .unwrap_or_else(|| panic!("there is no client channel with id {id}"));
 
-        *bytes = Some(max_bytes);
+        settings.max_bytes = Some(max_bytes);
     }
 
     /// Sets the maximum usage bytes that will be used by default for all channels if not set.
@@ -122,7 +125,10 @@ impl NetworkChannels {
             panic!("number of client channels shouldn't exceed u8::MAX");
         }
 
-        self.client.push((send_type, None));
+        self.client.push(ChannelSettings {
+            send_type,
+            max_bytes: None,
+        });
         self.client.len() as u8 - 1
     }
 
@@ -132,19 +138,32 @@ impl NetworkChannels {
             panic!("number of server channels shouldn't exceed u8::MAX");
         }
 
-        self.server.push((send_type, None));
+        self.server.push(ChannelSettings {
+            send_type,
+            max_bytes: None,
+        });
         self.server.len() as u8 - 1
     }
 
-    fn get_configs(&self, channels: &[(SendType, Option<usize>)]) -> Vec<ChannelConfig> {
+    fn get_configs(&self, channels: &[ChannelSettings]) -> Vec<ChannelConfig> {
         let mut channel_configs = Vec::with_capacity(channels.len());
-        for (index, (send_type, max_bytes)) in channels.iter().enumerate() {
+        for (index, settings) in channels.iter().enumerate() {
             channel_configs.push(ChannelConfig {
                 channel_id: index as u8,
-                max_memory_usage_bytes: max_bytes.unwrap_or(self.default_max_bytes),
-                send_type: send_type.clone(),
+                max_memory_usage_bytes: settings.max_bytes.unwrap_or(self.default_max_bytes),
+                send_type: settings.send_type.clone(),
             });
         }
         channel_configs
     }
+}
+
+/// Channel configuration.
+#[derive(Clone)]
+struct ChannelSettings {
+    /// Delivery guarantee.
+    send_type: SendType,
+
+    /// Maximum usage bytes (if set) for each server channel.
+    max_bytes: Option<usize>,
 }
