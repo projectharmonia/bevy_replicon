@@ -12,7 +12,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use super::ClientEventChannel;
 use crate::{
     client::{client_mapper::ServerEntityMap, ClientSet},
-    core::NetworkChannels,
+    core::network_channels::NetworkChannels,
     network_event::EventMapper,
     server::{has_authority, ServerSet, SERVER_ID},
 };

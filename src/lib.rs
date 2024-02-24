@@ -474,9 +474,10 @@ pub mod prelude {
         },
         core::{
             dont_replicate::{CommandDontReplicateExt, EntityDontReplicateExt},
+            network_channels::{NetworkChannels, ReplicationChannel},
             replication_rules::{AppReplicationExt, Replication, ReplicationRules},
             replicon_tick::RepliconTick,
-            NetworkChannels, ReplicationChannel, RepliconCorePlugin,
+            RepliconCorePlugin,
         },
         network_event::{
             client_event::{ClientEventAppExt, FromClient},
