@@ -14,9 +14,9 @@ use super::{
     ClientMapping, ClientState,
 };
 use crate::core::{
+    network_channels::ReplicationChannel,
     replication_rules::{ReplicationId, ReplicationInfo},
     replicon_tick::RepliconTick,
-    ReplicationChannel,
 };
 
 /// Accumulates replication messages and sends them to clients.

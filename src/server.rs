@@ -25,7 +25,8 @@ use bevy_renet::{
 };
 
 use crate::core::{
-    replication_rules::ReplicationRules, replicon_tick::RepliconTick, ReplicationChannel,
+    network_channels::ReplicationChannel, replication_rules::ReplicationRules,
+    replicon_tick::RepliconTick,
 };
 use connected_clients::{
     client_visibility::Visibility, ClientBuffers, ClientState, ConnectedClients,
