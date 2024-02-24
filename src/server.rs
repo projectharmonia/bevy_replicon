@@ -29,7 +29,7 @@ use crate::core::{
     replicon_tick::RepliconTick,
 };
 use connected_clients::{
-    client_visibility::Visibility, ClientBuffers, ClientState, ConnectedClients,
+    client_visibility::Visibility, ClientBuffers, ConnectedClient, ConnectedClients,
 };
 use despawn_buffer::{DespawnBuffer, DespawnBufferPlugin};
 use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
@@ -155,8 +155,8 @@ impl ServerPlugin {
               mut client_buffers: ResMut<ClientBuffers>,
               time: Res<Time>| {
             let min_timestamp = time.elapsed().saturating_sub(update_timeout);
-            for client_state in connected_clients.iter_mut() {
-                client_state.remove_older_updates(&mut client_buffers, min_timestamp);
+            for client in connected_clients.iter_mut() {
+                client.remove_older_updates(&mut client_buffers, min_timestamp);
             }
         }
     }
@@ -167,13 +167,13 @@ impl ServerPlugin {
         mut connected_clients: ResMut<ConnectedClients>,
         mut client_buffers: ResMut<ClientBuffers>,
     ) {
-        for client_state in connected_clients.iter_mut() {
+        for client in connected_clients.iter_mut() {
             while let Some(message) =
-                server.receive_message(client_state.id(), ReplicationChannel::Reliable)
+                server.receive_message(client.id(), ReplicationChannel::Reliable)
             {
                 match bincode::deserialize::<u16>(&message) {
                     Ok(update_index) => {
-                        client_state.acknowledge(
+                        client.acknowledge(
                             &mut client_buffers,
                             change_tick.this_run(),
                             update_index,
@@ -181,7 +181,7 @@ impl ServerPlugin {
                     }
                     Err(e) => debug!(
                         "unable to deserialize update index from client {}: {e}",
-                        client_state.id()
+                        client.id()
                     ),
                 }
             }
@@ -258,10 +258,10 @@ fn collect_mappings(
     messages: &mut ReplicationMessages,
     entity_map: &mut ClientEntityMap,
 ) -> bincode::Result<()> {
-    for (message, _, client_state) in messages.iter_mut_with_state() {
+    for (message, _, client) in messages.iter_mut_with_clients() {
         message.start_array();
 
-        if let Some(mappings) = entity_map.0.get_mut(&client_state.id()) {
+        if let Some(mappings) = entity_map.0.get_mut(&client.id()) {
             for mapping in mappings.drain(..) {
                 message.write_client_mapping(&mapping)?;
             }
@@ -298,10 +298,10 @@ fn collect_changes(
         };
 
         for entity in archetype.entities() {
-            for (init_message, update_message, client_state) in messages.iter_mut_with_state() {
+            for (init_message, update_message, client) in messages.iter_mut_with_clients() {
                 init_message.start_entity_data(entity.id());
                 update_message.start_entity_data(entity.id());
-                client_state.visibility_mut().cache_visibility(entity.id());
+                client.visibility_mut().cache_visibility(entity.id());
             }
 
             // SAFETY: all replicated archetypes have marker component with table storage.
@@ -333,8 +333,8 @@ fn collect_changes(
                 };
 
                 let mut shared_bytes = None;
-                for (init_message, update_message, client_state) in messages.iter_mut_with_state() {
-                    let visibility = client_state.visibility().cached_visibility();
+                for (init_message, update_message, client) in messages.iter_mut_with_clients() {
+                    let visibility = client.visibility().cached_visibility();
                     if visibility == Visibility::Hidden {
                         continue;
                     }
@@ -349,7 +349,7 @@ fn collect_changes(
                             component,
                         )?;
                     } else {
-                        let tick = client_state
+                        let tick = client
                             .get_change_limit(entity.id())
                             .expect("entity should be present after adding component");
                         if ticks.is_changed(tick, change_tick.this_run()) {
@@ -364,8 +364,8 @@ fn collect_changes(
                 }
             }
 
-            for (init_message, update_message, client_state) in messages.iter_mut_with_state() {
-                let visibility = client_state.visibility().cached_visibility();
+            for (init_message, update_message, client) in messages.iter_mut_with_clients() {
+                let visibility = client.visibility().cached_visibility();
                 if visibility == Visibility::Hidden {
                     continue;
                 }
@@ -375,7 +375,7 @@ fn collect_changes(
                     // If there is any insertion or we must initialize, include all updates into init message
                     // and bump the last acknowledged tick to keep entity updates atomic.
                     init_message.take_entity_data(update_message)?;
-                    client_state.set_change_limit(entity.id(), change_tick.this_run());
+                    client.set_change_limit(entity.id(), change_tick.this_run());
                 } else {
                     update_message.end_entity_data()?;
                 }
@@ -433,14 +433,14 @@ fn collect_despawns(
 
     for entity in despawn_buffer.drain(..) {
         let mut shared_bytes = None;
-        for (message, _, client_state) in messages.iter_mut_with_state() {
-            client_state.remove_despawned(entity);
+        for (message, _, client) in messages.iter_mut_with_clients() {
+            client.remove_despawned(entity);
             message.write_entity(&mut shared_bytes, entity)?;
         }
     }
 
-    for (message, _, client_state) in messages.iter_mut_with_state() {
-        for entity in client_state.drain_lost_visibility() {
+    for (message, _, client) in messages.iter_mut_with_clients() {
+        for entity in client.drain_lost_visibility() {
             message.write_entity(&mut None, entity)?;
         }
 
@@ -461,10 +461,10 @@ fn collect_removals(
     }
 
     for (entity, components) in removal_buffer.iter() {
-        for (message, _, client_state) in messages.iter_mut_with_state() {
+        for (message, _, client) in messages.iter_mut_with_clients() {
             message.start_entity_data(entity);
             for &replication_id in components {
-                client_state.set_change_limit(entity, tick);
+                client.set_change_limit(entity, tick);
                 message.write_replication_id(replication_id)?;
             }
             message.end_entity_data(false)?;

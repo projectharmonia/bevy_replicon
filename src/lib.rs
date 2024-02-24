@@ -386,7 +386,7 @@ You can control which parts of the world are visible for each client by setting 
 in [`ServerPlugin`] to [`VisibilityPolicy::Whitelist`] or [`VisibilityPolicy::Blacklist`].
 
 In order to set which entity is visible, you need to use the [`ConnectedClients`] resource
-to obtain the [`ClientState`] for a specific client and get its [`ClientVisibility`]:
+to obtain the [`ConnectedClient`] for a specific client and get its [`ClientVisibility`]:
 
 ```
 # use bevy::prelude::*;
@@ -412,14 +412,14 @@ fn visibility_system(
     other_players: Query<(Entity, &Transform, &Player)>,
 ) {
     for (moved_transform, moved_player) in &moved_players {
-        let client_state = connected_clients.client_mut(moved_player.0);
+        let client = connected_clients.client_mut(moved_player.0);
         for (entity, transform, _) in other_players
             .iter()
             .filter(|(.., player)| player.0 != moved_player.0)
         {
             const VISIBLE_DISTANCE: f32 = 100.0;
             let distance = moved_transform.translation.distance(transform.translation);
-            client_state
+            client
                 .visibility_mut()
                 .set_visibility(entity, distance < VISIBLE_DISTANCE);
         }
@@ -490,7 +490,7 @@ pub mod prelude {
         renet::{RenetClient, RenetServer},
         server::{
             connected_clients::{
-                client_visibility::ClientVisibility, ClientState, ConnectedClients,
+                client_visibility::ClientVisibility, ConnectedClient, ConnectedClients,
             },
             has_authority, ClientEntityMap, ClientMapping, ServerPlugin, ServerSet, TickPolicy,
             VisibilityPolicy, SERVER_ID,

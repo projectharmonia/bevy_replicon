@@ -15,14 +15,14 @@ use client_visibility::ClientVisibility;
 /// Stores information about connected clients.
 #[derive(Resource, Default)]
 pub struct ConnectedClients {
-    states: Vec<ClientState>,
+    clients: Vec<ConnectedClient>,
     policy: VisibilityPolicy,
 }
 
 impl ConnectedClients {
     pub(super) fn new(policy: VisibilityPolicy) -> Self {
         Self {
-            states: Default::default(),
+            clients: Default::default(),
             policy,
         }
     }
@@ -32,7 +32,7 @@ impl ConnectedClients {
         self.policy
     }
 
-    /// Returns a reference to a connected client's state.
+    /// Returns a reference to a connected client.
     ///
     /// This operation is *O*(*n*).
     /// See also [`Self::get_client`] for the fallible version.
@@ -40,12 +40,12 @@ impl ConnectedClients {
     /// # Panics
     ///
     /// Panics if the passed client ID is not connected.
-    pub fn client(&self, client_id: ClientId) -> &ClientState {
+    pub fn client(&self, client_id: ClientId) -> &ConnectedClient {
         self.get_client(client_id)
             .unwrap_or_else(|| panic!("{client_id:?} should be connected"))
     }
 
-    /// Returns a mutable reference to a connected client's state.
+    /// Returns a mutable reference to a connected client.
     ///
     /// This operation is *O*(*n*).
     /// See also [`Self::get_client_mut`] for the fallible version.
@@ -53,95 +53,89 @@ impl ConnectedClients {
     /// # Panics
     ///
     /// Panics if the passed client ID is not connected.
-    pub fn client_mut(&mut self, client_id: ClientId) -> &mut ClientState {
+    pub fn client_mut(&mut self, client_id: ClientId) -> &mut ConnectedClient {
         self.get_client_mut(client_id)
             .unwrap_or_else(|| panic!("{client_id:?} should be connected"))
     }
 
-    /// Returns a reference to a connected client's state.
+    /// Returns a reference to a connected client.
     ///
     /// This operation is *O*(*n*).
     /// See also [`Self::client`] for the panicking version.
-    pub fn get_client(&self, client_id: ClientId) -> Option<&ClientState> {
-        self.states
-            .iter()
-            .find(|client_state| client_state.id == client_id)
+    pub fn get_client(&self, client_id: ClientId) -> Option<&ConnectedClient> {
+        self.clients.iter().find(|client| client.id == client_id)
     }
 
-    /// Returns a mutable reference to a connected client's state.
+    /// Returns a mutable reference to a connected client.
     ///
     /// This operation is *O*(*n*).
     /// See also [`Self::client`] for the panicking version.
-    pub fn get_client_mut(&mut self, client_id: ClientId) -> Option<&mut ClientState> {
-        self.states
+    pub fn get_client_mut(&mut self, client_id: ClientId) -> Option<&mut ConnectedClient> {
+        self.clients
             .iter_mut()
-            .find(|client_state| client_state.id == client_id)
+            .find(|client| client.id == client_id)
     }
 
-    /// Returns an iterator over client states.
-    pub fn iter(&self) -> impl Iterator<Item = &ClientState> {
-        self.states.iter()
+    /// Returns an iterator over connected clients.
+    pub fn iter(&self) -> impl Iterator<Item = &ConnectedClient> {
+        self.clients.iter()
     }
 
-    /// Returns a mutable iterator over client states.
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut ClientState> {
-        self.states.iter_mut()
+    /// Returns a mutable iterator over connected clients.
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut ConnectedClient> {
+        self.clients.iter_mut()
     }
 
     /// Returns the number of connected clients.
     pub fn len(&self) -> usize {
-        self.states.len()
+        self.clients.len()
     }
 
     /// Returns `true` if no clients are connected.
     pub fn is_empty(&self) -> bool {
-        self.states.is_empty()
+        self.clients.is_empty()
     }
 
-    /// Initializes a new [`ClientState`] for this client.
+    /// Initializes a new [`ConnectedClient`] for this client.
     ///
     /// Reuses the memory from the buffers if available.
     pub(super) fn init(&mut self, client_buffers: &mut ClientBuffers, client_id: ClientId) {
-        let client_state = if let Some(mut client_state) = client_buffers.states.pop() {
-            client_state.reset(client_id);
-            client_state
+        let client = if let Some(mut client) = client_buffers.clients.pop() {
+            client.reset(client_id);
+            client
         } else {
-            ClientState::new(client_id, self.policy)
+            ConnectedClient::new(client_id, self.policy)
         };
 
-        self.states.push(client_state);
+        self.clients.push(client);
     }
 
-    /// Removes state for the client.
+    /// Removes the connected client.
     ///
     /// Keeps allocated memory in the buffers for reuse.
     pub(super) fn remove(&mut self, client_buffers: &mut ClientBuffers, client_id: ClientId) {
         let index = self
-            .states
+            .clients
             .iter()
-            .position(|client_state| client_state.id == client_id)
+            .position(|client| client.id == client_id)
             .expect("client cache should contain all connected clients");
-        let mut client_state = self.states.remove(index);
-        client_buffers
-            .entities
-            .extend(client_state.drain_entities());
-        client_buffers.states.push(client_state);
+        let mut client = self.clients.remove(index);
+        client_buffers.entities.extend(client.drain_entities());
+        client_buffers.clients.push(client);
     }
 
-    /// Clears states for all clients.
+    /// Clears all clients.
     ///
     /// Keeps allocated memory in the buffers for reuse.
     pub(super) fn clear(&mut self, client_buffers: &mut ClientBuffers) {
-        for mut client_state in self.states.drain(..) {
-            client_buffers
-                .entities
-                .extend(client_state.drain_entities());
-            client_buffers.states.push(client_state);
+        for mut client in self.clients.drain(..) {
+            client_buffers.entities.extend(client.drain_entities());
+            client_buffers.clients.push(client);
         }
     }
 }
 
-pub struct ClientState {
+pub struct ConnectedClient {
     /// Client's ID.
     id: ClientId,
 
@@ -167,7 +161,7 @@ pub struct ClientState {
     next_update_index: u16,
 }
 
-impl ClientState {
+impl ConnectedClient {
     fn new(id: ClientId, policy: VisibilityPolicy) -> Self {
         Self {
             id,
@@ -345,15 +339,15 @@ impl ClientState {
     }
 }
 
-/// Reusable buffers for [`ConnectedClients`] and [`ClientState`].
+/// Reusable buffers for [`ConnectedClients`] and [`ConnectedClient`].
 #[derive(Default, Resource)]
 pub(crate) struct ClientBuffers {
-    /// [`ClientState`]'s of previously disconnected clients.
+    /// [`ConnectedClient`]'s of previously disconnected clients.
     ///
     /// Stored to reuse allocated memory.
-    states: Vec<ClientState>,
+    clients: Vec<ConnectedClient>,
 
-    /// [`Vec`]'s from acknowledged update indexes from [`ClientState`].
+    /// [`Vec`]'s from acknowledged update indexes from [`ConnectedClient`].
     ///
     /// Stored to reuse allocated capacity.
     entities: Vec<Vec<Entity>>,
