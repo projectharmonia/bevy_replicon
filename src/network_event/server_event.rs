@@ -15,9 +15,9 @@ use serde::{de::DeserializeOwned, Serialize};
 use super::ServerEventChannel;
 use crate::{
     client::{client_mapper::ServerEntityMap, ClientSet},
+    core::{replicon_tick::RepliconTick, NetworkChannels},
     network_event::EventMapper,
     prelude::{ClientPlugin, ServerPlugin},
-    replicon_core::{replicon_tick::RepliconTick, NetworkChannels},
     server::{
         connected_clients::{ClientState, ConnectedClients},
         has_authority, ServerSet, SERVER_ID,

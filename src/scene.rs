@@ -4,12 +4,12 @@ use bevy::{
     scene::DynamicEntity,
 };
 
-use crate::replicon_core::replication_rules::ReplicationRules;
+use crate::core::replication_rules::ReplicationRules;
 
 /**
 Fills scene with all replicated entities and their components.
 
-Entities won't have the [`Replication`](crate::replicon_core::replication_rules::Replication) component.
+Entities won't have the [`Replication`](crate::core::replication_rules::Replication) component.
 So on deserialization you need to insert it back if you want entities to continue to replicate.
 
 # Panics

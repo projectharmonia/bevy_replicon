@@ -9,7 +9,7 @@ use bevy::{
 };
 use bevy_renet::renet::ClientId;
 
-use crate::{replicon_core::replicon_tick::RepliconTick, server::VisibilityPolicy};
+use crate::{core::replicon_tick::RepliconTick, server::VisibilityPolicy};
 use client_visibility::ClientVisibility;
 
 /// Stores information about connected clients.
