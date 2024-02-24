@@ -14,8 +14,8 @@ use super::{
     ClientMapping, ClientState,
 };
 use crate::core::{
-    network_channels::ReplicationChannel,
     replication_rules::{ReplicationId, ReplicationInfo},
+    replicon_channels::ReplicationChannel,
     replicon_tick::RepliconTick,
 };
 

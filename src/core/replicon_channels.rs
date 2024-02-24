@@ -5,7 +5,7 @@ use bevy_renet::renet::{ChannelConfig, SendType};
 
 /// ID of a server replication channel.
 ///
-/// See also [`NetworkChannels`].
+/// See also [`RepliconChannels`].
 #[repr(u8)]
 pub enum ReplicationChannel {
     /// For sending messages with entity mappings, inserts, removals and despawns.
@@ -22,12 +22,12 @@ impl From<ReplicationChannel> for u8 {
 
 /// A resource to configure and setup channels for [`ConnectionConfig`](bevy_renet::renet::ConnectionConfig).
 #[derive(Clone, Resource)]
-pub struct NetworkChannels {
+pub struct RepliconChannels {
     /// Stores settings for each server channel.
-    server: Vec<ChannelSettings>,
+    server: Vec<RepliconChannel>,
 
     /// Same as [`Self::server`], but for client.
-    client: Vec<ChannelSettings>,
+    client: Vec<RepliconChannel>,
 
     /// Stores the default max memory usage bytes for all channels.
     ///
@@ -36,16 +36,16 @@ pub struct NetworkChannels {
 }
 
 /// Only stores the replication channel by default.
-impl Default for NetworkChannels {
+impl Default for RepliconChannels {
     fn default() -> Self {
         let replication_channels = vec![
-            ChannelSettings {
+            RepliconChannel {
                 send_type: SendType::ReliableOrdered {
                     resend_time: Duration::ZERO,
                 },
                 max_bytes: None,
             },
-            ChannelSettings {
+            RepliconChannel {
                 send_type: SendType::Unreliable,
                 max_bytes: None,
             },
@@ -59,7 +59,7 @@ impl Default for NetworkChannels {
     }
 }
 
-impl NetworkChannels {
+impl RepliconChannels {
     /// Returns server channel configs that can be used to create [`ConnectionConfig`](bevy_renet::renet::ConnectionConfig).
     pub fn get_server_configs(&self) -> Vec<ChannelConfig> {
         self.get_configs(&self.server)
@@ -108,7 +108,7 @@ impl NetworkChannels {
             panic!("number of client channels shouldn't exceed u8::MAX");
         }
 
-        self.client.push(ChannelSettings {
+        self.client.push(RepliconChannel {
             send_type,
             max_bytes: None,
         });
@@ -121,14 +121,14 @@ impl NetworkChannels {
             panic!("number of server channels shouldn't exceed u8::MAX");
         }
 
-        self.server.push(ChannelSettings {
+        self.server.push(RepliconChannel {
             send_type,
             max_bytes: None,
         });
         self.server.len() as u8 - 1
     }
 
-    fn get_configs(&self, channels: &[ChannelSettings]) -> Vec<ChannelConfig> {
+    fn get_configs(&self, channels: &[RepliconChannel]) -> Vec<ChannelConfig> {
         let mut channel_configs = Vec::with_capacity(channels.len());
         for (index, settings) in channels.iter().enumerate() {
             channel_configs.push(ChannelConfig {
@@ -143,10 +143,12 @@ impl NetworkChannels {
 
 /// Channel configuration.
 #[derive(Clone)]
-struct ChannelSettings {
+struct RepliconChannel {
     /// Delivery guarantee.
     send_type: SendType,
 
-    /// Maximum usage bytes (if set) for each server channel.
+    /// Maximum usage bytes for the channel.
+    ///
+    /// If unset, the default value from [`RepliconChannels`] will be used.
     max_bytes: Option<usize>,
 }

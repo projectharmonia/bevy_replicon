@@ -14,7 +14,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use crate::{
     client::{client_mapper::ServerEntityMap, ClientSet},
-    core::{network_channels::NetworkChannels, replicon_tick::RepliconTick},
+    core::{replicon_channels::RepliconChannels, replicon_tick::RepliconTick},
     network_event::EventMapper,
     prelude::{ClientPlugin, ServerPlugin},
     server::{
@@ -158,7 +158,7 @@ impl ServerEventAppExt for App {
     ) -> &mut Self {
         let channel_id = self
             .world
-            .resource_mut::<NetworkChannels>()
+            .resource_mut::<RepliconChannels>()
             .create_server_channel(send_type.into());
 
         self.add_event::<T>()

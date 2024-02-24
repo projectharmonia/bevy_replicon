@@ -57,7 +57,7 @@ in combination with [network events](#network-events).
 
 The only part of renet setup that is handled by this plugin is defining channels
 for events and component replication.
-These channels should be obtained from the [`NetworkChannels`] resource.
+These channels should be obtained from the [`RepliconChannels`] resource.
 So when creating server you need to initialize [`ConnectionConfig`](renet::ConnectionConfig)
 like this:
 
@@ -67,10 +67,10 @@ use bevy_replicon::{prelude::*, renet::ConnectionConfig};
 
 # let mut app = App::new();
 # app.add_plugins(ReplicationPlugins);
-let network_channels = app.world.resource::<NetworkChannels>();
+let channels = app.world.resource::<RepliconChannels>();
 let connection_config = ConnectionConfig {
-    server_channels_config: network_channels.get_server_configs(),
-    client_channels_config: network_channels.get_client_configs(),
+    server_channels_config: channels.get_server_configs(),
+    client_channels_config: channels.get_client_configs(),
     ..Default::default()
 };
 ```
@@ -474,8 +474,8 @@ pub mod prelude {
         },
         core::{
             dont_replicate::{CommandDontReplicateExt, EntityDontReplicateExt},
-            network_channels::{NetworkChannels, ReplicationChannel},
             replication_rules::{AppReplicationExt, Replication, ReplicationRules},
+            replicon_channels::{ReplicationChannel, RepliconChannels},
             replicon_tick::RepliconTick,
             RepliconCorePlugin,
         },

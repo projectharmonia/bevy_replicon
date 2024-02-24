@@ -31,10 +31,10 @@ pub(super) fn multiple_clients(server_app: &mut App, client_apps: &mut [App]) {
 }
 
 pub(super) fn setup_client(app: &mut App, client_id: u64, port: u16) {
-    let network_channels = app.world.resource::<NetworkChannels>();
+    let channels = app.world.resource::<RepliconChannels>();
 
-    let server_channels_config = network_channels.get_server_configs();
-    let client_channels_config = network_channels.get_client_configs();
+    let server_channels_config = channels.get_server_configs();
+    let client_channels_config = channels.get_client_configs();
 
     let client = RenetClient::new(ConnectionConfig {
         server_channels_config,
@@ -47,10 +47,10 @@ pub(super) fn setup_client(app: &mut App, client_id: u64, port: u16) {
 }
 
 pub(super) fn setup_server(app: &mut App, max_clients: usize) -> u16 {
-    let network_channels = app.world.resource::<NetworkChannels>();
+    let channels = app.world.resource::<RepliconChannels>();
 
-    let server_channels_config = network_channels.get_server_configs();
-    let client_channels_config = network_channels.get_client_configs();
+    let server_channels_config = channels.get_server_configs();
+    let client_channels_config = channels.get_client_configs();
 
     let server = RenetServer::new(ConnectionConfig {
         server_channels_config,

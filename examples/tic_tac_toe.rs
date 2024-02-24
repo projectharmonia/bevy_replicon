@@ -241,7 +241,7 @@ impl TicTacToePlugin {
         mut commands: Commands,
         mut game_state: ResMut<NextState<GameState>>,
         cli: Res<Cli>,
-        network_channels: Res<NetworkChannels>,
+        channels: Res<RepliconChannels>,
     ) -> Result<()> {
         match *cli {
             Cli::Hotseat => {
@@ -251,8 +251,8 @@ impl TicTacToePlugin {
                 game_state.set(GameState::InGame);
             }
             Cli::Server { port, symbol } => {
-                let server_channels_config = network_channels.get_server_configs();
-                let client_channels_config = network_channels.get_client_configs();
+                let server_channels_config = channels.get_server_configs();
+                let client_channels_config = channels.get_client_configs();
 
                 let server = RenetServer::new(ConnectionConfig {
                     server_channels_config,
@@ -277,8 +277,8 @@ impl TicTacToePlugin {
                 commands.spawn(PlayerBundle::server(symbol));
             }
             Cli::Client { port, ip } => {
-                let server_channels_config = network_channels.get_server_configs();
-                let client_channels_config = network_channels.get_client_configs();
+                let server_channels_config = channels.get_server_configs();
+                let client_channels_config = channels.get_client_configs();
 
                 let client = RenetClient::new(ConnectionConfig {
                     server_channels_config,
