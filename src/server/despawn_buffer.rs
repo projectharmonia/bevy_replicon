@@ -1,8 +1,7 @@
 use bevy::prelude::*;
-use bevy_renet::renet::RenetServer;
 
 use super::{ServerPlugin, ServerSet};
-use crate::core::replication_rules::Replication;
+use crate::core::{common_conditions::server_active, replication_rules::Replication};
 
 /// Treats removals of [`Replication`] component as despawns and stores them into [`DespawnBuffer`] resource.
 ///
@@ -16,7 +15,7 @@ impl Plugin for DespawnBufferPlugin {
             Self::detection_system
                 .before(ServerPlugin::replication_sending_system)
                 .in_set(ServerSet::Send)
-                .run_if(resource_exists::<RenetServer>),
+                .run_if(server_active),
         );
     }
 }
@@ -41,12 +40,13 @@ pub(crate) struct DespawnBuffer(Vec<Entity>);
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::server::replicon_server::RepliconServer;
 
     #[test]
     fn despawns() {
         let mut app = App::new();
         app.add_plugins(DespawnBufferPlugin)
-            .insert_resource(RenetServer::new(Default::default()));
+            .insert_resource(RepliconServer::active());
 
         app.update();
 

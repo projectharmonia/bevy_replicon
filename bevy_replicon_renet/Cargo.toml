@@ -1,0 +1,35 @@
+[package]
+name = "bevy_replicon_renet"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy_replicon = { path = ".." }
+bevy_renet = { version = "0.0.11", default-features = false }
+bevy = { version = "0.13", default-features = false }
+
+[dev-dependencies]
+serde = "1.0"
+clap = { version = "4.1", features = ["derive"] }
+bevy = { version = "0.13", default-features = false, features = [
+  "bevy_asset",
+  "bevy_core_pipeline",
+  "bevy_render",
+  "bevy_sprite",
+  "bevy_text",
+  "bevy_ui",
+  "bevy_gizmos",
+  "x11",
+  "default_font",
+] }
+
+[features]
+default = ["renet_serde", "renet_transport"]
+
+# Re-exports of renet features
+renet_serde = ["bevy_renet/serde"]
+renet_transport = ["bevy_renet/transport"]
+
+[[test]]
+name = "transport"
+required-features = ["renet_transport"]

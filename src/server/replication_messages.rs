@@ -5,12 +5,13 @@ use std::{
 };
 
 use bevy::{ecs::component::Tick, prelude::*, ptr::Ptr};
-use bevy_renet::renet::{Bytes, RenetServer};
 use bincode::{DefaultOptions, Options};
+use bytes::Bytes;
 use varint_rs::VarintWriter;
 
 use super::{
     connected_clients::{ClientBuffers, ConnectedClients},
+    replicon_server::RepliconServer,
     ClientMapping, ConnectedClient,
 };
 use crate::core::{
@@ -76,7 +77,7 @@ impl ReplicationMessages {
     /// it will equal the input `last_change_tick`.
     pub(super) fn send(
         &mut self,
-        server: &mut RenetServer,
+        server: &mut RepliconServer,
         client_buffers: &mut ClientBuffers,
         replicon_tick: RepliconTick,
         tick: Tick,
@@ -375,7 +376,7 @@ impl InitMessage {
     /// Does nothing if there is no data to send.
     fn send(
         &self,
-        server: &mut RenetServer,
+        server: &mut RepliconServer,
         client: &mut ConnectedClient,
         replicon_tick: RepliconTick,
     ) -> bincode::Result<()> {
@@ -384,7 +385,7 @@ impl InitMessage {
 
         let slice = self.as_slice();
         if slice.is_empty() {
-            trace!("no init data to send for client {}", client.id());
+            trace!("no init data to send for {:?}", client.peer_id());
             return Ok(());
         }
 
@@ -393,9 +394,9 @@ impl InitMessage {
         let mut header = [0; mem::size_of::<RepliconTick>()];
         bincode::serialize_into(&mut header[..], &replicon_tick)?;
 
-        trace!("sending init message to client {}", client.id());
-        server.send_message(
-            client.id(),
+        trace!("sending init message to {:?}", client.peer_id());
+        server.send(
+            client.peer_id(),
             ReplicationChannel::Reliable,
             Bytes::from([&header, slice].concat()),
         );
@@ -550,7 +551,7 @@ impl UpdateMessage {
     /// Does nothing if there is no data to send.
     fn send(
         &mut self,
-        server: &mut RenetServer,
+        server: &mut RepliconServer,
         client_buffers: &mut ClientBuffers,
         client: &mut ConnectedClient,
         replicon_tick: RepliconTick,
@@ -561,17 +562,17 @@ impl UpdateMessage {
 
         let mut slice = self.as_slice();
         if slice.is_empty() {
-            trace!("no updates to send for client {}", client.id());
+            trace!("no updates to send for {:?}", client.peer_id());
             return Ok(());
         }
 
-        trace!("sending update message(s) to client {}", client.id());
+        trace!("sending update message(s) to {:?}", client.peer_id());
         const TICKS_SIZE: usize = 2 * mem::size_of::<RepliconTick>();
         let mut header = [0; TICKS_SIZE + mem::size_of::<u16>()];
         bincode::serialize_into(&mut header[..], &(client.change_tick(), replicon_tick))?;
 
         let mut message_size = 0;
-        let client_id = client.id();
+        let peer_id = client.peer_id();
         let (mut update_index, mut entities) =
             client.register_update(client_buffers, tick, timestamp);
         for &(entity, data_size) in &self.entities {
@@ -589,8 +590,8 @@ impl UpdateMessage {
 
                 bincode::serialize_into(&mut header[TICKS_SIZE..], &update_index)?;
 
-                server.send_message(
-                    client_id,
+                server.send(
+                    peer_id,
                     ReplicationChannel::Unreliable,
                     Bytes::from([&header, message].concat()),
                 );
@@ -605,8 +606,8 @@ impl UpdateMessage {
         if !slice.is_empty() {
             bincode::serialize_into(&mut header[TICKS_SIZE..], &update_index)?;
 
-            server.send_message(
-                client_id,
+            server.send(
+                peer_id,
                 ReplicationChannel::Unreliable,
                 Bytes::from([&header, slice].concat()),
             );
@@ -662,7 +663,7 @@ fn write_with<'a>(
 }
 
 fn can_pack(header_size: usize, base: usize, add: usize) -> bool {
-    const MAX_PACKET_SIZE: usize = 1200; // https://github.com/lucaspoffo/renet/blob/acee8b470e34c70d35700d96c00fb233d9cf6919/renet/src/packet.rs#L7
+    const MAX_PACKET_SIZE: usize = 1200;
 
     let dangling = (base + header_size) % MAX_PACKET_SIZE;
     (dangling > 0) && ((dangling + add) <= MAX_PACKET_SIZE)

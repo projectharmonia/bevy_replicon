@@ -1,11 +1,9 @@
-mod connect;
-
 use bevy::{
     ecs::{entity::MapEntities, event::Events},
     prelude::*,
     time::TimePlugin,
 };
-use bevy_replicon::prelude::*;
+use bevy_replicon::{prelude::*, test_app::ServerTestAppExt};
 use serde::{Deserialize, Serialize};
 
 #[test]
@@ -13,9 +11,9 @@ fn without_server_plugin() {
     let mut app = App::new();
     app.add_plugins((
         MinimalPlugins,
-        ReplicationPlugins.build().disable::<ServerPlugin>(),
+        RepliconPlugins.build().disable::<ServerPlugin>(),
     ))
-    .add_client_event_with::<DummyEvent, _, _>(EventType::Ordered, || {}, || {})
+    .add_client_event_with::<DummyEvent, _, _>(ChannelKind::Ordered, || {}, || {})
     .update();
 }
 
@@ -24,9 +22,9 @@ fn without_client_plugin() {
     let mut app = App::new();
     app.add_plugins((
         MinimalPlugins,
-        ReplicationPlugins.build().disable::<ClientPlugin>(),
+        RepliconPlugins.build().disable::<ClientPlugin>(),
     ))
-    .add_client_event_with::<DummyEvent, _, _>(EventType::Ordered, || {}, || {})
+    .add_client_event_with::<DummyEvent, _, _>(ChannelKind::Ordered, || {}, || {})
     .update();
 }
 
@@ -35,23 +33,19 @@ fn sending_receiving() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((MinimalPlugins, ReplicationPlugins))
-            .add_client_event::<DummyEvent>(EventType::Ordered);
+        app.add_plugins((MinimalPlugins, RepliconPlugins))
+            .add_client_event::<DummyEvent>(ChannelKind::Ordered);
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
-    client_app
-        .world
-        .resource_mut::<Events<DummyEvent>>()
-        .send(DummyEvent);
+    client_app.world.send_event(DummyEvent);
 
     client_app.update();
+    server_app.exchange_with_client(&mut client_app);
     server_app.update();
 
-    let client_events = server_app
-        .world
-        .resource::<Events<FromClient<DummyEvent>>>();
+    let client_events = server_app.world.resource::<Events<FromPeer<DummyEvent>>>();
     assert_eq!(client_events.len(), 1);
 }
 
@@ -60,11 +54,11 @@ fn mapping_and_sending_receiving() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((MinimalPlugins, ReplicationPlugins))
-            .add_mapped_client_event::<MappedEvent>(EventType::Ordered);
+        app.add_plugins((MinimalPlugins, RepliconPlugins))
+            .add_mapped_client_event::<MappedEvent>(ChannelKind::Ordered);
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     let client_entity = Entity::from_raw(0);
     let server_entity = Entity::from_raw(client_entity.index() + 1);
@@ -73,17 +67,15 @@ fn mapping_and_sending_receiving() {
         .resource_mut::<ServerEntityMap>()
         .insert(server_entity, client_entity);
 
-    client_app
-        .world
-        .resource_mut::<Events<MappedEvent>>()
-        .send(MappedEvent(client_entity));
+    client_app.world.send_event(MappedEvent(client_entity));
 
     client_app.update();
+    server_app.exchange_with_client(&mut client_app);
     server_app.update();
 
     let mapped_entities: Vec<_> = server_app
         .world
-        .resource_mut::<Events<FromClient<MappedEvent>>>()
+        .resource_mut::<Events<FromPeer<MappedEvent>>>()
         .drain()
         .map(|event| event.event.0)
         .collect();
@@ -93,19 +85,17 @@ fn mapping_and_sending_receiving() {
 #[test]
 fn local_resending() {
     let mut app = App::new();
-    app.add_plugins((TimePlugin, ReplicationPlugins))
-        .add_client_event::<DummyEvent>(EventType::Ordered);
+    app.add_plugins((TimePlugin, RepliconPlugins))
+        .add_client_event::<DummyEvent>(ChannelKind::Ordered);
 
-    app.world
-        .resource_mut::<Events<DummyEvent>>()
-        .send(DummyEvent);
+    app.world.send_event(DummyEvent);
 
     app.update();
 
     let dummy_events = app.world.resource::<Events<DummyEvent>>();
     assert!(dummy_events.is_empty());
 
-    let client_events = app.world.resource::<Events<FromClient<DummyEvent>>>();
+    let client_events = app.world.resource::<Events<FromPeer<DummyEvent>>>();
     assert_eq!(client_events.len(), 1);
 }
 

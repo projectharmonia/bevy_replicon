@@ -1,61 +1,69 @@
 pub mod client_mapper;
 pub mod diagnostics;
+pub mod replicon_client;
 
 use std::io::Cursor;
 
 use bevy::{ecs::entity::EntityHashMap, prelude::*};
-use bevy_renet::{
-    client_connected, client_just_connected, client_just_disconnected,
-    renet::{Bytes, RenetClient},
-    transport::NetcodeClientPlugin,
-    RenetClientPlugin, RenetReceive, RenetSend,
-};
 use bincode::{DefaultOptions, Options};
+use bytes::Bytes;
 use varint_rs::VarintReader;
 
 use crate::core::{
+    common_conditions::{connected, just_connected, just_disconnected},
     replication_rules::{Replication, ReplicationRules},
     replicon_channels::ReplicationChannel,
+    replicon_channels::RepliconChannels,
     replicon_tick::RepliconTick,
 };
 use client_mapper::ServerEntityMap;
 use diagnostics::ClientStats;
+use replicon_client::RepliconClient;
 
 pub struct ClientPlugin;
 
 impl Plugin for ClientPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins((RenetClientPlugin, NetcodeClientPlugin))
+        app.init_resource::<RepliconClient>()
             .init_resource::<ServerEntityMap>()
             .init_resource::<ServerEntityTicks>()
             .init_resource::<BufferedUpdates>()
             .configure_sets(
                 PreUpdate,
-                ClientSet::ResetEvents
-                    .after(RenetReceive)
-                    .before(ClientSet::Receive)
-                    .run_if(client_just_connected),
+                (
+                    ClientSet::ReceivePackets,
+                    (
+                        ClientSet::ResetEvents.run_if(just_connected),
+                        ClientSet::Reset.run_if(just_disconnected),
+                    ),
+                    ClientSet::Receive,
+                )
+                    .chain(),
             )
-            .configure_sets(PreUpdate, ClientSet::Receive.after(RenetReceive))
             .configure_sets(
-                PreUpdate,
-                ClientSet::Reset
-                    .after(RenetReceive)
-                    .run_if(client_just_disconnected),
+                PostUpdate,
+                (ClientSet::Send, ClientSet::SendPackets).chain(),
             )
-            .configure_sets(PostUpdate, ClientSet::Send.before(RenetSend))
+            .add_systems(Startup, Self::channels_setup_system)
             .add_systems(
                 PreUpdate,
                 Self::replication_receiving_system
                     .map(Result::unwrap)
                     .in_set(ClientSet::Receive)
-                    .run_if(client_connected),
+                    .run_if(connected),
             )
             .add_systems(PreUpdate, Self::reset_system.in_set(ClientSet::Reset));
     }
 }
 
 impl ClientPlugin {
+    fn channels_setup_system(mut client: ResMut<RepliconClient>, channels: Res<RepliconChannels>) {
+        client.setup_channels(
+            channels.server_channels().len(),
+            channels.client_channels().len(),
+        );
+    }
+
     /// Receives and applies replication messages from the server.
     ///
     /// Tick init messages are sent over the [`ReplicationChannel::Reliable`] and are applied first to ensure valid state
@@ -73,7 +81,7 @@ impl ClientPlugin {
     ///
     /// See also [`ReplicationMessages`](crate::server::replication_messages::ReplicationMessages).
     pub(super) fn replication_receiving_system(world: &mut World) -> bincode::Result<()> {
-        world.resource_scope(|world, mut client: Mut<RenetClient>| {
+        world.resource_scope(|world, mut client: Mut<RepliconClient>| {
             world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
                 world.resource_scope(|world, mut entity_ticks: Mut<ServerEntityTicks>| {
                     world.resource_scope(|world, mut buffered_updates: Mut<BufferedUpdates>| {
@@ -119,14 +127,14 @@ impl ClientPlugin {
 /// Sends acknowledgments for update messages back.
 fn apply_replication(
     world: &mut World,
-    client: &mut RenetClient,
+    client: &mut RepliconClient,
     entity_map: &mut ServerEntityMap,
     entity_ticks: &mut ServerEntityTicks,
     buffered_updates: &mut BufferedUpdates,
     mut stats: Option<&mut ClientStats>,
     replication_rules: &ReplicationRules,
 ) -> Result<(), Box<bincode::ErrorKind>> {
-    while let Some(message) = client.receive_message(ReplicationChannel::Reliable) {
+    while let Some(message) = client.receive(ReplicationChannel::Reliable) {
         apply_init_message(
             &message,
             world,
@@ -138,7 +146,7 @@ fn apply_replication(
     }
 
     let replicon_tick = *world.resource::<RepliconTick>();
-    while let Some(message) = client.receive_message(ReplicationChannel::Unreliable) {
+    while let Some(message) = client.receive(ReplicationChannel::Unreliable) {
         let index = apply_update_message(
             message,
             world,
@@ -150,7 +158,7 @@ fn apply_replication(
             replicon_tick,
         )?;
 
-        client.send_message(ReplicationChannel::Reliable, bincode::serialize(&index)?)
+        client.send(ReplicationChannel::Reliable, bincode::serialize(&index)?)
     }
 
     let mut result = Ok(());
@@ -474,14 +482,22 @@ enum ComponentsKind {
 /// Set with replication and event systems related to client.
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum ClientSet {
-    /// Systems that receive data.
+    /// Systems that receive packets from messaging library.
+    ///
+    /// Runs in `PreUpdate`.
+    ReceivePackets,
+    /// Systems that receive data from [`RepliconClient`].
     ///
     /// Runs in `PreUpdate`.
     Receive,
-    /// Systems that send data.
+    /// Systems that send data to [`RepliconClient`].
     ///
     /// Runs in `PostUpdate`.
     Send,
+    /// Systems that send packets to messaging library.
+    ///
+    /// Runs in `PostUpdate`.
+    SendPackets,
     /// Systems that reset the client.
     ///
     /// Runs in `PreUpdate` when the client just disconnected.
@@ -490,7 +506,7 @@ pub enum ClientSet {
     /// reconnecting.
     /// You may want to disable this set if you want to preserve client replication state across reconnects.
     /// In that case, you need to manually repair the client state (or use something like
-    /// [`bevy_replicon_repair`](https://crates.io/crates/bevy_replicon_repair)).
+    /// [`bevy_replicon_repair`](https://docs.rs/bevy_replicon_repair)).
     Reset,
     /// Systems that reset queued server events.
     ///

@@ -8,13 +8,15 @@ use bevy::{
     prelude::*,
     utils::HashMap,
 };
-use bevy_renet::renet::RenetServer;
 
 use super::{
     despawn_buffer::{DespawnBuffer, DespawnBufferPlugin},
     ServerPlugin, ServerSet,
 };
-use crate::core::replication_rules::{ReplicationId, ReplicationRules};
+use crate::core::{
+    common_conditions::server_active,
+    replication_rules::{ReplicationId, ReplicationRules},
+};
 
 /// Buffers all replicated component removals in [`RemovalBuffer`] resource.
 ///
@@ -29,7 +31,7 @@ impl Plugin for RemovalBufferPlugin {
                 .after(DespawnBufferPlugin::detection_system)
                 .before(ServerPlugin::replication_sending_system)
                 .in_set(ServerSet::Send)
-                .run_if(resource_exists::<RenetServer>),
+                .run_if(server_active),
         );
     }
 }
@@ -103,13 +105,16 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::core::replication_rules::{AppReplicationExt, Replication};
+    use crate::{
+        core::replication_rules::{AppReplicationExt, Replication},
+        server::replicon_server::RepliconServer,
+    };
 
     #[test]
     fn removals() {
         let mut app = App::new();
         app.add_plugins((DespawnBufferPlugin, RemovalBufferPlugin))
-            .insert_resource(RenetServer::new(Default::default()))
+            .insert_resource(RepliconServer::active())
             .init_resource::<ReplicationRules>()
             .replicate::<DummyComponent>();
 
@@ -133,7 +138,7 @@ mod tests {
     fn despawn_ignore() {
         let mut app = App::new();
         app.add_plugins((DespawnBufferPlugin, RemovalBufferPlugin))
-            .insert_resource(RenetServer::new(Default::default()))
+            .insert_resource(RepliconServer::active())
             .init_resource::<ReplicationRules>()
             .replicate::<DummyComponent>();
 

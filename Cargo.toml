@@ -19,39 +19,22 @@ license = "MIT OR Apache-2.0"
 include = ["/benches", "/src", "/tests", "/LICENSE*"]
 
 [dependencies]
-bevy_renet = "0.0.11"
 bevy = { version = "0.13", default-features = false, features = ["bevy_scene"] }
+bytes = "1.5"
 bincode = "1.3"
 serde = "1.0"
 varint-rs = "2.2"
 ordered-multimap = "0.7"
 
 [dev-dependencies]
+bevy = { version = "0.13", default-features = false, features = ["bevy_asset"] }
 criterion = { version = "0.5", default-features = false, features = [
   "cargo_bench_support",
 ] }
-spin_sleep = "1.1"
-anyhow = "1.0"
-clap = { version = "4.1", features = ["derive"] }
-ron = "0.8"
-bevy = { version = "0.13", default-features = false, features = [
-  "bevy_asset",
-  "bevy_core_pipeline",
-  "bevy_render",
-  "bevy_sprite",
-  "bevy_text",
-  "bevy_ui",
-  "bevy_gizmos",
-  "x11",
-  "default_font",
-] }
-
-[features]
-default = ["renet_serde"]
-
-# Re-exports renet's `serde` feature.
-renet_serde = ["bevy_renet/serde"]
 
 [[bench]]
 name = "replication"
 harness = false
+
+[workspace]
+members = ["bevy_replicon_renet"]

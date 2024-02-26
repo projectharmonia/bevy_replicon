@@ -1,82 +1,72 @@
 /*!
+ECS-focused high-level networking crate for the [Bevy game engine](https://bevyengine.org).
+
 # Quick start
 
-Write the same logic that works for both multiplayer and single-player.
-The crate provides synchronization of components and network events between
-server and clients using the [Renet](https://github.com/lucaspoffo/renet)
-library for the [Bevy game engine](https://bevyengine.org).
+Replicon provides a [`prelude`] module, which exports most of the typically used traits and types.
+
+The library doesn't provide any I/O, so you need to use a messaging library.
+We provide a first-party integration with [`bevy_renet`](https://docs.rs/bevy_renet)
+via [`bevy_replicon_renet`](https://docs.rs/bevy_replicon_renet).
+
+If you want to write integration for a messaging library,
+see the [`RepliconServer`], [`RepliconClient`] and [`PeerId`] documentation. You can also use `bevy_replicon_renet` as a reference.
 
 ## Initialization
 
-You need to add [`ReplicationPlugins`] to your app:
+You need to add [`RepliconPlugins`] and a messaging plugin groups to your app:
 
 ```
 use bevy::prelude::*;
 use bevy_replicon::prelude::*;
+# use bevy::app::PluginGroupBuilder;
 
 let mut app = App::new();
-app.add_plugins((MinimalPlugins, ReplicationPlugins));
+app.add_plugins((MinimalPlugins, RepliconPlugins, MyMessagingPlugins));
+#
+# struct MyMessagingPlugins;
+#
+# impl PluginGroup for MyMessagingPlugins {
+#     fn build(self) -> PluginGroupBuilder {
+#         PluginGroupBuilder::start::<Self>()
+#     }
+# }
 ```
 
-This group contains necessary replication stuff and sets up the server and client
-plugins to let you host and join games from the same application.
-
 If you are planning to separate client and server you can use
-`disable()` to disable [`ClientPlugin`] or
-[`ServerPlugin`]. You can also configure how often updates are sent from
+`disable()` to disable [`ClientPlugin`] or [`ServerPlugin`] on [`RepliconPlugins`].
+You will need to disable similar plugins on your messaing library of choice too.
+
+You can also configure how often updates are sent from
 server to clients with [`ServerPlugin`]'s [`TickPolicy`]:
 
 ```
 # use bevy::prelude::*;
 # use bevy_replicon::prelude::*;
 # let mut app = App::new();
-app.add_plugins((
-    MinimalPlugins,
-    ReplicationPlugins
+app.add_plugins(
+    RepliconPlugins
         .build()
         .disable::<ClientPlugin>()
         .set(ServerPlugin {
             tick_policy: TickPolicy::MaxTickRate(60),
             ..Default::default()
         }),
-));
+);
 ```
-
-The plugin handles Renet initialization, you don't need to add its plugins.
 
 ## Server and client creation
 
-To connect to the server or create it, you need to initialize the
-[`RenetClient`] and [`NetcodeClientTransport`](renet::transport::NetcodeClientTransport) **or**
-[`RenetServer`] and [`NetcodeServerTransport`](renet::transport::NetcodeServerTransport) resources from Renet.
-All Renet API is re-exported from this plugin.
+This part should be done on your messaging library side. For `bevy_replicon_renet`
+see [this](https://docs.rs/bevy_replicon_renet#server-and-client-creation) section.
 
-Never insert client and server resources in the same app for single-player, it will cause a replication loop.
+The library will update [`RepliconServer`] or [`RepliconClient`] resources that can be
+interacted in I/O-independent way. But it's usually proffered to use more high-level
+abstractions described later.
+
+Never initialize client and server in the same app for single-player, it will cause a replication loop.
 Use the described pattern in [system sets and conditions](#system-sets-and-conditions)
 in combination with [network events](#network-events).
-
-The only part of renet setup that is handled by this plugin is defining channels
-for events and component replication.
-These channels should be obtained from the [`RepliconChannels`] resource.
-So when creating server you need to initialize [`ConnectionConfig`](renet::ConnectionConfig)
-like this:
-
-```
-use bevy::prelude::*;
-use bevy_replicon::{prelude::*, renet::ConnectionConfig};
-
-# let mut app = App::new();
-# app.add_plugins(ReplicationPlugins);
-let channels = app.world.resource::<RepliconChannels>();
-let connection_config = ConnectionConfig {
-    server_channels_config: channels.get_server_configs(),
-    client_channels_config: channels.get_client_configs(),
-    ..Default::default()
-};
-```
-
-For a full example of how to initialize server or client see the example in the
-repository.
 
 ## Component replication
 
@@ -99,7 +89,7 @@ You can use [`AppReplicationExt::replicate()`] to register the component for rep
 # use bevy_replicon::prelude::*;
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
-# app.add_plugins(ReplicationPlugins);
+# app.add_plugins(RepliconPlugins);
 app.replicate::<DummyComponent>();
 
 #[derive(Component, Deserialize, Serialize)]
@@ -136,7 +126,7 @@ use bevy_replicon::{prelude::*, core::replication_rules};
 use serde::{Deserialize, Serialize};
 
 # let mut app = App::new();
-# app.add_plugins(ReplicationPlugins);
+# app.add_plugins(RepliconPlugins);
 app.replicate_with::<Transform>(serialize_transform, deserialize_transform, replication_rules::remove_component::<Transform>);
 
 /// Serializes only translation.
@@ -209,7 +199,7 @@ your initialization systems to [`ClientSet::Receive`]:
 # use bevy_replicon::{prelude::*, core::replication_rules};
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
-# app.add_plugins(ReplicationPlugins);
+# app.add_plugins(RepliconPlugins);
 app.replicate_with::<Transform>(serialize_transform, deserialize_transform, replication_rules::remove_component::<Transform>)
     .replicate::<Player>()
     .add_systems(PreUpdate, player_init_system.after(ClientSet::Receive));
@@ -263,33 +253,42 @@ To send specific events from client to server, you need to register the event
 with [`ClientEventAppExt::add_client_event()`] instead of `add_event()`.
 The event must be registered on both the client and the server in the same order.
 
-These events will appear on server as [`FromClient`] wrapper event that
-contains sender ID and the sent event. We consider the authority machine
-(a single-player session or you are a server) to be a client with ID
-[`SERVER_ID`], so in this case the [`FromClient`] will be emitted too.
-This way your game logic will work the same on client, server and in
-single-player session.
+Events include [`ChannelKind`] to configure delivery guarantees (reliability and
+ordering). You can alternatively pass in [`RepliconChannel`] with more advanced configuration.
 
-Events include [`EventType`] to configure delivery guarantees (reliability and
-ordering). You can alternatively pass in `SendType` from Renet directly if you
-need to configure resend time.
+These events will appear on server as [`FromPeer`] wrapper event that
+contains sender ID and the sent event. We consider server or a single-player session
+also as a peer with ID [`PeerId::SERVER`]. So you can send such events even on server
+and [`FromPeer`] will be emitted for them too. This way your game logic will work the same
+on client, listen server and in single-player session.
+
+For systems that receive events attach [`no_connection`] condition to receive a message
+on non-client instances (server or single-player):
 
 ```
 # use bevy::prelude::*;
 # use bevy_replicon::prelude::*;
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
-# app.add_plugins(ReplicationPlugins);
-app.add_client_event::<DummyEvent>(EventType::Ordered)
-    .add_systems(Update, event_sending_system);
+# app.add_plugins(RepliconPlugins);
+app.add_client_event::<DummyEvent>(ChannelKind::Ordered)
+    .add_systems(
+        Update,
+        (
+            event_sending_system,
+            event_receiving_system.run_if(no_connection),
+        ),
+    );
 
+/// Sends an event from client or listen server.
 fn event_sending_system(mut dummy_events: EventWriter<DummyEvent>) {
     dummy_events.send_default();
 }
 
-fn event_receiving_system(mut dummy_events: EventReader<FromClient<DummyEvent>>) {
-    for FromClient { client_id, event } in dummy_events.read() {
-        info!("received event {event:?} from client {client_id}");
+/// Receives event on server and single-player.
+fn event_receiving_system(mut dummy_events: EventReader<FromPeer<DummyEvent>>) {
+    for FromPeer { peer_id, event } in dummy_events.read() {
+        info!("received event {event:?} from {peer_id:?}");
     }
 }
 
@@ -306,8 +305,8 @@ To do this, use [`ClientEventAppExt::add_mapped_client_event()`] and implement B
 # use bevy_replicon::prelude::*;
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
-# app.add_plugins(ReplicationPlugins);
-app.add_mapped_client_event::<MappedEvent>(EventType::Ordered);
+# app.add_plugins(RepliconPlugins);
+app.add_mapped_client_event::<MappedEvent>(ChannelKind::Ordered);
 
 #[derive(Debug, Deserialize, Event, Serialize, Clone)]
 struct MappedEvent(Entity);
@@ -329,27 +328,35 @@ Don't forget to validate the contents of every `Box<dyn Reflect>` from a client,
 
 A similar technique is used to send events from server to clients. To do this,
 register the event with [`ServerEventAppExt::add_server_event()`] server event
-and send it from server using [`ToClients`]. The event must be registered on
+and send it from server using [`ToPeers`]. The event must be registered on
 both the client and the server in the same order. This wrapper contains send parameters
-and the event itself. Just like events sent from the client, they will be emitted
-locally on the server (if [`SERVER_ID`] is not excluded from the send list):
+and the event itself. Just like events sent from the client, you can send this events on server or in single-player
+and they will appear locally as regular events (if [`PeerId::SERVER`] is not excluded from the send list):
 
 ```
 # use bevy::prelude::*;
 # use bevy_replicon::prelude::*;
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
-# app.add_plugins(ReplicationPlugins);
-app.add_server_event::<DummyEvent>(EventType::Ordered)
-    .add_systems(Update, event_sending_system);
+# app.add_plugins(RepliconPlugins);
+app.add_server_event::<DummyEvent>(ChannelKind::Ordered)
+    .add_systems(
+        Update,
+        (
+            event_sending_system,
+            event_receiving_system.run_if(no_connection),
+        ),
+    );
 
-fn event_sending_system(mut dummy_events: EventWriter<ToClients<DummyEvent>>) {
-    dummy_events.send(ToClients {
+/// Sends an event from server or single-player.
+fn event_sending_system(mut dummy_events: EventWriter<ToPeers<DummyEvent>>) {
+    dummy_events.send(ToPeers {
         mode: SendMode::Broadcast,
         event: DummyEvent,
     });
 }
 
+/// Receives event on client and single-player.
 fn event_receiving_system(mut dummy_events: EventReader<DummyEvent>) {
     for event in dummy_events.read() {
         info!("received event {event:?} from server");
@@ -370,12 +377,12 @@ For events that require special sending and receiving functions you can use [`Se
 When configuring systems for multiplayer game, you often want to run some
 systems only on when you have authority over the world simulation
 (on server or in single-player session). For example, damage registration or
-procedural level generation systems. For this just add [`has_authority()`]
+procedural level generation systems. For this just add [`no_connection`]
 condition on such system. If you want your systems to run only on
 frames when server send updates to clients use [`ServerSet::Send`].
 
-To check if you running server or client, you can use conditions based on
-[`RenetClient`] and [`RenetServer`] resources.
+To check if you running server or client, you can use
+[`server_active`] and [`connected`] conditions.
 They rarely used for gameplay systems (since you write the same logic for
 multiplayer and single-player!), but could be used for server
 creation / connection systems and corresponding UI.
@@ -390,19 +397,19 @@ to obtain the [`ConnectedClient`] for a specific client and get its [`ClientVisi
 
 ```
 # use bevy::prelude::*;
-# use bevy_replicon::{prelude::*, renet::ClientId};
+# use bevy_replicon::prelude::*;
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 app.add_plugins((
     MinimalPlugins,
-    ReplicationPlugins.set(ServerPlugin {
+    RepliconPlugins.set(ServerPlugin {
         visibility_policy: VisibilityPolicy::Whitelist, // Makes all entities invisible for clients by default.
         ..Default::default()
     }),
 ))
 .add_systems(
     Update,
-    visibility_system.run_if(resource_exists::<RenetServer>),
+    visibility_system.run_if(server_active),
 );
 
 /// Disables the visibility of other players' entities that are further away than the visible distance.
@@ -427,10 +434,10 @@ fn visibility_system(
 }
 
 #[derive(Component, Deserialize, Serialize)]
-struct Player(ClientId);
+struct Player(PeerId);
 ```
 
-For a higher level API consider using [`bevy_replicon_attributes`](https://crates.io/crates/bevy_replicon_attributes).
+For a higher level API consider using [`bevy_replicon_attributes`](https://docs.rs/bevy_replicon_attributes).
 
 ## Eventual consistency
 
@@ -464,50 +471,54 @@ pub mod network_event;
 pub mod parent_sync;
 pub mod scene;
 pub mod server;
+pub mod test_app;
 
 pub mod prelude {
     pub use super::{
         client::{
             client_mapper::{ClientMapper, ServerEntityMap},
             diagnostics::{ClientDiagnosticsPlugin, ClientStats},
+            replicon_client::{RepliconClient, RepliconClientStatus},
             BufferedUpdates, ClientPlugin, ClientSet, ServerEntityTicks,
         },
         core::{
+            common_conditions::*,
             dont_replicate::{CommandDontReplicateExt, EntityDontReplicateExt},
             replication_rules::{AppReplicationExt, Replication, ReplicationRules},
-            replicon_channels::{ReplicationChannel, RepliconChannels},
+            replicon_channels::{
+                ChannelKind, ReplicationChannel, RepliconChannel, RepliconChannels,
+            },
             replicon_tick::RepliconTick,
-            RepliconCorePlugin,
+            PeerId, RepliconCorePlugin,
         },
         network_event::{
-            client_event::{ClientEventAppExt, ClientEventChannel, FromClient},
+            client_event::{ClientEventAppExt, ClientEventChannel, FromPeer},
             server_event::{
-                SendMode, ServerEventAppExt, ServerEventChannel, ServerEventQueue, ToClients,
+                SendMode, ServerEventAppExt, ServerEventChannel, ServerEventQueue, ToPeers,
             },
-            EventMapper, EventType,
+            EventMapper,
         },
         parent_sync::{ParentSync, ParentSyncPlugin},
-        renet::{RenetClient, RenetServer},
         server::{
             connected_clients::{
                 client_visibility::ClientVisibility, ConnectedClient, ConnectedClients,
             },
-            has_authority, ClientEntityMap, ClientMapping, ServerPlugin, ServerSet, TickPolicy,
-            VisibilityPolicy, SERVER_ID,
+            replicon_server::RepliconServer,
+            ClientEntityMap, ClientMapping, PeerEvent, ServerPlugin, ServerSet, TickPolicy,
+            VisibilityPolicy,
         },
-        ReplicationPlugins,
+        RepliconPlugins,
     };
 }
 
 use bevy::{app::PluginGroupBuilder, prelude::*};
-pub use bevy_renet::*;
 pub use bincode;
 use prelude::*;
 
 /// Plugin Group for all replicon plugins.
-pub struct ReplicationPlugins;
+pub struct RepliconPlugins;
 
-impl PluginGroup for ReplicationPlugins {
+impl PluginGroup for RepliconPlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<Self>()
             .add(RepliconCorePlugin)

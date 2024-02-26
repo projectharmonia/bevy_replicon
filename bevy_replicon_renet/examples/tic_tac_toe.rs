@@ -2,23 +2,23 @@
 //! Run it with `--hotseat` to play locally or with `--client` / `--server`
 
 use std::{
+    error::Error,
     fmt::{self, Formatter},
     net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket},
     time::SystemTime,
 };
 
-use anyhow::Result;
 use bevy::prelude::*;
-use bevy_replicon::{
-    client_connected,
-    prelude::*,
+use bevy_replicon::prelude::*;
+use bevy_replicon_renet::{
     renet::{
         transport::{
             ClientAuthentication, NetcodeClientTransport, NetcodeServerTransport,
             ServerAuthentication, ServerConfig,
         },
-        ClientId, ConnectionConfig, ServerEvent,
+        ConnectionConfig, RenetClient, RenetServer,
     },
+    RenetChannelsExt, RepliconRenetPlugins,
 };
 use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
@@ -35,7 +35,8 @@ fn main() {
                 }),
                 ..Default::default()
             }),
-            ReplicationPlugins,
+            RepliconPlugins,
+            RepliconRenetPlugins,
             TicTacToePlugin,
         ))
         .run();
@@ -51,7 +52,7 @@ impl Plugin for TicTacToePlugin {
             .replicate::<Symbol>()
             .replicate::<CellIndex>()
             .replicate::<Player>()
-            .add_client_event::<CellPick>(EventType::Ordered)
+            .add_client_event::<CellPick>(ChannelKind::Ordered)
             .insert_resource(ClearColor(BACKGROUND_COLOR))
             .add_systems(
                 Startup,
@@ -72,13 +73,13 @@ impl Plugin for TicTacToePlugin {
                 (
                     Self::connecting_text_system.run_if(resource_added::<RenetClient>),
                     Self::server_waiting_text_system.run_if(resource_added::<RenetServer>),
-                    Self::server_event_system.run_if(resource_exists::<RenetServer>),
+                    Self::server_event_system.run_if(server_active),
                     Self::start_game_system
-                        .run_if(client_connected)
+                        .run_if(connected)
                         .run_if(any_component_added::<Player>), // Wait until client replicates players before starting the game.
                     (
                         Self::cell_interatction_system.run_if(local_player_turn),
-                        Self::picking_system.run_if(has_authority),
+                        Self::picking_system.run_if(no_connection),
                         Self::symbol_init_system,
                         Self::turn_advance_system.run_if(any_component_added::<CellIndex>),
                         Self::symbol_turn_text_system.run_if(resource_changed::<CurrentTurn>),
@@ -242,7 +243,7 @@ impl TicTacToePlugin {
         mut game_state: ResMut<NextState<GameState>>,
         cli: Res<Cli>,
         channels: Res<RepliconChannels>,
-    ) -> Result<()> {
+    ) -> Result<(), Box<dyn Error>> {
         match *cli {
             Cli::Hotseat => {
                 // Set all players to server to play from a single machine and start the game right away.
@@ -348,18 +349,18 @@ impl TicTacToePlugin {
     /// Only for server.
     fn server_event_system(
         mut commands: Commands,
-        mut server_event: EventReader<ServerEvent>,
+        mut peer_events: EventReader<PeerEvent>,
         mut game_state: ResMut<NextState<GameState>>,
         players: Query<&Symbol, With<Player>>,
     ) {
-        for event in server_event.read() {
+        for event in peer_events.read() {
             match event {
-                ServerEvent::ClientConnected { client_id } => {
+                PeerEvent::PeerConnected { peer_id } => {
                     let server_symbol = players.single();
-                    commands.spawn(PlayerBundle::new(*client_id, server_symbol.next()));
+                    commands.spawn(PlayerBundle::new(*peer_id, server_symbol.next()));
                     game_state.set(GameState::InGame);
                 }
-                ServerEvent::ClientDisconnected { .. } => {
+                PeerEvent::PeerDisconnected { .. } => {
                     game_state.set(GameState::Disconnected);
                 }
             }
@@ -390,7 +391,7 @@ impl TicTacToePlugin {
                         .unwrap();
 
                     // We send a pick event and wait for the pick to be replicated back to the client.
-                    // In case of server or single-player the event will re-translated into [`FromClient`] event to re-use the logic.
+                    // In case of server or single-player the event will re-translated into [`FromPeer`] event to re-use the logic.
                     pick_events.send(CellPick(index));
                 }
                 Interaction::Hovered => *background = HOVER_COLOR.into(),
@@ -404,12 +405,12 @@ impl TicTacToePlugin {
     /// Only for single-player and server.
     fn picking_system(
         mut commands: Commands,
-        mut pick_events: EventReader<FromClient<CellPick>>,
+        mut pick_events: EventReader<FromPeer<CellPick>>,
         symbols: Query<&CellIndex>,
         current_turn: Res<CurrentTurn>,
         players: Query<(&Player, &Symbol)>,
     ) {
-        for FromClient { client_id, event } in pick_events.read().copied() {
+        for FromPeer { peer_id, event } in pick_events.read().copied() {
             // It's good to check the received data, client could be cheating.
             if event.0 > GRID_SIZE * GRID_SIZE {
                 debug!("received invalid cell index {:?}", event.0);
@@ -418,15 +419,15 @@ impl TicTacToePlugin {
 
             if !players
                 .iter()
-                .any(|(player, &symbol)| player.0 == client_id && symbol == current_turn.0)
+                .any(|(player, &symbol)| player.0 == peer_id && symbol == current_turn.0)
             {
-                debug!("player {client_id} chose cell {:?} at wrong turn", event.0);
+                debug!("{peer_id:?} chose cell {:?} at wrong turn", event.0);
                 continue;
             }
 
             if symbols.iter().any(|cell_index| cell_index.0 == event.0) {
                 debug!(
-                    "player {client_id} has chosen an already occupied cell {:?}",
+                    "{peer_id:?} has chosen an already occupied cell {:?}",
                     event.0
                 );
                 continue;
@@ -515,16 +516,13 @@ impl TicTacToePlugin {
 /// Returns `true` if the local player can select cells.
 fn local_player_turn(
     current_turn: Res<CurrentTurn>,
-    client_transport: Option<Res<NetcodeClientTransport>>,
+    client: Res<RepliconClient>,
     players: Query<(&Player, &Symbol)>,
 ) -> bool {
-    let client_id = client_transport
-        .map(|client| client.client_id())
-        .unwrap_or(SERVER_ID);
-
+    let peer_id = client.peer_id().unwrap_or(PeerId::SERVER);
     players
         .iter()
-        .any(|(player, &symbol)| player.0 == client_id && symbol == current_turn.0)
+        .any(|(player, &symbol)| player.0 == peer_id && symbol == current_turn.0)
 }
 
 /// A condition for systems to check if any component of type `T` was added to the world.
@@ -662,22 +660,22 @@ struct PlayerBundle {
 }
 
 impl PlayerBundle {
-    fn new(client_id: ClientId, symbol: Symbol) -> Self {
+    fn new(peer_id: PeerId, symbol: Symbol) -> Self {
         Self {
-            player: Player(client_id),
+            player: Player(peer_id),
             symbol,
             replication: Replication,
         }
     }
 
-    /// Same as [`Self::new`], but with [`SERVER_ID`].
+    /// Same as [`Self::new`], but with [`PeerId::SERVER`].
     fn server(symbol: Symbol) -> Self {
-        Self::new(SERVER_ID, symbol)
+        Self::new(PeerId::SERVER, symbol)
     }
 }
 
 #[derive(Component, Serialize, Deserialize)]
-struct Player(ClientId);
+struct Player(PeerId);
 
 /// An event that indicates a symbol pick.
 ///

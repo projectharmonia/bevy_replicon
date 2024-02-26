@@ -7,9 +7,11 @@ use bevy::{
     prelude::*,
     utils::{Duration, HashMap},
 };
-use bevy_renet::renet::ClientId;
 
-use crate::{core::replicon_tick::RepliconTick, server::VisibilityPolicy};
+use crate::{
+    core::{replicon_tick::RepliconTick, PeerId},
+    server::VisibilityPolicy,
+};
 use client_visibility::ClientVisibility;
 
 /// Stores information about connected clients.
@@ -39,10 +41,10 @@ impl ConnectedClients {
     ///
     /// # Panics
     ///
-    /// Panics if the passed client ID is not connected.
-    pub fn client(&self, client_id: ClientId) -> &ConnectedClient {
-        self.get_client(client_id)
-            .unwrap_or_else(|| panic!("{client_id:?} should be connected"))
+    /// Panics if the passed peer ID is not connected.
+    pub fn client(&self, peer_id: PeerId) -> &ConnectedClient {
+        self.get_client(peer_id)
+            .unwrap_or_else(|| panic!("{peer_id:?} should be connected"))
     }
 
     /// Returns a mutable reference to a connected client.
@@ -52,28 +54,33 @@ impl ConnectedClients {
     ///
     /// # Panics
     ///
-    /// Panics if the passed client ID is not connected.
-    pub fn client_mut(&mut self, client_id: ClientId) -> &mut ConnectedClient {
-        self.get_client_mut(client_id)
-            .unwrap_or_else(|| panic!("{client_id:?} should be connected"))
+    /// Panics if the passed peer ID is not connected.
+    pub fn client_mut(&mut self, peer_id: PeerId) -> &mut ConnectedClient {
+        self.get_client_mut(peer_id)
+            .unwrap_or_else(|| panic!("{peer_id:?} should be connected"))
     }
 
     /// Returns a reference to a connected client.
     ///
     /// This operation is *O*(*n*).
     /// See also [`Self::client`] for the panicking version.
-    pub fn get_client(&self, client_id: ClientId) -> Option<&ConnectedClient> {
-        self.clients.iter().find(|client| client.id == client_id)
+    pub fn get_client(&self, peer_id: PeerId) -> Option<&ConnectedClient> {
+        self.clients.iter().find(|client| client.peer_id == peer_id)
     }
 
     /// Returns a mutable reference to a connected client.
     ///
     /// This operation is *O*(*n*).
     /// See also [`Self::client`] for the panicking version.
-    pub fn get_client_mut(&mut self, client_id: ClientId) -> Option<&mut ConnectedClient> {
+    pub fn get_client_mut(&mut self, peer_id: PeerId) -> Option<&mut ConnectedClient> {
         self.clients
             .iter_mut()
-            .find(|client| client.id == client_id)
+            .find(|client| client.peer_id == peer_id)
+    }
+
+    /// Returns an iterator over client peer IDs.
+    pub fn iter_peer_ids(&self) -> impl Iterator<Item = PeerId> + '_ {
+        self.clients.iter().map(|client| client.peer_id())
     }
 
     /// Returns an iterator over connected clients.
@@ -99,26 +106,26 @@ impl ConnectedClients {
     /// Initializes a new [`ConnectedClient`] for this client.
     ///
     /// Reuses the memory from the buffers if available.
-    pub(super) fn init(&mut self, client_buffers: &mut ClientBuffers, client_id: ClientId) {
+    pub(super) fn add(&mut self, client_buffers: &mut ClientBuffers, peer_id: PeerId) {
         let client = if let Some(mut client) = client_buffers.clients.pop() {
-            client.reset(client_id);
+            client.reset(peer_id);
             client
         } else {
-            ConnectedClient::new(client_id, self.policy)
+            ConnectedClient::new(peer_id, self.policy)
         };
 
         self.clients.push(client);
     }
 
-    /// Removes the connected client.
+    /// Removes a connected client.
     ///
     /// Keeps allocated memory in the buffers for reuse.
-    pub(super) fn remove(&mut self, client_buffers: &mut ClientBuffers, client_id: ClientId) {
+    pub(super) fn remove(&mut self, client_buffers: &mut ClientBuffers, peer_id: PeerId) {
         let index = self
             .clients
             .iter()
-            .position(|client| client.id == client_id)
-            .expect("client cache should contain all connected clients");
+            .position(|client| client.peer_id == peer_id)
+            .unwrap_or_else(|| panic!("{peer_id:?} should be added before removal"));
         let mut client = self.clients.remove(index);
         client_buffers.entities.extend(client.drain_entities());
         client_buffers.clients.push(client);
@@ -137,7 +144,7 @@ impl ConnectedClients {
 
 pub struct ConnectedClient {
     /// Client's ID.
-    id: ClientId,
+    peer_id: PeerId,
 
     /// Lowest tick for use in change detection for each entity.
     ticks: EntityHashMap<Tick>,
@@ -162,9 +169,9 @@ pub struct ConnectedClient {
 }
 
 impl ConnectedClient {
-    fn new(id: ClientId, policy: VisibilityPolicy) -> Self {
+    fn new(peer_id: PeerId, policy: VisibilityPolicy) -> Self {
         Self {
-            id,
+            peer_id,
             ticks: Default::default(),
             visibility: ClientVisibility::new(policy),
             change_tick: Default::default(),
@@ -173,9 +180,9 @@ impl ConnectedClient {
         }
     }
 
-    // Returns associated client ID.
-    pub fn id(&self) -> ClientId {
-        self.id
+    // Returns associated peer ID.
+    pub fn peer_id(&self) -> PeerId {
+        self.peer_id
     }
 
     /// Returns a reference to the client's visibility settings.
@@ -211,8 +218,8 @@ impl ConnectedClient {
     /// Resets all data.
     ///
     /// Keeps the allocated memory for reuse.
-    fn reset(&mut self, id: ClientId) {
-        self.id = id;
+    fn reset(&mut self, peer_id: PeerId) {
+        self.peer_id = peer_id;
         self.visibility.clear();
         self.ticks.clear();
         self.updates.clear();
@@ -274,8 +281,8 @@ impl ConnectedClient {
     ) {
         let Some(update_info) = self.updates.remove(&update_index) else {
             debug!(
-                "received unknown update index {update_index} from client {}",
-                self.id
+                "received unknown update index {update_index} from {:?}",
+                self.peer_id
             );
             return;
         };
@@ -295,8 +302,8 @@ impl ConnectedClient {
         client_buffers.entities.push(update_info.entities);
 
         trace!(
-            "client {} acknowledged an update with {:?}",
-            self.id,
+            "{:?} acknowledged an update with {:?}",
+            self.peer_id,
             update_info.tick,
         );
     }

@@ -9,8 +9,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     client::ClientSet,
-    core::replication_rules::AppReplicationExt,
-    server::{has_authority, ServerSet},
+    core::{common_conditions::no_connection, replication_rules::AppReplicationExt},
+    server::ServerSet,
 };
 
 pub struct ParentSyncPlugin;
@@ -27,7 +27,7 @@ impl Plugin for ParentSyncPlugin {
             .add_systems(
                 PostUpdate,
                 (Self::update_system, Self::removal_system)
-                    .run_if(has_authority)
+                    .run_if(no_connection)
                     .before(ServerSet::Send),
             );
     }

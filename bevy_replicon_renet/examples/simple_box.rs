@@ -8,24 +8,29 @@ use std::{
 };
 
 use bevy::prelude::*;
-use clap::Parser;
-use serde::{Deserialize, Serialize};
-
-use bevy_replicon::{
-    prelude::*,
+use bevy_replicon::prelude::*;
+use bevy_replicon_renet::{
     renet::{
         transport::{
             ClientAuthentication, NetcodeClientTransport, NetcodeServerTransport,
             ServerAuthentication, ServerConfig,
         },
-        ClientId, ConnectionConfig, ServerEvent,
+        ConnectionConfig, RenetClient, RenetServer,
     },
+    RenetChannelsExt, RepliconRenetPlugins,
 };
+use clap::Parser;
+use serde::{Deserialize, Serialize};
 
 fn main() {
     App::new()
         .init_resource::<Cli>() // Parse CLI before creating window.
-        .add_plugins((DefaultPlugins, ReplicationPlugins, SimpleBoxPlugin))
+        .add_plugins((
+            DefaultPlugins,
+            RepliconPlugins,
+            RepliconRenetPlugins,
+            SimpleBoxPlugin,
+        ))
         .run();
 }
 
@@ -35,7 +40,7 @@ impl Plugin for SimpleBoxPlugin {
     fn build(&self, app: &mut App) {
         app.replicate::<PlayerPosition>()
             .replicate::<PlayerColor>()
-            .add_client_event::<MoveDirection>(EventType::Ordered)
+            .add_client_event::<MoveDirection>(ChannelKind::Ordered)
             .add_systems(
                 Startup,
                 (Self::cli_system.map(Result::unwrap), Self::init_system),
@@ -43,8 +48,8 @@ impl Plugin for SimpleBoxPlugin {
             .add_systems(
                 Update,
                 (
-                    Self::movement_system.run_if(has_authority), // Runs only on the server or a single player.
-                    Self::server_event_system.run_if(resource_exists::<RenetServer>), // Runs only on the server.
+                    Self::movement_system.run_if(no_connection), // Runs only on the server or a single player.
+                    Self::peer_event_system.run_if(server_active), // Runs only on the server.
                     (Self::draw_boxes_system, Self::input_system),
                 ),
             );
@@ -59,7 +64,7 @@ impl SimpleBoxPlugin {
     ) -> Result<(), Box<dyn Error>> {
         match *cli {
             Cli::SinglePlayer => {
-                commands.spawn(PlayerBundle::new(SERVER_ID, Vec2::ZERO, Color::GREEN));
+                commands.spawn(PlayerBundle::new(PeerId::SERVER, Vec2::ZERO, Color::GREEN));
             }
             Cli::Server { port } => {
                 let server_channels_config = channels.get_server_configs();
@@ -94,7 +99,7 @@ impl SimpleBoxPlugin {
                         ..default()
                     },
                 ));
-                commands.spawn(PlayerBundle::new(SERVER_ID, Vec2::ZERO, Color::GREEN));
+                commands.spawn(PlayerBundle::new(PeerId::SERVER, Vec2::ZERO, Color::GREEN));
             }
             Cli::Client { port, ip } => {
                 let server_channels_config = channels.get_server_configs();
@@ -140,23 +145,19 @@ impl SimpleBoxPlugin {
     }
 
     /// Logs server events and spawns a new player whenever a client connects.
-    fn server_event_system(mut commands: Commands, mut server_event: EventReader<ServerEvent>) {
-        for event in server_event.read() {
+    fn peer_event_system(mut commands: Commands, mut peer_events: EventReader<PeerEvent>) {
+        for event in peer_events.read() {
             match event {
-                ServerEvent::ClientConnected { client_id } => {
-                    info!("player: {client_id} Connected");
-                    // Generate pseudo random color from client id.
-                    let r = ((client_id.raw() % 23) as f32) / 23.0;
-                    let g = ((client_id.raw() % 27) as f32) / 27.0;
-                    let b = ((client_id.raw() % 39) as f32) / 39.0;
-                    commands.spawn(PlayerBundle::new(
-                        *client_id,
-                        Vec2::ZERO,
-                        Color::rgb(r, g, b),
-                    ));
+                PeerEvent::PeerConnected { peer_id } => {
+                    info!("{peer_id:?} connected");
+                    // Generate pseudo random color from peer id.
+                    let r = ((peer_id.get() % 23) as f32) / 23.0;
+                    let g = ((peer_id.get() % 27) as f32) / 27.0;
+                    let b = ((peer_id.get() % 39) as f32) / 39.0;
+                    commands.spawn(PlayerBundle::new(*peer_id, Vec2::ZERO, Color::rgb(r, g, b)));
                 }
-                ServerEvent::ClientDisconnected { client_id, reason } => {
-                    info!("client {client_id} disconnected: {reason}");
+                PeerEvent::PeerDisconnected { peer_id, reason } => {
+                    info!("{peer_id:?} disconnected: {reason}");
                 }
             }
         }
@@ -199,14 +200,14 @@ impl SimpleBoxPlugin {
     /// But this example just demonstrates simple replication concept.
     fn movement_system(
         time: Res<Time>,
-        mut move_events: EventReader<FromClient<MoveDirection>>,
+        mut move_events: EventReader<FromPeer<MoveDirection>>,
         mut players: Query<(&Player, &mut PlayerPosition)>,
     ) {
         const MOVE_SPEED: f32 = 300.0;
-        for FromClient { client_id, event } in move_events.read() {
-            info!("received event {event:?} from client {client_id}");
+        for FromPeer { peer_id, event } in move_events.read() {
+            info!("received event {event:?} from {peer_id:?}");
             for (player, mut position) in &mut players {
-                if *client_id == player.0 {
+                if *peer_id == player.0 {
                     **position += event.0 * time.delta_seconds() * MOVE_SPEED;
                 }
             }
@@ -248,9 +249,9 @@ struct PlayerBundle {
 }
 
 impl PlayerBundle {
-    fn new(client_id: ClientId, position: Vec2, color: Color) -> Self {
+    fn new(peer_id: PeerId, position: Vec2, color: Color) -> Self {
         Self {
-            player: Player(client_id),
+            player: Player(peer_id),
             position: PlayerPosition(position),
             color: PlayerColor(color),
             replication: Replication,
@@ -258,9 +259,9 @@ impl PlayerBundle {
     }
 }
 
-/// Contains the client ID of the player.
+/// Contains peer ID of a player.
 #[derive(Component, Serialize, Deserialize)]
-struct Player(ClientId);
+struct Player(PeerId);
 
 #[derive(Component, Deserialize, Serialize, Deref, DerefMut)]
 struct PlayerPosition(Vec2);

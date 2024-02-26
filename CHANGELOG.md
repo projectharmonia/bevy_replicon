@@ -7,14 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Provide `ServerTestAppExt` extension trait for exchanging messaging between apps in tests.
+
 ### Changed
 
+- Abstract out all I/O and `renet` dependency. We will continue to provide first-party integration with renet via `bevy_replion_renet`. But users can write their integration with other messaging libraries. It's even possible to use multiple messaging libraries on server simultaneously. As the result users need to additionally add messaging-related plugin(s). In case of `bevy_replion_renet` it's `RepliconRenetPlugins`.
+- Replace usage of `RenetServer` and `RenetClient` with our `RepliconServer` and `RepliconClient` respectively. Use types from `renet` (or other library) only when you need to connect or write some library-specific logic. In other cases prefer using the newly provided types to make your code messaging-library independent. Unlike the old types from renet, these resources are always present in the world. So instead of using `resource_(exists/added/removed)` for network-related conditions, use special conditions provided in `common_conditions` module.
+- Rename `has_authority` condition into `no_connection` and move it to `common_conditions` module.
+- Replace conditions from `renet` without ours, see `common_conditions` module. Available in `prelude`.
+- Replace usage of `ClientId` from `renet` with our own `PeerId`. Peer here could refer to a client or a server as before. Godot uses the same terminology.
+- Replace `SERVER_ID` constant with `PeerId::SERVER`.
+- Rename `FromClient` and `ToClients` into `FromPeer` and `ToPeers` respectively.
+- Rename `client_id` field in `FromPeer` into `peer_id`.
+- Replace use of `RenetConnectionStatus` with our `RepliconClientStatus`.
+- Replace `ServerEvent` from `renet` with our `PeerEvent`.
+- Rename `replicon_core` module into `core`.
+- Rename `EventType` into `ChannelKind` and move into `core` module.
+- Replace usage of renet's `SendType` with our `RepliconChannel`.
+- Rename `NetworkChannels` into `RepliconChannels` and move into `replicon_channels` module.
+- Channel creation methods in `RepliconChannels` now accept `RepliconChannel` with full channel configuration.
+- Move `RepliconChannels::get_server_configs` and `RepliconChannels::get_client_configs` to create channels configs for `renet` into `RenetChannelsExt` extension trait provided by `bevy_replion_renet`. Make sure to import it to use these methods.
+- Rename `ReplicaionPlugins` into `RepliconPlugins`.
 - Rename `ClientCache` into `ConnectedClients`.
 - Rename `ClientState` into `ConnectedClient`.
-- Rename `replicon_core` module into `core`.
-- Rename `NetworkChannels` into `RepliconChannels` and move into `replicon_channels` module.
+- Rename `ReplicaionPlugins` into `RepliconPlugins`.
 - Move `ClientEventChannel` to `client_event` module.
 - Move `ServerEventChannel` to `server_event` module.
+
+### Removed
+
+- `RepliconChannels` methods that dynamically change channel memory. Configure it channel creation time via `RepliconChannel`.
 
 ## [0.23.0] - 2024-02-22
 

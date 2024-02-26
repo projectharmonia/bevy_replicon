@@ -21,7 +21,7 @@ pub struct ClientStats {
     pub despawns: u32,
     /// Replication packets received.
     pub packets: u32,
-    /// Replication bytes received in packet payloads (without internal Renet data).
+    /// Replication bytes received in packet payloads (without internal messaging plugin data).
     pub bytes: u64,
 }
 

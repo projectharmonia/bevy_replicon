@@ -3,6 +3,7 @@ pub(super) mod despawn_buffer;
 pub(super) mod removal_buffer;
 pub(super) mod replicated_archetypes_info;
 pub(super) mod replication_messages;
+pub mod replicon_server;
 
 use std::{mem, time::Duration};
 
@@ -18,15 +19,14 @@ use bevy::{
     time::common_conditions::on_timer,
     utils::HashMap,
 };
-use bevy_renet::{
-    renet::{ClientId, RenetClient, RenetServer, ServerEvent},
-    transport::NetcodeServerPlugin,
-    RenetReceive, RenetSend, RenetServerPlugin,
-};
 
 use crate::core::{
-    replication_rules::ReplicationRules, replicon_channels::ReplicationChannel,
+    common_conditions::{server_active, server_just_deactivated},
+    replication_rules::ReplicationRules,
+    replicon_channels::ReplicationChannel,
+    replicon_channels::RepliconChannels,
     replicon_tick::RepliconTick,
+    PeerId,
 };
 use connected_clients::{
     client_visibility::Visibility, ClientBuffers, ConnectedClient, ConnectedClients,
@@ -35,8 +35,7 @@ use despawn_buffer::{DespawnBuffer, DespawnBufferPlugin};
 use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
 use replicated_archetypes_info::ReplicatedArchetypesInfo;
 use replication_messages::ReplicationMessages;
-
-pub const SERVER_ID: ClientId = ClientId::from_raw(0);
+use replicon_server::RepliconServer;
 
 pub struct ServerPlugin {
     /// Tick configuration.
@@ -63,40 +62,49 @@ impl Default for ServerPlugin {
 
 impl Plugin for ServerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins((
-            DespawnBufferPlugin,
-            RemovalBufferPlugin,
-            RenetServerPlugin,
-            NetcodeServerPlugin,
-        ))
-        .init_resource::<ClientBuffers>()
-        .init_resource::<ClientEntityMap>()
-        .insert_resource(ConnectedClients::new(self.visibility_policy))
-        .configure_sets(PreUpdate, ServerSet::Receive.after(RenetReceive))
-        .configure_sets(PostUpdate, ServerSet::Send.before(RenetSend))
-        .add_systems(
-            PreUpdate,
-            (
-                Self::handle_connections_system,
-                Self::acks_receiving_system,
-                Self::acks_cleanup_system(self.update_timeout)
-                    .run_if(on_timer(self.update_timeout)),
+        app.add_plugins((DespawnBufferPlugin, RemovalBufferPlugin))
+            .init_resource::<RepliconServer>()
+            .init_resource::<ClientBuffers>()
+            .init_resource::<ClientEntityMap>()
+            .insert_resource(ConnectedClients::new(self.visibility_policy))
+            .add_event::<PeerEvent>()
+            .configure_sets(
+                PreUpdate,
+                (
+                    ServerSet::ReceivePackets,
+                    ServerSet::PeerEvents,
+                    ServerSet::Receive,
+                )
+                    .chain(),
             )
-                .chain()
-                .in_set(ServerSet::Receive)
-                .run_if(resource_exists::<RenetServer>),
-        )
-        .add_systems(
-            PostUpdate,
-            (
-                Self::replication_sending_system
-                    .map(Result::unwrap)
-                    .in_set(ServerSet::Send)
-                    .run_if(resource_exists::<RenetServer>)
-                    .run_if(resource_changed::<RepliconTick>),
-                Self::reset_system.run_if(resource_removed::<RenetServer>()),
-            ),
-        );
+            .configure_sets(
+                PostUpdate,
+                (ServerSet::Send, ServerSet::SendPackets).chain(),
+            )
+            .add_systems(Startup, Self::channels_setup_system)
+            .add_systems(
+                PreUpdate,
+                (
+                    Self::handle_connections_system,
+                    Self::acks_receiving_system,
+                    Self::acks_cleanup_system(self.update_timeout)
+                        .run_if(on_timer(self.update_timeout)),
+                )
+                    .chain()
+                    .in_set(ServerSet::Receive)
+                    .run_if(server_active),
+            )
+            .add_systems(
+                PostUpdate,
+                (
+                    Self::replication_sending_system
+                        .map(Result::unwrap)
+                        .in_set(ServerSet::Send)
+                        .run_if(server_active)
+                        .run_if(resource_changed::<RepliconTick>),
+                    Self::reset_system.run_if(server_just_deactivated),
+                ),
+            );
 
         match self.tick_policy {
             TickPolicy::MaxTickRate(max_tick_rate) => {
@@ -105,7 +113,7 @@ impl Plugin for ServerPlugin {
                     PostUpdate,
                     Self::increment_tick
                         .before(Self::replication_sending_system)
-                        .run_if(resource_exists::<RenetServer>)
+                        .run_if(server_active)
                         .run_if(on_timer(tick_time)),
                 );
             }
@@ -114,7 +122,7 @@ impl Plugin for ServerPlugin {
                     PostUpdate,
                     Self::increment_tick
                         .before(Self::replication_sending_system)
-                        .run_if(resource_exists::<RenetServer>),
+                        .run_if(server_active),
                 );
             }
             TickPolicy::Manual => (),
@@ -123,6 +131,13 @@ impl Plugin for ServerPlugin {
 }
 
 impl ServerPlugin {
+    fn channels_setup_system(mut server: ResMut<RepliconServer>, channels: Res<RepliconChannels>) {
+        server.setup_channels(
+            channels.server_channels().len(),
+            channels.client_channels().len(),
+        );
+    }
+
     /// Increments current server tick which causes the server to replicate this frame.
     pub fn increment_tick(mut replicon_tick: ResMut<RepliconTick>) {
         replicon_tick.increment();
@@ -130,19 +145,22 @@ impl ServerPlugin {
     }
 
     fn handle_connections_system(
-        mut server_events: EventReader<ServerEvent>,
+        mut peer_events: EventReader<PeerEvent>,
         mut entity_map: ResMut<ClientEntityMap>,
         mut connected_clients: ResMut<ConnectedClients>,
+        mut server: ResMut<RepliconServer>,
         mut client_buffers: ResMut<ClientBuffers>,
     ) {
-        for event in server_events.read() {
+        for event in peer_events.read() {
             match *event {
-                ServerEvent::ClientDisconnected { client_id, .. } => {
-                    entity_map.0.remove(&client_id);
-                    connected_clients.remove(&mut client_buffers, client_id);
+                PeerEvent::PeerDisconnected { peer_id, .. } => {
+                    entity_map.0.remove(&peer_id);
+                    connected_clients.remove(&mut client_buffers, peer_id);
+                    server.remove_client(peer_id);
                 }
-                ServerEvent::ClientConnected { client_id } => {
-                    connected_clients.init(&mut client_buffers, client_id);
+                PeerEvent::PeerConnected { peer_id } => {
+                    connected_clients.add(&mut client_buffers, peer_id);
+                    server.add_client(peer_id);
                 }
             }
         }
@@ -163,13 +181,12 @@ impl ServerPlugin {
 
     fn acks_receiving_system(
         change_tick: SystemChangeTick,
-        mut server: ResMut<RenetServer>,
+        mut server: ResMut<RepliconServer>,
         mut connected_clients: ResMut<ConnectedClients>,
         mut client_buffers: ResMut<ClientBuffers>,
     ) {
         for client in connected_clients.iter_mut() {
-            while let Some(message) =
-                server.receive_message(client.id(), ReplicationChannel::Reliable)
+            while let Some(message) = server.receive(client.peer_id(), ReplicationChannel::Reliable)
             {
                 match bincode::deserialize::<u16>(&message) {
                     Ok(update_index) => {
@@ -180,8 +197,8 @@ impl ServerPlugin {
                         );
                     }
                     Err(e) => debug!(
-                        "unable to deserialize update index from client {}: {e}",
-                        client.id()
+                        "unable to deserialize update index from {:?}: {e}",
+                        client.peer_id()
                     ),
                 }
             }
@@ -201,7 +218,7 @@ impl ServerPlugin {
             ResMut<DespawnBuffer>,
             ResMut<RemovalBuffer>,
             ResMut<ClientBuffers>,
-            ResMut<RenetServer>,
+            ResMut<RepliconServer>,
         )>,
         replication_rules: Res<ReplicationRules>,
         replicon_tick: Res<RepliconTick>,
@@ -261,7 +278,7 @@ fn collect_mappings(
     for (message, _, client) in messages.iter_mut_with_clients() {
         message.start_array();
 
-        if let Some(mappings) = entity_map.0.get_mut(&client.id()) {
+        if let Some(mappings) = entity_map.0.get_mut(&client.peer_id()) {
             for mapping in mappings.drain(..) {
                 message.write_client_mapping(&mapping)?;
             }
@@ -479,22 +496,29 @@ fn collect_removals(
     Ok(())
 }
 
-/// Condition that returns `true` for server or in singleplayer and `false` for client.
-pub fn has_authority(client: Option<Res<RenetClient>>) -> bool {
-    client.is_none()
-}
-
 /// Set with replication and event systems related to server.
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum ServerSet {
-    /// Systems that receive data.
+    /// Systems that emit [`PeerEvent`].
+    ///
+    /// Runs in `PreUpdate`.
+    PeerEvents,
+    /// Systems that receive packets from messaging library(-ies).
+    ///
+    /// Runs in `PreUpdate`.
+    ReceivePackets,
+    /// Systems that receive data from [`RepliconServer`].
     ///
     /// Runs in `PreUpdate`.
     Receive,
-    /// Systems that send data.
+    /// Systems that send data to [`RepliconServer`].
     ///
     /// Runs in `PostUpdate` on server tick, see [`TickPolicy`].
     Send,
+    /// Systems that send packets to from messaging library(-ies).
+    ///
+    /// Runs in `PostUpdate` on server tick, see [`TickPolicy`].
+    SendPackets,
 }
 
 /// Controls how often [`RepliconTick`] is incremented on the server.
@@ -527,6 +551,15 @@ pub enum VisibilityPolicy {
     Blacklist,
     /// All entities are hidden by default and should be explicitly registered to be visible.
     Whitelist,
+}
+
+/// Connection and disconnection events on server.
+///
+/// Messaging library is responsible for emitting it.
+#[derive(Event)]
+pub enum PeerEvent {
+    PeerConnected { peer_id: PeerId },
+    PeerDisconnected { peer_id: PeerId, reason: String },
 }
 
 /**
@@ -571,14 +604,14 @@ fn shoot_system(mut commands: Commands, mut bullet_events: EventWriter<SpawnBull
 /// In this example we just always confirm the spawn.
 fn confirm_bullet(
     mut commands: Commands,
-    mut bullet_events: EventReader<FromClient<SpawnBullet>>,
+    mut bullet_events: EventReader<FromPeer<SpawnBullet>>,
     mut entity_map: ResMut<ClientEntityMap>,
 ) {
-    for FromClient { client_id, event } in bullet_events.read() {
+    for FromPeer { peer_id, event } in bullet_events.read() {
         let server_entity = commands.spawn(Bullet).id(); // You can insert more components, they will be sent to the client's entity correctly.
 
         entity_map.insert(
-            *client_id,
+            *peer_id,
             ClientMapping {
                 server_entity,
                 client_entity: event.0,
@@ -597,14 +630,14 @@ If client's original entity is not found, a new entity will be spawned on the cl
 just the same as when no client entity is provided.
 **/
 #[derive(Resource, Debug, Default, Deref)]
-pub struct ClientEntityMap(HashMap<ClientId, Vec<ClientMapping>>);
+pub struct ClientEntityMap(HashMap<PeerId, Vec<ClientMapping>>);
 
 impl ClientEntityMap {
     /// Registers `mapping` for a client entity pre-spawned by the specified client.
     ///
     /// This will be sent as part of replication data and added to the client's [`ServerEntityMap`](crate::client::client_mapper::ServerEntityMap).
-    pub fn insert(&mut self, client_id: ClientId, mapping: ClientMapping) {
-        self.0.entry(client_id).or_default().push(mapping);
+    pub fn insert(&mut self, peer_id: PeerId, mapping: ClientMapping) {
+        self.0.entry(peer_id).or_default().push(mapping);
     }
 }
 
