@@ -10,7 +10,8 @@ We provide a first-party integration with [`bevy_renet`](https://docs.rs/bevy_re
 via [`bevy_replicon_renet`](https://docs.rs/bevy_replicon_renet).
 
 If you want to write integration for a messaging library,
-see the [`RepliconServer`], [`RepliconClient`] and [`PeerId`] documentation. You can also use `bevy_replicon_renet` as a reference.
+see documentation for [`RepliconServer`], [`RepliconClient`] and [`PeerEvent`].
+You can also use `bevy_replicon_renet` as a reference.
 
 ## Initialization
 
