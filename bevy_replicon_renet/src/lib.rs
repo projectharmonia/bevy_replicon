@@ -5,9 +5,13 @@ Provides integration for [`bevy_replicon`](https://docs.rs/bevy_replicon) for [`
 
 This guide assumes that you have already read [quick start guide](https://docs.rs/bevy_replicon#quick-start) from `bevy_replicon`.
 
+All Renet API is re-exported from this plugin, you don't need to include `bevy_renet` or `renet` to your `Cargo.toml`.
+
+Renet by default uses netcode transport which re-exported by `renet_transport` feature. If you want to use other transports, you can disable it.
+
 ## Initialization
 
-Add [`RepliconRenetPlugins`] alongside with `RepliconPlugins`:
+Add [`RepliconRenetPlugins`] group alongside with `RepliconPlugins`:
 
 ```
 use bevy::prelude::*;
@@ -17,12 +21,16 @@ use bevy_replicon_renet::RepliconRenetPlugins;
 let mut app = App::new();
 app.add_plugins((MinimalPlugins, RepliconPlugins, RepliconRenetPlugins));
 ```
+
+Plugins in the group automatically add `renet` corresponding plugins, you don't need to add them.
+
+If `renet_transport` feature is enabled, netcode plugins will also be automatically added.
+
 ## Server and client creation
 
 To connect to the server or create it, you need to initialize the
 [`RenetClient`] and [`NetcodeClientTransport`](renet::transport::NetcodeClientTransport) **or**
 [`RenetServer`] and [`NetcodeServerTransport`](renet::transport::NetcodeServerTransport) resources from Renet.
-All Renet API is re-exported from this plugin.
 
 Never insert client and server resources in the same app for single-player, it will cause a replication loop.
 
