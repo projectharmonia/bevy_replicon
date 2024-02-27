@@ -114,8 +114,13 @@ impl RepliconServer {
     /// or by user to stop the server.
     pub fn set_running(&mut self, running: bool) {
         if !running {
-            self.sent_messages.clear();
-            self.received_messages.clear();
+            for channel_messages in &mut self.sent_messages {
+                channel_messages.clear();
+            }
+            for channel_messages in &mut self.received_messages {
+                self.client_buffer
+                    .extend(channel_messages.drain().map(|(_, messages)| messages));
+            }
         }
 
         self.running = running;

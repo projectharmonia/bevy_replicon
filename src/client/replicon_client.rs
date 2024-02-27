@@ -73,8 +73,12 @@ impl RepliconClient {
     /// See also [`Self::status`].
     pub fn set_status(&mut self, status: RepliconClientStatus) {
         if self.is_connected() && !matches!(status, RepliconClientStatus::Connected { .. }) {
-            self.sent_messages.clear();
-            self.received_messages.clear();
+            for channel_messages in &mut self.sent_messages {
+                channel_messages.clear();
+            }
+            for channel_messages in &mut self.received_messages {
+                channel_messages.clear();
+            }
         }
 
         self.status = status;
