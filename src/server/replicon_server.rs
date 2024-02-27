@@ -64,14 +64,19 @@ impl RepliconServer {
         }
     }
 
-    /// Removes a connected client.
+    /// Removes a disconnected client.
     ///
     /// Keeps allocated memory for reuse.
     pub(super) fn remove_client(&mut self, peer_id: PeerId) {
+        for channel_messages in &mut self.sent_messages {
+            channel_messages.retain(|&(sender_id, _)| sender_id != peer_id);
+        }
+
         for channel_messages in &mut self.received_messages {
-            let client_messages = channel_messages
+            let mut client_messages = channel_messages
                 .remove(&peer_id)
                 .unwrap_or_else(|| panic!("{peer_id:?} should be added before removal"));
+            client_messages.clear();
             self.client_buffer.push(client_messages);
         }
     }
