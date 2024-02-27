@@ -190,7 +190,7 @@ impl Plugin for RepliconRenetClientPlugin {
             .add_systems(
                 PostUpdate,
                 Self::sending_system
-                    .before_ignore_deferred(RenetSend)
+                    .before(RenetSend)
                     .in_set(ClientSet::SendPackets)
                     .run_if(bevy_renet::client_connected),
             );
@@ -236,19 +236,12 @@ impl RepliconRenetClientPlugin {
     }
 
     fn sending_system(
-        mut commands: Commands,
         mut renet_client: ResMut<RenetClient>,
         mut replicon_client: ResMut<RepliconClient>,
     ) {
         // Check if client was disconnected by user.
         if !replicon_client.is_connected() {
             renet_client.disconnect();
-
-            // Commands will be applied in the next schedule,
-            // so disconnect message will be sent first.
-            commands.remove_resource::<RenetClient>();
-            #[cfg(feature = "renet_transport")]
-            commands.remove_resource::<NetcodeClientTransport>();
             return;
         }
 

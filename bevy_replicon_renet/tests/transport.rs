@@ -16,7 +16,7 @@ use bevy_replicon_renet::{RenetChannelsExt, RepliconRenetPlugins};
 use serde::{Deserialize, Serialize};
 
 #[test]
-fn connect_disconnect() {
+fn renet_connect_disconnect() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
@@ -32,20 +32,25 @@ fn connect_disconnect() {
 
     setup(&mut server_app, &mut client_app);
 
-    let connected_clients = server_app.world.resource::<ConnectedClients>();
-    assert_eq!(connected_clients.len(), 1);
-
-    client_app.world.resource_mut::<RenetClient>().disconnect();
+    let mut renet_client = client_app.world.resource_mut::<RenetClient>();
+    assert!(renet_client.is_connected());
+    renet_client.disconnect();
 
     client_app.update();
     server_app.update();
 
+    let renet_server = server_app.world.resource::<RenetServer>();
+    assert_eq!(renet_server.connected_clients(), 0);
+
     let connected_clients = server_app.world.resource::<ConnectedClients>();
-    assert!(connected_clients.is_empty());
+    assert_eq!(connected_clients.len(), 0);
+
+    let replicon_client = client_app.world.resource_mut::<RepliconClient>();
+    assert!(replicon_client.is_no_connection());
 }
 
 #[test]
-fn replion_client_disconnect() {
+fn replicon_connect_disconnect() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
@@ -61,43 +66,23 @@ fn replion_client_disconnect() {
 
     setup(&mut server_app, &mut client_app);
 
-    client_app
-        .world
-        .resource_mut::<RepliconClient>()
-        .disconnect();
+    let mut replicon_client = client_app.world.resource_mut::<RepliconClient>();
+    assert!(replicon_client.is_connected());
+    replicon_client.disconnect();
 
     client_app.update();
     server_app.update();
-
-    assert!(!client_app.world.contains_resource::<RenetClient>());
-}
-
-#[test]
-fn replion_server_disconnect() {
-    let mut server_app = App::new();
-    let mut client_app = App::new();
-    for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((
-            MinimalPlugins,
-            RepliconPlugins.set(ServerPlugin {
-                tick_policy: TickPolicy::EveryFrame,
-                ..Default::default()
-            }),
-            RepliconRenetPlugins,
-        ));
-    }
-
-    setup(&mut server_app, &mut client_app);
-
-    client_app
-        .world
-        .resource_mut::<RepliconServer>()
-        .set_running(false);
-
     client_app.update();
     server_app.update();
 
-    assert!(!client_app.world.contains_resource::<RenetServer>());
+    let renet_server = server_app.world.resource::<RenetServer>();
+    assert_eq!(renet_server.connected_clients(), 0);
+
+    let connected_clients = server_app.world.resource::<ConnectedClients>();
+    assert_eq!(connected_clients.len(), 0);
+
+    let renet_client = client_app.world.resource_mut::<RenetClient>();
+    assert!(!renet_client.is_connected());
 }
 
 #[test]
