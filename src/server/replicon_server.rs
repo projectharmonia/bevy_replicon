@@ -6,11 +6,13 @@ use crate::core::PeerId;
 /// Stores information about server independent from messaging library(-ies).
 ///
 /// Messaging library(-ies) responsible for updating this resource:
-/// - When server is activated or deactivated, use [`Self::set_active`] to reflect this.
-/// - When sending messages, use [`Self::iter_sent`] and drain all sent messages
-/// in [`ServerSet::ReceivePackets`](super::ServerSet::ReceivePackets).
-/// - When receiving messages, use [`Self::insert_received`] to insert received
-/// messages in [`ServerSet::SendPackets`](super::ServerSet::SendPackets).
+/// - When server is activated or deactivated, [`Self::set_active`] should be used to reflect this.
+/// - When [`Self::is_active`] returns `false` while messaging server is still active,
+/// the server should stop.
+/// - For sending messages [`Self::iter_sent`] should be used to drain all sent messages.
+/// Corresponding system should run in [`ServerSet::SendPackets`](super::ServerSet::SendPackets).
+/// - For receiving messages [`Self::insert_received`] should be to used.
+/// Corresponding system should run in [`ServerSet::ReceivePackets`](super::ServerSet::ReceivePackets).
 #[derive(Resource, Default)]
 pub struct RepliconServer {
     /// `true` if server is open for connections.
@@ -111,7 +113,8 @@ impl RepliconServer {
 
     /// Marks server as active or inactive.
     ///
-    /// Should be called only from library(-ies) when the server is ready.
+    /// Should be called from library(-ies) when the server changes its status
+    /// or by user to deactivate the server.
     pub fn set_active(&mut self, active: bool) {
         if !active {
             self.sent_messages.clear();

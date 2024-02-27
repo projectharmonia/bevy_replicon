@@ -45,6 +45,62 @@ fn connect_disconnect() {
 }
 
 #[test]
+fn replion_client_disconnect() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+            RepliconRenetPlugins,
+        ));
+    }
+
+    setup(&mut server_app, &mut client_app);
+
+    client_app
+        .world
+        .resource_mut::<RepliconClient>()
+        .disconnect();
+
+    client_app.update();
+    server_app.update();
+
+    assert!(!client_app.world.contains_resource::<RenetClient>());
+}
+
+#[test]
+fn replion_server_disconnect() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+            RepliconRenetPlugins,
+        ));
+    }
+
+    setup(&mut server_app, &mut client_app);
+
+    client_app
+        .world
+        .resource_mut::<RepliconServer>()
+        .set_active(false);
+
+    client_app.update();
+    server_app.update();
+
+    assert!(!client_app.world.contains_resource::<RenetServer>());
+}
+
+#[test]
 fn replication() {
     let mut server_app = App::new();
     let mut client_app = App::new();

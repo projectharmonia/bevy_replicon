@@ -6,12 +6,14 @@ use crate::core::PeerId;
 /// Stores information about client independent from messaging library.
 ///
 /// Messaging library responsible for updating this resource:
-/// - When client changes its status (connected, connecting and disconnected),
-/// use [`Self::set_status`] to reflect this.
-/// - When sending messages, use [`Self::iter_sent`] and drain all sent messages
-/// in [`ClientSet::ReceivePackets`](super::ClientSet::ReceivePackets).
-/// - When receiving messages, use [`Self::insert_received`] to insert received
-/// messages in [`ClientSet::SendPackets`](super::ClientSet::SendPackets).
+/// - When messaging client changes its status (connected, connecting and disconnected),
+/// [`Self::set_status`] should be used to reflect this.
+/// - When [`Self::is_connected`] returns `false` while messaging client is connected,
+/// the client should disconnect.
+/// - For sending messages [`Self::iter_sent`] should be used to drain all sent messages.
+/// Corresponding system should run in [`ClientSet::SendPackets`](super::ClientSet::SendPackets).
+/// - For receiving messages [`Self::insert_received`] should be to used.
+/// Corresponding system should run in [`ClientSet::ReceivePackets`](super::ClientSet::ReceivePackets).
 #[derive(Resource, Default)]
 pub struct RepliconClient {
     /// Client connection status.
@@ -66,7 +68,7 @@ impl RepliconClient {
 
     /// Sets client connection status.
     ///
-    /// Should be called only from messaging library when the client status changes.
+    /// Should be called by messaging library when the client status changes or by user to disconnect.
     /// Cleanups all messages if the state changes from [`RepliconClientStatus::Connected`].
     /// See also [`Self::status`].
     pub fn set_status(&mut self, status: RepliconClientStatus) {
@@ -76,6 +78,11 @@ impl RepliconClient {
         }
 
         self.status = status;
+    }
+
+    /// Sets client connection status to [`RepliconClientStatus`].
+    pub fn disconnect(&mut self) {
+        self.set_status(RepliconClientStatus::NoConnection);
     }
 
     /// Returns current client status.

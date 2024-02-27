@@ -89,7 +89,7 @@ impl Plugin for RepliconRenetServerPlugin {
             .add_systems(
                 PostUpdate,
                 Self::sending_system
-                    .before(RenetSend)
+                    .before_ignore_deferred(RenetSend)
                     .in_set(ServerSet::SendPackets)
                     .run_if(resource_exists::<RenetServer>),
             );
@@ -147,9 +147,20 @@ impl RepliconRenetServerPlugin {
     }
 
     fn sending_system(
+        mut commands: Commands,
         mut renet_server: ResMut<RenetServer>,
         mut replicon_server: ResMut<RepliconServer>,
     ) {
+        // Check if server was deactivated by user.
+        if !replicon_server.is_active() {
+            renet_server.disconnect_all();
+
+            // Command will be applied in the next schedule,
+            // so disconnect message will be sent first.
+            commands.remove_resource::<RenetServer>();
+            return;
+        }
+
         for (channel_id, messages) in replicon_server.iter_sent() {
             for (peer_id, message) in messages.drain(..) {
                 renet_server.send_message(ClientId::from_raw(peer_id.get()), channel_id, message)
@@ -179,7 +190,7 @@ impl Plugin for RepliconRenetClientPlugin {
             .add_systems(
                 PostUpdate,
                 Self::sending_system
-                    .before(RenetSend)
+                    .before_ignore_deferred(RenetSend)
                     .in_set(ClientSet::SendPackets)
                     .run_if(bevy_renet::client_connected),
             );
@@ -225,9 +236,22 @@ impl RepliconRenetClientPlugin {
     }
 
     fn sending_system(
+        mut commands: Commands,
         mut renet_client: ResMut<RenetClient>,
         mut replicon_client: ResMut<RepliconClient>,
     ) {
+        // Check if server was deactivated by user.
+        if !replicon_client.is_connected() {
+            renet_client.disconnect();
+
+            // Commands will be applied in the next schedule,
+            // so disconnect message will be sent first.
+            commands.remove_resource::<RenetClient>();
+            #[cfg(feature = "renet_transport")]
+            commands.remove_resource::<NetcodeClientTransport>();
+            return;
+        }
+
         for (channel_id, messages) in replicon_client.iter_sent() {
             for message in messages.drain(..) {
                 renet_client.send_message(channel_id, message)
