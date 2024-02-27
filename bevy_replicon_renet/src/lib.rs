@@ -65,17 +65,15 @@ impl Plugin for RepliconRenetServerPlugin {
             .add_systems(
                 PreUpdate,
                 (
-                    Self::peer_events_system
-                        .after(RenetReceive)
-                        .in_set(ServerSet::PeerEvents),
+                    Self::peer_events_system.in_set(ServerSet::PeerEvents),
                     (
                         Self::activation_system.run_if(resource_added::<RenetServer>),
                         Self::deactivation_system.run_if(resource_removed::<RenetServer>()),
                         Self::receiving_packets.run_if(resource_exists::<RenetServer>),
                     )
-                        .after(RenetReceive)
                         .in_set(ServerSet::ReceivePackets),
-                ),
+                )
+                    .after(RenetReceive),
             )
             .add_systems(
                 PostUpdate,
