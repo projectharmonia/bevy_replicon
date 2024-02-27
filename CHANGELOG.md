@@ -38,7 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- `RepliconChannels` methods that dynamically change channel memory. Configure it channel creation time via `RepliconChannel`.
+- `RepliconChannels` methods that dynamically change channel memory. Configure it at channel creation time via `RepliconChannel`.
 
 ## [0.23.0] - 2024-02-22
 
