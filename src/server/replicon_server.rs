@@ -76,14 +76,6 @@ impl RepliconServer {
         }
     }
 
-    /// Creates a new instance and marks it as active.
-    pub fn active() -> Self {
-        Self {
-            active: true,
-            ..Default::default()
-        }
-    }
-
     /// Receives a message from a client over a channel.
     pub fn receive<I: Into<u8>>(&mut self, peer_id: PeerId, channel_id: I) -> Option<Bytes> {
         let channel_id = channel_id.into();

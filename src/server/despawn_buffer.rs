@@ -46,7 +46,9 @@ mod tests {
     fn despawns() {
         let mut app = App::new();
         app.add_plugins(DespawnBufferPlugin)
-            .insert_resource(RepliconServer::active());
+            .init_resource::<RepliconServer>();
+
+        app.world.resource_mut::<RepliconServer>().set_active(true);
 
         app.update();
 

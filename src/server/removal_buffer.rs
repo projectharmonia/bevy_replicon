@@ -114,9 +114,11 @@ mod tests {
     fn removals() {
         let mut app = App::new();
         app.add_plugins((DespawnBufferPlugin, RemovalBufferPlugin))
-            .insert_resource(RepliconServer::active())
+            .init_resource::<RepliconServer>()
             .init_resource::<ReplicationRules>()
             .replicate::<DummyComponent>();
+
+        app.world.resource_mut::<RepliconServer>().set_active(true);
 
         app.update();
 
@@ -138,9 +140,11 @@ mod tests {
     fn despawn_ignore() {
         let mut app = App::new();
         app.add_plugins((DespawnBufferPlugin, RemovalBufferPlugin))
-            .insert_resource(RepliconServer::active())
+            .init_resource::<RepliconServer>()
             .init_resource::<ReplicationRules>()
             .replicate::<DummyComponent>();
+
+        app.world.resource_mut::<RepliconServer>().set_active(true);
 
         app.update();
 
