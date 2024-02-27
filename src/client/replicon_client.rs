@@ -9,7 +9,7 @@ use crate::core::PeerId;
 /// - When messaging client changes its status (connected, connecting and disconnected),
 /// [`Self::set_status`] should be used to reflect this.
 /// - When [`Self::is_connected`] returns `false` while messaging client is connected,
-/// the client should disconnect.
+/// it should gracefully disconnect.
 /// - For sending messages [`Self::iter_sent`] should be used to drain all sent messages.
 /// Corresponding system should run in [`ClientSet::SendPackets`](super::ClientSet::SendPackets).
 /// - For receiving messages [`Self::insert_received`] should be to used.

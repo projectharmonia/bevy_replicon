@@ -51,7 +51,7 @@ server_app.disconnect_client(&mut client_app);
 ```
 **/
 pub trait ServerTestAppExt {
-    /// Activates server in [`self`] and connects a client app.
+    /// Starts server in [`self`] and connects a client app.
     ///
     /// Can be called multiple times on different client apps.
     /// Runs an update for both apps internally.
@@ -103,7 +103,7 @@ impl ServerTestAppExt for App {
         });
 
         let mut server = self.world.resource_mut::<RepliconServer>();
-        server.set_active(true);
+        server.set_running(true);
 
         self.world.send_event(PeerEvent::PeerConnected { peer_id });
 

@@ -14,7 +14,7 @@ use super::{
     ServerPlugin, ServerSet,
 };
 use crate::core::{
-    common_conditions::server_active,
+    common_conditions::server_running,
     replication_rules::{ReplicationId, ReplicationRules},
 };
 
@@ -31,7 +31,7 @@ impl Plugin for RemovalBufferPlugin {
                 .after(DespawnBufferPlugin::detection_system)
                 .before(ServerPlugin::replication_sending_system)
                 .in_set(ServerSet::Send)
-                .run_if(server_active),
+                .run_if(server_running),
         );
     }
 }
@@ -118,7 +118,7 @@ mod tests {
             .init_resource::<ReplicationRules>()
             .replicate::<DummyComponent>();
 
-        app.world.resource_mut::<RepliconServer>().set_active(true);
+        app.world.resource_mut::<RepliconServer>().set_running(true);
 
         app.update();
 
@@ -144,7 +144,7 @@ mod tests {
             .init_resource::<ReplicationRules>()
             .replicate::<DummyComponent>();
 
-        app.world.resource_mut::<RepliconServer>().set_active(true);
+        app.world.resource_mut::<RepliconServer>().set_running(true);
 
         app.update();
 

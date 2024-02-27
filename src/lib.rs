@@ -383,7 +383,7 @@ condition on such system. If you want your systems to run only on
 frames when server send updates to clients use [`ServerSet::Send`].
 
 To check if you running server or client, you can use
-[`server_active`] and [`connected`] conditions.
+[`server_running`] and [`connected`] conditions.
 They rarely used for gameplay systems (since you write the same logic for
 multiplayer and single-player!), but could be used for server
 creation / connection systems and corresponding UI.
@@ -410,7 +410,7 @@ app.add_plugins((
 ))
 .add_systems(
     Update,
-    visibility_system.run_if(server_active),
+    visibility_system.run_if(server_running),
 );
 
 /// Disables the visibility of other players' entities that are further away than the visible distance.

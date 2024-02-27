@@ -11,7 +11,7 @@ use super::EventMapper;
 use crate::{
     client::{client_mapper::ServerEntityMap, replicon_client::RepliconClient, ClientSet},
     core::{
-        common_conditions::{connected, no_connection, server_active},
+        common_conditions::{connected, no_connection, server_running},
         replicon_channels::{RepliconChannel, RepliconChannels},
         PeerId,
     },
@@ -158,7 +158,7 @@ impl ClientEventAppExt for App {
                     reset_system::<T>.in_set(ClientSet::ResetEvents),
                     receiving_system
                         .in_set(ServerSet::Receive)
-                        .run_if(server_active),
+                        .run_if(server_running),
                 ),
             )
             .add_systems(

@@ -78,8 +78,8 @@ impl Plugin for RepliconRenetServerPlugin {
                 (
                     Self::peer_events_system.in_set(ServerSet::PeerEvents),
                     (
-                        Self::activation_system.run_if(resource_added::<RenetServer>),
-                        Self::deactivation_system.run_if(resource_removed::<RenetServer>()),
+                        Self::starting_system.run_if(resource_added::<RenetServer>),
+                        Self::stopping_system.run_if(resource_removed::<RenetServer>()),
                         Self::receiving_packets.run_if(resource_exists::<RenetServer>),
                     )
                         .in_set(ServerSet::ReceivePackets),
@@ -100,12 +100,12 @@ impl Plugin for RepliconRenetServerPlugin {
 }
 
 impl RepliconRenetServerPlugin {
-    fn activation_system(mut server: ResMut<RepliconServer>) {
-        server.set_active(true);
+    fn starting_system(mut server: ResMut<RepliconServer>) {
+        server.set_running(true);
     }
 
-    fn deactivation_system(mut server: ResMut<RepliconServer>) {
-        server.set_active(false);
+    fn stopping_system(mut server: ResMut<RepliconServer>) {
+        server.set_running(false);
     }
 
     fn peer_events_system(
@@ -151,8 +151,8 @@ impl RepliconRenetServerPlugin {
         mut renet_server: ResMut<RenetServer>,
         mut replicon_server: ResMut<RepliconServer>,
     ) {
-        // Check if server was deactivated by user.
-        if !replicon_server.is_active() {
+        // Check if server was stopped by user.
+        if !replicon_server.is_running() {
             renet_server.disconnect_all();
 
             // Command will be applied in the next schedule,
@@ -240,7 +240,7 @@ impl RepliconRenetClientPlugin {
         mut renet_client: ResMut<RenetClient>,
         mut replicon_client: ResMut<RepliconClient>,
     ) {
-        // Check if server was deactivated by user.
+        // Check if client was disconnected by user.
         if !replicon_client.is_connected() {
             renet_client.disconnect();
 

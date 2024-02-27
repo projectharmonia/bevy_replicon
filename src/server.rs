@@ -21,7 +21,7 @@ use bevy::{
 };
 
 use crate::core::{
-    common_conditions::{server_active, server_just_deactivated},
+    common_conditions::{server_just_stopped, server_running},
     replication_rules::ReplicationRules,
     replicon_channels::ReplicationChannel,
     replicon_channels::RepliconChannels,
@@ -92,7 +92,7 @@ impl Plugin for ServerPlugin {
                 )
                     .chain()
                     .in_set(ServerSet::Receive)
-                    .run_if(server_active),
+                    .run_if(server_running),
             )
             .add_systems(
                 PostUpdate,
@@ -100,9 +100,9 @@ impl Plugin for ServerPlugin {
                     Self::replication_sending_system
                         .map(Result::unwrap)
                         .in_set(ServerSet::Send)
-                        .run_if(server_active)
+                        .run_if(server_running)
                         .run_if(resource_changed::<RepliconTick>),
-                    Self::reset_system.run_if(server_just_deactivated),
+                    Self::reset_system.run_if(server_just_stopped),
                 ),
             );
 
@@ -113,7 +113,7 @@ impl Plugin for ServerPlugin {
                     PostUpdate,
                     Self::increment_tick
                         .before(Self::replication_sending_system)
-                        .run_if(server_active)
+                        .run_if(server_running)
                         .run_if(on_timer(tick_time)),
                 );
             }
@@ -122,7 +122,7 @@ impl Plugin for ServerPlugin {
                     PostUpdate,
                     Self::increment_tick
                         .before(Self::replication_sending_system)
-                        .run_if(server_active),
+                        .run_if(server_running),
                 );
             }
             TickPolicy::Manual => (),

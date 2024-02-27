@@ -6,9 +6,9 @@ use crate::core::PeerId;
 /// Stores information about server independent from messaging library(-ies).
 ///
 /// Messaging library(-ies) responsible for updating this resource:
-/// - When server is activated or deactivated, [`Self::set_active`] should be used to reflect this.
-/// - When [`Self::is_active`] returns `false` while messaging server is still active,
-/// the server should stop.
+/// - When server is started or stopped, [`Self::set_running`] should be used to reflect this.
+/// - When [`Self::is_running`] returns `false` while messaging server is still running,
+/// it should gracefully stop.
 /// - For sending messages [`Self::iter_sent`] should be used to drain all sent messages.
 /// Corresponding system should run in [`ServerSet::SendPackets`](super::ServerSet::SendPackets).
 /// - For receiving messages [`Self::insert_received`] should be to used.
@@ -18,7 +18,7 @@ pub struct RepliconServer {
     /// `true` if server is open for connections.
     ///
     /// By default set to `false`.
-    active: bool,
+    running: bool,
 
     /// List of sent messages for each channel where top index is ID.
     ///
@@ -103,23 +103,23 @@ impl RepliconServer {
         channel_messages.push((peer_id, message.into()));
     }
 
-    /// Marks server as active or inactive.
+    /// Marks the server as running or stopped.
     ///
-    /// Should be called from library(-ies) when the server changes its status
-    /// or by user to deactivate the server.
-    pub fn set_active(&mut self, active: bool) {
-        if !active {
+    /// Should be called from library(-ies) when the server changes its state
+    /// or by user to stop the server.
+    pub fn set_running(&mut self, running: bool) {
+        if !running {
             self.sent_messages.clear();
             self.received_messages.clear();
         }
 
-        self.active = active;
+        self.running = running;
     }
 
-    /// Returns `true` if the server is active.
+    /// Returns `true` if the server is running.
     #[inline]
-    pub fn is_active(&self) -> bool {
-        self.active
+    pub fn is_running(&self) -> bool {
+        self.running
     }
 
     /// Returns iterator over all messages for each channel.

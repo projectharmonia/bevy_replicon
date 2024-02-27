@@ -92,7 +92,7 @@ fn replion_server_disconnect() {
     client_app
         .world
         .resource_mut::<RepliconServer>()
-        .set_active(false);
+        .set_running(false);
 
     client_app.update();
     server_app.update();

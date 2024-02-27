@@ -2,9 +2,9 @@ use bevy::prelude::*;
 
 use crate::{client::replicon_client::RepliconClient, server::replicon_server::RepliconServer};
 
-/// Returns `true` if the server is active.
-pub fn server_active(server: Option<Res<RepliconServer>>) -> bool {
-    server.filter(|server| server.is_active()).is_some()
+/// Returns `true` if the server is running.
+pub fn server_running(server: Option<Res<RepliconServer>>) -> bool {
+    server.filter(|server| server.is_running()).is_some()
 }
 
 /// Returns `true` if the client doesn't have a connection.
@@ -24,16 +24,16 @@ pub fn connected(client: Option<Res<RepliconClient>>) -> bool {
     client.filter(|client| client.is_connected()).is_some()
 }
 
-/// Returns `true` if the server became inactive on this tick.
-pub fn server_just_deactivated(
-    mut last_active: Local<bool>,
+/// Returns `true` if the server stopped on this tick.
+pub fn server_just_stopped(
+    mut last_running: Local<bool>,
     server: Option<Res<RepliconServer>>,
 ) -> bool {
-    let active = server.filter(|server| server.is_active()).is_some();
+    let running = server.filter(|server| server.is_running()).is_some();
 
-    let just_deactivated = *last_active && !active;
-    *last_active = active;
-    just_deactivated
+    let just_stopped = *last_running && !running;
+    *last_running = running;
+    just_stopped
 }
 
 /// Returns `true` when the client is connected on this tick.
