@@ -161,7 +161,7 @@ impl RepliconRenetServerPlugin {
             return;
         }
 
-        for (channel_id, messages) in replicon_server.iter_sent() {
+        for (channel_id, messages) in replicon_server.iter_sent_mut() {
             for (peer_id, message) in messages.drain(..) {
                 renet_server.send_message(ClientId::from_raw(peer_id.get()), channel_id, message)
             }
@@ -252,7 +252,7 @@ impl RepliconRenetClientPlugin {
             return;
         }
 
-        for (channel_id, messages) in replicon_client.iter_sent() {
+        for (channel_id, messages) in replicon_client.iter_sent_mut() {
             for message in messages.drain(..) {
                 renet_client.send_message(channel_id, message)
             }

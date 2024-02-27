@@ -10,7 +10,7 @@ use crate::core::PeerId;
 /// [`Self::set_status`] should be used to reflect this.
 /// - When [`Self::is_connected`] returns `false` while messaging client is connected,
 /// it should gracefully disconnect.
-/// - For sending messages [`Self::iter_sent`] should be used to drain all sent messages.
+/// - For sending messages [`Self::iter_sent_mut`] should be used to drain all sent messages.
 /// Corresponding system should run in [`ClientSet::SendPackets`](super::ClientSet::SendPackets).
 /// - For receiving messages [`Self::insert_received`] should be to used.
 /// Corresponding system should run in [`ClientSet::ReceivePackets`](super::ClientSet::ReceivePackets).
@@ -133,7 +133,7 @@ impl RepliconClient {
     /// Returns iterator over all messages for each channel.
     ///
     /// Should be called only by messaging library.
-    pub fn iter_sent(&mut self) -> impl Iterator<Item = (u8, &mut Vec<Bytes>)> + '_ {
+    pub fn iter_sent_mut(&mut self) -> impl Iterator<Item = (u8, &mut Vec<Bytes>)> + '_ {
         self.sent_messages
             .iter_mut()
             .enumerate()

@@ -135,13 +135,13 @@ impl ServerTestAppExt for App {
             .expect("client should have an assigned ID for exchanging messages");
 
         let mut server = self.world.resource_mut::<RepliconServer>();
-        for (channel_id, messages) in client.iter_sent() {
+        for (channel_id, messages) in client.iter_sent_mut() {
             for message in messages.drain(..) {
                 server.insert_received(peer_id, message, channel_id)
             }
         }
 
-        for (channel_id, messages) in server.iter_sent() {
+        for (channel_id, messages) in server.iter_sent_mut() {
             messages.retain(|(send_id, message)| {
                 if *send_id == peer_id {
                     client.insert_received(message.clone(), channel_id);

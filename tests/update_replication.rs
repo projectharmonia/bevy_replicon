@@ -348,7 +348,7 @@ fn acknowledgment() {
 
     // Take and drop ack message.
     let mut client = client_app.world.resource_mut::<RepliconClient>();
-    for (_, messages) in client.iter_sent() {
+    for (_, messages) in client.iter_sent_mut() {
         messages.drain(..);
     }
 

@@ -9,7 +9,7 @@ use crate::core::PeerId;
 /// - When server is started or stopped, [`Self::set_running`] should be used to reflect this.
 /// - When [`Self::is_running`] returns `false` while messaging server is still running,
 /// it should gracefully stop.
-/// - For sending messages [`Self::iter_sent`] should be used to drain all sent messages.
+/// - For sending messages [`Self::iter_sent_mut`] should be used to drain all sent messages.
 /// Corresponding system should run in [`ServerSet::SendPackets`](super::ServerSet::SendPackets).
 /// - For receiving messages [`Self::insert_received`] should be to used.
 /// Corresponding system should run in [`ServerSet::ReceivePackets`](super::ServerSet::ReceivePackets).
@@ -130,7 +130,7 @@ impl RepliconServer {
     /// Returns iterator over all messages for each channel.
     ///
     /// Should be called only by library(-ies).
-    pub fn iter_sent(&mut self) -> impl Iterator<Item = (u8, &mut Vec<(PeerId, Bytes)>)> + '_ {
+    pub fn iter_sent_mut(&mut self) -> impl Iterator<Item = (u8, &mut Vec<(PeerId, Bytes)>)> + '_ {
         self.sent_messages
             .iter_mut()
             .enumerate()
