@@ -89,7 +89,7 @@ impl Plugin for RepliconRenetServerPlugin {
             .add_systems(
                 PostUpdate,
                 Self::sending_system
-                    .before_ignore_deferred(RenetSend)
+                    .before(RenetSend)
                     .in_set(ServerSet::SendPackets)
                     .run_if(resource_exists::<RenetServer>),
             );
@@ -147,20 +147,9 @@ impl RepliconRenetServerPlugin {
     }
 
     fn sending_system(
-        mut commands: Commands,
         mut renet_server: ResMut<RenetServer>,
         mut replicon_server: ResMut<RepliconServer>,
     ) {
-        // Check if server was stopped by user.
-        if !replicon_server.is_running() {
-            renet_server.disconnect_all();
-
-            // Command will be applied in the next schedule,
-            // so disconnect message will be sent first.
-            commands.remove_resource::<RenetServer>();
-            return;
-        }
-
         for (channel_id, messages) in replicon_server.iter_sent_mut() {
             for (peer_id, message) in messages.drain(..) {
                 renet_server.send_message(ClientId::from_raw(peer_id.get()), channel_id, message)
@@ -239,12 +228,6 @@ impl RepliconRenetClientPlugin {
         mut renet_client: ResMut<RenetClient>,
         mut replicon_client: ResMut<RepliconClient>,
     ) {
-        // Check if client was disconnected by user.
-        if !replicon_client.is_connected() {
-            renet_client.disconnect();
-            return;
-        }
-
         for (channel_id, messages) in replicon_client.iter_sent_mut() {
             for message in messages.drain(..) {
                 renet_client.send_message(channel_id, message)

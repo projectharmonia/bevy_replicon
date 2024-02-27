@@ -7,8 +7,6 @@ use crate::core::PeerId;
 ///
 /// Messaging library(-ies) responsible for updating this resource:
 /// - When server is started or stopped, [`Self::set_running`] should be used to reflect this.
-/// - When [`Self::is_running`] returns `false` while messaging server is still running,
-/// it should gracefully stop.
 /// - For sending messages [`Self::iter_sent_mut`] should be used to drain all sent messages.
 /// Corresponding system should run in [`ServerSet::SendPackets`](super::ServerSet::SendPackets).
 /// - For receiving messages [`Self::insert_received`] should be to used.
@@ -110,8 +108,7 @@ impl RepliconServer {
 
     /// Marks the server as running or stopped.
     ///
-    /// Should be called from library(-ies) when the server changes its state
-    /// or by user to stop the server.
+    /// Should be called only from messaging library(-ies) when the server changes its state.
     pub fn set_running(&mut self, running: bool) {
         if !running {
             for channel_messages in &mut self.sent_messages {
