@@ -73,6 +73,7 @@ impl Plugin for RepliconRenetServerPlugin {
                         Self::deactivation_system.run_if(resource_removed::<RenetServer>()),
                         Self::receiving_packets.run_if(resource_exists::<RenetServer>),
                     )
+                        .after(RenetReceive)
                         .in_set(ServerSet::ReceivePackets),
                 ),
             )
