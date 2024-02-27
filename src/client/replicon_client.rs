@@ -158,5 +158,6 @@ pub enum RepliconClientStatus {
     /// Connected to server.
     ///
     /// Stores the assigned ID if one was assigned by the server.
+    /// Needed only for users to access ID independent from messaging library.
     Connected { peer_id: Option<PeerId> },
 }

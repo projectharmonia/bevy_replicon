@@ -63,7 +63,10 @@ pub use bevy_renet::*;
 use bevy_replicon::prelude::*;
 use renet::{ChannelConfig, ClientId, RenetClient, RenetServer, SendType, ServerEvent};
 #[cfg(feature = "renet_transport")]
-use transport::{NetcodeClientPlugin, NetcodeServerPlugin};
+use {
+    renet::transport::NetcodeClientTransport,
+    transport::{NetcodeClientPlugin, NetcodeServerPlugin},
+};
 
 pub struct RepliconRenetServerPlugin;
 
@@ -195,8 +198,18 @@ impl RepliconRenetClientPlugin {
         client.set_status(RepliconClientStatus::Connecting);
     }
 
-    fn connected_system(mut client: ResMut<RepliconClient>) {
-        client.set_status(RepliconClientStatus::Connected { peer_id: None });
+    fn connected_system(
+        mut client: ResMut<RepliconClient>,
+        #[cfg(feature = "renet_transport")] transport: Res<NetcodeClientTransport>,
+    ) {
+        // In renet only transport knows the ID.
+        // Worth asking author to provide access from `RenetClient`.
+        #[cfg(feature = "renet_transport")]
+        let peer_id = Some(PeerId::new(transport.client_id().raw()));
+        #[cfg(not(feature = "renet_transport"))]
+        let peer_id = None;
+
+        client.set_status(RepliconClientStatus::Connected { peer_id });
     }
 
     fn receiving_system(
