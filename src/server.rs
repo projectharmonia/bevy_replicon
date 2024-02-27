@@ -85,7 +85,7 @@ impl Plugin for ServerPlugin {
             .add_systems(
                 PreUpdate,
                 (
-                    Self::handle_connections_system,
+                    Self::peer_events_system,
                     Self::acks_receiving_system,
                     Self::acks_cleanup_system(self.update_timeout)
                         .run_if(on_timer(self.update_timeout)),
@@ -144,7 +144,7 @@ impl ServerPlugin {
         trace!("incremented {replicon_tick:?}");
     }
 
-    fn handle_connections_system(
+    fn peer_events_system(
         mut peer_events: EventReader<PeerEvent>,
         mut entity_map: ResMut<ClientEntityMap>,
         mut connected_clients: ResMut<ConnectedClients>,
