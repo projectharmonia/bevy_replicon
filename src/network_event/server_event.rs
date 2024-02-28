@@ -13,7 +13,7 @@ use super::EventMapper;
 use crate::{
     client::{client_mapper::ServerEntityMap, replicon_client::RepliconClient, ClientSet},
     core::{
-        common_conditions::{connected, no_connection, server_running},
+        common_conditions::{connected, has_authority, server_running},
         replicon_channels::{RepliconChannel, RepliconChannels},
         replicon_tick::RepliconTick,
         PeerId,
@@ -183,7 +183,7 @@ impl ServerEventAppExt for App {
                 PostUpdate,
                 (
                     sending_system.run_if(server_running),
-                    local_resending_system::<T>.run_if(no_connection),
+                    local_resending_system::<T>.run_if(has_authority),
                 )
                     .chain()
                     .after(ServerPlugin::replication_sending_system)

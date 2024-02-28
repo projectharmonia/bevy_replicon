@@ -7,11 +7,11 @@ pub fn server_running(server: Option<Res<RepliconServer>>) -> bool {
     server.filter(|server| server.is_running()).is_some()
 }
 
-/// Returns `true` if the client doesn't have a connection.
+/// Returns `true` if the client doesn't have a connection or disconnected.
 ///
 /// Can be used for systems that runs both on server and in singleplayer mode.
-pub fn no_connection(client: Option<Res<RepliconClient>>) -> bool {
-    client.filter(|client| !client.is_no_connection()).is_none()
+pub fn has_authority(client: Option<Res<RepliconClient>>) -> bool {
+    client.filter(|client| !client.is_disconnected()).is_none()
 }
 
 /// Returns `true` when the client is connecting.
@@ -53,7 +53,7 @@ pub fn just_disconnected(
     mut last_connected: Local<bool>,
     client: Option<Res<RepliconClient>>,
 ) -> bool {
-    let disconnected = client.filter(|client| client.is_no_connection()).is_some();
+    let disconnected = client.filter(|client| client.is_disconnected()).is_some();
 
     let just_disconnected = *last_connected && disconnected;
     *last_connected = !disconnected;

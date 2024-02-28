@@ -263,7 +263,7 @@ also as a peer with ID [`PeerId::SERVER`]. So you can send such events even on s
 and [`FromPeer`] will be emitted for them too. This way your game logic will work the same
 on client, listen server and in single-player session.
 
-For systems that receive events attach [`no_connection`] condition to receive a message
+For systems that receive events attach [`has_authority`] condition to receive a message
 on non-client instances (server or single-player):
 
 ```
@@ -277,7 +277,7 @@ app.add_client_event::<DummyEvent>(ChannelKind::Ordered)
         Update,
         (
             event_sending_system,
-            event_receiving_system.run_if(no_connection),
+            event_receiving_system.run_if(has_authority),
         ),
     );
 
@@ -345,7 +345,7 @@ app.add_server_event::<DummyEvent>(ChannelKind::Ordered)
         Update,
         (
             event_sending_system,
-            event_receiving_system.run_if(no_connection),
+            event_receiving_system.run_if(has_authority),
         ),
     );
 
@@ -378,7 +378,7 @@ For events that require special sending and receiving functions you can use [`Se
 When configuring systems for multiplayer game, you often want to run some
 systems only on when you have authority over the world simulation
 (on server or in single-player session). For example, damage registration or
-procedural level generation systems. For this just add [`no_connection`]
+procedural level generation systems. For this just add [`has_authority`]
 condition on such system. If you want your systems to run only on
 frames when server send updates to clients use [`ServerSet::Send`].
 

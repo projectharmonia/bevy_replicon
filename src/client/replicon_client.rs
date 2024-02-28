@@ -90,12 +90,12 @@ impl RepliconClient {
         self.status
     }
 
-    /// Returns `true` if the client doesn't have a connection.
+    /// Returns `true` if the client is not connected or disconnected.
     ///
     /// See also [`Self::status`].
     #[inline]
-    pub fn is_no_connection(&self) -> bool {
-        matches!(self.status, RepliconClientStatus::NoConnection)
+    pub fn is_disconnected(&self) -> bool {
+        matches!(self.status, RepliconClientStatus::Disconnected)
     }
 
     /// Returns `true` if the client is connecting.
@@ -154,9 +154,9 @@ impl RepliconClient {
 /// Connection status of the [`RepliconClient`].
 #[derive(Clone, Copy, Default, PartialEq)]
 pub enum RepliconClientStatus {
-    /// Connected or disconnected.
+    /// Not connected or disconnected.
     #[default]
-    NoConnection,
+    Disconnected,
     /// Trying to connect to server.
     Connecting,
     /// Connected to server.

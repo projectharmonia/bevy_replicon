@@ -168,7 +168,7 @@ impl Plugin for RepliconRenetClientPlugin {
                 (
                     Self::connecting_system.run_if(resource_added::<RenetClient>),
                     (
-                        Self::no_connection_system.run_if(bevy_renet::client_just_disconnected),
+                        Self::disconnected_system.run_if(bevy_renet::client_just_disconnected),
                         Self::connected_system.run_if(bevy_renet::client_just_connected),
                         Self::receiving_system.run_if(bevy_renet::client_connected),
                     )
@@ -190,8 +190,8 @@ impl Plugin for RepliconRenetClientPlugin {
 }
 
 impl RepliconRenetClientPlugin {
-    fn no_connection_system(mut client: ResMut<RepliconClient>) {
-        client.set_status(RepliconClientStatus::NoConnection);
+    fn disconnected_system(mut client: ResMut<RepliconClient>) {
+        client.set_status(RepliconClientStatus::Disconnected);
     }
 
     fn connecting_system(mut client: ResMut<RepliconClient>) {

@@ -85,7 +85,7 @@ impl ServerTestAppExt for App {
     fn connect_client(&mut self, client_app: &mut App) {
         let mut client = client_app.world.resource_mut::<RepliconClient>();
         assert!(
-            client.is_no_connection(),
+            client.is_disconnected(),
             "client can't be connected multiple times"
         );
 
@@ -117,7 +117,7 @@ impl ServerTestAppExt for App {
             .peer_id()
             .expect("client should have an assigned ID for disconnect");
 
-        client.set_status(RepliconClientStatus::NoConnection);
+        client.set_status(RepliconClientStatus::Disconnected);
 
         self.world.send_event(PeerEvent::PeerDisconnected {
             peer_id,

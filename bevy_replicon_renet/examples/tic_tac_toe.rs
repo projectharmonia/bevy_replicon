@@ -79,7 +79,7 @@ impl Plugin for TicTacToePlugin {
                         .run_if(any_component_added::<Player>), // Wait until client replicates players before starting the game.
                     (
                         Self::cell_interatction_system.run_if(local_player_turn),
-                        Self::picking_system.run_if(no_connection),
+                        Self::picking_system.run_if(has_authority),
                         Self::symbol_init_system,
                         Self::turn_advance_system.run_if(any_component_added::<CellIndex>),
                         Self::symbol_turn_text_system.run_if(resource_changed::<CurrentTurn>),
