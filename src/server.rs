@@ -503,7 +503,7 @@ pub enum ServerSet {
     ///
     /// Runs in `PreUpdate`.
     PeerEvents,
-    /// Systems that receive packets from messaging library(-ies).
+    /// Systems that receive packets from messaging library.
     ///
     /// Runs in `PreUpdate`.
     ReceivePackets,
@@ -515,7 +515,7 @@ pub enum ServerSet {
     ///
     /// Runs in `PostUpdate` on server tick, see [`TickPolicy`].
     Send,
-    /// Systems that send packets to from messaging library(-ies).
+    /// Systems that send packets to from messaging library.
     ///
     /// Runs in `PostUpdate` on server tick, see [`TickPolicy`].
     SendPackets,

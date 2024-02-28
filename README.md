@@ -14,7 +14,7 @@ ECS-focused high-level networking crate for the [Bevy game engine](https://bevye
 - Replication into scene to save server state.
 - Support for client and server both in one `App` and in separate.
 - Customizable serialization and deserialization even for types that don't implement `serde` traits (like `Box<dyn Reflect>`).
-- No builtin I/O. Use it with any messaging library (or multiple libraries simultaneously). We provide a first-party integration with [`renet`](https://github.com/lucaspoffo/renet) via `bevy_replicon_renet`.
+- No builtin I/O. Use it with any messaging library. We provide a first-party integration with [`renet`](https://github.com/lucaspoffo/renet) via `bevy_replicon_renet`.
 - API focused on writing logic once that automatically works for singleplayer, client, server, and listen server (when server is also a player).
 
 Prediction and interpolation are not implemented in this crate and are considered out of scope. But the idea of the crate is to provide an extensible core, so if your game needs something, you can implement it on top. Also check out [related crates](#Related-crates).

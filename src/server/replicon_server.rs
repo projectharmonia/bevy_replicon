@@ -3,9 +3,9 @@ use bytes::Bytes;
 
 use crate::core::PeerId;
 
-/// Stores information about server independent from messaging library(-ies).
+/// Stores information about server independent from messaging library.
 ///
-/// Messaging library(-ies) responsible for updating this resource:
+/// Messaging library responsible for updating this resource:
 /// - When server is started or stopped, [`Self::set_running`] should be used to reflect this.
 /// - For sending messages [`Self::iter_sent_mut`] should be used to drain all sent messages.
 /// Corresponding system should run in [`ServerSet::SendPackets`](super::ServerSet::SendPackets).
@@ -108,7 +108,7 @@ impl RepliconServer {
 
     /// Marks the server as running or stopped.
     ///
-    /// Should be called only from messaging library(-ies) when the server changes its state.
+    /// Should be called only from messaging library when the server changes its state.
     pub fn set_running(&mut self, running: bool) {
         if !running {
             for channel_messages in &mut self.sent_messages {
@@ -131,7 +131,7 @@ impl RepliconServer {
 
     /// Returns iterator over all messages for each channel.
     ///
-    /// Should be called only by library(-ies).
+    /// Should be called only from messaging library.
     pub fn iter_sent_mut(&mut self) -> impl Iterator<Item = (u8, &mut Vec<(PeerId, Bytes)>)> + '_ {
         self.sent_messages
             .iter_mut()
@@ -141,7 +141,7 @@ impl RepliconServer {
 
     /// Adds the message from the client to the list of received.
     ///
-    /// Should be called only by library(-ies).
+    /// Should be called only from messaging library.
     pub fn insert_received<I: Into<u8>, B: Into<Bytes>>(
         &mut self,
         peer_id: PeerId,

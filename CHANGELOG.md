@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Abstract out all I/O and `renet` dependency. We will continue to provide first-party integration with renet via `bevy_replion_renet`. But users can write their integration with other messaging libraries. It's even possible to use multiple messaging libraries on server simultaneously. As the result users need to additionally add messaging-related plugin(s). In case of `bevy_replion_renet` it's `RepliconRenetPlugins`.
+- Abstract out all I/O and `renet` dependency. We will continue to provide first-party integration with renet via `bevy_replion_renet`. But users can write their integration with other messaging libraries. It also unlocks the future possibility to use multiple messaging libraries on server simultaneously. So now users need to additionally add messaging-related plugin. In case of `bevy_replion_renet` it's `RepliconRenetPlugins`.
 - Replace usage of `RenetServer` and `RenetClient` with our `RepliconServer` and `RepliconClient` respectively. Use types from `renet` (or other library) only when you need to connect or write some library-specific logic. In other cases prefer using the newly provided types to make your code messaging-library independent. Unlike the old types from renet, these resources are always present in the world. So instead of using `resource_(exists/added/removed)` for network-related conditions, use special conditions provided in `common_conditions` module.
 - Rename `has_authority` condition into `no_connection` and move it to `common_conditions` module.
 - Replace conditions from `renet` without ours, see `common_conditions` module. Available in `prelude`.
