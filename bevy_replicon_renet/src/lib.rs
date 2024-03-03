@@ -58,8 +58,12 @@ For a full example of how to initialize a server or client see the example in th
 repository.
 */
 
+pub use bevy_renet::renet;
+#[cfg(feature = "renet_transport")]
+pub use bevy_renet::transport;
+
 use bevy::{app::PluginGroupBuilder, prelude::*};
-pub use bevy_renet::*;
+use bevy_renet::{RenetClientPlugin, RenetReceive, RenetSend, RenetServerPlugin};
 use bevy_replicon::prelude::*;
 use renet::{ChannelConfig, RenetClient, RenetServer, SendType};
 #[cfg(feature = "renet_transport")]

@@ -512,8 +512,9 @@ pub mod prelude {
     };
 }
 
-use bevy::{app::PluginGroupBuilder, prelude::*};
 pub use bincode;
+
+use bevy::{app::PluginGroupBuilder, prelude::*};
 use prelude::*;
 
 /// Plugin Group for all replicon plugins.
