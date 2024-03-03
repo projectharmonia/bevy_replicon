@@ -49,9 +49,11 @@ fn diagnostics() {
     let server_entity = server_app.world.spawn((Replication, DummyComponent)).id();
 
     let client = client_app.world.resource::<RepliconClient>();
+    let client_id = client.id().unwrap();
+
     let mut entity_map = server_app.world.resource_mut::<ClientEntityMap>();
     entity_map.insert(
-        client.id().unwrap(),
+        client_id,
         ClientMapping {
             server_entity,
             client_entity,
