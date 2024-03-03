@@ -39,6 +39,18 @@ pub fn server_just_stopped(
     just_stopped
 }
 
+/// Returns `true` when the client just started connecting on this tick.
+pub fn started_connecting(
+    mut last_connecting: Local<bool>,
+    client: Option<Res<RepliconClient>>,
+) -> bool {
+    let connecting = client.filter(|client| client.is_connecting()).is_some();
+
+    let started_connecting = !*last_connecting && connecting;
+    *last_connecting = connecting;
+    started_connecting
+}
+
 /// Returns `true` when the client is connected on this tick.
 pub fn just_connected(
     mut last_connected: Local<bool>,
