@@ -73,23 +73,24 @@ pub struct RepliconRenetServerPlugin;
 impl Plugin for RepliconRenetServerPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(RenetServerPlugin)
+            .configure_sets(PreUpdate, ServerSet::ReceivePackets.after(RenetReceive))
+            .configure_sets(PostUpdate, ServerSet::SendPackets.before(RenetSend))
             .add_systems(
                 PreUpdate,
                 (
-                    Self::peer_events_system.in_set(ServerSet::PeerEvents),
                     (
                         Self::starting_system.run_if(resource_added::<RenetServer>),
                         Self::stopping_system.run_if(resource_removed::<RenetServer>()),
                         Self::receiving_packets.run_if(resource_exists::<RenetServer>),
                     )
+                        .chain()
                         .in_set(ServerSet::ReceivePackets),
-                )
-                    .after(RenetReceive),
+                    Self::peer_events_system.in_set(ServerSet::PeerEvents),
+                ),
             )
             .add_systems(
                 PostUpdate,
                 Self::sending_system
-                    .before(RenetSend)
                     .in_set(ServerSet::SendPackets)
                     .run_if(resource_exists::<RenetServer>),
             );
@@ -163,23 +164,22 @@ pub struct RepliconRenetClientPlugin;
 impl Plugin for RepliconRenetClientPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(RenetClientPlugin)
+            .configure_sets(PreUpdate, ClientSet::ReceivePackets.after(RenetReceive))
+            .configure_sets(PostUpdate, ClientSet::SendPackets.before(RenetSend))
             .add_systems(
                 PreUpdate,
                 (
                     Self::connecting_system.run_if(resource_added::<RenetClient>),
-                    (
-                        Self::disconnected_system.run_if(bevy_renet::client_just_disconnected),
-                        Self::connected_system.run_if(bevy_renet::client_just_connected),
-                        Self::receiving_system.run_if(bevy_renet::client_connected),
-                    )
-                        .after(RenetReceive),
+                    Self::disconnected_system.run_if(bevy_renet::client_just_disconnected),
+                    Self::connected_system.run_if(bevy_renet::client_just_connected),
+                    Self::receiving_system.run_if(bevy_renet::client_connected),
                 )
+                    .chain()
                     .in_set(ClientSet::ReceivePackets),
             )
             .add_systems(
                 PostUpdate,
                 Self::sending_system
-                    .before(RenetSend)
                     .in_set(ClientSet::SendPackets)
                     .run_if(bevy_renet::client_connected),
             );
