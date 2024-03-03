@@ -81,6 +81,11 @@ impl RepliconServer {
 
     /// Receives a message from a client over a channel.
     pub fn receive<I: Into<u8>>(&mut self, peer_id: PeerId, channel_id: I) -> Option<Bytes> {
+        if !self.running {
+            warn!("trying to receive a message when the server is not running");
+            return None;
+        }
+
         let channel_id = channel_id.into();
         let channel_messages = self
             .received_messages
@@ -97,6 +102,11 @@ impl RepliconServer {
         channel_id: I,
         message: B,
     ) {
+        if !self.running {
+            warn!("trying to send a message when the server is not running");
+            return;
+        }
+
         let channel_id = channel_id.into();
         let channel_messages = self
             .sent_messages
@@ -148,6 +158,11 @@ impl RepliconServer {
         message: B,
         channel_id: I,
     ) {
+        if !self.running {
+            warn!("trying to insert a received message when the server is not running");
+            return;
+        }
+
         let channel_id = channel_id.into();
         let channel_messages = self
             .received_messages

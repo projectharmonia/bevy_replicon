@@ -44,6 +44,11 @@ impl RepliconClient {
 
     /// Receives a message from the server over a channel.
     pub fn receive<I: Into<u8>>(&mut self, channel_id: I) -> Option<Bytes> {
+        if !self.is_connected() {
+            warn!("trying to receive a message when the client is not connected");
+            return None;
+        }
+
         let channel_id = channel_id.into();
         let channel_messages = self
             .received_messages
@@ -55,6 +60,11 @@ impl RepliconClient {
 
     /// Sends a message to the server over a channel.
     pub fn send<I: Into<u8>, B: Into<Bytes>>(&mut self, channel_id: I, message: B) {
+        if !self.is_connected() {
+            warn!("trying to send a message when the client is not connected");
+            return;
+        }
+
         let channel_id = channel_id.into();
         let channel_messages = self
             .sent_messages
@@ -141,6 +151,11 @@ impl RepliconClient {
     ///
     /// Should be called only by messaging library.
     pub fn insert_received<I: Into<u8>, B: Into<Bytes>>(&mut self, message: B, channel_id: I) {
+        if !self.is_connected() {
+            warn!("trying to insert a received message when the client is not connected");
+            return;
+        }
+
         let channel_id = channel_id.into();
         let channel_messages = self
             .received_messages
