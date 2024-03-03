@@ -22,13 +22,14 @@ impl Plugin for RepliconCorePlugin {
     }
 }
 
-/// Unique network member ID.
+/// Unique client ID.
 ///
-/// Could be a client or a server.
+/// Could be a client or a dual server-client.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct PeerId(u64);
 
 impl PeerId {
+    /// The server's client ID when it's a dual server-client.
     pub const SERVER: Self = Self::new(0);
 
     /// Creates a new ID wrapping the given value.

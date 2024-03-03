@@ -3,15 +3,17 @@ use bytes::Bytes;
 
 use crate::core::PeerId;
 
-/// Stores information about client independent from messaging library.
+/// Stores information about a client independent from the messaging backend.
 ///
-/// Messaging library responsible for updating this resource:
-/// - When messaging client changes its status (connected, connecting and disconnected),
+/// The messaging backend is responsible for updating this resource:
+/// - When the messaging client changes its status (connected, connecting and disconnected),
 /// [`Self::set_status`] should be used to reflect this.
-/// - For sending messages [`Self::iter_sent_mut`] should be used to drain all sent messages.
-/// Corresponding system should run in [`ClientSet::SendPackets`](super::ClientSet::SendPackets).
-/// - For receiving messages [`Self::insert_received`] should be to used.
-/// Corresponding system should run in [`ClientSet::ReceivePackets`](super::ClientSet::ReceivePackets).
+/// - For sending messages, [`Self::iter_sent_mut`] should be used to drain all sent messages.
+/// A system to forward replicon messages to the backend should run in
+/// [`ClientSet::SendPackets`](super::ClientSet::SendPackets).
+/// - For receiving messages, [`Self::insert_received`] should be to used.
+/// A system to forward backend messages to replicon should run in
+/// [`ClientSet::ReceivePackets`](super::ClientSet::ReceivePackets).
 #[derive(Resource, Default)]
 pub struct RepliconClient {
     /// Client connection status.
@@ -74,10 +76,10 @@ impl RepliconClient {
         channel_messages.push(message.into());
     }
 
-    /// Sets client connection status.
+    /// Sets the client connection status.
     ///
-    /// Should be called only from messaging library when the client status changes.
-    /// Cleanups all messages if the state changes from [`RepliconClientStatus::Connected`].
+    /// Should be called only from the messaging backend when the client status changes.
+    /// Discards all messages if the state changes from [`RepliconClientStatus::Connected`].
     /// See also [`Self::status`].
     pub fn set_status(&mut self, status: RepliconClientStatus) {
         if self.is_connected() && !matches!(status, RepliconClientStatus::Connected { .. }) {
@@ -92,7 +94,7 @@ impl RepliconClient {
         self.status = status;
     }
 
-    /// Returns current client status.
+    /// Returns the current client status.
     ///
     /// See also [`Self::set_status`].
     #[inline]
@@ -100,7 +102,7 @@ impl RepliconClient {
         self.status
     }
 
-    /// Returns `true` if the client is not connected or disconnected.
+    /// Returns `true` if the client is disconnected.
     ///
     /// See also [`Self::status`].
     #[inline]
@@ -124,9 +126,9 @@ impl RepliconClient {
         matches!(self.status, RepliconClientStatus::Connected { .. })
     }
 
-    /// Returns client's ID.
+    /// Returns the client's ID.
     ///
-    /// It's available only if the client state is [`RepliconClientStatus::Connected`].
+    /// The client ID is available only if the client state is [`RepliconClientStatus::Connected`].
     /// See also [`Self::status`].
     #[inline]
     pub fn peer_id(&self) -> Option<PeerId> {
@@ -137,9 +139,9 @@ impl RepliconClient {
         }
     }
 
-    /// Returns iterator over all messages for each channel.
+    /// Returns an iterator over all messages for each channel.
     ///
-    /// Should be called only by messaging library.
+    /// Should be called only by the messaging backend.
     pub fn iter_sent_mut(&mut self) -> impl Iterator<Item = (u8, &mut Vec<Bytes>)> + '_ {
         self.sent_messages
             .iter_mut()
@@ -147,9 +149,9 @@ impl RepliconClient {
             .map(|(channel_id, messages)| (channel_id as u8, messages))
     }
 
-    /// Adds the message from server to the list of received.
+    /// Adds a message from the server to the list of received messages.
     ///
-    /// Should be called only by messaging library.
+    /// Should be called only by the messaging backend.
     pub fn insert_received<I: Into<u8>, B: Into<Bytes>>(&mut self, message: B, channel_id: I) {
         if !self.is_connected() {
             warn!("trying to insert a received message when the client is not connected");
@@ -169,12 +171,12 @@ impl RepliconClient {
 /// Connection status of the [`RepliconClient`].
 #[derive(Clone, Copy, Default, PartialEq)]
 pub enum RepliconClientStatus {
-    /// Not connected or disconnected.
+    /// Not connected or trying to connect.
     #[default]
     Disconnected,
-    /// Trying to connect to server.
+    /// Trying to connect to the server.
     Connecting,
-    /// Connected to server.
+    /// Connected to the server.
     ///
     /// Stores the assigned ID if one was assigned by the server.
     /// Needed only for users to access ID independent from messaging library.

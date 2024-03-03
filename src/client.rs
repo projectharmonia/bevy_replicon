@@ -482,7 +482,7 @@ enum ComponentsKind {
 /// Set with replication and event systems related to client.
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum ClientSet {
-    /// Systems that receive packets from messaging library.
+    /// Systems that receive packets from the messaging backend.
     ///
     /// Runs in `PreUpdate`.
     ReceivePackets,
@@ -494,7 +494,7 @@ pub enum ClientSet {
     ///
     /// Runs in `PostUpdate`.
     Send,
-    /// Systems that send packets to messaging library.
+    /// Systems that send packets to the messaging backend.
     ///
     /// Runs in `PostUpdate`.
     SendPackets,
