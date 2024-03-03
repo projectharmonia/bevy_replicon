@@ -51,7 +51,7 @@ fn diagnostics() {
     let client = client_app.world.resource::<RepliconClient>();
     let mut entity_map = server_app.world.resource_mut::<ClientEntityMap>();
     entity_map.insert(
-        client.peer_id().unwrap(),
+        client.client_id().unwrap(),
         ClientMapping {
             server_entity,
             client_entity,

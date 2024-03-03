@@ -10,7 +10,7 @@ We provide a first-party integration with [`bevy_renet`](https://docs.rs/bevy_re
 via [`bevy_replicon_renet`](https://docs.rs/bevy_replicon_renet).
 
 If you want to write integration for a messaging library,
-see documentation for [`RepliconServer`], [`RepliconClient`] and [`PeerEvent`].
+see documentation for [`RepliconServer`], [`RepliconClient`] and [`ServerEvent`].
 You can also use `bevy_replicon_renet` as a reference.
 
 ## Initialization
@@ -257,10 +257,10 @@ The event must be registered on both the client and the server in the same order
 Events include [`ChannelKind`] to configure delivery guarantees (reliability and
 ordering). You can alternatively pass in [`RepliconChannel`] with more advanced configuration.
 
-These events will appear on server as [`FromPeer`] wrapper event that
+These events will appear on server as [`FromClient`] wrapper event that
 contains sender ID and the sent event. We consider server or a single-player session
-also as a peer with ID [`PeerId::SERVER`]. So you can send such events even on server
-and [`FromPeer`] will be emitted for them too. This way your game logic will work the same
+also as a client with ID [`ClientId::SERVER`]. So you can send such events even on server
+and [`FromClient`] will be emitted for them too. This way your game logic will work the same
 on client, listen server and in single-player session.
 
 For systems that receive events attach [`has_authority`] condition to receive a message
@@ -287,9 +287,9 @@ fn event_sending_system(mut dummy_events: EventWriter<DummyEvent>) {
 }
 
 /// Receives event on server and single-player.
-fn event_receiving_system(mut dummy_events: EventReader<FromPeer<DummyEvent>>) {
-    for FromPeer { peer_id, event } in dummy_events.read() {
-        info!("received event {event:?} from {peer_id:?}");
+fn event_receiving_system(mut dummy_events: EventReader<FromClient<DummyEvent>>) {
+    for FromClient { client_id, event } in dummy_events.read() {
+        info!("received event {event:?} from {client_id:?}");
     }
 }
 
@@ -329,10 +329,10 @@ Don't forget to validate the contents of every `Box<dyn Reflect>` from a client,
 
 A similar technique is used to send events from server to clients. To do this,
 register the event with [`ServerEventAppExt::add_server_event()`] server event
-and send it from server using [`ToPeers`]. The event must be registered on
+and send it from server using [`ToClients`]. The event must be registered on
 both the client and the server in the same order. This wrapper contains send parameters
 and the event itself. Just like events sent from the client, you can send this events on server or in single-player
-and they will appear locally as regular events (if [`PeerId::SERVER`] is not excluded from the send list):
+and they will appear locally as regular events (if [`ClientId::SERVER`] is not excluded from the send list):
 
 ```
 # use bevy::prelude::*;
@@ -350,8 +350,8 @@ app.add_server_event::<DummyEvent>(ChannelKind::Ordered)
     );
 
 /// Sends an event from server or single-player.
-fn event_sending_system(mut dummy_events: EventWriter<ToPeers<DummyEvent>>) {
-    dummy_events.send(ToPeers {
+fn event_sending_system(mut dummy_events: EventWriter<ToClients<DummyEvent>>) {
+    dummy_events.send(ToClients {
         mode: SendMode::Broadcast,
         event: DummyEvent,
     });
@@ -435,7 +435,7 @@ fn visibility_system(
 }
 
 #[derive(Component, Deserialize, Serialize)]
-struct Player(PeerId);
+struct Player(ClientId);
 ```
 
 For a higher level API consider using [`bevy_replicon_attributes`](https://docs.rs/bevy_replicon_attributes).
@@ -490,12 +490,12 @@ pub mod prelude {
                 ChannelKind, ReplicationChannel, RepliconChannel, RepliconChannels,
             },
             replicon_tick::RepliconTick,
-            PeerId, RepliconCorePlugin,
+            ClientId, RepliconCorePlugin,
         },
         network_event::{
-            client_event::{ClientEventAppExt, ClientEventChannel, FromPeer},
+            client_event::{ClientEventAppExt, ClientEventChannel, FromClient},
             server_event::{
-                SendMode, ServerEventAppExt, ServerEventChannel, ServerEventQueue, ToPeers,
+                SendMode, ServerEventAppExt, ServerEventChannel, ServerEventQueue, ToClients,
             },
             EventMapper,
         },
@@ -505,7 +505,7 @@ pub mod prelude {
                 client_visibility::ClientVisibility, ConnectedClient, ConnectedClients,
             },
             replicon_server::RepliconServer,
-            ClientEntityMap, ClientMapping, PeerEvent, ServerPlugin, ServerSet, TickPolicy,
+            ClientEntityMap, ClientMapping, ServerEvent, ServerPlugin, ServerSet, TickPolicy,
             VisibilityPolicy,
         },
         RepliconPlugins,

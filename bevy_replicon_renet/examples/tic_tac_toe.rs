@@ -349,18 +349,18 @@ impl TicTacToePlugin {
     /// Only for server.
     fn server_event_system(
         mut commands: Commands,
-        mut peer_events: EventReader<PeerEvent>,
+        mut server_events: EventReader<ServerEvent>,
         mut game_state: ResMut<NextState<GameState>>,
         players: Query<&Symbol, With<Player>>,
     ) {
-        for event in peer_events.read() {
+        for event in server_events.read() {
             match event {
-                PeerEvent::PeerConnected { peer_id } => {
+                ServerEvent::ClientConnected { client_id } => {
                     let server_symbol = players.single();
-                    commands.spawn(PlayerBundle::new(*peer_id, server_symbol.next()));
+                    commands.spawn(PlayerBundle::new(*client_id, server_symbol.next()));
                     game_state.set(GameState::InGame);
                 }
-                PeerEvent::PeerDisconnected { .. } => {
+                ServerEvent::ClientDisconnected { .. } => {
                     game_state.set(GameState::Disconnected);
                 }
             }
@@ -391,7 +391,7 @@ impl TicTacToePlugin {
                         .unwrap();
 
                     // We send a pick event and wait for the pick to be replicated back to the client.
-                    // In case of server or single-player the event will re-translated into [`FromPeer`] event to re-use the logic.
+                    // In case of server or single-player the event will re-translated into [`FromClient`] event to re-use the logic.
                     pick_events.send(CellPick(index));
                 }
                 Interaction::Hovered => *background = HOVER_COLOR.into(),
@@ -405,12 +405,12 @@ impl TicTacToePlugin {
     /// Only for single-player and server.
     fn picking_system(
         mut commands: Commands,
-        mut pick_events: EventReader<FromPeer<CellPick>>,
+        mut pick_events: EventReader<FromClient<CellPick>>,
         symbols: Query<&CellIndex>,
         current_turn: Res<CurrentTurn>,
         players: Query<(&Player, &Symbol)>,
     ) {
-        for FromPeer { peer_id, event } in pick_events.read().copied() {
+        for FromClient { client_id, event } in pick_events.read().copied() {
             // It's good to check the received data, client could be cheating.
             if event.0 > GRID_SIZE * GRID_SIZE {
                 debug!("received invalid cell index {:?}", event.0);
@@ -419,15 +419,15 @@ impl TicTacToePlugin {
 
             if !players
                 .iter()
-                .any(|(player, &symbol)| player.0 == peer_id && symbol == current_turn.0)
+                .any(|(player, &symbol)| player.0 == client_id && symbol == current_turn.0)
             {
-                debug!("{peer_id:?} chose cell {:?} at wrong turn", event.0);
+                debug!("{client_id:?} chose cell {:?} at wrong turn", event.0);
                 continue;
             }
 
             if symbols.iter().any(|cell_index| cell_index.0 == event.0) {
                 debug!(
-                    "{peer_id:?} has chosen an already occupied cell {:?}",
+                    "{client_id:?} has chosen an already occupied cell {:?}",
                     event.0
                 );
                 continue;
@@ -519,10 +519,10 @@ fn local_player_turn(
     client: Res<RepliconClient>,
     players: Query<(&Player, &Symbol)>,
 ) -> bool {
-    let peer_id = client.peer_id().unwrap_or(PeerId::SERVER);
+    let client_id = client.client_id().unwrap_or(ClientId::SERVER);
     players
         .iter()
-        .any(|(player, &symbol)| player.0 == peer_id && symbol == current_turn.0)
+        .any(|(player, &symbol)| player.0 == client_id && symbol == current_turn.0)
 }
 
 /// A condition for systems to check if any component of type `T` was added to the world.
@@ -660,22 +660,22 @@ struct PlayerBundle {
 }
 
 impl PlayerBundle {
-    fn new(peer_id: PeerId, symbol: Symbol) -> Self {
+    fn new(client_id: ClientId, symbol: Symbol) -> Self {
         Self {
-            player: Player(peer_id),
+            player: Player(client_id),
             symbol,
             replication: Replication,
         }
     }
 
-    /// Same as [`Self::new`], but with [`PeerId::SERVER`].
+    /// Same as [`Self::new`], but with [`ClientId::SERVER`].
     fn server(symbol: Symbol) -> Self {
-        Self::new(PeerId::SERVER, symbol)
+        Self::new(ClientId::SERVER, symbol)
     }
 }
 
 #[derive(Component, Serialize, Deserialize)]
-struct Player(PeerId);
+struct Player(ClientId);
 
 /// An event that indicates a symbol pick.
 ///

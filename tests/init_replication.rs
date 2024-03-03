@@ -167,11 +167,11 @@ fn client_spawn() {
     let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
 
     let client = client_app.world.resource::<RepliconClient>();
-    let peer_id = client.peer_id().unwrap();
+    let client_id = client.client_id().unwrap();
 
     let mut entity_map = server_app.world.resource_mut::<ClientEntityMap>();
     entity_map.insert(
-        peer_id,
+        client_id,
         ClientMapping {
             server_entity,
             client_entity,

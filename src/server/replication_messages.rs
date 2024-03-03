@@ -385,7 +385,7 @@ impl InitMessage {
 
         let slice = self.as_slice();
         if slice.is_empty() {
-            trace!("no init data to send for {:?}", client.peer_id());
+            trace!("no init data to send for {:?}", client.id());
             return Ok(());
         }
 
@@ -394,9 +394,9 @@ impl InitMessage {
         let mut header = [0; mem::size_of::<RepliconTick>()];
         bincode::serialize_into(&mut header[..], &replicon_tick)?;
 
-        trace!("sending init message to {:?}", client.peer_id());
+        trace!("sending init message to {:?}", client.id());
         server.send(
-            client.peer_id(),
+            client.id(),
             ReplicationChannel::Reliable,
             Bytes::from([&header, slice].concat()),
         );
@@ -562,17 +562,17 @@ impl UpdateMessage {
 
         let mut slice = self.as_slice();
         if slice.is_empty() {
-            trace!("no updates to send for {:?}", client.peer_id());
+            trace!("no updates to send for {:?}", client.id());
             return Ok(());
         }
 
-        trace!("sending update message(s) to {:?}", client.peer_id());
+        trace!("sending update message(s) to {:?}", client.id());
         const TICKS_SIZE: usize = 2 * mem::size_of::<RepliconTick>();
         let mut header = [0; TICKS_SIZE + mem::size_of::<u16>()];
         bincode::serialize_into(&mut header[..], &(client.change_tick(), replicon_tick))?;
 
         let mut message_size = 0;
-        let peer_id = client.peer_id();
+        let client_id = client.id();
         let (mut update_index, mut entities) =
             client.register_update(client_buffers, tick, timestamp);
         for &(entity, data_size) in &self.entities {
@@ -591,7 +591,7 @@ impl UpdateMessage {
                 bincode::serialize_into(&mut header[TICKS_SIZE..], &update_index)?;
 
                 server.send(
-                    peer_id,
+                    client_id,
                     ReplicationChannel::Unreliable,
                     Bytes::from([&header, message].concat()),
                 );
@@ -607,7 +607,7 @@ impl UpdateMessage {
             bincode::serialize_into(&mut header[TICKS_SIZE..], &update_index)?;
 
             server.send(
-                peer_id,
+                client_id,
                 ReplicationChannel::Unreliable,
                 Bytes::from([&header, slice].concat()),
             );

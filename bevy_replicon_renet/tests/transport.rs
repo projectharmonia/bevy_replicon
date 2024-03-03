@@ -92,7 +92,7 @@ fn server_event() {
 
     setup(&mut server_app, &mut client_app);
 
-    server_app.world.send_event(ToPeers {
+    server_app.world.send_event(ToClients {
         mode: SendMode::Broadcast,
         event: DummyEvent,
     });
@@ -127,7 +127,9 @@ fn client_event() {
     client_app.update();
     server_app.update();
 
-    let client_events = server_app.world.resource::<Events<FromPeer<DummyEvent>>>();
+    let client_events = server_app
+        .world
+        .resource::<Events<FromClient<DummyEvent>>>();
     assert_eq!(client_events.len(), 1);
 }
 

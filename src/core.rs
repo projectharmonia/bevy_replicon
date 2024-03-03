@@ -26,9 +26,9 @@ impl Plugin for RepliconCorePlugin {
 ///
 /// Could be a client or a dual server-client.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Ord, PartialOrd, Serialize, Deserialize)]
-pub struct PeerId(u64);
+pub struct ClientId(u64);
 
-impl PeerId {
+impl ClientId {
     /// The server's client ID when it's a dual server-client.
     pub const SERVER: Self = Self::new(0);
 

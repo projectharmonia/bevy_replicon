@@ -61,7 +61,7 @@ repository.
 use bevy::{app::PluginGroupBuilder, prelude::*};
 pub use bevy_renet::*;
 use bevy_replicon::prelude::*;
-use renet::{ChannelConfig, ClientId, RenetClient, RenetServer, SendType, ServerEvent};
+use renet::{ChannelConfig, RenetClient, RenetServer, SendType};
 #[cfg(feature = "renet_transport")]
 use {
     renet::transport::NetcodeClientTransport,
@@ -85,7 +85,7 @@ impl Plugin for RepliconRenetServerPlugin {
                     )
                         .chain()
                         .in_set(ServerSet::ReceivePackets),
-                    Self::peer_events_system.in_set(ServerSet::PeerEvents),
+                    Self::server_events_system.in_set(ServerSet::SendEvents),
                 ),
             )
             .add_systems(
@@ -109,24 +109,24 @@ impl RepliconRenetServerPlugin {
         server.set_running(false);
     }
 
-    fn peer_events_system(
-        mut server_events: EventReader<ServerEvent>,
-        mut peer_events: EventWriter<PeerEvent>,
+    fn server_events_system(
+        mut renet_server_events: EventReader<renet::ServerEvent>,
+        mut server_events: EventWriter<ServerEvent>,
     ) {
-        for event in server_events.read() {
+        for event in renet_server_events.read() {
             let replicon_event = match event {
-                ServerEvent::ClientConnected { client_id } => PeerEvent::PeerConnected {
-                    peer_id: PeerId::new(client_id.raw()),
+                renet::ServerEvent::ClientConnected { client_id } => ServerEvent::ClientConnected {
+                    client_id: ClientId::new(client_id.raw()),
                 },
-                ServerEvent::ClientDisconnected { client_id, reason } => {
-                    PeerEvent::PeerDisconnected {
-                        peer_id: PeerId::new(client_id.raw()),
+                renet::ServerEvent::ClientDisconnected { client_id, reason } => {
+                    ServerEvent::ClientDisconnected {
+                        client_id: ClientId::new(client_id.raw()),
                         reason: reason.to_string(),
                     }
                 }
             };
 
-            peer_events.send(replicon_event);
+            server_events.send(replicon_event);
         }
     }
 
@@ -136,12 +136,12 @@ impl RepliconRenetServerPlugin {
         mut renet_server: ResMut<RenetServer>,
         mut replicon_server: ResMut<RepliconServer>,
     ) {
-        for peer_id in connected_clients.iter_peer_ids() {
+        for client_id in connected_clients.iter_client_ids() {
+            let renet_client_id = renet::ClientId::from_raw(client_id.get());
             for channel_id in 0..channels.client_channels().len() as u8 {
-                while let Some(message) =
-                    renet_server.receive_message(ClientId::from_raw(peer_id.get()), channel_id)
+                while let Some(message) = renet_server.receive_message(renet_client_id, channel_id)
                 {
-                    replicon_server.insert_received(peer_id, message, channel_id);
+                    replicon_server.insert_received(client_id, message, channel_id);
                 }
             }
         }
@@ -152,8 +152,9 @@ impl RepliconRenetServerPlugin {
         mut replicon_server: ResMut<RepliconServer>,
     ) {
         for (channel_id, messages) in replicon_server.iter_sent_mut() {
-            for (peer_id, message) in messages.drain(..) {
-                renet_server.send_message(ClientId::from_raw(peer_id.get()), channel_id, message)
+            for (client_id, message) in messages.drain(..) {
+                let client_id = renet::ClientId::from_raw(client_id.get());
+                renet_server.send_message(client_id, channel_id, message)
             }
         }
     }
@@ -205,11 +206,11 @@ impl RepliconRenetClientPlugin {
         // In renet only transport knows the ID.
         // TODO: Pending renet issue https://github.com/lucaspoffo/renet/issues/153
         #[cfg(feature = "renet_transport")]
-        let peer_id = Some(PeerId::new(transport.client_id().raw()));
+        let client_id = Some(ClientId::new(transport.client_id().raw()));
         #[cfg(not(feature = "renet_transport"))]
-        let peer_id = None;
+        let client_id = None;
 
-        client.set_status(RepliconClientStatus::Connected { peer_id });
+        client.set_status(RepliconClientStatus::Connected { client_id });
     }
 
     fn receiving_system(

@@ -13,7 +13,7 @@ use crate::{
     core::{
         common_conditions::{connected, has_authority, server_running},
         replicon_channels::{RepliconChannel, RepliconChannels},
-        PeerId,
+        ClientId,
     },
     server::{replicon_server::RepliconServer, ServerSet},
     ConnectedClients,
@@ -21,7 +21,7 @@ use crate::{
 
 /// An extension trait for [`App`] for creating client events.
 pub trait ClientEventAppExt {
-    /// Registers [`FromPeer<T>`] event that will be emitted on server after sending `T` event on client.
+    /// Registers [`FromClient<T>`] event that will be emitted on server after sending `T` event on client.
     ///
     /// For usage example see the [corresponding section](../../index.html#from-client-to-server)
     /// in the quick start guide.
@@ -81,26 +81,26 @@ pub trait ClientEventAppExt {
     }
 
     fn receiving_reflect_system(
-        mut reflect_events: EventWriter<FromPeer<ReflectEvent>>,
+        mut reflect_events: EventWriter<FromClient<ReflectEvent>>,
         mut server: ResMut<RepliconServer>,
         connected_clients: Res<ConnectedClients>,
         channel: Res<ClientEventChannel<ReflectEvent>>,
         registry: Res<AppTypeRegistry>,
     ) {
         let registry = registry.read();
-        for peer_id in connected_clients.iter_peer_ids() {
-            while let Some(message) = server.receive(peer_id, *channel) {
+        for client_id in connected_clients.iter_client_ids() {
+            while let Some(message) = server.receive(client_id, *channel) {
                 let mut deserializer =
                     bincode::Deserializer::from_slice(&message, DefaultOptions::new());
                 match UntypedReflectDeserializer::new(&registry).deserialize(&mut deserializer) {
                     Ok(reflect) => {
-                        reflect_events.send(FromPeer {
-                            peer_id,
+                        reflect_events.send(FromClient {
+                            client_id,
                             event: ReflectEvent(reflect),
                         });
                     }
                     Err(e) => {
-                        debug!("unable to deserialize event from {peer_id:?}: {e}")
+                        debug!("unable to deserialize event from {client_id:?}: {e}")
                     }
                 }
             }
@@ -150,7 +150,7 @@ impl ClientEventAppExt for App {
             .create_client_channel(channel.into());
 
         self.add_event::<T>()
-            .init_resource::<Events<FromPeer<T>>>()
+            .init_resource::<Events<FromClient<T>>>()
             .insert_resource(ClientEventChannel::<T>::new(channel_id))
             .add_systems(
                 PreUpdate,
@@ -176,18 +176,18 @@ impl ClientEventAppExt for App {
 }
 
 fn receiving_system<T: Event + DeserializeOwned>(
-    mut client_events: EventWriter<FromPeer<T>>,
+    mut client_events: EventWriter<FromClient<T>>,
     connected_clients: Res<ConnectedClients>,
     mut server: ResMut<RepliconServer>,
     channel: Res<ClientEventChannel<T>>,
 ) {
-    for peer_id in connected_clients.iter_peer_ids() {
-        while let Some(message) = server.receive(peer_id, *channel) {
+    for client_id in connected_clients.iter_client_ids() {
+        while let Some(message) = server.receive(client_id, *channel) {
             match DefaultOptions::new().deserialize(&message) {
                 Ok(event) => {
-                    client_events.send(FromPeer { peer_id, event });
+                    client_events.send(FromClient { client_id, event });
                 }
-                Err(e) => debug!("unable to deserialize event from {peer_id:?}: {e}"),
+                Err(e) => debug!("unable to deserialize event from {client_id:?}: {e}"),
             }
         }
     }
@@ -223,15 +223,15 @@ fn mapping_and_sending_system<T: Event + MapEntities + Serialize + Clone>(
     }
 }
 
-/// Transforms `T` events into [`FromPeer<T>`] events to "emulate"
+/// Transforms `T` events into [`FromClient<T>`] events to "emulate"
 /// message sending for offline mode or when server is also a player.
 fn local_resending_system<T: Event>(
     mut events: ResMut<Events<T>>,
-    mut client_events: EventWriter<FromPeer<T>>,
+    mut client_events: EventWriter<FromClient<T>>,
 ) {
     for event in events.drain() {
-        client_events.send(FromPeer {
-            peer_id: PeerId::SERVER,
+        client_events.send(FromClient {
+            client_id: ClientId::SERVER,
             event,
         });
     }
@@ -280,7 +280,7 @@ impl<T> From<ClientEventChannel<T>> for u8 {
 /// An event indicating that a message from client was received.
 /// Emited only on server.
 #[derive(Clone, Copy, Event)]
-pub struct FromPeer<T> {
-    pub peer_id: PeerId,
+pub struct FromClient<T> {
+    pub client_id: ClientId,
     pub event: T,
 }

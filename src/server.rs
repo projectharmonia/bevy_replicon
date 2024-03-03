@@ -26,7 +26,7 @@ use crate::core::{
     replicon_channels::ReplicationChannel,
     replicon_channels::RepliconChannels,
     replicon_tick::RepliconTick,
-    PeerId,
+    ClientId,
 };
 use connected_clients::{
     client_visibility::Visibility, ClientBuffers, ConnectedClient, ConnectedClients,
@@ -67,12 +67,12 @@ impl Plugin for ServerPlugin {
             .init_resource::<ClientBuffers>()
             .init_resource::<ClientEntityMap>()
             .insert_resource(ConnectedClients::new(self.visibility_policy))
-            .add_event::<PeerEvent>()
+            .add_event::<ServerEvent>()
             .configure_sets(
                 PreUpdate,
                 (
                     ServerSet::ReceivePackets,
-                    ServerSet::PeerEvents,
+                    ServerSet::SendEvents,
                     ServerSet::Receive,
                 )
                     .chain(),
@@ -85,7 +85,7 @@ impl Plugin for ServerPlugin {
             .add_systems(
                 PreUpdate,
                 (
-                    Self::peer_events_system,
+                    Self::handle_connections_system,
                     Self::acks_receiving_system,
                     Self::acks_cleanup_system(self.update_timeout)
                         .run_if(on_timer(self.update_timeout)),
@@ -144,23 +144,23 @@ impl ServerPlugin {
         trace!("incremented {replicon_tick:?}");
     }
 
-    fn peer_events_system(
-        mut peer_events: EventReader<PeerEvent>,
+    fn handle_connections_system(
+        mut server_events: EventReader<ServerEvent>,
         mut entity_map: ResMut<ClientEntityMap>,
         mut connected_clients: ResMut<ConnectedClients>,
         mut server: ResMut<RepliconServer>,
         mut client_buffers: ResMut<ClientBuffers>,
     ) {
-        for event in peer_events.read() {
+        for event in server_events.read() {
             match *event {
-                PeerEvent::PeerDisconnected { peer_id, .. } => {
-                    entity_map.0.remove(&peer_id);
-                    connected_clients.remove(&mut client_buffers, peer_id);
-                    server.remove_client(peer_id);
+                ServerEvent::ClientDisconnected { client_id, .. } => {
+                    entity_map.0.remove(&client_id);
+                    connected_clients.remove(&mut client_buffers, client_id);
+                    server.remove_client(client_id);
                 }
-                PeerEvent::PeerConnected { peer_id } => {
-                    connected_clients.add(&mut client_buffers, peer_id);
-                    server.add_client(peer_id);
+                ServerEvent::ClientConnected { client_id } => {
+                    connected_clients.add(&mut client_buffers, client_id);
+                    server.add_client(client_id);
                 }
             }
         }
@@ -186,8 +186,7 @@ impl ServerPlugin {
         mut client_buffers: ResMut<ClientBuffers>,
     ) {
         for client in connected_clients.iter_mut() {
-            while let Some(message) = server.receive(client.peer_id(), ReplicationChannel::Reliable)
-            {
+            while let Some(message) = server.receive(client.id(), ReplicationChannel::Reliable) {
                 match bincode::deserialize::<u16>(&message) {
                     Ok(update_index) => {
                         client.acknowledge(
@@ -198,7 +197,7 @@ impl ServerPlugin {
                     }
                     Err(e) => debug!(
                         "unable to deserialize update index from {:?}: {e}",
-                        client.peer_id()
+                        client.id()
                     ),
                 }
             }
@@ -278,7 +277,7 @@ fn collect_mappings(
     for (message, _, client) in messages.iter_mut_with_clients() {
         message.start_array();
 
-        if let Some(mappings) = entity_map.0.get_mut(&client.peer_id()) {
+        if let Some(mappings) = entity_map.0.get_mut(&client.id()) {
             for mapping in mappings.drain(..) {
                 message.write_client_mapping(&mapping)?;
             }
@@ -499,10 +498,10 @@ fn collect_removals(
 /// Set with replication and event systems related to server.
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum ServerSet {
-    /// Systems that emit [`PeerEvent`].
+    /// Systems that emit [`ServerEvent`].
     ///
     /// Runs in `PreUpdate`.
-    PeerEvents,
+    SendEvents,
     /// Systems that receive packets from messaging library.
     ///
     /// Runs in `PreUpdate`.
@@ -557,9 +556,9 @@ pub enum VisibilityPolicy {
 ///
 /// Messaging library is responsible for emitting it.
 #[derive(Event)]
-pub enum PeerEvent {
-    PeerConnected { peer_id: PeerId },
-    PeerDisconnected { peer_id: PeerId, reason: String },
+pub enum ServerEvent {
+    ClientConnected { client_id: ClientId },
+    ClientDisconnected { client_id: ClientId, reason: String },
 }
 
 /**
@@ -604,14 +603,14 @@ fn shoot_system(mut commands: Commands, mut bullet_events: EventWriter<SpawnBull
 /// In this example we just always confirm the spawn.
 fn confirm_bullet(
     mut commands: Commands,
-    mut bullet_events: EventReader<FromPeer<SpawnBullet>>,
+    mut bullet_events: EventReader<FromClient<SpawnBullet>>,
     mut entity_map: ResMut<ClientEntityMap>,
 ) {
-    for FromPeer { peer_id, event } in bullet_events.read() {
+    for FromClient { client_id, event } in bullet_events.read() {
         let server_entity = commands.spawn(Bullet).id(); // You can insert more components, they will be sent to the client's entity correctly.
 
         entity_map.insert(
-            *peer_id,
+            *client_id,
             ClientMapping {
                 server_entity,
                 client_entity: event.0,
@@ -630,14 +629,14 @@ If client's original entity is not found, a new entity will be spawned on the cl
 just the same as when no client entity is provided.
 **/
 #[derive(Resource, Debug, Default, Deref)]
-pub struct ClientEntityMap(HashMap<PeerId, Vec<ClientMapping>>);
+pub struct ClientEntityMap(HashMap<ClientId, Vec<ClientMapping>>);
 
 impl ClientEntityMap {
     /// Registers `mapping` for a client entity pre-spawned by the specified client.
     ///
     /// This will be sent as part of replication data and added to the client's [`ServerEntityMap`](crate::client::client_mapper::ServerEntityMap).
-    pub fn insert(&mut self, peer_id: PeerId, mapping: ClientMapping) {
-        self.0.entry(peer_id).or_default().push(mapping);
+    pub fn insert(&mut self, client_id: ClientId, mapping: ClientMapping) {
+        self.0.entry(client_id).or_default().push(mapping);
     }
 }
 

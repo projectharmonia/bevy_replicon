@@ -46,16 +46,16 @@ fn sending_receiving() {
     server_app.connect_client(&mut client_app);
 
     let client = client_app.world.resource::<RepliconClient>();
-    let peer_id = client.peer_id().unwrap();
+    let client_id = client.client_id().unwrap();
 
     for (mode, events_count) in [
         (SendMode::Broadcast, 1),
-        (SendMode::Direct(PeerId::SERVER), 0),
-        (SendMode::Direct(peer_id), 1),
-        (SendMode::BroadcastExcept(PeerId::SERVER), 1),
-        (SendMode::BroadcastExcept(peer_id), 0),
+        (SendMode::Direct(ClientId::SERVER), 0),
+        (SendMode::Direct(client_id), 1),
+        (SendMode::BroadcastExcept(ClientId::SERVER), 1),
+        (SendMode::BroadcastExcept(client_id), 0),
     ] {
-        server_app.world.send_event(ToPeers {
+        server_app.world.send_event(ToClients {
             mode,
             event: DummyEvent,
         });
@@ -98,7 +98,7 @@ fn sending_receiving_and_mapping() {
         .resource_mut::<ServerEntityMap>()
         .insert(server_entity, client_entity);
 
-    server_app.world.send_event(ToPeers {
+    server_app.world.send_event(ToClients {
         mode: SendMode::Broadcast,
         event: MappedEvent(server_entity),
     });
@@ -128,22 +128,22 @@ fn local_resending() {
     ))
     .add_server_event::<DummyEvent>(ChannelKind::Ordered);
 
-    const DUMMY_PEER_ID: PeerId = PeerId::new(1);
+    const DUMMY_CLIENT_ID: ClientId = ClientId::new(1);
     for (mode, events_count) in [
         (SendMode::Broadcast, 1),
-        (SendMode::Direct(PeerId::SERVER), 1),
-        (SendMode::Direct(DUMMY_PEER_ID), 0),
-        (SendMode::BroadcastExcept(PeerId::SERVER), 0),
-        (SendMode::BroadcastExcept(DUMMY_PEER_ID), 1),
+        (SendMode::Direct(ClientId::SERVER), 1),
+        (SendMode::Direct(DUMMY_CLIENT_ID), 0),
+        (SendMode::BroadcastExcept(ClientId::SERVER), 0),
+        (SendMode::BroadcastExcept(DUMMY_CLIENT_ID), 1),
     ] {
-        app.world.send_event(ToPeers {
+        app.world.send_event(ToClients {
             mode,
             event: DummyEvent,
         });
 
         app.update();
 
-        let server_events = app.world.resource::<Events<ToPeers<DummyEvent>>>();
+        let server_events = app.world.resource::<Events<ToClients<DummyEvent>>>();
         assert!(server_events.is_empty());
 
         let mut dummy_events = app.world.resource_mut::<Events<DummyEvent>>();
@@ -184,7 +184,7 @@ fn event_queue() {
 
     // Artificially rollback the client by 1 tick to force next received event to be queued.
     *client_app.world.resource_mut::<RepliconTick>() = previous_tick;
-    server_app.world.send_event(ToPeers {
+    server_app.world.send_event(ToClients {
         mode: SendMode::Broadcast,
         event: DummyEvent,
     });
@@ -235,7 +235,7 @@ fn different_ticks() {
     // since only client 1 will recieve an init message here.
     server_app.connect_client(&mut client_app2);
 
-    server_app.world.send_event(ToPeers {
+    server_app.world.send_event(ToClients {
         mode: SendMode::Broadcast,
         event: DummyEvent,
     });

@@ -45,7 +45,9 @@ fn sending_receiving() {
     server_app.exchange_with_client(&mut client_app);
     server_app.update();
 
-    let client_events = server_app.world.resource::<Events<FromPeer<DummyEvent>>>();
+    let client_events = server_app
+        .world
+        .resource::<Events<FromClient<DummyEvent>>>();
     assert_eq!(client_events.len(), 1);
 }
 
@@ -75,7 +77,7 @@ fn mapping_and_sending_receiving() {
 
     let mapped_entities: Vec<_> = server_app
         .world
-        .resource_mut::<Events<FromPeer<MappedEvent>>>()
+        .resource_mut::<Events<FromClient<MappedEvent>>>()
         .drain()
         .map(|event| event.event.0)
         .collect();
@@ -95,7 +97,7 @@ fn local_resending() {
     let dummy_events = app.world.resource::<Events<DummyEvent>>();
     assert!(dummy_events.is_empty());
 
-    let client_events = app.world.resource::<Events<FromPeer<DummyEvent>>>();
+    let client_events = app.world.resource::<Events<FromClient<DummyEvent>>>();
     assert_eq!(client_events.len(), 1);
 }
 

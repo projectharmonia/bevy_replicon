@@ -2,8 +2,8 @@ use bevy::prelude::*;
 
 use crate::{
     client::replicon_client::{RepliconClient, RepliconClientStatus},
-    core::PeerId,
-    server::{connected_clients::ConnectedClients, replicon_server::RepliconServer, PeerEvent},
+    core::ClientId,
+    server::{connected_clients::ConnectedClients, replicon_server::RepliconServer, ServerEvent},
 };
 
 /**
@@ -94,18 +94,19 @@ impl ServerTestAppExt for App {
         let max_id = self
             .world
             .resource_mut::<ConnectedClients>()
-            .iter_peer_ids()
+            .iter_client_ids()
             .max()
-            .unwrap_or(PeerId::SERVER);
-        let peer_id = PeerId::new(max_id.get() + 1);
+            .unwrap_or(ClientId::SERVER);
+        let client_id = ClientId::new(max_id.get() + 1);
         client.set_status(RepliconClientStatus::Connected {
-            peer_id: Some(peer_id),
+            client_id: Some(client_id),
         });
 
         let mut server = self.world.resource_mut::<RepliconServer>();
         server.set_running(true);
 
-        self.world.send_event(PeerEvent::PeerConnected { peer_id });
+        self.world
+            .send_event(ServerEvent::ClientConnected { client_id });
 
         self.update(); // Will update `ConnectedClients`, otherwise next call will assign the same ID.
         client_app.update();
@@ -113,14 +114,14 @@ impl ServerTestAppExt for App {
 
     fn disconnect_client(&mut self, client_app: &mut App) {
         let mut client = client_app.world.resource_mut::<RepliconClient>();
-        let peer_id = client
-            .peer_id()
+        let client_id = client
+            .client_id()
             .expect("client should have an assigned ID for disconnect");
 
         client.set_status(RepliconClientStatus::Disconnected);
 
-        self.world.send_event(PeerEvent::PeerDisconnected {
-            peer_id,
+        self.world.send_event(ServerEvent::ClientDisconnected {
+            client_id,
             reason: "Disconnected by server".to_string(),
         });
 
@@ -130,20 +131,20 @@ impl ServerTestAppExt for App {
 
     fn exchange_with_client(&mut self, client_app: &mut App) {
         let mut client = client_app.world.resource_mut::<RepliconClient>();
-        let peer_id = client
-            .peer_id()
+        let client_id = client
+            .client_id()
             .expect("client should have an assigned ID for exchanging messages");
 
         let mut server = self.world.resource_mut::<RepliconServer>();
         for (channel_id, messages) in client.iter_sent_mut() {
             for message in messages.drain(..) {
-                server.insert_received(peer_id, message, channel_id)
+                server.insert_received(client_id, message, channel_id)
             }
         }
 
         for (channel_id, messages) in server.iter_sent_mut() {
             messages.retain(|(send_id, message)| {
-                if *send_id == peer_id {
+                if *send_id == client_id {
                     client.insert_received(message.clone(), channel_id);
                     false
                 } else {

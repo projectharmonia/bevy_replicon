@@ -17,12 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replace usage of `RenetServer` and `RenetClient` with our `RepliconServer` and `RepliconClient` respectively. Use types from `renet` (or other library) only when you need to connect / disconnect or write some library-specific logic. In other cases prefer using the newly provided types to make your code messaging-library independent. Unlike the old types from renet, these resources are always present in the world. So instead of using `resource_(exists/added/removed)` for network-related conditions, use special conditions provided in `common_conditions` module.
 - Move `has_authority` to `common_conditions` module.
 - Replace conditions from `renet` with ours, see `common_conditions` module. Available in `prelude`.
-- Replace usage of `ClientId` from `renet` with our own `PeerId`. Peer here could refer to a client or a server as before. Godot uses the same terminology.
-- Replace `SERVER_ID` constant with `PeerId::SERVER`.
-- Rename `FromClient` and `ToClients` into `FromPeer` and `ToPeers` respectively.
-- Rename `client_id` field in `FromPeer` into `peer_id`.
+- Replace usage of `ClientId` from `renet` with our own with the same name. In user code only the one from `bevy_replicon` should be used.
+- Replace `SERVER_ID` constant with `ClientId::SERVER`.
 - Replace use of `RenetConnectionStatus` with our `RepliconClientStatus`.
-- Replace `ServerEvent` from `renet` with our `PeerEvent`.
+- Replace `ServerEvent` from `renet` with our own with the same name. In user code only the one from `bevy_replicon` should be used.
 - Rename `replicon_core` module into `core`.
 - Rename `EventType` into `ChannelKind` and move into `core` module.
 - Replace usage of renet's `SendType` with our `RepliconChannel`.

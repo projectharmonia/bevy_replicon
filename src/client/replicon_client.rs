@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bytes::Bytes;
 
-use crate::core::PeerId;
+use crate::core::ClientId;
 
 /// Stores information about a client independent from the messaging backend.
 ///
@@ -131,9 +131,9 @@ impl RepliconClient {
     /// The client ID is available only if the client state is [`RepliconClientStatus::Connected`].
     /// See also [`Self::status`].
     #[inline]
-    pub fn peer_id(&self) -> Option<PeerId> {
-        if let RepliconClientStatus::Connected { peer_id } = self.status {
-            peer_id
+    pub fn client_id(&self) -> Option<ClientId> {
+        if let RepliconClientStatus::Connected { client_id } = self.status {
+            client_id
         } else {
             None
         }
@@ -180,5 +180,5 @@ pub enum RepliconClientStatus {
     ///
     /// Stores the assigned ID if one was assigned by the server.
     /// Needed only for users to access ID independent from messaging library.
-    Connected { peer_id: Option<PeerId> },
+    Connected { client_id: Option<ClientId> },
 }
