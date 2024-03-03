@@ -498,6 +498,15 @@ pub enum ClientSet {
     ///
     /// Runs in `PostUpdate`.
     SendPackets,
+    /// Systems that reset queued server events.
+    ///
+    /// Runs in `PreUpdate` immediately after the client connects to ensure client sessions have a fresh start.
+    ///
+    /// This is a separate set from `ClientSet::Reset` because the reset requirements for events are different
+    /// from the replicon client internals.
+    /// It is best practice to discard client-sent and server-received events while the client is not connected
+    /// in order to guarantee clean separation between connection sessions.
+    ResetEvents,
     /// Systems that reset the client.
     ///
     /// Runs in `PreUpdate` when the client just disconnected.
@@ -508,15 +517,6 @@ pub enum ClientSet {
     /// In that case, you need to manually repair the client state (or use something like
     /// [`bevy_replicon_repair`](https://docs.rs/bevy_replicon_repair)).
     Reset,
-    /// Systems that reset queued server events.
-    ///
-    /// Runs in `PreUpdate` immediately after the client connects to ensure client sessions have a fresh start.
-    ///
-    /// This is a separate set from `ClientSet::Reset` because the reset requirements for events are different
-    /// from the replicon client internals.
-    /// It is best practice to discard client-sent and server-received events while the client is not connected
-    /// in order to guarantee clean separation between connection sessions.
-    ResetEvents,
 }
 
 /// Last received tick for each entity.
