@@ -218,8 +218,8 @@ impl ConnectedClient {
     /// Resets all data.
     ///
     /// Keeps the allocated memory for reuse.
-    fn reset(&mut self, client_id: ClientId) {
-        self.id = client_id;
+    fn reset(&mut self, id: ClientId) {
+        self.id = id;
         self.visibility.clear();
         self.ticks.clear();
         self.updates.clear();
