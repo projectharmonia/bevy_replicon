@@ -7,11 +7,11 @@ This guide assumes that you have already read [quick start guide](https://docs.r
 
 All Renet API is re-exported from this plugin, you don't need to include `bevy_renet` or `renet` to your `Cargo.toml`.
 
-Renet by default uses netcode transport which re-exported by `renet_transport` feature. If you want to use other transports, you can disable it.
+Renet by default uses the netcode transport which is re-exported by the `renet_transport` feature. If you want to use other transports, you can disable it.
 
 ## Initialization
 
-Add [`RepliconRenetPlugins`] group alongside with `RepliconPlugins`:
+Add [`RepliconRenetPlugins`] along with `RepliconPlugins`:
 
 ```
 use bevy::prelude::*;
@@ -22,9 +22,9 @@ let mut app = App::new();
 app.add_plugins((MinimalPlugins, RepliconPlugins, RepliconRenetPlugins));
 ```
 
-Plugins in the group automatically add `renet` corresponding plugins, you don't need to add them.
+Plugins in [`RepliconRenetPlugins`] automatically add `renet` plugins, you don't need to add them.
 
-If `renet_transport` feature is enabled, netcode plugins will also be automatically added.
+If the `renet_transport` feature is enabled, netcode plugins will also be automatically added.
 
 ## Server and client creation
 
@@ -34,10 +34,10 @@ To connect to the server or create it, you need to initialize the
 
 Never insert client and server resources in the same app for single-player, it will cause a replication loop.
 
-This crate provides [`RenetChannelsExt`] extension trait to conveniently convert channels
-from [`RepliconChannels`] resource into renet channels.
-So when creating server or client you need to initialize [`ConnectionConfig`](renet::ConnectionConfig)
-from [`renet`] like this:
+This crate provides the [`RenetChannelsExt`] extension trait to conveniently convert channels
+from the [`RepliconChannels`] resource into renet channels.
+When creating a server or client you need to use a [`ConnectionConfig`](renet::ConnectionConfig)
+from [`renet`], which can be initialized like this:
 
 ```
 use bevy::prelude::*;
@@ -54,7 +54,7 @@ let connection_config = ConnectionConfig {
 };
 ```
 
-For a full example of how to initialize server or client see the example in the
+For a full example of how to initialize a server or client see the example in the
 repository.
 */
 
@@ -203,7 +203,7 @@ impl RepliconRenetClientPlugin {
         #[cfg(feature = "renet_transport")] transport: Res<NetcodeClientTransport>,
     ) {
         // In renet only transport knows the ID.
-        // Worth asking author to provide access from `RenetClient`.
+        // TODO: Pending renet issue https://github.com/lucaspoffo/renet/issues/153
         #[cfg(feature = "renet_transport")]
         let peer_id = Some(PeerId::new(transport.client_id().raw()));
         #[cfg(not(feature = "renet_transport"))]
@@ -251,7 +251,7 @@ pub trait RenetChannelsExt {
     /// Returns server channel configs that can be used to create [`ConnectionConfig`](renet::ConnectionConfig).
     fn get_server_configs(&self) -> Vec<ChannelConfig>;
 
-    /// Same as [`RenetChannelsExt::get_server_configs`], but for client.
+    /// Same as [`RenetChannelsExt::get_server_configs`], but for clients.
     fn get_client_configs(&self) -> Vec<ChannelConfig>;
 }
 
