@@ -22,7 +22,7 @@ fn all() {
     let server_entity = server_app.world.spawn((Replication, DummyComponent)).id();
 
     let client = client_app.world.resource::<RepliconClient>();
-    let client_id = client.client_id().unwrap();
+    let client_id = client.id().unwrap();
     let mut connected_clients = server_app.world.resource_mut::<ConnectedClients>();
     let visibility = connected_clients.client_mut(client_id).visibility_mut();
     visibility.set_visibility(server_entity, false); // Shouldn't have any effect for this policy.
@@ -103,7 +103,7 @@ fn blacklist() {
     let server_entity = server_app.world.spawn((Replication, DummyComponent)).id();
 
     let client = client_app.world.resource::<RepliconClient>();
-    let client_id = client.client_id().unwrap();
+    let client_id = client.id().unwrap();
     let mut connected_clients = server_app.world.resource_mut::<ConnectedClients>();
     let visibility = connected_clients.client_mut(client_id).visibility_mut();
     visibility.set_visibility(server_entity, false);
@@ -151,7 +151,7 @@ fn blacklist_despawn() {
     let server_entity = server_app.world.spawn(Replication).id();
 
     let client = client_app.world.resource::<RepliconClient>();
-    let client_id = client.client_id().unwrap();
+    let client_id = client.id().unwrap();
     let mut connected_clients = server_app.world.resource_mut::<ConnectedClients>();
     let visibility = connected_clients.client_mut(client_id).visibility_mut();
     visibility.set_visibility(server_entity, false);
@@ -219,7 +219,7 @@ fn whitelist() {
     let server_entity = server_app.world.spawn((Replication, DummyComponent)).id();
 
     let client = client_app.world.resource::<RepliconClient>();
-    let client_id = client.client_id().unwrap();
+    let client_id = client.id().unwrap();
     let mut connected_clients = server_app.world.resource_mut::<ConnectedClients>();
     let visibility = connected_clients.client_mut(client_id).visibility_mut();
     visibility.set_visibility(server_entity, true);
@@ -270,7 +270,7 @@ fn whitelist_despawn() {
     let server_entity = server_app.world.spawn(Replication).id();
 
     let client = client_app.world.resource::<RepliconClient>();
-    let client_id = client.client_id().unwrap();
+    let client_id = client.id().unwrap();
     let mut connected_clients = server_app.world.resource_mut::<ConnectedClients>();
     let visibility = connected_clients.client_mut(client_id).visibility_mut();
     visibility.set_visibility(server_entity, true);

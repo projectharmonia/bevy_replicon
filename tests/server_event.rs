@@ -46,7 +46,7 @@ fn sending_receiving() {
     server_app.connect_client(&mut client_app);
 
     let client = client_app.world.resource::<RepliconClient>();
-    let client_id = client.client_id().unwrap();
+    let client_id = client.id().unwrap();
 
     for (mode, events_count) in [
         (SendMode::Broadcast, 1),

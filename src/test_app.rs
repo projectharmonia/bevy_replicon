@@ -115,7 +115,7 @@ impl ServerTestAppExt for App {
     fn disconnect_client(&mut self, client_app: &mut App) {
         let mut client = client_app.world.resource_mut::<RepliconClient>();
         let client_id = client
-            .client_id()
+            .id()
             .expect("client should have an assigned ID for disconnect");
 
         client.set_status(RepliconClientStatus::Disconnected);
@@ -132,7 +132,7 @@ impl ServerTestAppExt for App {
     fn exchange_with_client(&mut self, client_app: &mut App) {
         let mut client = client_app.world.resource_mut::<RepliconClient>();
         let client_id = client
-            .client_id()
+            .id()
             .expect("client should have an assigned ID for exchanging messages");
 
         let mut server = self.world.resource_mut::<RepliconServer>();

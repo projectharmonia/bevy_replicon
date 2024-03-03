@@ -519,7 +519,7 @@ fn local_player_turn(
     client: Res<RepliconClient>,
     players: Query<(&Player, &Symbol)>,
 ) -> bool {
-    let client_id = client.client_id().unwrap_or(ClientId::SERVER);
+    let client_id = client.id().unwrap_or(ClientId::SERVER);
     players
         .iter()
         .any(|(player, &symbol)| player.0 == client_id && symbol == current_turn.0)

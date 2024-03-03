@@ -131,7 +131,7 @@ impl RepliconClient {
     /// The client ID is available only if the client state is [`RepliconClientStatus::Connected`].
     /// See also [`Self::status`].
     #[inline]
-    pub fn client_id(&self) -> Option<ClientId> {
+    pub fn id(&self) -> Option<ClientId> {
         if let RepliconClientStatus::Connected { client_id } = self.status {
             client_id
         } else {
