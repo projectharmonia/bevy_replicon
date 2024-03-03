@@ -81,7 +81,7 @@ impl Plugin for RepliconRenetServerPlugin {
                     (
                         Self::starting_system.run_if(resource_added::<RenetServer>),
                         Self::stopping_system.run_if(resource_removed::<RenetServer>()),
-                        Self::receiving_packets.run_if(resource_exists::<RenetServer>),
+                        Self::receiving_system.run_if(resource_exists::<RenetServer>),
                     )
                         .chain()
                         .in_set(ServerSet::ReceivePackets),
@@ -130,7 +130,7 @@ impl RepliconRenetServerPlugin {
         }
     }
 
-    fn receiving_packets(
+    fn receiving_system(
         connected_clients: Res<ConnectedClients>,
         channels: Res<RepliconChannels>,
         mut renet_server: ResMut<RenetServer>,
