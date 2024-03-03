@@ -75,7 +75,7 @@ impl Plugin for TicTacToePlugin {
                     Self::server_waiting_text_system.run_if(resource_added::<RenetServer>),
                     Self::server_event_system.run_if(server_running),
                     Self::start_game_system
-                        .run_if(connected)
+                        .run_if(client_connected)
                         .run_if(any_component_added::<Player>), // Wait until client replicates players before starting the game.
                     (
                         Self::cell_interatction_system.run_if(local_player_turn),

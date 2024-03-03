@@ -13,7 +13,7 @@ use super::EventMapper;
 use crate::{
     client::{client_mapper::ServerEntityMap, replicon_client::RepliconClient, ClientSet},
     core::{
-        common_conditions::{connected, has_authority, server_running},
+        common_conditions::{client_connected, has_authority, server_running},
         replicon_channels::{RepliconChannel, RepliconChannels},
         replicon_tick::RepliconTick,
         ClientId,
@@ -176,7 +176,7 @@ impl ServerEventAppExt for App {
                         .chain()
                         .after(ClientPlugin::replication_receiving_system)
                         .in_set(ClientSet::Receive)
-                        .run_if(connected),
+                        .run_if(client_connected),
                 ),
             )
             .add_systems(

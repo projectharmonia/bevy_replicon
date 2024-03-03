@@ -18,12 +18,12 @@ pub fn has_authority(client: Option<Res<RepliconClient>>) -> bool {
 }
 
 /// Returns `true` when the client is connecting.
-pub fn connecting(client: Option<Res<RepliconClient>>) -> bool {
+pub fn client_connecting(client: Option<Res<RepliconClient>>) -> bool {
     client.filter(|client| client.is_connecting()).is_some()
 }
 
 /// Returns `true` when the client is connected.
-pub fn connected(client: Option<Res<RepliconClient>>) -> bool {
+pub fn client_connected(client: Option<Res<RepliconClient>>) -> bool {
     client.filter(|client| client.is_connected()).is_some()
 }
 
@@ -40,7 +40,7 @@ pub fn server_just_stopped(
 }
 
 /// Returns `true` when the client just started connecting on this tick.
-pub fn started_connecting(
+pub fn client_started_connecting(
     mut last_connecting: Local<bool>,
     client: Option<Res<RepliconClient>>,
 ) -> bool {
@@ -52,7 +52,7 @@ pub fn started_connecting(
 }
 
 /// Returns `true` when the client is connected on this tick.
-pub fn just_connected(
+pub fn client_just_connected(
     mut last_connected: Local<bool>,
     client: Option<Res<RepliconClient>>,
 ) -> bool {
@@ -64,7 +64,7 @@ pub fn just_connected(
 }
 
 /// Returns `true` when the client is disconnected on this tick.
-pub fn just_disconnected(
+pub fn client_just_disconnected(
     mut last_connected: Local<bool>,
     client: Option<Res<RepliconClient>>,
 ) -> bool {

@@ -10,7 +10,7 @@ use bytes::Bytes;
 use varint_rs::VarintReader;
 
 use crate::core::{
-    common_conditions::{connected, just_connected, just_disconnected},
+    common_conditions::{client_connected, client_just_connected, client_just_disconnected},
     replication_rules::{Replication, ReplicationRules},
     replicon_channels::ReplicationChannel,
     replicon_channels::RepliconChannels,
@@ -33,8 +33,8 @@ impl Plugin for ClientPlugin {
                 (
                     ClientSet::ReceivePackets,
                     (
-                        ClientSet::ResetEvents.run_if(just_connected),
-                        ClientSet::Reset.run_if(just_disconnected),
+                        ClientSet::ResetEvents.run_if(client_just_connected),
+                        ClientSet::Reset.run_if(client_just_disconnected),
                     ),
                     ClientSet::Receive,
                 )
@@ -50,7 +50,7 @@ impl Plugin for ClientPlugin {
                 Self::replication_receiving_system
                     .map(Result::unwrap)
                     .in_set(ClientSet::Receive)
-                    .run_if(connected),
+                    .run_if(client_connected),
             )
             .add_systems(PreUpdate, Self::reset_system.in_set(ClientSet::Reset));
     }
