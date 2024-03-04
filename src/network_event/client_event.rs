@@ -16,7 +16,6 @@ use crate::{
         ClientId,
     },
     server::{replicon_server::RepliconServer, ServerSet},
-    ConnectedClients,
 };
 
 /// An extension trait for [`App`] for creating client events.
@@ -177,18 +176,15 @@ impl ClientEventAppExt for App {
 
 fn receiving_system<T: Event + DeserializeOwned>(
     mut client_events: EventWriter<FromClient<T>>,
-    connected_clients: Res<ConnectedClients>,
     mut server: ResMut<RepliconServer>,
     channel: Res<ClientEventChannel<T>>,
 ) {
-    for client_id in connected_clients.iter_client_ids() {
-        while let Some(message) = server.receive(client_id, *channel) {
-            match DefaultOptions::new().deserialize(&message) {
-                Ok(event) => {
-                    client_events.send(FromClient { client_id, event });
-                }
-                Err(e) => debug!("unable to deserialize event from {client_id:?}: {e}"),
+    for (client_id, message) in server.receive(*channel) {
+        match DefaultOptions::new().deserialize(&message) {
+            Ok(event) => {
+                client_events.send(FromClient { client_id, event });
             }
+            Err(e) => debug!("unable to deserialize event from {client_id:?}: {e}"),
         }
     }
 }

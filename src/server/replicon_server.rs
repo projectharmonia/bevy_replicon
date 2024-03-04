@@ -1,4 +1,4 @@
-use bevy::{prelude::*, utils::HashMap};
+use bevy::prelude::*;
 use bytes::Bytes;
 
 use crate::core::ClientId;
@@ -22,22 +22,13 @@ pub struct RepliconServer {
     ///
     /// Top index is channel ID.
     /// Inner hash map stores sent messages since the last tick.
-    ///
-    /// Unlike in `sent_messages`, we use a hash map here for quick access
-    /// to messages from a specific client.
-    received_messages: Vec<HashMap<ClientId, Vec<Bytes>>>,
+    received_messages: Vec<Vec<(ClientId, Bytes)>>,
 
     /// List of sent messages for each channel.
     ///
     /// Top index is channel ID.
     /// Inner [`Vec`] stores sent messages since the last tick.
     sent_messages: Vec<Vec<(ClientId, Bytes)>>,
-
-    /// [`Vec`]'s from disconnected clients.
-    ///
-    /// All data is cleared before the insertion.
-    /// Stored to reuse allocated capacity.
-    client_buffer: Vec<Vec<Bytes>>,
 }
 
 impl RepliconServer {
@@ -47,43 +38,33 @@ impl RepliconServer {
         server_channels_count: usize,
         client_channels_count: usize,
     ) {
-        self.sent_messages.resize(server_channels_count, Vec::new());
         self.received_messages
-            .resize(client_channels_count, HashMap::new());
-    }
-
-    /// Initializes message storage for a client.
-    ///
-    /// Reuses the memory from previously disconnected clients if available.
-    pub(super) fn add_client(&mut self, client_id: ClientId) {
-        for channel_messages in &mut self.received_messages {
-            let client_messages = self.client_buffer.pop().unwrap_or_default();
-            channel_messages.insert(client_id, client_messages);
-        }
+            .resize(client_channels_count, Vec::new());
+        self.sent_messages.resize(server_channels_count, Vec::new());
     }
 
     /// Removes a disconnected client.
     ///
     /// Keeps allocated memory for reuse.
     pub(super) fn remove_client(&mut self, client_id: ClientId) {
+        for receive_channel in &mut self.received_messages {
+            receive_channel.retain(|&(sender_id, _)| sender_id != client_id);
+        }
         for send_channel in &mut self.sent_messages {
             send_channel.retain(|&(sender_id, _)| sender_id != client_id);
         }
-
-        for receive_channel in &mut self.received_messages {
-            let mut client_messages = receive_channel
-                .remove(&client_id)
-                .unwrap_or_else(|| panic!("{client_id:?} should be added before removal"));
-            client_messages.clear();
-            self.client_buffer.push(client_messages);
-        }
     }
 
-    /// Receives the next available message from a client over a channel.
-    pub fn receive<I: Into<u8>>(&mut self, client_id: ClientId, channel_id: I) -> Option<Bytes> {
+    /// Receives all available messages from over a channel.
+    ///
+    /// All messages will be drained.
+    pub fn receive<I: Into<u8>>(
+        &mut self,
+        channel_id: I,
+    ) -> impl Iterator<Item = (ClientId, Bytes)> + '_ {
         if !self.running {
+            // We can't return here because we need to return an empty iterator.
             warn!("trying to receive a message when the server is not running");
-            return None;
         }
 
         let channel_id = channel_id.into();
@@ -92,7 +73,7 @@ impl RepliconServer {
             .get_mut(channel_id as usize)
             .unwrap_or_else(|| panic!("server should have a receive channel with id {channel_id}"));
 
-        receive_channel.get_mut(&client_id)?.pop()
+        receive_channel.drain(..)
     }
 
     /// Sends a message to a client over a channel.
@@ -121,12 +102,11 @@ impl RepliconServer {
     /// Should be called only from the messaging backend when the server changes its state.
     pub fn set_running(&mut self, running: bool) {
         if !running {
-            for channel_messages in &mut self.sent_messages {
-                channel_messages.clear();
+            for receive_channel in &mut self.received_messages {
+                receive_channel.clear();
             }
-            for channel_messages in &mut self.received_messages {
-                self.client_buffer
-                    .extend(channel_messages.drain().map(|(_, messages)| messages));
+            for send_channel in &mut self.sent_messages {
+                send_channel.clear();
             }
         }
 
@@ -171,9 +151,6 @@ impl RepliconServer {
             .get_mut(channel_id as usize)
             .unwrap_or_else(|| panic!("server should have a receive channel with id {channel_id}"));
 
-        let client_messages = receive_channel
-            .get_mut(&client_id)
-            .unwrap_or_else(|| panic!("{client_id:?} should be connected to send messages"));
-        client_messages.push(message.into());
+        receive_channel.push((client_id, message.into()));
     }
 }

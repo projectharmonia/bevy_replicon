@@ -39,12 +39,12 @@ impl RepliconClient {
         server_channels_count: usize,
         client_channels_count: usize,
     ) {
-        self.sent_messages.resize(client_channels_count, Vec::new());
         self.received_messages
             .resize(server_channels_count, Vec::new());
+        self.sent_messages.resize(client_channels_count, Vec::new());
     }
 
-    /// Receives the next available message from the server over a channel.
+    /// Pops the next available message from the server over a channel.
     pub fn receive<I: Into<u8>>(&mut self, channel_id: I) -> Option<Bytes> {
         if !self.is_connected() {
             warn!("trying to receive a message when the client is not connected");
@@ -83,10 +83,10 @@ impl RepliconClient {
     /// See also [`Self::status`].
     pub fn set_status(&mut self, status: RepliconClientStatus) {
         if self.is_connected() && !matches!(status, RepliconClientStatus::Connected { .. }) {
-            for channel_messages in &mut self.sent_messages {
+            for channel_messages in &mut self.received_messages {
                 channel_messages.clear();
             }
-            for channel_messages in &mut self.received_messages {
+            for channel_messages in &mut self.sent_messages {
                 channel_messages.clear();
             }
         }

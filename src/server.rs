@@ -160,7 +160,6 @@ impl ServerPlugin {
                 }
                 ServerEvent::ClientConnected { client_id } => {
                     connected_clients.add(&mut client_buffers, client_id);
-                    server.add_client(client_id);
                 }
             }
         }
@@ -185,21 +184,13 @@ impl ServerPlugin {
         mut connected_clients: ResMut<ConnectedClients>,
         mut client_buffers: ResMut<ClientBuffers>,
     ) {
-        for client in connected_clients.iter_mut() {
-            while let Some(message) = server.receive(client.id(), ReplicationChannel::Reliable) {
-                match bincode::deserialize::<u16>(&message) {
-                    Ok(update_index) => {
-                        client.acknowledge(
-                            &mut client_buffers,
-                            change_tick.this_run(),
-                            update_index,
-                        );
-                    }
-                    Err(e) => debug!(
-                        "unable to deserialize update index from {:?}: {e}",
-                        client.id()
-                    ),
+        for (client_id, message) in server.receive(ReplicationChannel::Reliable) {
+            match bincode::deserialize::<u16>(&message) {
+                Ok(update_index) => {
+                    let client = connected_clients.client_mut(client_id);
+                    client.acknowledge(&mut client_buffers, change_tick.this_run(), update_index);
                 }
+                Err(e) => debug!("unable to deserialize update index from {client_id:?}: {e}"),
             }
         }
     }
