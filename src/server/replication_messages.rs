@@ -663,7 +663,7 @@ fn write_with<'a>(
 }
 
 fn can_pack(header_size: usize, base: usize, add: usize) -> bool {
-    const MAX_PACKET_SIZE: usize = 1200;
+    const MAX_PACKET_SIZE: usize = 1200; // TODO: make it configurable by the messaging backend.
 
     let dangling = (base + header_size) % MAX_PACKET_SIZE;
     (dangling > 0) && ((dangling + add) <= MAX_PACKET_SIZE)
