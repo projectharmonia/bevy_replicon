@@ -21,7 +21,7 @@ pub struct RepliconServer {
     /// List of received messages for each channel.
     ///
     /// Top index is channel ID.
-    /// Inner hash map stores sent messages since the last tick.
+    /// Inner [`Vec`] stores received messages since the last tick.
     received_messages: Vec<Vec<(ClientId, Bytes)>>,
 
     /// List of sent messages for each channel.
@@ -38,8 +38,6 @@ impl RepliconServer {
     }
 
     /// Removes a disconnected client.
-    ///
-    /// Keeps allocated memory for reuse.
     pub(super) fn remove_client(&mut self, client_id: ClientId) {
         for receive_channel in &mut self.received_messages {
             receive_channel.retain(|&(sender_id, _)| sender_id != client_id);
@@ -105,6 +103,8 @@ impl RepliconServer {
     }
 
     /// Retains only the messages specified by the predicate.
+    ///
+    /// Used for testing.
     pub(crate) fn retain_sent<F>(&mut self, f: F)
     where
         F: FnMut(&(ClientId, u8, Bytes)) -> bool,
