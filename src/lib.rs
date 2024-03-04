@@ -62,7 +62,7 @@ This part is customized based on your messaging backend. For `bevy_replicon_rene
 see [this](https://docs.rs/bevy_replicon_renet#server-and-client-creation) section.
 
 The backend will update the [`RepliconServer`] or [`RepliconClient`] resources, which can be
-interacted with without knowing what backend is used. Those resources typically don't need to
+interacted without knowing what backend is used. Those resources typically don't need to
 be used directly, it is preferred to use more high-level abstractions described later.
 
 Never initialize a client and server in the same app for single-player, it will cause a replication loop.
