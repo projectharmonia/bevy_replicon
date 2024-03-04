@@ -323,7 +323,7 @@ pub fn send_with<T>(
         SendMode::BroadcastExcept(client_id) => {
             let mut previous_message = None;
             for client in connected_clients.iter() {
-                if client_id == client.id() {
+                if client.id() == client_id {
                     continue;
                 }
                 let message = serialize_with(client, previous_message, &serialize_fn)?;
