@@ -50,6 +50,10 @@ fn client_cleanup_on_disconnect() {
 
     assert_eq!(client.drain_sent().count(), 0);
     assert!(client.receive(ReplicationChannel::Reliable).is_none());
+
+    app.update();
+
+    assert_eq!(app.world.resource::<RepliconTick>().get(), 0);
 }
 
 #[test]
@@ -76,6 +80,10 @@ fn server_cleanup_on_stop() {
 
     assert_eq!(server.drain_sent().count(), 0);
     assert_eq!(server.receive(ReplicationChannel::Reliable).count(), 0);
+
+    app.update();
+
+    assert_eq!(app.world.resource::<RepliconTick>().get(), 0);
 }
 
 #[test]
@@ -98,6 +106,10 @@ fn client_disconnected() {
 
     assert_eq!(client.drain_sent().count(), 0);
     assert!(client.receive(ReplicationChannel::Reliable).is_none());
+
+    app.update();
+
+    assert_eq!(app.world.resource::<RepliconTick>().get(), 0);
 }
 
 #[test]
@@ -122,6 +134,10 @@ fn server_inactive() {
 
     assert_eq!(server.drain_sent().count(), 0);
     assert_eq!(server.receive(ReplicationChannel::Reliable).count(), 0);
+
+    app.update();
+
+    assert_eq!(app.world.resource::<RepliconTick>().get(), 0);
 }
 
 #[test]
