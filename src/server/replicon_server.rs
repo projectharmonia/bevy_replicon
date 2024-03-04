@@ -123,8 +123,8 @@ impl RepliconServer {
     pub fn insert_received<I: Into<u8>, B: Into<Bytes>>(
         &mut self,
         client_id: ClientId,
-        message: B,
         channel_id: I,
+        message: B,
     ) {
         if !self.running {
             warn!("trying to insert a received message when the server is not running");

@@ -145,7 +145,7 @@ impl RepliconRenetServerPlugin {
             for channel_id in 0..channels.client_channels().len() as u8 {
                 while let Some(message) = renet_server.receive_message(renet_client_id, channel_id)
                 {
-                    replicon_server.insert_received(client_id, message, channel_id);
+                    replicon_server.insert_received(client_id, channel_id, message);
                 }
             }
         }
@@ -222,7 +222,7 @@ impl RepliconRenetClientPlugin {
     ) {
         for channel_id in 0..channels.server_channels().len() as u8 {
             while let Some(message) = renet_client.receive_message(channel_id) {
-                replicon_client.insert_received(message, channel_id);
+                replicon_client.insert_received(channel_id, message);
             }
         }
     }

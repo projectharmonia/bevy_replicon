@@ -137,12 +137,12 @@ impl ServerTestAppExt for App {
 
         let mut server = self.world.resource_mut::<RepliconServer>();
         for (channel_id, message) in client.drain_sent() {
-            server.insert_received(client_id, message, channel_id)
+            server.insert_received(client_id, channel_id, message)
         }
 
         server.retain_sent(|(sender_id, channel_id, message)| {
             if *sender_id == client_id {
-                client.insert_received(message.clone(), *channel_id);
+                client.insert_received(*channel_id, message.clone());
                 false
             } else {
                 true

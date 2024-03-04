@@ -132,7 +132,7 @@ impl RepliconClient {
     /// Adds a message from the server to the list of received messages.
     ///
     /// Should be called only from the messaging backend.
-    pub fn insert_received<I: Into<u8>, B: Into<Bytes>>(&mut self, message: B, channel_id: I) {
+    pub fn insert_received<I: Into<u8>, B: Into<Bytes>>(&mut self, channel_id: I, message: B) {
         if !self.is_connected() {
             warn!("trying to insert a received message when the client is not connected");
             return;
