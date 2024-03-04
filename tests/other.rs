@@ -28,6 +28,57 @@ fn connect_disconnect() {
 }
 
 #[test]
+fn client_cleanup_on_disconnect() {
+    let mut app = App::new();
+    app.add_plugins((
+        MinimalPlugins,
+        RepliconPlugins.set(ServerPlugin {
+            tick_policy: TickPolicy::EveryFrame,
+            ..Default::default()
+        }),
+    ));
+
+    app.update();
+
+    let mut client = app.world.resource_mut::<RepliconClient>();
+    client.set_status(RepliconClientStatus::Connected { client_id: None });
+
+    client.send(ReplicationChannel::Reliable, Vec::new());
+    client.insert_received(ReplicationChannel::Reliable, Vec::new());
+
+    client.set_status(RepliconClientStatus::Disconnected);
+
+    assert_eq!(client.drain_sent().count(), 0);
+    assert!(client.receive(ReplicationChannel::Reliable).is_none());
+}
+
+#[test]
+fn server_cleanup_on_stop() {
+    let mut app = App::new();
+    app.add_plugins((
+        MinimalPlugins,
+        RepliconPlugins.set(ServerPlugin {
+            tick_policy: TickPolicy::EveryFrame,
+            ..Default::default()
+        }),
+    ));
+
+    app.update();
+
+    let mut server = app.world.resource_mut::<RepliconServer>();
+    server.set_running(true);
+
+    const DUMMY_CLIENT_ID: ClientId = ClientId::new(1);
+    server.send(DUMMY_CLIENT_ID, ReplicationChannel::Reliable, Vec::new());
+    server.insert_received(DUMMY_CLIENT_ID, ReplicationChannel::Reliable, Vec::new());
+
+    server.set_running(false);
+
+    assert_eq!(server.drain_sent().count(), 0);
+    assert_eq!(server.receive(ReplicationChannel::Reliable).count(), 0);
+}
+
+#[test]
 fn client_disconnected() {
     let mut app = App::new();
     app.add_plugins((
