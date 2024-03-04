@@ -233,10 +233,8 @@ impl RepliconRenetClientPlugin {
         mut renet_client: ResMut<RenetClient>,
         mut replicon_client: ResMut<RepliconClient>,
     ) {
-        for (channel_id, messages) in replicon_client.iter_sent_mut() {
-            for message in messages.drain(..) {
-                renet_client.send_message(channel_id, message)
-            }
+        for (channel_id, message) in replicon_client.drain_sent() {
+            renet_client.send_message(channel_id, message)
         }
     }
 }

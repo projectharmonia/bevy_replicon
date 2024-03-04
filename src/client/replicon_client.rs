@@ -11,7 +11,7 @@ use crate::core::ClientId;
 /// - For receiving messages, [`Self::insert_received`] should be to used.
 /// A system to forward backend messages to Replicon should run in
 /// [`ClientSet::ReceivePackets`](super::ClientSet::ReceivePackets).
-/// - For sending messages, [`Self::iter_sent_mut`] should be used to drain all sent messages.
+/// - For sending messages, [`Self::drain_sent`] should be used to drain all sent messages.
 /// A system to forward Replicon messages to the backend should run in
 /// [`ClientSet::SendPackets`](super::ClientSet::SendPackets).
 #[derive(Resource, Default)]
@@ -22,26 +22,18 @@ pub struct RepliconClient {
     /// List of received messages for each channel.
     ///
     /// Top index is channel ID.
-    /// Inner [`Vec`] stores received messages since the last tick.
+    /// Inner [`Vec`] stores received messages since the last tick
+    /// for quick access to channel messages from other systems
     received_messages: Vec<Vec<Bytes>>,
 
-    /// List of sent messages for each channel.
-    ///
-    /// Top index is channel ID.
-    /// Inner [`Vec`] stores sent messages since the last tick.
-    sent_messages: Vec<Vec<Bytes>>,
+    /// List of sent messages and their channels since the last tick.
+    sent_messages: Vec<(u8, Bytes)>,
 }
 
 impl RepliconClient {
-    /// Changes the size of the message storage according to the number of channels.
-    pub(super) fn setup_channels(
-        &mut self,
-        server_channels_count: usize,
-        client_channels_count: usize,
-    ) {
-        self.received_messages
-            .resize(server_channels_count, Vec::new());
-        self.sent_messages.resize(client_channels_count, Vec::new());
+    /// Changes the size of the receive messages storage according to the number of server channels.
+    pub(super) fn setup_server_channels(&mut self, channels_count: usize) {
+        self.received_messages.resize(channels_count, Vec::new());
     }
 
     /// Pops the next available message from the server over a channel.
@@ -67,13 +59,7 @@ impl RepliconClient {
             return;
         }
 
-        let channel_id = channel_id.into();
-        let channel_messages = self
-            .sent_messages
-            .get_mut(channel_id as usize)
-            .unwrap_or_else(|| panic!("client should have a send channel with id {channel_id}"));
-
-        channel_messages.push(message.into());
+        self.sent_messages.push((channel_id.into(), message.into()));
     }
 
     /// Sets the client connection status.
@@ -86,9 +72,7 @@ impl RepliconClient {
             for channel_messages in &mut self.received_messages {
                 channel_messages.clear();
             }
-            for channel_messages in &mut self.sent_messages {
-                channel_messages.clear();
-            }
+            self.sent_messages.clear();
         }
 
         self.status = status;
@@ -139,19 +123,16 @@ impl RepliconClient {
         }
     }
 
-    /// Returns an iterator over channels with the messages sent to each channel.
+    /// Removes all sent messages, returning them as an iterator with channel.
     ///
-    /// Should be called only by the messaging backend.
-    pub fn iter_sent_mut(&mut self) -> impl Iterator<Item = (u8, &mut Vec<Bytes>)> + '_ {
-        self.sent_messages
-            .iter_mut()
-            .enumerate()
-            .map(|(channel_id, messages)| (channel_id as u8, messages))
+    /// Should be called only from the messaging backend.
+    pub fn drain_sent(&mut self) -> impl Iterator<Item = (u8, Bytes)> + '_ {
+        self.sent_messages.drain(..)
     }
 
     /// Adds a message from the server to the list of received messages.
     ///
-    /// Should be called only by the messaging backend.
+    /// Should be called only from the messaging backend.
     pub fn insert_received<I: Into<u8>, B: Into<Bytes>>(&mut self, message: B, channel_id: I) {
         if !self.is_connected() {
             warn!("trying to insert a received message when the client is not connected");

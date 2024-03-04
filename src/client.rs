@@ -58,10 +58,7 @@ impl Plugin for ClientPlugin {
 
 impl ClientPlugin {
     fn channels_setup_system(mut client: ResMut<RepliconClient>, channels: Res<RepliconChannels>) {
-        client.setup_channels(
-            channels.server_channels().len(),
-            channels.client_channels().len(),
-        );
+        client.setup_server_channels(channels.server_channels().len());
     }
 
     /// Receives and applies replication messages from the server.
