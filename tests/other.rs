@@ -94,9 +94,9 @@ fn client_disconnected() {
     let mut client = app.world.resource_mut::<RepliconClient>();
 
     client.send(ReplicationChannel::Reliable, Vec::new());
-    assert_eq!(client.drain_sent().count(), 0);
-
     client.insert_received(ReplicationChannel::Reliable, Vec::new());
+
+    assert_eq!(client.drain_sent().count(), 0);
     assert!(client.receive(ReplicationChannel::Reliable).is_none());
 }
 
@@ -118,9 +118,9 @@ fn server_inactive() {
     const DUMMY_CLIENT_ID: ClientId = ClientId::new(1);
 
     server.send(DUMMY_CLIENT_ID, ReplicationChannel::Reliable, Vec::new());
-    assert_eq!(server.drain_sent().count(), 0);
-
     server.insert_received(DUMMY_CLIENT_ID, ReplicationChannel::Reliable, Vec::new());
+
+    assert_eq!(server.drain_sent().count(), 0);
     assert_eq!(server.receive(ReplicationChannel::Reliable).count(), 0);
 }
 
