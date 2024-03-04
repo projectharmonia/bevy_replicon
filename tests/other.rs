@@ -28,6 +28,52 @@ fn connect_disconnect() {
 }
 
 #[test]
+fn client_disconnected() {
+    let mut app = App::new();
+    app.add_plugins((
+        MinimalPlugins,
+        RepliconPlugins.set(ServerPlugin {
+            tick_policy: TickPolicy::EveryFrame,
+            ..Default::default()
+        }),
+    ));
+
+    app.update();
+
+    let mut client = app.world.resource_mut::<RepliconClient>();
+
+    client.send(ReplicationChannel::Reliable, Vec::new());
+    assert_eq!(client.drain_sent().count(), 0);
+
+    client.insert_received(ReplicationChannel::Reliable, Vec::new());
+    assert!(client.receive(ReplicationChannel::Reliable).is_none());
+}
+
+#[test]
+fn server_inactive() {
+    let mut app = App::new();
+    app.add_plugins((
+        MinimalPlugins,
+        RepliconPlugins.set(ServerPlugin {
+            tick_policy: TickPolicy::EveryFrame,
+            ..Default::default()
+        }),
+    ));
+
+    app.update();
+
+    let mut server = app.world.resource_mut::<RepliconServer>();
+
+    const DUMMY_CLIENT_ID: ClientId = ClientId::new(1);
+
+    server.send(DUMMY_CLIENT_ID, ReplicationChannel::Reliable, Vec::new());
+    assert_eq!(server.drain_sent().count(), 0);
+
+    server.insert_received(DUMMY_CLIENT_ID, ReplicationChannel::Reliable, Vec::new());
+    assert_eq!(server.receive(ReplicationChannel::Reliable).count(), 0);
+}
+
+#[test]
 fn diagnostics() {
     let mut server_app = App::new();
     let mut client_app = App::new();
