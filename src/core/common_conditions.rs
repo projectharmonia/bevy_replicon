@@ -65,12 +65,12 @@ pub fn client_just_connected(
 
 /// Returns `true` when the client is disconnected on this tick.
 pub fn client_just_disconnected(
-    mut last_connected: Local<bool>,
+    mut last_not_disconnected: Local<bool>,
     client: Option<Res<RepliconClient>>,
 ) -> bool {
     let disconnected = client.filter(|client| client.is_disconnected()).is_some();
 
-    let just_disconnected = *last_connected && disconnected;
-    *last_connected = !disconnected;
+    let just_disconnected = *last_not_disconnected && disconnected;
+    *last_not_disconnected = !disconnected;
     just_disconnected
 }

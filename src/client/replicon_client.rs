@@ -8,12 +8,12 @@ use crate::core::ClientId;
 /// The messaging backend is responsible for updating this resource:
 /// - When the messaging client changes its status (connected, connecting and disconnected),
 /// [`Self::set_status`] should be used to reflect this.
-/// - For sending messages, [`Self::iter_sent_mut`] should be used to drain all sent messages.
-/// A system to forward replicon messages to the backend should run in
-/// [`ClientSet::SendPackets`](super::ClientSet::SendPackets).
 /// - For receiving messages, [`Self::insert_received`] should be to used.
-/// A system to forward backend messages to replicon should run in
+/// A system to forward backend messages to Replicon should run in
 /// [`ClientSet::ReceivePackets`](super::ClientSet::ReceivePackets).
+/// - For sending messages, [`Self::iter_sent_mut`] should be used to drain all sent messages.
+/// A system to forward Replicon messages to the backend should run in
+/// [`ClientSet::SendPackets`](super::ClientSet::SendPackets).
 #[derive(Resource, Default)]
 pub struct RepliconClient {
     /// Client connection status.
@@ -44,7 +44,7 @@ impl RepliconClient {
             .resize(server_channels_count, Vec::new());
     }
 
-    /// Receives a message from the server over a channel.
+    /// Receives the next available message from the server over a channel.
     pub fn receive<I: Into<u8>>(&mut self, channel_id: I) -> Option<Bytes> {
         if !self.is_connected() {
             warn!("trying to receive a message when the client is not connected");
@@ -139,7 +139,7 @@ impl RepliconClient {
         }
     }
 
-    /// Returns an iterator over all messages for each channel.
+    /// Returns an iterator over channels with the messages sent to each channel.
     ///
     /// Should be called only by the messaging backend.
     pub fn iter_sent_mut(&mut self) -> impl Iterator<Item = (u8, &mut Vec<Bytes>)> + '_ {

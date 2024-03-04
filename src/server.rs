@@ -498,23 +498,34 @@ fn collect_removals(
 /// Set with replication and event systems related to server.
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum ServerSet {
-    /// Systems that emit [`ServerEvent`].
+    /// Systems that receive packets from the messaging backend.
     ///
-    /// Runs in `PreUpdate`.
-    SendEvents,
-    /// Systems that receive packets from messaging library.
+    /// Used by the messaging backend.
     ///
     /// Runs in `PreUpdate`.
     ReceivePackets,
+    /// Systems that emit [`ServerEvent`].
+    ///
+    /// The messaging backend should convert its own connection events into [`ServerEvents`](ServerEvent)
+    /// in this set.
+    ///
+    /// Runs in `PreUpdate`.
+    SendEvents,
     /// Systems that receive data from [`RepliconServer`].
+    ///
+    /// Used by `bevy_replicon`.
     ///
     /// Runs in `PreUpdate`.
     Receive,
     /// Systems that send data to [`RepliconServer`].
     ///
+    /// Used by `bevy_replicon`.
+    ///
     /// Runs in `PostUpdate` on server tick, see [`TickPolicy`].
     Send,
-    /// Systems that send packets to from messaging library.
+    /// Systems that send packets to the messaging backend.
+    ///
+    /// Used by the messaging backend.
     ///
     /// Runs in `PostUpdate` on server tick, see [`TickPolicy`].
     SendPackets,
@@ -552,9 +563,9 @@ pub enum VisibilityPolicy {
     Whitelist,
 }
 
-/// Connection and disconnection events on server.
+/// Connection and disconnection events on the server.
 ///
-/// Messaging library is responsible for emitting it.
+/// The messaging backend is responsible for emitting these in [`ServerSet::SendEvents`].
 #[derive(Event)]
 pub enum ServerEvent {
     ClientConnected { client_id: ClientId },

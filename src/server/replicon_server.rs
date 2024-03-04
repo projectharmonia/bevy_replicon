@@ -3,34 +3,34 @@ use bytes::Bytes;
 
 use crate::core::ClientId;
 
-/// Stores information about server independent from messaging library.
+/// Stores information about the server independent from the messaging backend.
 ///
-/// Messaging library responsible for updating this resource:
-/// - When server is started or stopped, [`Self::set_running`] should be used to reflect this.
-/// - For sending messages [`Self::iter_sent_mut`] should be used to drain all sent messages.
-/// Corresponding system should run in [`ServerSet::SendPackets`](super::ServerSet::SendPackets).
-/// - For receiving messages [`Self::insert_received`] should be to used.
-/// Corresponding system should run in [`ServerSet::ReceivePackets`](super::ServerSet::ReceivePackets).
+/// The messaging backend is responsible for updating this resource:
+/// - When the server is started or stopped, [`Self::set_running`] should be used to reflect this.
+/// - For receiving messages, [`Self::insert_received`] should be used.
+/// A system to forward messages from the backend to Replicon should run in [`ServerSet::ReceivePackets`](super::ServerSet::ReceivePackets).
+/// - For sending messages, [`Self::iter_sent_mut`] should be used to drain all sent messages.
+/// A system to forward messages from Replicon to the backend should run in [`ServerSet::SendPackets`](super::ServerSet::SendPackets).
 #[derive(Resource, Default)]
 pub struct RepliconServer {
-    /// `true` if server is open for connections.
+    /// Indicates if the server is open for connections.
     ///
     /// By default set to `false`.
     running: bool,
 
-    /// List of sent messages for each channel where top index is ID.
+    /// List of sent messages for each channel.
     ///
     /// Top index is channel ID.
     /// Inner [`Vec`] stores sent messages since the last tick.
     sent_messages: Vec<Vec<(ClientId, Bytes)>>,
 
-    /// List of received messages for each channel where top index is ID.
+    /// List of received messages for each channel.
     ///
     /// Top index is channel ID.
     /// Inner hash map stores sent messages since the last tick.
     ///
     /// Unlike in `sent_messages`, we use a hash map here for quick access
-    /// to messages for a client from other system.
+    /// to messages from a specific client.
     received_messages: Vec<HashMap<ClientId, Vec<Bytes>>>,
 
     /// [`Vec`]'s from disconnected clients.
@@ -52,7 +52,7 @@ impl RepliconServer {
             .resize(client_channels_count, HashMap::new());
     }
 
-    /// Initializes a message storage for a client.
+    /// Initializes message storage for a client.
     ///
     /// Reuses the memory from previously disconnected clients if available.
     pub(super) fn add_client(&mut self, client_id: ClientId) {
@@ -66,12 +66,12 @@ impl RepliconServer {
     ///
     /// Keeps allocated memory for reuse.
     pub(super) fn remove_client(&mut self, client_id: ClientId) {
-        for channel_messages in &mut self.sent_messages {
-            channel_messages.retain(|&(sender_id, _)| sender_id != client_id);
+        for send_channel in &mut self.sent_messages {
+            send_channel.retain(|&(sender_id, _)| sender_id != client_id);
         }
 
-        for channel_messages in &mut self.received_messages {
-            let mut client_messages = channel_messages
+        for receive_channel in &mut self.received_messages {
+            let mut client_messages = receive_channel
                 .remove(&client_id)
                 .unwrap_or_else(|| panic!("{client_id:?} should be added before removal"));
             client_messages.clear();
@@ -79,7 +79,7 @@ impl RepliconServer {
         }
     }
 
-    /// Receives a message from a client over a channel.
+    /// Receives the next available message from a client over a channel.
     pub fn receive<I: Into<u8>>(&mut self, client_id: ClientId, channel_id: I) -> Option<Bytes> {
         if !self.running {
             warn!("trying to receive a message when the server is not running");
@@ -87,12 +87,12 @@ impl RepliconServer {
         }
 
         let channel_id = channel_id.into();
-        let channel_messages = self
+        let receive_channel = self
             .received_messages
             .get_mut(channel_id as usize)
             .unwrap_or_else(|| panic!("server should have a receive channel with id {channel_id}"));
 
-        channel_messages.get_mut(&client_id)?.pop()
+        receive_channel.get_mut(&client_id)?.pop()
     }
 
     /// Sends a message to a client over a channel.
@@ -108,17 +108,17 @@ impl RepliconServer {
         }
 
         let channel_id = channel_id.into();
-        let channel_messages = self
+        let send_channel = self
             .sent_messages
             .get_mut(channel_id as usize)
             .unwrap_or_else(|| panic!("server should have a send channel with id {channel_id}"));
 
-        channel_messages.push((client_id, message.into()));
+        send_channel.push((client_id, message.into()));
     }
 
     /// Marks the server as running or stopped.
     ///
-    /// Should be called only from messaging library when the server changes its state.
+    /// Should be called only from the messaging backend when the server changes its state.
     pub fn set_running(&mut self, running: bool) {
         if !running {
             for channel_messages in &mut self.sent_messages {
@@ -151,9 +151,9 @@ impl RepliconServer {
             .map(|(channel_id, messages)| (channel_id as u8, messages))
     }
 
-    /// Adds the message from the client to the list of received.
+    /// Adds a message from a client to the list of received messages.
     ///
-    /// Should be called only from messaging library.
+    /// Should be called only from the messaging backend.
     pub fn insert_received<I: Into<u8>, B: Into<Bytes>>(
         &mut self,
         client_id: ClientId,
@@ -166,12 +166,12 @@ impl RepliconServer {
         }
 
         let channel_id = channel_id.into();
-        let channel_messages = self
+        let receive_channel = self
             .received_messages
             .get_mut(channel_id as usize)
             .unwrap_or_else(|| panic!("server should have a receive channel with id {channel_id}"));
 
-        let client_messages = channel_messages
+        let client_messages = receive_channel
             .get_mut(&client_id)
             .unwrap_or_else(|| panic!("{client_id:?} should be connected to send messages"));
         client_messages.push(message.into());

@@ -78,7 +78,7 @@ impl ConnectedClients {
             .find(|client| client.id == client_id)
     }
 
-    /// Returns an iterator over client client IDs.
+    /// Returns an iterator over client IDs.
     pub fn iter_client_ids(&self) -> impl Iterator<Item = ClientId> + '_ {
         self.clients.iter().map(|client| client.id())
     }

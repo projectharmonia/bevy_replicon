@@ -54,7 +54,7 @@ pub trait ServerTestAppExt {
     /// Starts server in [`self`] and connects a client app.
     ///
     /// Can be called multiple times on different client apps.
-    /// Runs an update for both apps internally.
+    /// Internally updates both apps one time.
     ///
     /// # Panics
     ///
@@ -64,16 +64,16 @@ pub trait ServerTestAppExt {
     /// Disconnects a client app from [`self`].
     ///
     /// Can be called multiple times on different client apps.
-    /// Runs an update for both apps internally.
+    /// Internally updates both apps once.
     ///
     /// # Panics
     ///
     /// Panics if a client app hasn't been connected before.
     fn disconnect_client(&mut self, client_app: &mut App);
 
-    /// Makes message exchange between client and server.
+    /// Exchanges messages between client and server.
     ///
-    /// Runs an update for [`self`] before sending and after receiving for the client app.
+    /// Internally updates [`self`] before sending and updates the client app after receiving.
     ///
     /// # Panics
     ///

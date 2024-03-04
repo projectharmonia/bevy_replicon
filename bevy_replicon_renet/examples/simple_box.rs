@@ -271,7 +271,7 @@ impl PlayerBundle {
     }
 }
 
-/// Contains client ID of a player.
+/// Contains the client ID of a player.
 #[derive(Component, Serialize, Deserialize)]
 struct Player(ClientId);
 

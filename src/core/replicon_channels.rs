@@ -56,7 +56,7 @@ impl RepliconChannels {
     ///
     /// # Panics
     ///
-    /// Panics number of events exceed [`u8::MAX`].
+    /// Panics if the number of events exceeds [`u8::MAX`].
     pub fn create_client_channel(&mut self, channel: RepliconChannel) -> u8 {
         if self.client.len() == u8::MAX.into() {
             panic!("number of client channels shouldn't exceed `u8::MAX`");
@@ -70,7 +70,7 @@ impl RepliconChannels {
     ///
     /// # Panics
     ///
-    /// Panics number of events exceed [`u8::MAX`].
+    /// Panics if the number of events exceeds [`u8::MAX`].
     pub fn create_server_channel(&mut self, channel: RepliconChannel) -> u8 {
         if self.server.len() == u8::MAX.into() {
             panic!("number of server channels shouldn't exceed `u8::MAX`");
@@ -110,7 +110,7 @@ pub struct RepliconChannel {
 
 /// Channel delivery guarantee.
 ///
-/// Can be automatically converted into [`RepliconChannel`] with zero resend time and unset max bytes.
+/// Can be automatically converted into [`RepliconChannel`] with zero resend time and default max bytes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ChannelKind {
     /// Unreliable and unordered.

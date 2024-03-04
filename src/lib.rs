@@ -5,17 +5,17 @@ ECS-focused high-level networking crate for the [Bevy game engine](https://bevye
 
 Replicon provides a [`prelude`] module, which exports most of the typically used traits and types.
 
-The library doesn't provide any I/O, so you need to use a messaging library.
+The library doesn't provide any I/O, so you need to add a messaging backend.
 We provide a first-party integration with [`bevy_renet`](https://docs.rs/bevy_renet)
 via [`bevy_replicon_renet`](https://docs.rs/bevy_replicon_renet).
 
-If you want to write integration for a messaging library,
-see documentation for [`RepliconServer`], [`RepliconClient`] and [`ServerEvent`].
+If you want to write an integration for a messaging backend,
+see the documentation for [`RepliconServer`], [`RepliconClient`] and [`ServerEvent`].
 You can also use `bevy_replicon_renet` as a reference.
 
 ## Initialization
 
-You need to add [`RepliconPlugins`] and a messaging plugin groups to your app:
+You need to add [`RepliconPlugins`] and plugins for your chosen messaging backend to your app:
 
 ```
 use bevy::prelude::*;
@@ -58,14 +58,14 @@ app.add_plugins(
 
 ## Server and client creation
 
-This part should be done on your messaging library side. For `bevy_replicon_renet`
+This part is customized based on your messaging backend. For `bevy_replicon_renet`
 see [this](https://docs.rs/bevy_replicon_renet#server-and-client-creation) section.
 
-The library will update [`RepliconServer`] or [`RepliconClient`] resources that can be
-interacted in I/O-independent way. But it's usually proffered to use more high-level
-abstractions described later.
+The backend will update the [`RepliconServer`] or [`RepliconClient`] resources, which can be
+interacted with without knowing what backend is used. Those resources typically don't need to
+be used directly, it is preferred to use more high-level abstractions described later.
 
-Never initialize client and server in the same app for single-player, it will cause a replication loop.
+Never initialize a client and server in the same app for single-player, it will cause a replication loop.
 Use the described pattern in [system sets and conditions](#system-sets-and-conditions)
 in combination with [network events](#network-events).
 
@@ -331,8 +331,9 @@ A similar technique is used to send events from server to clients. To do this,
 register the event with [`ServerEventAppExt::add_server_event()`] server event
 and send it from server using [`ToClients`]. The event must be registered on
 both the client and the server in the same order. This wrapper contains send parameters
-and the event itself. Just like events sent from the client, you can send this events on server or in single-player
-and they will appear locally as regular events (if [`ClientId::SERVER`] is not excluded from the send list):
+and the event itself. Just like events sent from the client, you can send these events on the server or
+in single-player and they will appear locally as regular events (if [`ClientId::SERVER`] is not excluded
+from the send list):
 
 ```
 # use bevy::prelude::*;
@@ -382,7 +383,7 @@ procedural level generation systems. For this just add [`has_authority`]
 condition on such system. If you want your systems to run only on
 frames when server send updates to clients use [`ServerSet::Send`].
 
-To check if you running server or client, you can use
+To check if you are running a server or client, you can use
 [`server_running`] and [`client_connected`] conditions.
 They rarely used for gameplay systems (since you write the same logic for
 multiplayer and single-player!), but could be used for server

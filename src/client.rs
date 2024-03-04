@@ -484,17 +484,25 @@ enum ComponentsKind {
 pub enum ClientSet {
     /// Systems that receive packets from the messaging backend.
     ///
+    /// Used by messaging backend implementations.
+    ///
     /// Runs in `PreUpdate`.
     ReceivePackets,
     /// Systems that receive data from [`RepliconClient`].
+    ///
+    /// Used by `bevy_replicon`.
     ///
     /// Runs in `PreUpdate`.
     Receive,
     /// Systems that send data to [`RepliconClient`].
     ///
+    /// Used by `bevy_replicon`.
+    ///
     /// Runs in `PostUpdate`.
     Send,
     /// Systems that send packets to the messaging backend.
+    ///
+    /// Used by messaging backend implementations.
     ///
     /// Runs in `PostUpdate`.
     SendPackets,
@@ -511,11 +519,12 @@ pub enum ClientSet {
     ///
     /// Runs in `PreUpdate` when the client just disconnected.
     ///
-    /// If this set is disabled, then you need to manually clean up the client after a disconnect or when
-    /// reconnecting.
     /// You may want to disable this set if you want to preserve client replication state across reconnects.
     /// In that case, you need to manually repair the client state (or use something like
     /// [`bevy_replicon_repair`](https://docs.rs/bevy_replicon_repair)).
+    ///
+    /// If this set is disabled and you don't want to repair client state,  then you need to manually clean up
+    /// the client after a disconnect or when reconnecting.
     Reset,
 }
 
