@@ -19,17 +19,17 @@ pub struct RepliconClient {
     /// Client connection status.
     status: RepliconClientStatus,
 
-    /// List of sent messages for each channel.
-    ///
-    /// Top index is channel ID.
-    /// Inner [`Vec`] stores sent messages since the last tick.
-    sent_messages: Vec<Vec<Bytes>>,
-
     /// List of received messages for each channel.
     ///
     /// Top index is channel ID.
     /// Inner [`Vec`] stores received messages since the last tick.
     received_messages: Vec<Vec<Bytes>>,
+
+    /// List of sent messages for each channel.
+    ///
+    /// Top index is channel ID.
+    /// Inner [`Vec`] stores sent messages since the last tick.
+    sent_messages: Vec<Vec<Bytes>>,
 }
 
 impl RepliconClient {

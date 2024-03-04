@@ -18,12 +18,6 @@ pub struct RepliconServer {
     /// By default set to `false`.
     running: bool,
 
-    /// List of sent messages for each channel.
-    ///
-    /// Top index is channel ID.
-    /// Inner [`Vec`] stores sent messages since the last tick.
-    sent_messages: Vec<Vec<(ClientId, Bytes)>>,
-
     /// List of received messages for each channel.
     ///
     /// Top index is channel ID.
@@ -32,6 +26,12 @@ pub struct RepliconServer {
     /// Unlike in `sent_messages`, we use a hash map here for quick access
     /// to messages from a specific client.
     received_messages: Vec<HashMap<ClientId, Vec<Bytes>>>,
+
+    /// List of sent messages for each channel.
+    ///
+    /// Top index is channel ID.
+    /// Inner [`Vec`] stores sent messages since the last tick.
+    sent_messages: Vec<Vec<(ClientId, Bytes)>>,
 
     /// [`Vec`]'s from disconnected clients.
     ///
