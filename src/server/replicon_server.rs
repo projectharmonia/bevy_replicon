@@ -9,7 +9,7 @@ use crate::core::ClientId;
 /// - When the server is started or stopped, [`Self::set_running`] should be used to reflect this.
 /// - For receiving messages, [`Self::insert_received`] should be used.
 /// A system to forward messages from the backend to Replicon should run in [`ServerSet::ReceivePackets`](super::ServerSet::ReceivePackets).
-/// - For sending messages, [`Self::iter_sent_mut`] should be used to drain all sent messages.
+/// - For sending messages, [`Self::drain_sent`] should be used to drain all sent messages.
 /// A system to forward messages from Replicon to the backend should run in [`ServerSet::SendPackets`](super::ServerSet::SendPackets).
 #[derive(Resource, Default)]
 pub struct RepliconServer {
@@ -28,19 +28,13 @@ pub struct RepliconServer {
     ///
     /// Top index is channel ID.
     /// Inner [`Vec`] stores sent messages since the last tick.
-    sent_messages: Vec<Vec<(ClientId, Bytes)>>,
+    sent_messages: Vec<(ClientId, u8, Bytes)>,
 }
 
 impl RepliconServer {
-    /// Changes the size of the message storage according to the number of channels.
-    pub(super) fn setup_channels(
-        &mut self,
-        server_channels_count: usize,
-        client_channels_count: usize,
-    ) {
-        self.received_messages
-            .resize(client_channels_count, Vec::new());
-        self.sent_messages.resize(server_channels_count, Vec::new());
+    /// Changes the size of the receive messages storage according to the number of client channels.
+    pub(super) fn setup_client_channels(&mut self, channels_count: usize) {
+        self.received_messages.resize(channels_count, Vec::new());
     }
 
     /// Removes a disconnected client.
@@ -50,9 +44,7 @@ impl RepliconServer {
         for receive_channel in &mut self.received_messages {
             receive_channel.retain(|&(sender_id, _)| sender_id != client_id);
         }
-        for send_channel in &mut self.sent_messages {
-            send_channel.retain(|&(sender_id, _)| sender_id != client_id);
-        }
+        self.sent_messages.clear();
     }
 
     /// Receives all available messages from over a channel.
@@ -88,13 +80,8 @@ impl RepliconServer {
             return;
         }
 
-        let channel_id = channel_id.into();
-        let send_channel = self
-            .sent_messages
-            .get_mut(channel_id as usize)
-            .unwrap_or_else(|| panic!("server should have a send channel with id {channel_id}"));
-
-        send_channel.push((client_id, message.into()));
+        self.sent_messages
+            .push((client_id, channel_id.into(), message.into()));
     }
 
     /// Marks the server as running or stopped.
@@ -105,9 +92,7 @@ impl RepliconServer {
             for receive_channel in &mut self.received_messages {
                 receive_channel.clear();
             }
-            for send_channel in &mut self.sent_messages {
-                send_channel.clear();
-            }
+            self.sent_messages.clear();
         }
 
         self.running = running;
@@ -119,16 +104,19 @@ impl RepliconServer {
         self.running
     }
 
-    /// Returns iterator over all messages for each channel.
+    /// Retains only the messages specified by the predicate.
+    pub(crate) fn retain_sent<F>(&mut self, f: F)
+    where
+        F: FnMut(&(ClientId, u8, Bytes)) -> bool,
+    {
+        self.sent_messages.retain(f)
+    }
+
+    /// Removes all sent messages, returning them as an iterator with client ID and channel.
     ///
-    /// Should be called only from messaging library.
-    pub fn iter_sent_mut(
-        &mut self,
-    ) -> impl Iterator<Item = (u8, &mut Vec<(ClientId, Bytes)>)> + '_ {
-        self.sent_messages
-            .iter_mut()
-            .enumerate()
-            .map(|(channel_id, messages)| (channel_id as u8, messages))
+    /// Should be called only from the messaging backend.
+    pub fn drain_sent(&mut self) -> impl Iterator<Item = (ClientId, u8, Bytes)> + '_ {
+        self.sent_messages.drain(..)
     }
 
     /// Adds a message from a client to the list of received messages.

@@ -140,15 +140,13 @@ impl ServerTestAppExt for App {
             server.insert_received(client_id, message, channel_id)
         }
 
-        for (channel_id, messages) in server.iter_sent_mut() {
-            messages.retain(|(send_id, message)| {
-                if *send_id == client_id {
-                    client.insert_received(message.clone(), channel_id);
-                    false
-                } else {
-                    true
-                }
-            });
-        }
+        server.retain_sent(|(sender_id, channel_id, message)| {
+            if *sender_id == client_id {
+                client.insert_received(message.clone(), *channel_id);
+                false
+            } else {
+                true
+            }
+        })
     }
 }

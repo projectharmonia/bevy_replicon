@@ -132,10 +132,7 @@ impl Plugin for ServerPlugin {
 
 impl ServerPlugin {
     fn channels_setup_system(mut server: ResMut<RepliconServer>, channels: Res<RepliconChannels>) {
-        server.setup_channels(
-            channels.server_channels().len(),
-            channels.client_channels().len(),
-        );
+        server.setup_client_channels(channels.client_channels().len());
     }
 
     /// Increments current server tick which causes the server to replicate this frame.
