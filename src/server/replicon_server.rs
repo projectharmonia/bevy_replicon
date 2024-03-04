@@ -24,10 +24,7 @@ pub struct RepliconServer {
     /// Inner [`Vec`] stores received messages since the last tick.
     received_messages: Vec<Vec<(ClientId, Bytes)>>,
 
-    /// List of sent messages for each channel.
-    ///
-    /// Top index is channel ID.
-    /// Inner [`Vec`] stores sent messages since the last tick.
+    /// List of sent messages for each channel since the last tick.
     sent_messages: Vec<(ClientId, u8, Bytes)>,
 }
 
