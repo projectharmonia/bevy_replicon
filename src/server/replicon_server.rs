@@ -39,7 +39,8 @@ impl RepliconServer {
         for receive_channel in &mut self.received_messages {
             receive_channel.retain(|&(sender_id, _)| sender_id != client_id);
         }
-        self.sent_messages.clear();
+        self.sent_messages
+            .retain(|&(sender_id, ..)| sender_id != client_id);
     }
 
     /// Receives all available messages from over a channel.
