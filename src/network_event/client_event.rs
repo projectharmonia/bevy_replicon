@@ -87,20 +87,17 @@ pub trait ClientEventAppExt {
         registry: Res<AppTypeRegistry>,
     ) {
         let registry = registry.read();
-        for client_id in connected_clients.iter_client_ids() {
-            while let Some(message) = server.receive(client_id, *channel) {
-                let mut deserializer =
-                    bincode::Deserializer::from_slice(&message, DefaultOptions::new());
-                match UntypedReflectDeserializer::new(&registry).deserialize(&mut deserializer) {
-                    Ok(reflect) => {
-                        reflect_events.send(FromClient {
-                            client_id,
-                            event: ReflectEvent(reflect),
-                        });
-                    }
-                    Err(e) => {
-                        debug!("unable to deserialize event from {client_id:?}: {e}")
-                    }
+        for (client_id, message) in server.receive(*channel) {
+            let mut deserializer = bincode::Deserializer::from_slice(&message, DefaultOptions::new());
+            match UntypedReflectDeserializer::new(&registry).deserialize(&mut deserializer) {
+                Ok(reflect) => {
+                    reflect_events.send(FromClient {
+                        client_id,
+                        event: ReflectEvent(reflect),
+                    });
+                }
+                Err(e) => {
+                    debug!("unable to deserialize event from {client_id:?}: {e}")
                 }
             }
         }
