@@ -181,7 +181,7 @@ impl ServerPlugin {
         mut connected_clients: ResMut<ConnectedClients>,
         mut client_buffers: ResMut<ClientBuffers>,
     ) {
-        for (client_id, message) in server.receive(ReplicationChannel::Reliable) {
+        for (client_id, message) in server.receive(ReplicationChannel::Init) {
             match bincode::deserialize::<u16>(&message) {
                 Ok(update_index) => {
                     let client = connected_clients.client_mut(client_id);

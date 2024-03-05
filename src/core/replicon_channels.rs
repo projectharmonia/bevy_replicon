@@ -8,9 +8,22 @@ use bevy::prelude::*;
 #[repr(u8)]
 pub enum ReplicationChannel {
     /// For sending messages with entity mappings, inserts, removals and despawns.
-    Reliable,
+    ///
+    /// This is an ordered reliable channel.
+    Init,
     /// For sending messages with component updates.
-    Unreliable,
+    ///
+    /// This is an unreliable channel.
+    Update,
+}
+
+impl From<ReplicationChannel> for RepliconChannel {
+    fn from(value: ReplicationChannel) -> Self {
+        match value {
+            ReplicationChannel::Init => ChannelKind::Ordered.into(),
+            ReplicationChannel::Update => ChannelKind::Unreliable.into(),
+        }
+    }
 }
 
 impl From<ReplicationChannel> for u8 {
@@ -39,8 +52,14 @@ pub struct RepliconChannels {
 impl Default for RepliconChannels {
     fn default() -> Self {
         Self {
-            server: vec![ChannelKind::Ordered.into(), ChannelKind::Unreliable.into()],
-            client: vec![ChannelKind::Ordered.into(), ChannelKind::Unreliable.into()],
+            server: vec![
+                ReplicationChannel::Init.into(),
+                ReplicationChannel::Update.into(),
+            ],
+            client: vec![
+                ReplicationChannel::Init.into(),
+                ReplicationChannel::Update.into(),
+            ],
             default_max_bytes: 5 * 1024 * 1024,
         }
     }
@@ -50,6 +69,20 @@ impl RepliconChannels {
     /// Sets the maximum usage bytes that will be used by default for all channels if not set.
     pub fn set_default_max_bytes(&mut self, max_bytes: usize) {
         self.default_max_bytes = max_bytes;
+    }
+
+    /// Creates a new server channel and returns its ID.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of events exceeds [`u8::MAX`].
+    pub fn create_server_channel(&mut self, channel: RepliconChannel) -> u8 {
+        if self.server.len() == u8::MAX.into() {
+            panic!("number of server channels shouldn't exceed `u8::MAX`");
+        }
+
+        self.server.push(channel);
+        self.server.len() as u8 - 1
     }
 
     /// Creates a new client channel and returns its ID.
@@ -66,18 +99,22 @@ impl RepliconChannels {
         self.client.len() as u8 - 1
     }
 
-    /// Creates a new server channel and returns its ID.
+    /// Returns a mutable reference to a server channel.
     ///
     /// # Panics
     ///
-    /// Panics if the number of events exceeds [`u8::MAX`].
-    pub fn create_server_channel(&mut self, channel: RepliconChannel) -> u8 {
-        if self.server.len() == u8::MAX.into() {
-            panic!("number of server channels shouldn't exceed `u8::MAX`");
-        }
+    /// Panics if there if there is no such channel.
+    pub fn server_channel_mut<I: Into<u8>>(&mut self, channel_id: I) -> &mut RepliconChannel {
+        &mut self.server[channel_id.into() as usize]
+    }
 
-        self.server.push(channel);
-        self.server.len() as u8 - 1
+    /// Returns a mutable reference to a client channel.
+    ///
+    /// # Panics
+    ///
+    /// Panics if there if there is no such channel.
+    pub fn client_channel_mut<I: Into<u8>>(&mut self, channel_id: I) -> &mut RepliconChannel {
+        &mut self.client[channel_id.into() as usize]
     }
 
     /// Returns the number of server channels.
