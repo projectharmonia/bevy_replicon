@@ -99,8 +99,8 @@ struct DummyComponent;
 
 If your component contains an entity then it cannot be deserialized as is
 because entity IDs are different on server and client. The client should do the
-mapping. Therefore, to replicate such components properly, they need implement
-[`MapEntities`](bevy::ecs::entity::MapEntities) trait and registered
+mapping. Therefore, to replicate such components properly, they need to implement
+the [`MapEntities`](bevy::ecs::entity::MapEntities) trait and register
 using [`AppReplicationExt::replicate_mapped()`]:
 
 ```
