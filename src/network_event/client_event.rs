@@ -46,7 +46,7 @@ pub trait ClientEventAppExt {
 
     # Examples
 
-    Serialize an event with `Box<dyn Reflect>`:
+    Serialize an event with [`Box<dyn Reflect>`]:
 
     ```
     use bevy::{prelude::*, reflect::serde::{ReflectSerializer, UntypedReflectDeserializer}};

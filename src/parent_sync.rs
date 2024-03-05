@@ -72,9 +72,9 @@ impl ParentSyncPlugin {
 
 /// Updates entity parent on change.
 ///
-/// Removes the parent if `None`.
-/// The component captures changes in `PostUpdate` on server before sending
-/// and applies them on `PreUpdate` after receive on clients or scene deserialization.
+/// Removes the parent if [`None`].
+/// The component captures changes in [`PostUpdate`] on server before sending
+/// and applies them on [`PreUpdate`] after receive on clients or scene deserialization.
 #[derive(Component, Default, Reflect, Clone, Copy, Serialize, Deserialize)]
 #[reflect(Component, MapEntities)]
 pub struct ParentSync(Option<Entity>);

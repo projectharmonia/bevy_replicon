@@ -326,7 +326,7 @@ enum BlacklistInfo {
 /// Visibility state for an entity in the current tick, from the perspective of one client.
 ///
 /// Note that the distinction between 'lost visibility' and 'don't have visibility' is not exposed here.
-/// There is only `Visibility::Hidden` to encompass both variants.
+/// There is only [`Visibility::Hidden`] to encompass both variants.
 ///
 /// Lost visibility is handled separately with [`ClientVisibility::drain_lost_visibility`].
 #[derive(PartialEq, Default, Clone, Copy)]

@@ -14,7 +14,7 @@ So on deserialization you need to insert it back if you want entities to continu
 
 # Panics
 
-Panics if any replicated component is not registered using `register_type()`
+Panics if any replicated component is not registered using [`App::register_type`]
 or `#[reflect(Component)]` is missing.
 
 # Examples

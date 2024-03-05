@@ -54,7 +54,7 @@ pub trait ServerEventAppExt {
 
     # Examples
 
-    Serialize an event with `Box<dyn Reflect>`:
+    Serialize an event with [`Box<dyn Reflect>`]:
 
     ```
     use std::io::Cursor;

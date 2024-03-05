@@ -11,7 +11,7 @@ Renet by default uses the netcode transport which is re-exported by the `renet_t
 
 ## Initialization
 
-Add [`RepliconRenetPlugins`] along with `RepliconPlugins`:
+Add [`RepliconRenetPlugins`] along with [`RepliconPlugins`]:
 
 ```
 use bevy::prelude::*;

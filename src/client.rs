@@ -483,38 +483,38 @@ pub enum ClientSet {
     ///
     /// Used by messaging backend implementations.
     ///
-    /// Runs in `PreUpdate`.
+    /// Runs in [`PreUpdate`].
     ReceivePackets,
     /// Systems that receive data from [`RepliconClient`].
     ///
     /// Used by `bevy_replicon`.
     ///
-    /// Runs in `PreUpdate`.
+    /// Runs in [`PreUpdate`].
     Receive,
     /// Systems that send data to [`RepliconClient`].
     ///
     /// Used by `bevy_replicon`.
     ///
-    /// Runs in `PostUpdate`.
+    /// Runs in [`PostUpdate`].
     Send,
     /// Systems that send packets to the messaging backend.
     ///
     /// Used by messaging backend implementations.
     ///
-    /// Runs in `PostUpdate`.
+    /// Runs in [`PostUpdate`].
     SendPackets,
     /// Systems that reset queued server events.
     ///
-    /// Runs in `PreUpdate` immediately after the client connects to ensure client sessions have a fresh start.
+    /// Runs in [`PreUpdate`] immediately after the client connects to ensure client sessions have a fresh start.
     ///
-    /// This is a separate set from `ClientSet::Reset` because the reset requirements for events are different
+    /// This is a separate set from [`ClientSet::Reset`] because the reset requirements for events are different
     /// from the replicon client internals.
     /// It is best practice to discard client-sent and server-received events while the client is not connected
     /// in order to guarantee clean separation between connection sessions.
     ResetEvents,
     /// Systems that reset the client.
     ///
-    /// Runs in `PreUpdate` when the client just disconnected.
+    /// Runs in [`PreUpdate`] when the client just disconnected.
     ///
     /// You may want to disable this set if you want to preserve client replication state across reconnects.
     /// In that case, you need to manually repair the client state (or use something like
