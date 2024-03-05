@@ -8,8 +8,12 @@ use bevy::prelude::*;
 #[repr(u8)]
 pub enum ReplicationChannel {
     /// For sending messages with entity mappings, inserts, removals and despawns.
+    ///
+    /// This is an ordered reliable channel.
     Init,
     /// For sending messages with component updates.
+    ///
+    /// This is an unreliable channel.
     Update,
 }
 
