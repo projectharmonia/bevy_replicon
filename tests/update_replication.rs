@@ -1,5 +1,5 @@
 use bevy::{prelude::*, utils::Duration};
-use bevy_replicon::{prelude::*, test_app::ServerTestAppExt};
+use bevy_replicon::{core::replicon_tick::RepliconTick, prelude::*, test_app::ServerTestAppExt};
 use serde::{Deserialize, Serialize};
 
 #[test]

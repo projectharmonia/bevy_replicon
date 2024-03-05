@@ -123,19 +123,24 @@ you can use [`AppReplicationExt::replicate_with`]:
 
 ```
 use std::io::Cursor;
+
 use bevy::{prelude::*, ptr::Ptr};
-use bevy_replicon::{prelude::*, core::replication_rules};
-use serde::{Deserialize, Serialize};
+use bevy_replicon::{
+    client::client_mapper::ServerEntityMap,
+    core::{replication_rules, replicon_tick::RepliconTick},
+    prelude::*,
+};
 
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
-app.replicate_with::<Transform>(serialize_transform, deserialize_transform, replication_rules::remove_component::<Transform>);
+app.replicate_with::<Transform>(
+    serialize_transform,
+    deserialize_transform,
+    replication_rules::remove_component::<Transform>,
+);
 
 /// Serializes only translation.
-fn serialize_transform(
-    component: Ptr,
-    cursor: &mut Cursor<Vec<u8>>,
-) -> bincode::Result<()> {
+fn serialize_transform(component: Ptr, cursor: &mut Cursor<Vec<u8>>) -> bincode::Result<()> {
     // SAFETY: Function called for registered `ComponentId`.
     let transform: &Transform = unsafe { component.deref() };
     bincode::serialize_into(cursor, &transform.translation)
@@ -155,6 +160,9 @@ fn deserialize_transform(
 }
 ```
 
+The used [`remove_component`](core::replication_rules::remove_component) is the default component removal,
+but you can replace it with your own as well.
+
 2. You need to choose entities you want to replicate using [`Replication`]
 component. Just insert it to the entity you want to replicate. Only components
 marked for replication through [`AppReplicationExt::replicate()`]
@@ -165,12 +173,14 @@ you can call [`CommandDontReplicateExt::dont_replicate::<T>`] on it and replicat
 
 ### Tick and fixed timestep games
 
-The [`ServerPlugin`] sends replication data in [`PostUpdate`] any time the [`RepliconTick`] resource
-changes. By default, its incremented in [`PostUpdate`] per the [`TickPolicy`].
+The [`ServerPlugin`] sends replication data in [`PostUpdate`] any time the
+[`RepliconTick`](core::replicon_tick::RepliconTick) resource changes.
+By default, its incremented in [`PostUpdate`] per the [`TickPolicy`].
 
-If you set [`TickPolicy::Manual`], you can increment [`RepliconTick`] at the start of your
-game loop inside [`FixedMain`](bevy::app::FixedMain). This value can represent your simulation step, and is made available
-to the client in the custom deserialization, despawn and component removal functions.
+If you set [`TickPolicy::Manual`], you can increment [`RepliconTick`](core::replicon_tick::RepliconTick)
+at the start of your game loop inside [`FixedMain`](bevy::app::FixedMain).
+This value can represent your simulation step, and is made available to the client in the custom
+deserialization, despawn and component removal functions.
 
 One use for this is rollback networking: you may want to rollback time and apply the update
 for the tick frame, which is in the past, then resimulate.
@@ -198,13 +208,17 @@ your initialization systems to [`ClientSet::Receive`]:
 ```
 # use std::io::Cursor;
 # use bevy::{prelude::*, ptr::Ptr};
-# use bevy_replicon::{prelude::*, core::replication_rules};
+# use bevy_replicon::{client::client_mapper::ServerEntityMap, core::{replication_rules, replicon_tick::RepliconTick}, prelude::*};
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
-app.replicate_with::<Transform>(serialize_transform, deserialize_transform, replication_rules::remove_component::<Transform>)
-    .replicate::<Player>()
-    .add_systems(PreUpdate, init_player.after(ClientSet::Receive));
+app.replicate_with::<Transform>(
+    serialize_transform,
+    deserialize_transform,
+    replication_rules::remove_component::<Transform>,
+)
+.replicate::<Player>()
+.add_systems(PreUpdate, init_player.after(ClientSet::Receive));
 
 fn init_player(
     mut commands: Commands,
@@ -465,27 +479,20 @@ pub mod test_app;
 pub mod prelude {
     pub use super::{
         client::{
-            client_mapper::{ClientMapper, ServerEntityMap},
             diagnostics::{ClientDiagnosticsPlugin, ClientStats},
             replicon_client::{RepliconClient, RepliconClientStatus},
-            BufferedUpdates, ClientPlugin, ClientSet, ServerEntityTicks,
+            ClientPlugin, ClientSet,
         },
         core::{
             common_conditions::*,
             dont_replicate::{CommandDontReplicateExt, EntityDontReplicateExt},
-            replication_rules::{AppReplicationExt, Replication, ReplicationRules},
-            replicon_channels::{
-                ChannelKind, ReplicationChannel, RepliconChannel, RepliconChannels,
-            },
-            replicon_tick::RepliconTick,
+            replication_rules::{AppReplicationExt, Replication},
+            replicon_channels::{ChannelKind, RepliconChannel, RepliconChannels},
             ClientId, RepliconCorePlugin,
         },
         network_event::{
-            client_event::{ClientEventAppExt, ClientEventChannel, FromClient},
-            server_event::{
-                SendMode, ServerEventAppExt, ServerEventChannel, ServerEventQueue, ToClients,
-            },
-            EventMapper,
+            client_event::{ClientEventAppExt, FromClient},
+            server_event::{SendMode, ServerEventAppExt, ToClients},
         },
         parent_sync::{ParentSync, ParentSyncPlugin},
         server::{

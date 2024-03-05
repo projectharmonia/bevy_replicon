@@ -57,16 +57,15 @@ pub trait ServerEventAppExt {
     Serialize an event with [`Box<dyn Reflect>`]:
 
     ```
-    use std::io::Cursor;
-
     use bevy::{
         prelude::*,
-        reflect::{
-            serde::{ReflectSerializer, UntypedReflectDeserializer},
-            TypeRegistry,
-        },
+        reflect::serde::{ReflectSerializer, UntypedReflectDeserializer},
     };
-    use bevy_replicon::{network_event::server_event, prelude::*};
+    use bevy_replicon::{
+        core::replicon_tick::RepliconTick,
+        network_event::server_event::{self, ServerEventChannel, ServerEventQueue},
+        prelude::*,
+    };
     use bincode::{DefaultOptions, Options};
     use serde::de::DeserializeSeed;
 

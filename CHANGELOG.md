@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replace [`RepliconChannels::set_client_max_bytes`] and [`RepliconChannels::set_server_max_bytes`] with [`RepliconChannels::server_channel_mut`] and [`RepliconChannels::client_channel_mut`] respectively with more rich configuration.
 - Move `ClientEventChannel` to `client_event` module.
 - Move `ServerEventChannel` to `server_event` module.
+-`ClientMapper`, `ServerEntityMap`, `BufferedUpdates`, `ServerEntityTicks`, `ReplicationRules`, `ReplicationChannel`, `ClientEventChannel`, `ServerEventChannel`, `ServerEventQueue` and `EventMapper` are no longer in `prelude` module. Import them directly.
 
 ## [0.23.0] - 2024-02-22
 
