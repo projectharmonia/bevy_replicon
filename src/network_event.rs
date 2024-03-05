@@ -13,6 +13,6 @@ impl EntityMapper for EventMapper<'_> {
         *self
             .0
             .get(&entity)
-            .unwrap_or_else(|| panic!("entity {entity:?} should be mappable"))
+            .unwrap_or_else(|| panic!("{entity:?} should be mappable"))
     }
 }
