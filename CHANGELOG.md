@@ -27,16 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rename `NetworkChannels` into `RepliconChannels` and move into `replicon_channels` module.
 - Rename `ReplicationChannel::Reliable` and `ReplicationChannel::Unreliable` into `ReplicationChannel::Init` and `ReplicationChannel::Update` respectively.
 - Channel creation methods in `RepliconChannels` now accept `RepliconChannel` with full channel configuration.
+- Make `default_max_bytes` field in `RepliconChannels` public.
 - Move `RepliconChannels::get_server_configs` and `RepliconChannels::get_client_configs` to create channels configs for `renet` into `RenetChannelsExt` extension trait provided by `bevy_replion_renet`. Make sure to import it to use these methods.
 - Rename `ReplicationPlugins` into `RepliconPlugins`.
 - Rename `ClientCache` into `ConnectedClients`.
 - Rename `ClientState` into `ConnectedClient`.
+- Replace [`RepliconChannels::set_client_max_bytes`] and [`RepliconChannels::set_server_max_bytes`] with [`RepliconChannels::server_channel_mut`] and [`RepliconChannels::client_channel_mut`] respectively with more rich configuration.
 - Move `ClientEventChannel` to `client_event` module.
 - Move `ServerEventChannel` to `server_event` module.
-
-### Removed
-
-- `RepliconChannels` methods that dynamically change channel memory. Configure it at channel creation time via `RepliconChannel`.
 
 ## [0.23.0] - 2024-02-22
 
