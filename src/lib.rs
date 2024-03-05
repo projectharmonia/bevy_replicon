@@ -35,7 +35,7 @@ app.add_plugins((MinimalPlugins, RepliconPlugins, MyMessagingPlugins));
 ```
 
 If you are planning to separate client and server you can use
-`disable()` to disable [`ClientPlugin`] or [`ServerPlugin`] on [`RepliconPlugins`].
+[`PluginGroupBuilder::disable()`] to disable [`ClientPlugin`] or [`ServerPlugin`] on [`RepliconPlugins`].
 You will need to disable similar plugins on your messaing library of choice too.
 
 You can also configure how often updates are sent from
@@ -100,7 +100,8 @@ struct DummyComponent;
 If your component contains an entity then it cannot be deserialized as is
 because entity IDs are different on server and client. The client should do the
 mapping. Therefore, to replicate such components properly, they need implement
-Bevy's `MapEntities` trait and registered using [`AppReplicationExt::replicate_mapped()`]:
+[`MapEntities`](bevy::ecs::entity::MapEntities) trait and registered
+using [`AppReplicationExt::replicate_mapped()`]:
 
 ```
 # use bevy::{prelude::*, ecs::entity::{EntityMapper, MapEntities}};
@@ -164,11 +165,11 @@ you can call [`CommandDontReplicateExt::dont_replicate::<T>`] on it and replicat
 
 ### Tick and fixed timestep games
 
-The [`ServerPlugin`] sends replication data in `PostUpdate` any time the [`RepliconTick`] resource
-changes. By default, its incremented in `PostUpdate` per the [`TickPolicy`].
+The [`ServerPlugin`] sends replication data in [`PostUpdate`] any time the [`RepliconTick`] resource
+changes. By default, its incremented in [`PostUpdate`] per the [`TickPolicy`].
 
 If you set [`TickPolicy::Manual`], you can increment [`RepliconTick`] at the start of your
-`FixedTimestep` game loop. This value can represent your simulation step, and is made available
+game loop inside [`FixedMain`](bevy::app::FixedMain). This value can represent your simulation step, and is made available
 to the client in the custom deserialization, despawn and component removal functions.
 
 One use for this is rollback networking: you may want to rollback time and apply the update
@@ -186,8 +187,8 @@ waiting on replication.
 The idea was borrowed from [iyes_scene_tools](https://github.com/IyesGames/iyes_scene_tools#blueprints-pattern).
 You don't want to replicate all components because not all of them are
 necessary to send over the network. Components that computed based on other
-components (like `GlobalTransform`) can be inserted after replication.
-This can be easily done using a system with an `Added` query filter.
+components (like [`GlobalTransform`]) can be inserted after replication.
+This can be easily done using a system with an [`Added`] query filter.
 This way, you detect when such entities are spawned into the world, and you can
 do any additional setup on them using code. For example, if you have a
 character with mesh, you can replicate only your `Player` component and insert
@@ -229,14 +230,14 @@ struct Player;
 
 This pairs nicely with server state serialization and keeps saves clean.
 You can use [`replicate_into`](scene::replicate_into) to
-fill `DynamicScene` with replicated entities and their components.
+fill [`DynamicScene`] with replicated entities and their components.
 
 ### Component relations
 
-Sometimes components depend on each other. For example, `Parent` and
-`Children`. In this case, you can't just replicate the `Parent` because you
-not only need to add it to the `Children` of the parent, but also remove it
-from the `Children` of the old one. In this case, you need to create a third
+Sometimes components depend on each other. For example, [`Parent`] and
+[`Children`] In this case, you can't just replicate the [`Parent`] because you
+not only need to add it to the [`Children`] of the parent, but also remove it
+from the [`Children`] of the old one. In this case, you need to create a third
 component that correctly updates the other two when it changes, and only
 replicate that one. This crate provides [`ParentSync`] component that replicates
 Bevy hierarchy. For your custom components with relations you need to write your
@@ -251,7 +252,7 @@ server.
 ### From client to server
 
 To send specific events from client to server, you need to register the event
-with [`ClientEventAppExt::add_client_event()`] instead of `add_event()`.
+with [`ClientEventAppExt::add_client_event()`] instead of [`App::add_event()`].
 The event must be registered on both the client and the server in the same order.
 
 Events include [`ChannelKind`] to configure delivery guarantees (reliability and
@@ -299,7 +300,8 @@ struct DummyEvent;
 
 Just like components, if an event contains an entity, then the client should
 map it before sending it to the server.
-To do this, use [`ClientEventAppExt::add_mapped_client_event()`] and implement Bevy's `MapEntities`:
+To do this, use [`ClientEventAppExt::add_mapped_client_event()`] and implement
+[`MapEntities`](bevy::ecs::entity::MapEntities):
 
 ```
 # use bevy::{prelude::*, ecs::entity::MapEntities};
@@ -322,8 +324,8 @@ impl MapEntities for MappedEvent {
 As shown above, mapped client events must also implement [`Clone`].
 
 There is also [`ClientEventAppExt::add_client_event_with()`] to register an event with special sending and receiving functions.
-This could be used for sending events that contain `Box<dyn Reflect>`, which require access to the `AppTypeRegistry` resource.
-Don't forget to validate the contents of every `Box<dyn Reflect>` from a client, it could be anything!
+This could be used for sending events that contain [`Box<dyn Reflect>`], which require access to the [`AppTypeRegistry`] resource.
+Don't forget to validate the contents of every [`Box<dyn Reflect>`] from a client, it could be anything!
 
 ### From server to client
 

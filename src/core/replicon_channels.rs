@@ -30,7 +30,7 @@ pub struct RepliconChannels {
 
     /// Stores the default max memory usage bytes for all channels.
     ///
-    /// This value will be used instead of `None`.
+    /// This value will be used instead of [`None`].
     /// By default set to `5 * 1024 * 1024`.
     pub default_max_bytes: usize,
 }

@@ -490,32 +490,32 @@ pub enum ServerSet {
     ///
     /// Used by the messaging backend.
     ///
-    /// Runs in `PreUpdate`.
+    /// Runs in [`PreUpdate`].
     ReceivePackets,
     /// Systems that emit [`ServerEvent`].
     ///
     /// The messaging backend should convert its own connection events into [`ServerEvents`](ServerEvent)
     /// in this set.
     ///
-    /// Runs in `PreUpdate`.
+    /// Runs in [`PreUpdate`].
     SendEvents,
     /// Systems that receive data from [`RepliconServer`].
     ///
     /// Used by `bevy_replicon`.
     ///
-    /// Runs in `PreUpdate`.
+    /// Runs in [`PreUpdate`].
     Receive,
     /// Systems that send data to [`RepliconServer`].
     ///
     /// Used by `bevy_replicon`.
     ///
-    /// Runs in `PostUpdate` on server tick, see [`TickPolicy`].
+    /// Runs in [`PostUpdate`] on server tick, see [`TickPolicy`].
     Send,
     /// Systems that send packets to the messaging backend.
     ///
     /// Used by the messaging backend.
     ///
-    /// Runs in `PostUpdate` on server tick, see [`TickPolicy`].
+    /// Runs in [`PostUpdate`] on server tick, see [`TickPolicy`].
     SendPackets,
 }
 
@@ -621,7 +621,7 @@ fn confirm_bullet(
 
 If the client is connected and receives the replication data for the server entity mapping,
 replicated data will be applied to the client's original entity instead of spawning a new one.
-You can detect when the mapping is replicated by querying for `Added<Replication>` on your original
+You can detect when the mapping is replicated by querying for [`Added<Replication>`] on your original
 client entity.
 
 If client's original entity is not found, a new entity will be spawned on the client,
