@@ -50,7 +50,7 @@ pub trait ClientEventAppExt {
 
     ```
     use bevy::{prelude::*, reflect::serde::{ReflectSerializer, UntypedReflectDeserializer}};
-    use bevy_replicon::prelude::*;
+    use bevy_replicon::{network_event::client_event::ClientEventChannel, prelude::*};
     use bincode::{DefaultOptions, Options};
     use serde::de::DeserializeSeed;
 

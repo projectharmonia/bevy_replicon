@@ -3,7 +3,10 @@ use bevy::{
     prelude::*,
     time::TimePlugin,
 };
-use bevy_replicon::{prelude::*, test_app::ServerTestAppExt};
+use bevy_replicon::{
+    client::client_mapper::ServerEntityMap, core::replicon_tick::RepliconTick, prelude::*,
+    test_app::ServerTestAppExt,
+};
 use serde::{Deserialize, Serialize};
 
 #[test]

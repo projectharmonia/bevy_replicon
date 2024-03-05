@@ -21,7 +21,7 @@ or `#[reflect(Component)]` is missing.
 
 ```
 use bevy::{prelude::*, asset::ron, scene::serde::SceneDeserializer};
-use bevy_replicon::{prelude::*, scene};
+use bevy_replicon::{core::replication_rules::ReplicationRules, prelude::*, scene};
 use serde::de::DeserializeSeed;
 # let mut world = World::new();
 # world.init_resource::<AppTypeRegistry>();
