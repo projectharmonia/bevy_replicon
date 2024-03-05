@@ -81,14 +81,13 @@ impl Plugin for ServerPlugin {
                 PostUpdate,
                 (ServerSet::Send, ServerSet::SendPackets).chain(),
             )
-            .add_systems(Startup, Self::channels_setup_system)
+            .add_systems(Startup, Self::setup_channels)
             .add_systems(
                 PreUpdate,
                 (
-                    Self::handle_connections_system,
-                    Self::acks_receiving_system,
-                    Self::acks_cleanup_system(self.update_timeout)
-                        .run_if(on_timer(self.update_timeout)),
+                    Self::handle_connections,
+                    Self::receive_acks,
+                    Self::cleanup_acks(self.update_timeout).run_if(on_timer(self.update_timeout)),
                 )
                     .chain()
                     .in_set(ServerSet::Receive)
@@ -97,12 +96,12 @@ impl Plugin for ServerPlugin {
             .add_systems(
                 PostUpdate,
                 (
-                    Self::replication_sending_system
+                    Self::send_replication
                         .map(Result::unwrap)
                         .in_set(ServerSet::Send)
                         .run_if(server_running)
                         .run_if(resource_changed::<RepliconTick>),
-                    Self::reset_system.run_if(server_just_stopped),
+                    Self::reset.run_if(server_just_stopped),
                 ),
             );
 
@@ -112,7 +111,7 @@ impl Plugin for ServerPlugin {
                 app.add_systems(
                     PostUpdate,
                     Self::increment_tick
-                        .before(Self::replication_sending_system)
+                        .before(Self::send_replication)
                         .run_if(server_running)
                         .run_if(on_timer(tick_time)),
                 );
@@ -121,7 +120,7 @@ impl Plugin for ServerPlugin {
                 app.add_systems(
                     PostUpdate,
                     Self::increment_tick
-                        .before(Self::replication_sending_system)
+                        .before(Self::send_replication)
                         .run_if(server_running),
                 );
             }
@@ -131,7 +130,7 @@ impl Plugin for ServerPlugin {
 }
 
 impl ServerPlugin {
-    fn channels_setup_system(mut server: ResMut<RepliconServer>, channels: Res<RepliconChannels>) {
+    fn setup_channels(mut server: ResMut<RepliconServer>, channels: Res<RepliconChannels>) {
         server.setup_client_channels(channels.client_channels().len());
     }
 
@@ -141,7 +140,7 @@ impl ServerPlugin {
         trace!("incremented {replicon_tick:?}");
     }
 
-    fn handle_connections_system(
+    fn handle_connections(
         mut server_events: EventReader<ServerEvent>,
         mut entity_map: ResMut<ClientEntityMap>,
         mut connected_clients: ResMut<ConnectedClients>,
@@ -162,7 +161,7 @@ impl ServerPlugin {
         }
     }
 
-    fn acks_cleanup_system(
+    fn cleanup_acks(
         update_timeout: Duration,
     ) -> impl FnMut(ResMut<ConnectedClients>, ResMut<ClientBuffers>, Res<Time>) {
         move |mut connected_clients: ResMut<ConnectedClients>,
@@ -175,7 +174,7 @@ impl ServerPlugin {
         }
     }
 
-    fn acks_receiving_system(
+    fn receive_acks(
         change_tick: SystemChangeTick,
         mut server: ResMut<RepliconServer>,
         mut connected_clients: ResMut<ConnectedClients>,
@@ -194,7 +193,7 @@ impl ServerPlugin {
 
     /// Collects [`ReplicationMessages`] and sends them.
     #[allow(clippy::type_complexity)]
-    pub(super) fn replication_sending_system(
+    pub(super) fn send_replication(
         mut messages: Local<ReplicationMessages>,
         mut archetypes_info: Local<ReplicatedArchetypesInfo>,
         change_tick: SystemChangeTick,
@@ -243,7 +242,7 @@ impl ServerPlugin {
         Ok(())
     }
 
-    fn reset_system(
+    fn reset(
         mut replicon_tick: ResMut<RepliconTick>,
         mut entity_map: ResMut<ClientEntityMap>,
         mut connected_clients: ResMut<ConnectedClients>,
@@ -591,7 +590,7 @@ struct SpawnBullet(Entity);
 struct Bullet;
 
 /// System that shoots a bullet and spawns it on the client.
-fn shoot_system(mut commands: Commands, mut bullet_events: EventWriter<SpawnBullet>) {
+fn shoot_bullet(mut commands: Commands, mut bullet_events: EventWriter<SpawnBullet>) {
     let entity = commands.spawn(Bullet).id();
     bullet_events.send(SpawnBullet(entity));
 }

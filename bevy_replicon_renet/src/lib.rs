@@ -83,18 +83,18 @@ impl Plugin for RepliconRenetServerPlugin {
                 PreUpdate,
                 (
                     (
-                        Self::starting_system.run_if(resource_added::<RenetServer>),
-                        Self::stopping_system.run_if(resource_removed::<RenetServer>()),
-                        Self::receiving_system.run_if(resource_exists::<RenetServer>),
+                        Self::set_running.run_if(resource_added::<RenetServer>),
+                        Self::set_stopped.run_if(resource_removed::<RenetServer>()),
+                        Self::receive_packets.run_if(resource_exists::<RenetServer>),
                     )
                         .chain()
                         .in_set(ServerSet::ReceivePackets),
-                    Self::server_events_system.in_set(ServerSet::SendEvents),
+                    Self::forward_server_events.in_set(ServerSet::SendEvents),
                 ),
             )
             .add_systems(
                 PostUpdate,
-                Self::sending_system
+                Self::send_packets
                     .in_set(ServerSet::SendPackets)
                     .run_if(resource_exists::<RenetServer>),
             );
@@ -105,15 +105,15 @@ impl Plugin for RepliconRenetServerPlugin {
 }
 
 impl RepliconRenetServerPlugin {
-    fn starting_system(mut server: ResMut<RepliconServer>) {
+    fn set_running(mut server: ResMut<RepliconServer>) {
         server.set_running(true);
     }
 
-    fn stopping_system(mut server: ResMut<RepliconServer>) {
+    fn set_stopped(mut server: ResMut<RepliconServer>) {
         server.set_running(false);
     }
 
-    fn server_events_system(
+    fn forward_server_events(
         mut renet_server_events: EventReader<renet::ServerEvent>,
         mut server_events: EventWriter<ServerEvent>,
     ) {
@@ -134,7 +134,7 @@ impl RepliconRenetServerPlugin {
         }
     }
 
-    fn receiving_system(
+    fn receive_packets(
         connected_clients: Res<ConnectedClients>,
         channels: Res<RepliconChannels>,
         mut renet_server: ResMut<RenetServer>,
@@ -151,7 +151,7 @@ impl RepliconRenetServerPlugin {
         }
     }
 
-    fn sending_system(
+    fn send_packets(
         mut renet_server: ResMut<RenetServer>,
         mut replicon_server: ResMut<RepliconServer>,
     ) {
@@ -172,17 +172,17 @@ impl Plugin for RepliconRenetClientPlugin {
             .add_systems(
                 PreUpdate,
                 (
-                    Self::connecting_system.run_if(resource_added::<RenetClient>),
-                    Self::disconnected_system.run_if(bevy_renet::client_just_disconnected),
-                    Self::connected_system.run_if(bevy_renet::client_just_connected),
-                    Self::receiving_system.run_if(bevy_renet::client_connected),
+                    Self::set_connecting.run_if(resource_added::<RenetClient>),
+                    Self::set_disconnected.run_if(bevy_renet::client_just_disconnected),
+                    Self::set_connected.run_if(bevy_renet::client_just_connected),
+                    Self::receive_packets.run_if(bevy_renet::client_connected),
                 )
                     .chain()
                     .in_set(ClientSet::ReceivePackets),
             )
             .add_systems(
                 PostUpdate,
-                Self::sending_system
+                Self::send_packets
                     .in_set(ClientSet::SendPackets)
                     .run_if(bevy_renet::client_connected),
             );
@@ -193,15 +193,15 @@ impl Plugin for RepliconRenetClientPlugin {
 }
 
 impl RepliconRenetClientPlugin {
-    fn disconnected_system(mut client: ResMut<RepliconClient>) {
+    fn set_disconnected(mut client: ResMut<RepliconClient>) {
         client.set_status(RepliconClientStatus::Disconnected);
     }
 
-    fn connecting_system(mut client: ResMut<RepliconClient>) {
+    fn set_connecting(mut client: ResMut<RepliconClient>) {
         client.set_status(RepliconClientStatus::Connecting);
     }
 
-    fn connected_system(
+    fn set_connected(
         mut client: ResMut<RepliconClient>,
         #[cfg(feature = "renet_transport")] transport: Res<NetcodeClientTransport>,
     ) {
@@ -215,7 +215,7 @@ impl RepliconRenetClientPlugin {
         client.set_status(RepliconClientStatus::Connected { client_id });
     }
 
-    fn receiving_system(
+    fn receive_packets(
         channels: Res<RepliconChannels>,
         mut renet_client: ResMut<RenetClient>,
         mut replicon_client: ResMut<RepliconClient>,
@@ -227,7 +227,7 @@ impl RepliconRenetClientPlugin {
         }
     }
 
-    fn sending_system(
+    fn send_packets(
         mut renet_client: ResMut<RenetClient>,
         mut replicon_client: ResMut<RepliconClient>,
     ) {

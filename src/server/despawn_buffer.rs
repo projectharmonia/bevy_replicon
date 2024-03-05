@@ -12,8 +12,8 @@ impl Plugin for DespawnBufferPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DespawnBuffer>().add_systems(
             PostUpdate,
-            Self::detection_system
-                .before(ServerPlugin::replication_sending_system)
+            Self::buffer_despawns
+                .before(ServerPlugin::send_replication)
                 .in_set(ServerSet::Send)
                 .run_if(server_running),
         );
@@ -21,7 +21,7 @@ impl Plugin for DespawnBufferPlugin {
 }
 
 impl DespawnBufferPlugin {
-    pub(super) fn detection_system(
+    pub(super) fn buffer_despawns(
         mut removed_replications: RemovedComponents<Replication>,
         mut despawn_buffer: ResMut<DespawnBuffer>,
     ) {

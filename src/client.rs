@@ -44,20 +44,20 @@ impl Plugin for ClientPlugin {
                 PostUpdate,
                 (ClientSet::Send, ClientSet::SendPackets).chain(),
             )
-            .add_systems(Startup, Self::channels_setup_system)
+            .add_systems(Startup, Self::setup_channels)
             .add_systems(
                 PreUpdate,
-                Self::replication_receiving_system
+                Self::receive_replication
                     .map(Result::unwrap)
                     .in_set(ClientSet::Receive)
                     .run_if(client_connected),
             )
-            .add_systems(PreUpdate, Self::reset_system.in_set(ClientSet::Reset));
+            .add_systems(PreUpdate, Self::reset.in_set(ClientSet::Reset));
     }
 }
 
 impl ClientPlugin {
-    fn channels_setup_system(mut client: ResMut<RepliconClient>, channels: Res<RepliconChannels>) {
+    fn setup_channels(mut client: ResMut<RepliconClient>, channels: Res<RepliconChannels>) {
         client.setup_server_channels(channels.server_channels().len());
     }
 
@@ -77,7 +77,7 @@ impl ClientPlugin {
     /// Acknowledgments for received entity update messages are sent back to the server.
     ///
     /// See also [`ReplicationMessages`](crate::server::replication_messages::ReplicationMessages).
-    pub(super) fn replication_receiving_system(world: &mut World) -> bincode::Result<()> {
+    pub(super) fn receive_replication(world: &mut World) -> bincode::Result<()> {
         world.resource_scope(|world, mut client: Mut<RepliconClient>| {
             world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
                 world.resource_scope(|world, mut entity_ticks: Mut<ServerEntityTicks>| {
@@ -106,7 +106,7 @@ impl ClientPlugin {
         })
     }
 
-    fn reset_system(
+    fn reset(
         mut replicon_tick: ResMut<RepliconTick>,
         mut entity_map: ResMut<ServerEntityMap>,
         mut entity_ticks: ResMut<ServerEntityTicks>,

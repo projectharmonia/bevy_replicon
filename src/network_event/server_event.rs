@@ -74,11 +74,11 @@ pub trait ServerEventAppExt {
     app.add_plugins((MinimalPlugins, RepliconPlugins));
     app.add_server_event_with::<ReflectEvent, _, _>(
         ChannelKind::Ordered,
-        sending_reflect_system,
-        receiving_reflect_system,
+        send_reflect,
+        receive_reflect,
     );
 
-    fn sending_reflect_system(
+    fn send_reflect(
         mut server: ResMut<RepliconServer>,
         mut reflect_events: EventReader<ToClients<ReflectEvent>>,
         connected_clients: Res<ConnectedClients>,
@@ -95,7 +95,7 @@ pub trait ServerEventAppExt {
         }
     }
 
-    fn receiving_reflect_system(
+    fn receive_reflect(
         mut reflect_events: EventWriter<ReflectEvent>,
         mut client: ResMut<RepliconClient>,
         mut event_queue: ResMut<ServerEventQueue<ReflectEvent>>,
@@ -129,8 +129,8 @@ pub trait ServerEventAppExt {
     fn add_server_event_with<T: Event, Marker1, Marker2>(
         &mut self,
         channel: impl Into<RepliconChannel>,
-        sending_system: impl IntoSystemConfigs<Marker1>,
-        receiving_system: impl IntoSystemConfigs<Marker2>,
+        send_system: impl IntoSystemConfigs<Marker1>,
+        receive_system: impl IntoSystemConfigs<Marker2>,
     ) -> &mut Self;
 }
 
@@ -139,25 +139,21 @@ impl ServerEventAppExt for App {
         &mut self,
         channel: impl Into<RepliconChannel>,
     ) -> &mut Self {
-        self.add_server_event_with::<T, _, _>(channel, sending_system::<T>, receiving_system::<T>)
+        self.add_server_event_with::<T, _, _>(channel, send::<T>, receive::<T>)
     }
 
     fn add_mapped_server_event<T: Event + Serialize + DeserializeOwned + MapEntities>(
         &mut self,
         channel: impl Into<RepliconChannel>,
     ) -> &mut Self {
-        self.add_server_event_with::<T, _, _>(
-            channel,
-            sending_system::<T>,
-            receiving_and_mapping_system::<T>,
-        )
+        self.add_server_event_with::<T, _, _>(channel, send::<T>, receive_and_map::<T>)
     }
 
     fn add_server_event_with<T: Event, Marker1, Marker2>(
         &mut self,
         channel: impl Into<RepliconChannel>,
-        sending_system: impl IntoSystemConfigs<Marker1>,
-        receiving_system: impl IntoSystemConfigs<Marker2>,
+        send_system: impl IntoSystemConfigs<Marker1>,
+        receive_system: impl IntoSystemConfigs<Marker2>,
     ) -> &mut Self {
         let channel_id = self
             .world
@@ -171,10 +167,10 @@ impl ServerEventAppExt for App {
             .add_systems(
                 PreUpdate,
                 (
-                    reset_system::<T>.in_set(ClientSet::ResetEvents),
-                    (queue_system::<T>, receiving_system)
+                    reset::<T>.in_set(ClientSet::ResetEvents),
+                    (pop_from_queue::<T>, receive_system)
                         .chain()
-                        .after(ClientPlugin::replication_receiving_system)
+                        .after(ClientPlugin::receive_replication)
                         .in_set(ClientSet::Receive)
                         .run_if(client_connected),
                 ),
@@ -182,11 +178,11 @@ impl ServerEventAppExt for App {
             .add_systems(
                 PostUpdate,
                 (
-                    sending_system.run_if(server_running),
-                    local_resending_system::<T>.run_if(has_authority),
+                    send_system.run_if(server_running),
+                    resend_locally::<T>.run_if(has_authority),
                 )
                     .chain()
-                    .after(ServerPlugin::replication_sending_system)
+                    .after(ServerPlugin::send_replication)
                     .in_set(ServerSet::Send),
             );
 
@@ -195,7 +191,7 @@ impl ServerEventAppExt for App {
 }
 
 /// Applies all queued events if their tick is less or equal to [`RepliconTick`].
-fn queue_system<T: Event>(
+fn pop_from_queue<T: Event>(
     replicon_tick: Res<RepliconTick>,
     mut server_events: EventWriter<T>,
     mut event_queue: ResMut<ServerEventQueue<T>>,
@@ -205,7 +201,7 @@ fn queue_system<T: Event>(
     }
 }
 
-fn receiving_system<T: Event + DeserializeOwned>(
+fn receive<T: Event + DeserializeOwned>(
     mut server_events: EventWriter<T>,
     mut client: ResMut<RepliconClient>,
     mut event_queue: ResMut<ServerEventQueue<T>>,
@@ -226,7 +222,7 @@ fn receiving_system<T: Event + DeserializeOwned>(
     }
 }
 
-fn receiving_and_mapping_system<T: Event + MapEntities + DeserializeOwned>(
+fn receive_and_map<T: Event + MapEntities + DeserializeOwned>(
     mut server_events: EventWriter<T>,
     mut client: ResMut<RepliconClient>,
     mut event_queue: ResMut<ServerEventQueue<T>>,
@@ -249,7 +245,7 @@ fn receiving_and_mapping_system<T: Event + MapEntities + DeserializeOwned>(
     }
 }
 
-fn sending_system<T: Event + Serialize>(
+fn send<T: Event + Serialize>(
     mut server: ResMut<RepliconServer>,
     mut server_events: EventReader<ToClients<T>>,
     connected_clients: Res<ConnectedClients>,
@@ -265,7 +261,7 @@ fn sending_system<T: Event + Serialize>(
 
 /// Transforms [`ToClients<T>`] events into `T` events to "emulate"
 /// message sending for offline mode or when server is also a player.
-fn local_resending_system<T: Event>(
+fn resend_locally<T: Event>(
     mut server_events: ResMut<Events<ToClients<T>>>,
     mut local_events: EventWriter<T>,
 ) {
@@ -291,7 +287,7 @@ fn local_resending_system<T: Event>(
 /// Clears queued events.
 ///
 /// We clear events while waiting for a connection to ensure clean reconnects.
-fn reset_system<T: Event>(mut event_queue: ResMut<ServerEventQueue<T>>) {
+fn reset<T: Event>(mut event_queue: ResMut<ServerEventQueue<T>>) {
     if !event_queue.0.is_empty() {
         warn!(
             "discarding {} queued server events due to a disconnect",
