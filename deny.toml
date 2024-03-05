@@ -1,11 +1,12 @@
-[advisories]
-unmaintained = "deny"
-yanked = "deny"
-notice = "deny"
-unsound = "deny"
-
 [licenses]
-allow-osi-fsf-free = "either"
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "ISC",
+  "BSD-2-Clause",
+  "CC0-1.0",
+  "Unicode-DFS-2016",
+]
 
 [bans]
 multiple-versions = "deny"
