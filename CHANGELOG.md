@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rename `EventType` into `ChannelKind` and move into `core` module.
 - Replace usage of renet's `SendType` with our `RepliconChannel`.
 - Rename `NetworkChannels` into `RepliconChannels` and move into `replicon_channels` module.
+- Rename `ReplicationChannel::Reliable` and `ReplicationChannel::Unreliable` into `ReplicationChannel::Init` and `ReplicationChannel::Update` respectively.
 - Channel creation methods in `RepliconChannels` now accept `RepliconChannel` with full channel configuration.
 - Move `RepliconChannels::get_server_configs` and `RepliconChannels::get_client_configs` to create channels configs for `renet` into `RenetChannelsExt` extension trait provided by `bevy_replion_renet`. Make sure to import it to use these methods.
 - Rename `ReplicationPlugins` into `RepliconPlugins`.

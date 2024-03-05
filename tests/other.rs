@@ -43,13 +43,13 @@ fn client_cleanup_on_disconnect() {
     let mut client = app.world.resource_mut::<RepliconClient>();
     client.set_status(RepliconClientStatus::Connected { client_id: None });
 
-    client.send(ReplicationChannel::Reliable, Vec::new());
-    client.insert_received(ReplicationChannel::Reliable, Vec::new());
+    client.send(ReplicationChannel::Init, Vec::new());
+    client.insert_received(ReplicationChannel::Init, Vec::new());
 
     client.set_status(RepliconClientStatus::Disconnected);
 
     assert_eq!(client.drain_sent().count(), 0);
-    assert!(client.receive(ReplicationChannel::Reliable).is_none());
+    assert!(client.receive(ReplicationChannel::Init).is_none());
 
     app.update();
 
@@ -73,13 +73,13 @@ fn server_cleanup_on_stop() {
     server.set_running(true);
 
     const DUMMY_CLIENT_ID: ClientId = ClientId::new(1);
-    server.send(DUMMY_CLIENT_ID, ReplicationChannel::Reliable, Vec::new());
-    server.insert_received(DUMMY_CLIENT_ID, ReplicationChannel::Reliable, Vec::new());
+    server.send(DUMMY_CLIENT_ID, ReplicationChannel::Init, Vec::new());
+    server.insert_received(DUMMY_CLIENT_ID, ReplicationChannel::Init, Vec::new());
 
     server.set_running(false);
 
     assert_eq!(server.drain_sent().count(), 0);
-    assert_eq!(server.receive(ReplicationChannel::Reliable).count(), 0);
+    assert_eq!(server.receive(ReplicationChannel::Init).count(), 0);
 
     app.update();
 
@@ -101,11 +101,11 @@ fn client_disconnected() {
 
     let mut client = app.world.resource_mut::<RepliconClient>();
 
-    client.send(ReplicationChannel::Reliable, Vec::new());
-    client.insert_received(ReplicationChannel::Reliable, Vec::new());
+    client.send(ReplicationChannel::Init, Vec::new());
+    client.insert_received(ReplicationChannel::Init, Vec::new());
 
     assert_eq!(client.drain_sent().count(), 0);
-    assert!(client.receive(ReplicationChannel::Reliable).is_none());
+    assert!(client.receive(ReplicationChannel::Init).is_none());
 
     app.update();
 
@@ -129,11 +129,11 @@ fn server_inactive() {
 
     const DUMMY_CLIENT_ID: ClientId = ClientId::new(1);
 
-    server.send(DUMMY_CLIENT_ID, ReplicationChannel::Reliable, Vec::new());
-    server.insert_received(DUMMY_CLIENT_ID, ReplicationChannel::Reliable, Vec::new());
+    server.send(DUMMY_CLIENT_ID, ReplicationChannel::Init, Vec::new());
+    server.insert_received(DUMMY_CLIENT_ID, ReplicationChannel::Init, Vec::new());
 
     assert_eq!(server.drain_sent().count(), 0);
-    assert_eq!(server.receive(ReplicationChannel::Reliable).count(), 0);
+    assert_eq!(server.receive(ReplicationChannel::Init).count(), 0);
 
     app.update();
 

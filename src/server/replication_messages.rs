@@ -108,7 +108,7 @@ impl ReplicationMessages {
 ///
 /// Contains tick and mappings, insertions, removals and despawns that
 /// happened on this tick.
-/// Sent over [`ReplicationChannel::Reliable`] channel.
+/// Sent over [`ReplicationChannel::Init`] channel.
 ///
 /// See also [Limits](../index.html#limits)
 pub(super) struct InitMessage {
@@ -397,7 +397,7 @@ impl InitMessage {
         trace!("sending init message to {:?}", client.id());
         server.send(
             client.id(),
-            ReplicationChannel::Reliable,
+            ReplicationChannel::Init,
             Bytes::from([&header, slice].concat()),
         );
 
@@ -428,7 +428,7 @@ impl Default for InitMessage {
 /// The message will be manually split into packets up to max size, and each packet will be applied
 /// independently on the client.
 /// Message splits only happen per-entity to avoid weird behavior from partial entity updates.
-/// Sent over the [`ReplicationChannel::Unreliable`] channel.
+/// Sent over the [`ReplicationChannel::Update`] channel.
 ///
 /// See also [Limits](../index.html#limits)
 pub(super) struct UpdateMessage {
@@ -592,7 +592,7 @@ impl UpdateMessage {
 
                 server.send(
                     client_id,
-                    ReplicationChannel::Unreliable,
+                    ReplicationChannel::Update,
                     Bytes::from([&header, message].concat()),
                 );
 
@@ -608,7 +608,7 @@ impl UpdateMessage {
 
             server.send(
                 client_id,
-                ReplicationChannel::Unreliable,
+                ReplicationChannel::Update,
                 Bytes::from([&header, slice].concat()),
             );
         }

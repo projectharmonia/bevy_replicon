@@ -63,10 +63,10 @@ impl ClientPlugin {
 
     /// Receives and applies replication messages from the server.
     ///
-    /// Tick init messages are sent over the [`ReplicationChannel::Reliable`] and are applied first to ensure valid state
+    /// Tick init messages are sent over the [`ReplicationChannel::Init`] and are applied first to ensure valid state
     /// for entity updates.
     ///
-    /// Entity update messages are sent over [`ReplicationChannel::Unreliable`], which means they may appear
+    /// Entity update messages are sent over [`ReplicationChannel::Update`], which means they may appear
     /// ahead-of or behind init messages from the same server tick. An update will only be applied if its
     /// change tick has already appeared in an init message, otherwise it will be buffered while waiting.
     /// Since entity updates can arrive in any order, updates will only be applied if they correspond to a more
@@ -131,7 +131,7 @@ fn apply_replication(
     mut stats: Option<&mut ClientStats>,
     replication_rules: &ReplicationRules,
 ) -> Result<(), Box<bincode::ErrorKind>> {
-    while let Some(message) = client.receive(ReplicationChannel::Reliable) {
+    while let Some(message) = client.receive(ReplicationChannel::Init) {
         apply_init_message(
             &message,
             world,
@@ -143,7 +143,7 @@ fn apply_replication(
     }
 
     let replicon_tick = *world.resource::<RepliconTick>();
-    while let Some(message) = client.receive(ReplicationChannel::Unreliable) {
+    while let Some(message) = client.receive(ReplicationChannel::Update) {
         let index = apply_update_message(
             message,
             world,
@@ -155,7 +155,7 @@ fn apply_replication(
             replicon_tick,
         )?;
 
-        client.send(ReplicationChannel::Reliable, bincode::serialize(&index)?)
+        client.send(ReplicationChannel::Init, bincode::serialize(&index)?)
     }
 
     let mut result = Ok(());

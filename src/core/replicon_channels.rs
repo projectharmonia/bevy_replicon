@@ -8,9 +8,18 @@ use bevy::prelude::*;
 #[repr(u8)]
 pub enum ReplicationChannel {
     /// For sending messages with entity mappings, inserts, removals and despawns.
-    Reliable,
+    Init,
     /// For sending messages with component updates.
-    Unreliable,
+    Update,
+}
+
+impl From<ReplicationChannel> for RepliconChannel {
+    fn from(value: ReplicationChannel) -> Self {
+        match value {
+            ReplicationChannel::Init => ChannelKind::Ordered.into(),
+            ReplicationChannel::Update => ChannelKind::Unreliable.into(),
+        }
+    }
 }
 
 impl From<ReplicationChannel> for u8 {
@@ -39,8 +48,14 @@ pub struct RepliconChannels {
 impl Default for RepliconChannels {
     fn default() -> Self {
         Self {
-            server: vec![ChannelKind::Ordered.into(), ChannelKind::Unreliable.into()],
-            client: vec![ChannelKind::Ordered.into(), ChannelKind::Unreliable.into()],
+            server: vec![
+                ReplicationChannel::Init.into(),
+                ReplicationChannel::Update.into(),
+            ],
+            client: vec![
+                ReplicationChannel::Init.into(),
+                ReplicationChannel::Update.into(),
+            ],
             default_max_bytes: 5 * 1024 * 1024,
         }
     }
