@@ -95,6 +95,24 @@ impl RepliconChannels {
         self.server.len() as u8 - 1
     }
 
+    /// Returns a mutable reference to a server channel.
+    ///
+    /// # Panics
+    ///
+    /// Panics if there if there is no such channel.
+    pub fn server_channel_mut<I: Into<u8>>(&mut self, channel_id: I) -> &mut RepliconChannel {
+        &mut self.server[channel_id.into() as usize]
+    }
+
+    /// Returns a mutable reference to a client channel.
+    ///
+    /// # Panics
+    ///
+    /// Panics if there if there is no such channel.
+    pub fn client_channel_mut<I: Into<u8>>(&mut self, channel_id: I) -> &mut RepliconChannel {
+        &mut self.client[channel_id.into() as usize]
+    }
+
     /// Returns the number of server channels.
     pub fn server_channels(&self) -> &[RepliconChannel] {
         &self.server
