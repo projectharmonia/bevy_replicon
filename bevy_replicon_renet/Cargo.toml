@@ -1,7 +1,21 @@
 [package]
 name = "bevy_replicon_renet"
 version = "0.1.0"
+authors = ["Hennadii Chernyshchyk <genaloner@gmail.com>"]
 edition = "2021"
+description = "Integration with renet for bevy_replicon"
+readme = "../README.md"
+repository = "https://github.com/projectharmonia/bevy_replicon"
+keywords = [
+  "bevy",
+  "multiplayer",
+  "netcode",
+  "replication",
+  "server-authoritative",
+]
+categories = ["game-development", "network-programming"]
+license = "MIT OR Apache-2.0"
+include = ["/src", "/tests", "../LICENSE*"]
 
 [dependencies]
 bevy_replicon = { version = "0.24", path = ".." }
