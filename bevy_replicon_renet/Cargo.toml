@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bevy_replicon = { path = ".." }
+bevy_replicon = { version = "0.24", path = ".." }
 bevy_renet = { version = "0.0.11", default-features = false }
 bevy = { version = "0.13", default-features = false }
 
