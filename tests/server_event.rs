@@ -1,14 +1,9 @@
-mod connect;
-
 use bevy::{
     ecs::{entity::MapEntities, event::Events},
     prelude::*,
     time::TimePlugin,
 };
-use bevy_replicon::{
-    prelude::*,
-    renet::{transport::NetcodeClientTransport, ClientId},
-};
+use bevy_replicon::{prelude::*, test_app::ServerTestAppExt};
 use serde::{Deserialize, Serialize};
 
 #[test]
@@ -16,9 +11,9 @@ fn without_server_plugin() {
     let mut app = App::new();
     app.add_plugins((
         MinimalPlugins,
-        ReplicationPlugins.build().disable::<ServerPlugin>(),
+        RepliconPlugins.build().disable::<ServerPlugin>(),
     ))
-    .add_server_event_with::<DummyEvent, _, _>(EventType::Ordered, || {}, || {})
+    .add_server_event_with::<DummyEvent, _, _>(ChannelKind::Ordered, || {}, || {})
     .update();
 }
 
@@ -27,9 +22,9 @@ fn without_client_plugin() {
     let mut app = App::new();
     app.add_plugins((
         MinimalPlugins,
-        ReplicationPlugins.build().disable::<ClientPlugin>(),
+        RepliconPlugins.build().disable::<ClientPlugin>(),
     ))
-    .add_server_event_with::<DummyEvent, _, _>(EventType::Ordered, || {}, || {})
+    .add_server_event_with::<DummyEvent, _, _>(ChannelKind::Ordered, || {}, || {})
     .update();
 }
 
@@ -40,36 +35,35 @@ fn sending_receiving() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
         ))
-        .add_server_event::<DummyEvent>(EventType::Ordered);
+        .add_server_event::<DummyEvent>(ChannelKind::Ordered);
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
-    let client_transport = client_app.world.resource::<NetcodeClientTransport>();
-    let client_id = client_transport.client_id();
+    let client = client_app.world.resource::<RepliconClient>();
+    let client_id = client.id().unwrap();
 
     for (mode, events_count) in [
         (SendMode::Broadcast, 1),
-        (SendMode::Direct(SERVER_ID), 0),
+        (SendMode::Direct(ClientId::SERVER), 0),
         (SendMode::Direct(client_id), 1),
-        (SendMode::BroadcastExcept(SERVER_ID), 1),
+        (SendMode::BroadcastExcept(ClientId::SERVER), 1),
         (SendMode::BroadcastExcept(client_id), 0),
     ] {
-        server_app
-            .world
-            .resource_mut::<Events<ToClients<DummyEvent>>>()
-            .send(ToClients {
-                mode,
-                event: DummyEvent,
-            });
+        server_app.world.send_event(ToClients {
+            mode,
+            event: DummyEvent,
+        });
 
         server_app.update();
+        server_app.exchange_with_client(&mut client_app);
         client_app.update();
+        server_app.exchange_with_client(&mut client_app);
 
         let mut dummy_events = client_app.world.resource_mut::<Events<DummyEvent>>();
         assert_eq!(
@@ -87,15 +81,15 @@ fn sending_receiving_and_mapping() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
         ))
-        .add_mapped_server_event::<MappedEvent>(EventType::Ordered);
+        .add_mapped_server_event::<MappedEvent>(ChannelKind::Ordered);
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     let client_entity = Entity::from_raw(0);
     let server_entity = Entity::from_raw(client_entity.index() + 1);
@@ -104,15 +98,13 @@ fn sending_receiving_and_mapping() {
         .resource_mut::<ServerEntityMap>()
         .insert(server_entity, client_entity);
 
-    server_app
-        .world
-        .resource_mut::<Events<ToClients<MappedEvent>>>()
-        .send(ToClients {
-            mode: SendMode::Broadcast,
-            event: MappedEvent(server_entity),
-        });
+    server_app.world.send_event(ToClients {
+        mode: SendMode::Broadcast,
+        event: MappedEvent(server_entity),
+    });
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let mapped_entities: Vec<_> = client_app
@@ -129,27 +121,25 @@ fn local_resending() {
     let mut app = App::new();
     app.add_plugins((
         TimePlugin,
-        ReplicationPlugins.set(ServerPlugin {
+        RepliconPlugins.set(ServerPlugin {
             tick_policy: TickPolicy::EveryFrame,
             ..Default::default()
         }),
     ))
-    .add_server_event::<DummyEvent>(EventType::Ordered);
+    .add_server_event::<DummyEvent>(ChannelKind::Ordered);
 
-    const DUMMY_CLIENT_ID: ClientId = ClientId::from_raw(1);
+    const DUMMY_CLIENT_ID: ClientId = ClientId::new(1);
     for (mode, events_count) in [
         (SendMode::Broadcast, 1),
-        (SendMode::Direct(SERVER_ID), 1),
+        (SendMode::Direct(ClientId::SERVER), 1),
         (SendMode::Direct(DUMMY_CLIENT_ID), 0),
-        (SendMode::BroadcastExcept(SERVER_ID), 0),
+        (SendMode::BroadcastExcept(ClientId::SERVER), 0),
         (SendMode::BroadcastExcept(DUMMY_CLIENT_ID), 1),
     ] {
-        app.world
-            .resource_mut::<Events<ToClients<DummyEvent>>>()
-            .send(ToClients {
-                mode,
-                event: DummyEvent,
-            });
+        app.world.send_event(ToClients {
+            mode,
+            event: DummyEvent,
+        });
 
         app.update();
 
@@ -172,23 +162,25 @@ fn event_queue() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
         ))
         .replicate::<DummyComponent>()
-        .add_server_event::<DummyEvent>(EventType::Ordered);
+        .add_server_event::<DummyEvent>(ChannelKind::Ordered);
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     // Spawn entity to trigger world change.
     server_app.world.spawn((Replication, DummyComponent));
     let previous_tick = *server_app.world.resource::<RepliconTick>();
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
+    server_app.exchange_with_client(&mut client_app);
 
     // Artificially rollback the client by 1 tick to force next received event to be queued.
     *client_app.world.resource_mut::<RepliconTick>() = previous_tick;
@@ -198,6 +190,7 @@ fn event_queue() {
     });
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     assert!(client_app.world.resource::<Events<DummyEvent>>().is_empty());
@@ -217,32 +210,30 @@ fn different_ticks() {
     for app in [&mut server_app, &mut client_app1, &mut client_app2] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
         ))
         .replicate::<DummyComponent>()
-        .add_server_event::<DummyEvent>(EventType::Ordered);
+        .add_server_event::<DummyEvent>(ChannelKind::Ordered);
     }
 
-    let port = connect::setup_server(&mut server_app, 2);
-
     // Connect client 1 first.
-    connect::setup_client(&mut client_app1, 1u64, port);
-    connect::wait_for_connection(&mut server_app, &mut client_app1);
+    server_app.connect_client(&mut client_app1);
 
     // Spawn entity to trigger world change.
     server_app.world.spawn((Replication, DummyComponent));
 
     // Update client 1 to initialize their replicon tick.
     server_app.update();
+    server_app.exchange_with_client(&mut client_app1);
     client_app1.update();
+    server_app.exchange_with_client(&mut client_app1);
 
     // Connect client 2 later to make it have a higher replicon tick than client 1,
     // since only client 1 will recieve an init message here.
-    connect::setup_client(&mut client_app2, 2u64, port);
-    connect::wait_for_connection(&mut server_app, &mut client_app2);
+    server_app.connect_client(&mut client_app2);
 
     server_app.world.send_event(ToClients {
         mode: SendMode::Broadcast,
@@ -252,6 +243,8 @@ fn different_ticks() {
     // If any client does not have a replicon tick >= the change tick associated with this event,
     // then they will not receive the event until their replicon tick is updated.
     server_app.update();
+    server_app.exchange_with_client(&mut client_app1);
+    server_app.exchange_with_client(&mut client_app2);
     client_app1.update();
     client_app2.update();
 

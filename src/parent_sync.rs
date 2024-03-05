@@ -9,8 +9,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     client::ClientSet,
-    core::replication_rules::AppReplicationExt,
-    server::{has_authority, ServerSet},
+    core::{common_conditions::has_authority, replication_rules::AppReplicationExt},
+    server::ServerSet,
 };
 
 pub struct ParentSyncPlugin;

@@ -20,7 +20,7 @@ or `#[reflect(Component)]` is missing.
 # Examples
 
 ```
-use bevy::{prelude::*, scene::serde::SceneDeserializer};
+use bevy::{prelude::*, asset::ron, scene::serde::SceneDeserializer};
 use bevy_replicon::{prelude::*, scene};
 use serde::de::DeserializeSeed;
 # let mut world = World::new();

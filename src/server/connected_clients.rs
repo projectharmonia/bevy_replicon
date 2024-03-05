@@ -7,9 +7,11 @@ use bevy::{
     prelude::*,
     utils::{Duration, HashMap},
 };
-use bevy_renet::renet::ClientId;
 
-use crate::{core::replicon_tick::RepliconTick, server::VisibilityPolicy};
+use crate::{
+    core::{replicon_tick::RepliconTick, ClientId},
+    server::VisibilityPolicy,
+};
 use client_visibility::ClientVisibility;
 
 /// Stores information about connected clients.
@@ -76,6 +78,11 @@ impl ConnectedClients {
             .find(|client| client.id == client_id)
     }
 
+    /// Returns an iterator over client IDs.
+    pub fn iter_client_ids(&self) -> impl Iterator<Item = ClientId> + '_ {
+        self.clients.iter().map(|client| client.id())
+    }
+
     /// Returns an iterator over connected clients.
     pub fn iter(&self) -> impl Iterator<Item = &ConnectedClient> {
         self.clients.iter()
@@ -99,7 +106,7 @@ impl ConnectedClients {
     /// Initializes a new [`ConnectedClient`] for this client.
     ///
     /// Reuses the memory from the buffers if available.
-    pub(super) fn init(&mut self, client_buffers: &mut ClientBuffers, client_id: ClientId) {
+    pub(super) fn add(&mut self, client_buffers: &mut ClientBuffers, client_id: ClientId) {
         let client = if let Some(mut client) = client_buffers.clients.pop() {
             client.reset(client_id);
             client
@@ -110,7 +117,7 @@ impl ConnectedClients {
         self.clients.push(client);
     }
 
-    /// Removes the connected client.
+    /// Removes a connected client.
     ///
     /// Keeps allocated memory in the buffers for reuse.
     pub(super) fn remove(&mut self, client_buffers: &mut ClientBuffers, client_id: ClientId) {
@@ -118,7 +125,7 @@ impl ConnectedClients {
             .clients
             .iter()
             .position(|client| client.id == client_id)
-            .expect("client cache should contain all connected clients");
+            .unwrap_or_else(|| panic!("{client_id:?} should be added before removal"));
         let mut client = self.clients.remove(index);
         client_buffers.entities.extend(client.drain_entities());
         client_buffers.clients.push(client);
@@ -274,7 +281,7 @@ impl ConnectedClient {
     ) {
         let Some(update_info) = self.updates.remove(&update_index) else {
             debug!(
-                "received unknown update index {update_index} from client {}",
+                "received unknown update index {update_index} from {:?}",
                 self.id
             );
             return;
@@ -295,7 +302,7 @@ impl ConnectedClient {
         client_buffers.entities.push(update_info.entities);
 
         trace!(
-            "client {} acknowledged an update with {:?}",
+            "{:?} acknowledged an update with {:?}",
             self.id,
             update_info.tick,
         );

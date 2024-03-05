@@ -1,10 +1,5 @@
-mod connect;
-
 use bevy::{prelude::*, utils::Duration};
-use bevy_replicon::{
-    prelude::*,
-    renet::transport::{NetcodeClientTransport, NetcodeServerTransport},
-};
+use bevy_replicon::{prelude::*, test_app::ServerTestAppExt};
 use serde::{Deserialize, Serialize};
 
 #[test]
@@ -14,7 +9,7 @@ fn small_component() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
@@ -22,7 +17,7 @@ fn small_component() {
         .replicate::<BoolComponent>();
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
         .world
@@ -30,7 +25,9 @@ fn small_component() {
         .id();
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
+    server_app.exchange_with_client(&mut client_app);
 
     // Change value.
     let mut component = server_app
@@ -40,6 +37,7 @@ fn small_component() {
     component.0 = true;
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let component = client_app
@@ -56,7 +54,7 @@ fn package_size_component() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
@@ -64,7 +62,12 @@ fn package_size_component() {
         .replicate::<VecComponent>();
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
 
     let server_entity = server_app
         .world
@@ -72,7 +75,9 @@ fn package_size_component() {
         .id();
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
+    server_app.exchange_with_client(&mut client_app);
 
     // To exceed packed size.
     const BIG_DATA: &[u8] = &[0; 1200];
@@ -83,6 +88,7 @@ fn package_size_component() {
     component.0 = BIG_DATA.to_vec();
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let component = client_app
@@ -99,7 +105,7 @@ fn many_entities() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
@@ -107,7 +113,7 @@ fn many_entities() {
         .replicate::<BoolComponent>();
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     // Spawn many entities to cover message splitting.
     const ENTITIES_COUNT: u32 = 300;
@@ -116,7 +122,9 @@ fn many_entities() {
         .spawn_batch([(Replication, BoolComponent(false)); ENTITIES_COUNT as usize]);
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
+    server_app.exchange_with_client(&mut client_app);
 
     assert_eq!(client_app.world.entities().len(), ENTITIES_COUNT);
 
@@ -129,6 +137,7 @@ fn many_entities() {
     }
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     for component in client_app
@@ -147,7 +156,7 @@ fn with_insertion() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
@@ -156,7 +165,7 @@ fn with_insertion() {
         .replicate::<TableComponent>();
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
         .world
@@ -164,13 +173,16 @@ fn with_insertion() {
         .id();
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
+    server_app.exchange_with_client(&mut client_app);
 
     let mut server_entity = server_app.world.entity_mut(server_entity);
     server_entity.get_mut::<BoolComponent>().unwrap().0 = true;
     server_entity.insert(TableComponent);
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let component = client_app
@@ -187,7 +199,7 @@ fn with_despawn() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
@@ -196,7 +208,7 @@ fn with_despawn() {
         .replicate::<TableComponent>();
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
         .world
@@ -204,7 +216,9 @@ fn with_despawn() {
         .id();
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
+    server_app.exchange_with_client(&mut client_app);
 
     let mut component = server_app
         .world
@@ -218,7 +232,9 @@ fn with_despawn() {
     server_app.world.despawn(server_entity);
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
+    server_app.exchange_with_client(&mut client_app);
     server_app.update(); // Let server receive an update to trigger acknowledgment.
 
     assert!(client_app.world.entities().is_empty());
@@ -231,7 +247,7 @@ fn buffering() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
@@ -239,7 +255,7 @@ fn buffering() {
         .replicate::<BoolComponent>();
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
         .world
@@ -249,7 +265,9 @@ fn buffering() {
     let previous_tick = *server_app.world.resource::<RepliconTick>();
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
+    server_app.exchange_with_client(&mut client_app);
 
     // Artificially rollback the client by 1 tick to force next received update to be buffered.
     *client_app.world.resource_mut::<RepliconTick>() = previous_tick;
@@ -260,7 +278,9 @@ fn buffering() {
     component.0 = true;
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
+    server_app.exchange_with_client(&mut client_app);
 
     let component = client_app
         .world
@@ -272,6 +292,7 @@ fn buffering() {
     client_app.world.resource_mut::<RepliconTick>().increment();
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let component = client_app
@@ -282,13 +303,13 @@ fn buffering() {
 }
 
 #[test]
-fn cleanup() {
+fn acknowledgment() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 update_timeout: Duration::ZERO, // Will cause dropping updates after each frame.
                 ..Default::default()
@@ -297,7 +318,7 @@ fn cleanup() {
         .replicate::<BoolComponent>();
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
         .world
@@ -305,7 +326,9 @@ fn cleanup() {
         .id();
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
+    server_app.exchange_with_client(&mut client_app);
 
     let mut component = server_app
         .world
@@ -314,6 +337,7 @@ fn cleanup() {
     component.0 = true;
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let component = client_app
@@ -322,22 +346,14 @@ fn cleanup() {
         .single(&client_app.world);
     let tick1 = component.last_changed();
 
-    // Take and drop received message to make systems miss it.
-    let client_transport = client_app.world.resource::<NetcodeClientTransport>();
-    let client_id = client_transport.client_id();
-    let delta = server_app.world.resource::<Time>().delta();
-    server_app
-        .world
-        .resource_scope(|world, mut server_transport: Mut<NetcodeServerTransport>| {
-            let mut server = world.resource_mut::<RenetServer>();
-            server_transport.update(delta, &mut server).unwrap();
-            server
-                .receive_message(client_id, ReplicationChannel::Reliable)
-                .unwrap();
-        });
+    // Take and drop ack message.
+    let mut client = client_app.world.resource_mut::<RepliconClient>();
+    assert_eq!(client.drain_sent().count(), 1);
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
+    server_app.exchange_with_client(&mut client_app);
 
     let component = client_app
         .world
@@ -351,6 +367,7 @@ fn cleanup() {
     );
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let component = client_app

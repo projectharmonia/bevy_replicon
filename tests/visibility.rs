@@ -1,7 +1,5 @@
-mod connect;
-
 use bevy::prelude::*;
-use bevy_replicon::{prelude::*, renet::transport::NetcodeClientTransport};
+use bevy_replicon::{prelude::*, test_app::ServerTestAppExt};
 use serde::{Deserialize, Serialize};
 
 #[test]
@@ -11,7 +9,7 @@ fn all() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
@@ -19,18 +17,20 @@ fn all() {
         .replicate::<DummyComponent>();
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     let server_entity = server_app.world.spawn((Replication, DummyComponent)).id();
 
-    let client_transport = client_app.world.resource::<NetcodeClientTransport>();
-    let client_id = client_transport.client_id();
+    let client = client_app.world.resource::<RepliconClient>();
+    let client_id = client.id().unwrap();
     let mut connected_clients = server_app.world.resource_mut::<ConnectedClients>();
     let visibility = connected_clients.client_mut(client_id).visibility_mut();
     visibility.set_visibility(server_entity, false); // Shouldn't have any effect for this policy.
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
+    server_app.exchange_with_client(&mut client_app);
 
     client_app
         .world
@@ -43,6 +43,7 @@ fn all() {
     visibility.set_visibility(server_entity, true);
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     client_app
@@ -58,7 +59,7 @@ fn empty_blacklist() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Blacklist,
                 ..Default::default()
@@ -67,11 +68,12 @@ fn empty_blacklist() {
         .replicate::<DummyComponent>();
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     server_app.world.spawn((Replication, DummyComponent));
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     client_app
@@ -87,7 +89,7 @@ fn blacklist() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Blacklist,
                 ..Default::default()
@@ -96,18 +98,20 @@ fn blacklist() {
         .replicate::<DummyComponent>();
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     let server_entity = server_app.world.spawn((Replication, DummyComponent)).id();
 
-    let client_transport = client_app.world.resource::<NetcodeClientTransport>();
-    let client_id = client_transport.client_id();
+    let client = client_app.world.resource::<RepliconClient>();
+    let client_id = client.id().unwrap();
     let mut connected_clients = server_app.world.resource_mut::<ConnectedClients>();
     let visibility = connected_clients.client_mut(client_id).visibility_mut();
     visibility.set_visibility(server_entity, false);
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
+    server_app.exchange_with_client(&mut client_app);
 
     assert!(client_app.world.entities().is_empty());
 
@@ -117,6 +121,7 @@ fn blacklist() {
     visibility.set_visibility(server_entity, true);
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     client_app
@@ -132,7 +137,7 @@ fn blacklist_despawn() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Blacklist,
                 ..Default::default()
@@ -141,18 +146,19 @@ fn blacklist_despawn() {
         .replicate::<DummyComponent>();
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     let server_entity = server_app.world.spawn(Replication).id();
 
-    let client_transport = client_app.world.resource::<NetcodeClientTransport>();
-    let client_id = client_transport.client_id();
+    let client = client_app.world.resource::<RepliconClient>();
+    let client_id = client.id().unwrap();
     let mut connected_clients = server_app.world.resource_mut::<ConnectedClients>();
     let visibility = connected_clients.client_mut(client_id).visibility_mut();
     visibility.set_visibility(server_entity, false);
     server_app.world.despawn(server_entity);
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     assert!(client_app.world.entities().is_empty());
@@ -169,7 +175,7 @@ fn empty_whitelist() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
@@ -178,11 +184,12 @@ fn empty_whitelist() {
         .replicate::<DummyComponent>();
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     server_app.world.spawn((Replication, DummyComponent));
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     assert!(
@@ -198,7 +205,7 @@ fn whitelist() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
@@ -207,18 +214,20 @@ fn whitelist() {
         .replicate::<DummyComponent>();
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     let server_entity = server_app.world.spawn((Replication, DummyComponent)).id();
 
-    let client_transport = client_app.world.resource::<NetcodeClientTransport>();
-    let client_id = client_transport.client_id();
+    let client = client_app.world.resource::<RepliconClient>();
+    let client_id = client.id().unwrap();
     let mut connected_clients = server_app.world.resource_mut::<ConnectedClients>();
     let visibility = connected_clients.client_mut(client_id).visibility_mut();
     visibility.set_visibility(server_entity, true);
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
+    server_app.exchange_with_client(&mut client_app);
 
     client_app
         .world
@@ -231,6 +240,7 @@ fn whitelist() {
     visibility.set_visibility(server_entity, false);
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     assert!(
@@ -246,7 +256,7 @@ fn whitelist_despawn() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
                 ..Default::default()
@@ -255,18 +265,19 @@ fn whitelist_despawn() {
         .replicate::<DummyComponent>();
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     let server_entity = server_app.world.spawn(Replication).id();
 
-    let client_transport = client_app.world.resource::<NetcodeClientTransport>();
-    let client_id = client_transport.client_id();
+    let client = client_app.world.resource::<RepliconClient>();
+    let client_id = client.id().unwrap();
     let mut connected_clients = server_app.world.resource_mut::<ConnectedClients>();
     let visibility = connected_clients.client_mut(client_id).visibility_mut();
     visibility.set_visibility(server_entity, true);
     server_app.world.despawn(server_entity);
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     assert!(client_app.world.entities().is_empty());

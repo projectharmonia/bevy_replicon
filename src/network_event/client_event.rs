@@ -4,18 +4,18 @@ use bevy::{
     ecs::{entity::MapEntities, event::Event},
     prelude::*,
 };
-use bevy_renet::{
-    client_connected,
-    renet::{ClientId, RenetClient, RenetServer, SendType},
-};
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Serialize};
 
+use super::EventMapper;
 use crate::{
-    client::{client_mapper::ServerEntityMap, ClientSet},
-    core::replicon_channels::RepliconChannels,
-    network_event::EventMapper,
-    server::{has_authority, ServerSet, SERVER_ID},
+    client::{client_mapper::ServerEntityMap, replicon_client::RepliconClient, ClientSet},
+    core::{
+        common_conditions::{client_connected, has_authority, server_running},
+        replicon_channels::{RepliconChannel, RepliconChannels},
+        ClientId,
+    },
+    server::{replicon_server::RepliconServer, ServerSet},
 };
 
 /// An extension trait for [`App`] for creating client events.
@@ -26,7 +26,7 @@ pub trait ClientEventAppExt {
     /// in the quick start guide.
     fn add_client_event<T: Event + Serialize + DeserializeOwned>(
         &mut self,
-        send_type: impl Into<SendType>,
+        channel: impl Into<RepliconChannel>,
     ) -> &mut Self;
 
     /// Same as [`Self::add_client_event`], but additionally maps client entities to server inside the event before sending.
@@ -36,7 +36,7 @@ pub trait ClientEventAppExt {
     /// in the quick start guide.
     fn add_mapped_client_event<T: Event + Serialize + DeserializeOwned + MapEntities + Clone>(
         &mut self,
-        send_type: impl Into<SendType>,
+        channel: impl Into<RepliconChannel>,
     ) -> &mut Self;
 
     /**
@@ -55,16 +55,16 @@ pub trait ClientEventAppExt {
     use serde::de::DeserializeSeed;
 
     let mut app = App::new();
-    app.add_plugins((MinimalPlugins, ReplicationPlugins));
+    app.add_plugins((MinimalPlugins, RepliconPlugins));
     app.add_client_event_with::<ReflectEvent, _, _>(
-        EventType::Ordered,
+        ChannelKind::Ordered,
         sending_reflect_system,
         receiving_reflect_system,
     );
 
     fn sending_reflect_system(
         mut reflect_events: EventReader<ReflectEvent>,
-        mut client: ResMut<RenetClient>,
+        mut client: ResMut<RepliconClient>,
         channel: Res<ClientEventChannel<ReflectEvent>>,
         registry: Res<AppTypeRegistry>,
     ) {
@@ -75,31 +75,29 @@ pub trait ClientEventAppExt {
                 .serialize(&serializer)
                 .expect("client event should be serializable");
 
-            client.send_message(*channel, message);
+            client.send(*channel, message);
         }
     }
 
     fn receiving_reflect_system(
         mut reflect_events: EventWriter<FromClient<ReflectEvent>>,
-        mut server: ResMut<RenetServer>,
+        mut server: ResMut<RepliconServer>,
+        connected_clients: Res<ConnectedClients>,
         channel: Res<ClientEventChannel<ReflectEvent>>,
         registry: Res<AppTypeRegistry>,
     ) {
         let registry = registry.read();
-        for client_id in server.clients_id() {
-            while let Some(message) = server.receive_message(client_id, *channel) {
-                let mut deserializer =
-                    bincode::Deserializer::from_slice(&message, DefaultOptions::new());
-                match UntypedReflectDeserializer::new(&registry).deserialize(&mut deserializer) {
-                    Ok(reflect) => {
-                        reflect_events.send(FromClient {
-                            client_id,
-                            event: ReflectEvent(reflect),
-                        });
-                    }
-                    Err(e) => {
-                        debug!("unable to deserialize event from client {client_id}: {e}")
-                    }
+        for (client_id, message) in server.receive(*channel) {
+            let mut deserializer = bincode::Deserializer::from_slice(&message, DefaultOptions::new());
+            match UntypedReflectDeserializer::new(&registry).deserialize(&mut deserializer) {
+                Ok(reflect) => {
+                    reflect_events.send(FromClient {
+                        client_id,
+                        event: ReflectEvent(reflect),
+                    });
+                }
+                Err(e) => {
+                    debug!("unable to deserialize event from {client_id:?}: {e}")
                 }
             }
         }
@@ -111,7 +109,7 @@ pub trait ClientEventAppExt {
     */
     fn add_client_event_with<T: Event, Marker1, Marker2>(
         &mut self,
-        send_type: impl Into<SendType>,
+        channel: impl Into<RepliconChannel>,
         sending_system: impl IntoSystemConfigs<Marker1>,
         receiving_system: impl IntoSystemConfigs<Marker2>,
     ) -> &mut Self;
@@ -120,17 +118,17 @@ pub trait ClientEventAppExt {
 impl ClientEventAppExt for App {
     fn add_client_event<T: Event + Serialize + DeserializeOwned>(
         &mut self,
-        send_type: impl Into<SendType>,
+        channel: impl Into<RepliconChannel>,
     ) -> &mut Self {
-        self.add_client_event_with::<T, _, _>(send_type, sending_system::<T>, receiving_system::<T>)
+        self.add_client_event_with::<T, _, _>(channel, sending_system::<T>, receiving_system::<T>)
     }
 
     fn add_mapped_client_event<T: Event + Serialize + DeserializeOwned + MapEntities + Clone>(
         &mut self,
-        send_type: impl Into<SendType>,
+        channel: impl Into<RepliconChannel>,
     ) -> &mut Self {
         self.add_client_event_with::<T, _, _>(
-            send_type,
+            channel,
             mapping_and_sending_system::<T>,
             receiving_system::<T>,
         )
@@ -138,14 +136,14 @@ impl ClientEventAppExt for App {
 
     fn add_client_event_with<T: Event, Marker1, Marker2>(
         &mut self,
-        send_type: impl Into<SendType>,
+        channel: impl Into<RepliconChannel>,
         sending_system: impl IntoSystemConfigs<Marker1>,
         receiving_system: impl IntoSystemConfigs<Marker2>,
     ) -> &mut Self {
         let channel_id = self
             .world
             .resource_mut::<RepliconChannels>()
-            .create_client_channel(send_type.into());
+            .create_client_channel(channel.into());
 
         self.add_event::<T>()
             .init_resource::<Events<FromClient<T>>>()
@@ -156,7 +154,7 @@ impl ClientEventAppExt for App {
                     reset_system::<T>.in_set(ClientSet::ResetEvents),
                     receiving_system
                         .in_set(ServerSet::Receive)
-                        .run_if(resource_exists::<RenetServer>),
+                        .run_if(server_running),
                 ),
             )
             .add_systems(
@@ -175,24 +173,22 @@ impl ClientEventAppExt for App {
 
 fn receiving_system<T: Event + DeserializeOwned>(
     mut client_events: EventWriter<FromClient<T>>,
-    mut server: ResMut<RenetServer>,
+    mut server: ResMut<RepliconServer>,
     channel: Res<ClientEventChannel<T>>,
 ) {
-    for client_id in server.clients_id() {
-        while let Some(message) = server.receive_message(client_id, *channel) {
-            match DefaultOptions::new().deserialize(&message) {
-                Ok(event) => {
-                    client_events.send(FromClient { client_id, event });
-                }
-                Err(e) => debug!("unable to deserialize event from client {client_id}: {e}"),
+    for (client_id, message) in server.receive(*channel) {
+        match DefaultOptions::new().deserialize(&message) {
+            Ok(event) => {
+                client_events.send(FromClient { client_id, event });
             }
+            Err(e) => debug!("unable to deserialize event from {client_id:?}: {e}"),
         }
     }
 }
 
 fn sending_system<T: Event + Serialize>(
     mut events: EventReader<T>,
-    mut client: ResMut<RenetClient>,
+    mut client: ResMut<RepliconClient>,
     channel: Res<ClientEventChannel<T>>,
 ) {
     for event in events.read() {
@@ -200,13 +196,13 @@ fn sending_system<T: Event + Serialize>(
             .serialize(&event)
             .expect("client event should be serializable");
 
-        client.send_message(*channel, message);
+        client.send(*channel, message);
     }
 }
 
 fn mapping_and_sending_system<T: Event + MapEntities + Serialize + Clone>(
     mut events: EventReader<T>,
-    mut client: ResMut<RenetClient>,
+    mut client: ResMut<RepliconClient>,
     entity_map: Res<ServerEntityMap>,
     channel: Res<ClientEventChannel<T>>,
 ) {
@@ -216,19 +212,19 @@ fn mapping_and_sending_system<T: Event + MapEntities + Serialize + Clone>(
             .serialize(&event)
             .expect("mapped client event should be serializable");
 
-        client.send_message(*channel, message);
+        client.send(*channel, message);
     }
 }
 
 /// Transforms `T` events into [`FromClient<T>`] events to "emulate"
-/// message sending for offline mode or when server is also a player
+/// message sending for offline mode or when server is also a player.
 fn local_resending_system<T: Event>(
     mut events: ResMut<Events<T>>,
     mut client_events: EventWriter<FromClient<T>>,
 ) {
     for event in events.drain() {
         client_events.send(FromClient {
-            client_id: SERVER_ID,
+            client_id: ClientId::SERVER,
             event,
         });
     }

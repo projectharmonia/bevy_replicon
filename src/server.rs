@@ -3,6 +3,7 @@ pub(super) mod despawn_buffer;
 pub(super) mod removal_buffer;
 pub(super) mod replicated_archetypes_info;
 pub(super) mod replication_messages;
+pub mod replicon_server;
 
 use std::{mem, time::Duration};
 
@@ -18,15 +19,14 @@ use bevy::{
     time::common_conditions::on_timer,
     utils::HashMap,
 };
-use bevy_renet::{
-    renet::{ClientId, RenetClient, RenetServer, ServerEvent},
-    transport::NetcodeServerPlugin,
-    RenetReceive, RenetSend, RenetServerPlugin,
-};
 
 use crate::core::{
-    replication_rules::ReplicationRules, replicon_channels::ReplicationChannel,
+    common_conditions::{server_just_stopped, server_running},
+    replication_rules::ReplicationRules,
+    replicon_channels::ReplicationChannel,
+    replicon_channels::RepliconChannels,
     replicon_tick::RepliconTick,
+    ClientId,
 };
 use connected_clients::{
     client_visibility::Visibility, ClientBuffers, ConnectedClient, ConnectedClients,
@@ -35,8 +35,7 @@ use despawn_buffer::{DespawnBuffer, DespawnBufferPlugin};
 use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
 use replicated_archetypes_info::ReplicatedArchetypesInfo;
 use replication_messages::ReplicationMessages;
-
-pub const SERVER_ID: ClientId = ClientId::from_raw(0);
+use replicon_server::RepliconServer;
 
 pub struct ServerPlugin {
     /// Tick configuration.
@@ -63,40 +62,49 @@ impl Default for ServerPlugin {
 
 impl Plugin for ServerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins((
-            DespawnBufferPlugin,
-            RemovalBufferPlugin,
-            RenetServerPlugin,
-            NetcodeServerPlugin,
-        ))
-        .init_resource::<ClientBuffers>()
-        .init_resource::<ClientEntityMap>()
-        .insert_resource(ConnectedClients::new(self.visibility_policy))
-        .configure_sets(PreUpdate, ServerSet::Receive.after(RenetReceive))
-        .configure_sets(PostUpdate, ServerSet::Send.before(RenetSend))
-        .add_systems(
-            PreUpdate,
-            (
-                Self::handle_connections_system,
-                Self::acks_receiving_system,
-                Self::acks_cleanup_system(self.update_timeout)
-                    .run_if(on_timer(self.update_timeout)),
+        app.add_plugins((DespawnBufferPlugin, RemovalBufferPlugin))
+            .init_resource::<RepliconServer>()
+            .init_resource::<ClientBuffers>()
+            .init_resource::<ClientEntityMap>()
+            .insert_resource(ConnectedClients::new(self.visibility_policy))
+            .add_event::<ServerEvent>()
+            .configure_sets(
+                PreUpdate,
+                (
+                    ServerSet::ReceivePackets,
+                    ServerSet::SendEvents,
+                    ServerSet::Receive,
+                )
+                    .chain(),
             )
-                .chain()
-                .in_set(ServerSet::Receive)
-                .run_if(resource_exists::<RenetServer>),
-        )
-        .add_systems(
-            PostUpdate,
-            (
-                Self::replication_sending_system
-                    .map(Result::unwrap)
-                    .in_set(ServerSet::Send)
-                    .run_if(resource_exists::<RenetServer>)
-                    .run_if(resource_changed::<RepliconTick>),
-                Self::reset_system.run_if(resource_removed::<RenetServer>()),
-            ),
-        );
+            .configure_sets(
+                PostUpdate,
+                (ServerSet::Send, ServerSet::SendPackets).chain(),
+            )
+            .add_systems(Startup, Self::channels_setup_system)
+            .add_systems(
+                PreUpdate,
+                (
+                    Self::handle_connections_system,
+                    Self::acks_receiving_system,
+                    Self::acks_cleanup_system(self.update_timeout)
+                        .run_if(on_timer(self.update_timeout)),
+                )
+                    .chain()
+                    .in_set(ServerSet::Receive)
+                    .run_if(server_running),
+            )
+            .add_systems(
+                PostUpdate,
+                (
+                    Self::replication_sending_system
+                        .map(Result::unwrap)
+                        .in_set(ServerSet::Send)
+                        .run_if(server_running)
+                        .run_if(resource_changed::<RepliconTick>),
+                    Self::reset_system.run_if(server_just_stopped),
+                ),
+            );
 
         match self.tick_policy {
             TickPolicy::MaxTickRate(max_tick_rate) => {
@@ -105,7 +113,7 @@ impl Plugin for ServerPlugin {
                     PostUpdate,
                     Self::increment_tick
                         .before(Self::replication_sending_system)
-                        .run_if(resource_exists::<RenetServer>)
+                        .run_if(server_running)
                         .run_if(on_timer(tick_time)),
                 );
             }
@@ -114,7 +122,7 @@ impl Plugin for ServerPlugin {
                     PostUpdate,
                     Self::increment_tick
                         .before(Self::replication_sending_system)
-                        .run_if(resource_exists::<RenetServer>),
+                        .run_if(server_running),
                 );
             }
             TickPolicy::Manual => (),
@@ -123,6 +131,10 @@ impl Plugin for ServerPlugin {
 }
 
 impl ServerPlugin {
+    fn channels_setup_system(mut server: ResMut<RepliconServer>, channels: Res<RepliconChannels>) {
+        server.setup_client_channels(channels.client_channels().len());
+    }
+
     /// Increments current server tick which causes the server to replicate this frame.
     pub fn increment_tick(mut replicon_tick: ResMut<RepliconTick>) {
         replicon_tick.increment();
@@ -133,6 +145,7 @@ impl ServerPlugin {
         mut server_events: EventReader<ServerEvent>,
         mut entity_map: ResMut<ClientEntityMap>,
         mut connected_clients: ResMut<ConnectedClients>,
+        mut server: ResMut<RepliconServer>,
         mut client_buffers: ResMut<ClientBuffers>,
     ) {
         for event in server_events.read() {
@@ -140,9 +153,10 @@ impl ServerPlugin {
                 ServerEvent::ClientDisconnected { client_id, .. } => {
                     entity_map.0.remove(&client_id);
                     connected_clients.remove(&mut client_buffers, client_id);
+                    server.remove_client(client_id);
                 }
                 ServerEvent::ClientConnected { client_id } => {
-                    connected_clients.init(&mut client_buffers, client_id);
+                    connected_clients.add(&mut client_buffers, client_id);
                 }
             }
         }
@@ -163,27 +177,17 @@ impl ServerPlugin {
 
     fn acks_receiving_system(
         change_tick: SystemChangeTick,
-        mut server: ResMut<RenetServer>,
+        mut server: ResMut<RepliconServer>,
         mut connected_clients: ResMut<ConnectedClients>,
         mut client_buffers: ResMut<ClientBuffers>,
     ) {
-        for client in connected_clients.iter_mut() {
-            while let Some(message) =
-                server.receive_message(client.id(), ReplicationChannel::Reliable)
-            {
-                match bincode::deserialize::<u16>(&message) {
-                    Ok(update_index) => {
-                        client.acknowledge(
-                            &mut client_buffers,
-                            change_tick.this_run(),
-                            update_index,
-                        );
-                    }
-                    Err(e) => debug!(
-                        "unable to deserialize update index from client {}: {e}",
-                        client.id()
-                    ),
+        for (client_id, message) in server.receive(ReplicationChannel::Reliable) {
+            match bincode::deserialize::<u16>(&message) {
+                Ok(update_index) => {
+                    let client = connected_clients.client_mut(client_id);
+                    client.acknowledge(&mut client_buffers, change_tick.this_run(), update_index);
                 }
+                Err(e) => debug!("unable to deserialize update index from {client_id:?}: {e}"),
             }
         }
     }
@@ -201,7 +205,7 @@ impl ServerPlugin {
             ResMut<DespawnBuffer>,
             ResMut<RemovalBuffer>,
             ResMut<ClientBuffers>,
-            ResMut<RenetServer>,
+            ResMut<RepliconServer>,
         )>,
         replication_rules: Res<ReplicationRules>,
         replicon_tick: Res<RepliconTick>,
@@ -479,22 +483,40 @@ fn collect_removals(
     Ok(())
 }
 
-/// Condition that returns `true` for server or in singleplayer and `false` for client.
-pub fn has_authority(client: Option<Res<RenetClient>>) -> bool {
-    client.is_none()
-}
-
 /// Set with replication and event systems related to server.
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum ServerSet {
-    /// Systems that receive data.
+    /// Systems that receive packets from the messaging backend.
+    ///
+    /// Used by the messaging backend.
+    ///
+    /// Runs in `PreUpdate`.
+    ReceivePackets,
+    /// Systems that emit [`ServerEvent`].
+    ///
+    /// The messaging backend should convert its own connection events into [`ServerEvents`](ServerEvent)
+    /// in this set.
+    ///
+    /// Runs in `PreUpdate`.
+    SendEvents,
+    /// Systems that receive data from [`RepliconServer`].
+    ///
+    /// Used by `bevy_replicon`.
     ///
     /// Runs in `PreUpdate`.
     Receive,
-    /// Systems that send data.
+    /// Systems that send data to [`RepliconServer`].
+    ///
+    /// Used by `bevy_replicon`.
     ///
     /// Runs in `PostUpdate` on server tick, see [`TickPolicy`].
     Send,
+    /// Systems that send packets to the messaging backend.
+    ///
+    /// Used by the messaging backend.
+    ///
+    /// Runs in `PostUpdate` on server tick, see [`TickPolicy`].
+    SendPackets,
 }
 
 /// Controls how often [`RepliconTick`] is incremented on the server.
@@ -527,6 +549,15 @@ pub enum VisibilityPolicy {
     Blacklist,
     /// All entities are hidden by default and should be explicitly registered to be visible.
     Whitelist,
+}
+
+/// Connection and disconnection events on the server.
+///
+/// The messaging backend is responsible for emitting these in [`ServerSet::SendEvents`].
+#[derive(Event)]
+pub enum ServerEvent {
+    ClientConnected { client_id: ClientId },
+    ClientDisconnected { client_id: ClientId, reason: String },
 }
 
 /**

@@ -1,7 +1,5 @@
-mod connect;
-
 use bevy::{ecs::entity::MapEntities, prelude::*};
-use bevy_replicon::{prelude::*, renet::transport::NetcodeClientTransport};
+use bevy_replicon::{prelude::*, test_app::ServerTestAppExt};
 use serde::{Deserialize, Serialize};
 
 #[test]
@@ -11,18 +9,19 @@ fn spawn() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
         ));
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     let server_entity = server_app.world.spawn(Replication).id();
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let client_entity = client_app
@@ -50,7 +49,7 @@ fn spawn_with_component() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
@@ -58,11 +57,12 @@ fn spawn_with_component() {
         .replicate::<TableComponent>();
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     server_app.world.spawn((Replication, TableComponent));
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     client_app
@@ -78,7 +78,7 @@ fn spawn_with_old_component() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
@@ -86,13 +86,15 @@ fn spawn_with_old_component() {
         .replicate::<TableComponent>();
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     // Spawn an entity with replicated component, but without a marker.
     let server_entity = server_app.world.spawn(TableComponent).id();
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
+    server_app.exchange_with_client(&mut client_app);
 
     assert!(client_app.world.entities().is_empty());
 
@@ -103,6 +105,7 @@ fn spawn_with_old_component() {
         .insert(Replication);
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     client_app
@@ -118,7 +121,7 @@ fn spawn_before_connection() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
@@ -129,7 +132,10 @@ fn spawn_before_connection() {
     // Spawn an entity before client connected.
     server_app.world.spawn((Replication, TableComponent));
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
+
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
 
     client_app
         .world
@@ -144,7 +150,7 @@ fn client_spawn() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
@@ -152,7 +158,7 @@ fn client_spawn() {
         .replicate::<TableComponent>();
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     // Make client and server have different entity IDs.
     server_app.world.spawn_empty();
@@ -160,8 +166,8 @@ fn client_spawn() {
     let client_entity = client_app.world.spawn_empty().id();
     let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
 
-    let client_transport = client_app.world.resource::<NetcodeClientTransport>();
-    let client_id = client_transport.client_id();
+    let client = client_app.world.resource::<RepliconClient>();
+    let client_id = client.id().unwrap();
 
     let mut entity_map = server_app.world.resource_mut::<ClientEntityMap>();
     entity_map.insert(
@@ -173,6 +179,7 @@ fn client_spawn() {
     );
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let entity_map = client_app.world.resource::<ServerEntityMap>();
@@ -211,14 +218,14 @@ fn despawn() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
         ));
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     let server_entity = server_app.world.spawn(Replication).id();
     let client_entity = client_app.world.spawn(Replication).id();
@@ -231,6 +238,7 @@ fn despawn() {
     server_app.world.despawn(server_entity);
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     assert!(client_app.world.entities().is_empty());
@@ -247,14 +255,14 @@ fn despawn_with_heirarchy() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
         ));
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     let server_child_entity = server_app.world.spawn(Replication).id();
     let server_entity = server_app
@@ -278,6 +286,7 @@ fn despawn_with_heirarchy() {
     server_app.world.despawn(server_child_entity);
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     server_app.world.despawn(server_entity);
@@ -293,7 +302,7 @@ fn despawn_after_spawn() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
@@ -301,7 +310,7 @@ fn despawn_after_spawn() {
         .replicate::<TableComponent>();
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     // Insert and remove `Replication` to trigger spawn and despawn for client at the same time.
     server_app
@@ -310,6 +319,7 @@ fn despawn_after_spawn() {
         .remove::<Replication>();
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     assert!(client_app.world.entities().is_empty());
@@ -322,7 +332,7 @@ fn spawn_after_despawn() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
@@ -330,7 +340,7 @@ fn spawn_after_despawn() {
         .replicate::<TableComponent>();
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     // Remove and insert `Replication` to trigger despawn and spawn for client at the same time.
     server_app
@@ -340,6 +350,7 @@ fn spawn_after_despawn() {
         .insert(Replication);
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     client_app
@@ -355,7 +366,7 @@ fn insertion() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
@@ -366,7 +377,7 @@ fn insertion() {
         .replicate_mapped::<MappedComponent>();
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     // Make client and server have different entity IDs.
     server_app.world.spawn_empty();
@@ -386,7 +397,9 @@ fn insertion() {
     entity_map.insert(server_entity, client_entity);
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
+    server_app.exchange_with_client(&mut client_app);
 
     server_app.world.entity_mut(server_entity).insert((
         Replication,
@@ -398,6 +411,7 @@ fn insertion() {
     ));
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let client_entity = client_app.world.entity(client_entity);
@@ -418,7 +432,7 @@ fn dont_replicate_after_insertion() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
@@ -426,7 +440,7 @@ fn dont_replicate_after_insertion() {
         .replicate::<TableComponent>();
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     let server_entity = server_app.world.spawn(Replication).id();
     let client_entity = client_app.world.spawn(Replication).id();
@@ -437,7 +451,9 @@ fn dont_replicate_after_insertion() {
         .insert(server_entity, client_entity);
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
+    server_app.exchange_with_client(&mut client_app);
 
     // Insert and disable replication.
     server_app
@@ -447,6 +463,7 @@ fn dont_replicate_after_insertion() {
         .dont_replicate::<TableComponent>();
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let client_entity = client_app.world.entity(client_entity);
@@ -460,7 +477,7 @@ fn dont_replicate_after_reinsertion() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
@@ -468,7 +485,7 @@ fn dont_replicate_after_reinsertion() {
         .replicate::<TableComponent>();
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
     let client_entity = client_app.world.spawn((Replication, TableComponent)).id();
@@ -479,7 +496,9 @@ fn dont_replicate_after_reinsertion() {
         .insert(server_entity, client_entity);
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
+    server_app.exchange_with_client(&mut client_app);
 
     // Reinsert and disable replication.
     server_app
@@ -490,6 +509,7 @@ fn dont_replicate_after_reinsertion() {
         .dont_replicate::<TableComponent>();
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let client_entity = client_app.world.entity(client_entity);
@@ -503,7 +523,7 @@ fn removal() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
@@ -511,7 +531,7 @@ fn removal() {
         .replicate::<TableComponent>();
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
         .world
@@ -528,7 +548,9 @@ fn removal() {
         .insert(server_entity, client_entity);
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
+    server_app.exchange_with_client(&mut client_app);
 
     server_app
         .world
@@ -536,6 +558,7 @@ fn removal() {
         .remove::<TableComponent>();
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let client_entity = client_app.world.entity(client_entity);
@@ -550,7 +573,7 @@ fn removal_after_insertion() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
@@ -561,7 +584,7 @@ fn removal_after_insertion() {
         .replicate_mapped::<MappedComponent>();
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
     let client_entity = client_app.world.spawn((Replication, TableComponent)).id();
@@ -572,7 +595,9 @@ fn removal_after_insertion() {
         .insert(server_entity, client_entity);
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
+    server_app.exchange_with_client(&mut client_app);
 
     // Insert and remove at the same time.
     server_app
@@ -582,6 +607,7 @@ fn removal_after_insertion() {
         .remove::<TableComponent>();
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let client_entity = client_app.world.entity(client_entity);
@@ -595,7 +621,7 @@ fn insertion_after_removal() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
@@ -606,7 +632,7 @@ fn insertion_after_removal() {
         .replicate_mapped::<MappedComponent>();
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
     let client_entity = client_app.world.spawn((Replication, TableComponent)).id();
@@ -617,7 +643,9 @@ fn insertion_after_removal() {
         .insert(server_entity, client_entity);
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
+    server_app.exchange_with_client(&mut client_app);
 
     // Insert and remove at the same time.
     server_app
@@ -627,6 +655,7 @@ fn insertion_after_removal() {
         .insert(TableComponent);
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let client_entity = client_app.world.entity(client_entity);
@@ -640,7 +669,7 @@ fn removal_with_despawn() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            ReplicationPlugins.set(ServerPlugin {
+            RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
@@ -651,7 +680,7 @@ fn removal_with_despawn() {
         .replicate_mapped::<MappedComponent>();
     }
 
-    connect::single_client(&mut server_app, &mut client_app);
+    server_app.connect_client(&mut client_app);
 
     let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
     let client_entity = client_app.world.spawn((Replication, TableComponent)).id();
@@ -662,7 +691,9 @@ fn removal_with_despawn() {
         .insert(server_entity, client_entity);
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
+    server_app.exchange_with_client(&mut client_app);
 
     // Un-replicate and remove at the same time.
     server_app
@@ -672,6 +703,7 @@ fn removal_with_despawn() {
         .remove::<Replication>();
 
     server_app.update();
+    server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     assert!(client_app.world.entities().is_empty());

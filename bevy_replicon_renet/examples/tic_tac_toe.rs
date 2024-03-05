@@ -2,23 +2,23 @@
 //! Run it with `--hotseat` to play locally or with `--client` / `--server`
 
 use std::{
+    error::Error,
     fmt::{self, Formatter},
     net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket},
     time::SystemTime,
 };
 
-use anyhow::Result;
 use bevy::prelude::*;
-use bevy_replicon::{
-    client_connected,
-    prelude::*,
+use bevy_replicon::prelude::*;
+use bevy_replicon_renet::{
     renet::{
         transport::{
             ClientAuthentication, NetcodeClientTransport, NetcodeServerTransport,
             ServerAuthentication, ServerConfig,
         },
-        ClientId, ConnectionConfig, ServerEvent,
+        ConnectionConfig, RenetClient, RenetServer,
     },
+    RenetChannelsExt, RepliconRenetPlugins,
 };
 use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
@@ -35,7 +35,8 @@ fn main() {
                 }),
                 ..Default::default()
             }),
-            ReplicationPlugins,
+            RepliconPlugins,
+            RepliconRenetPlugins,
             TicTacToePlugin,
         ))
         .run();
@@ -51,7 +52,7 @@ impl Plugin for TicTacToePlugin {
             .replicate::<Symbol>()
             .replicate::<CellIndex>()
             .replicate::<Player>()
-            .add_client_event::<CellPick>(EventType::Ordered)
+            .add_client_event::<CellPick>(ChannelKind::Ordered)
             .insert_resource(ClearColor(BACKGROUND_COLOR))
             .add_systems(
                 Startup,
@@ -72,7 +73,7 @@ impl Plugin for TicTacToePlugin {
                 (
                     Self::connecting_text_system.run_if(resource_added::<RenetClient>),
                     Self::server_waiting_text_system.run_if(resource_added::<RenetServer>),
-                    Self::server_event_system.run_if(resource_exists::<RenetServer>),
+                    Self::server_event_system.run_if(server_running),
                     Self::start_game_system
                         .run_if(client_connected)
                         .run_if(any_component_added::<Player>), // Wait until client replicates players before starting the game.
@@ -242,7 +243,7 @@ impl TicTacToePlugin {
         mut game_state: ResMut<NextState<GameState>>,
         cli: Res<Cli>,
         channels: Res<RepliconChannels>,
-    ) -> Result<()> {
+    ) -> Result<(), Box<dyn Error>> {
         match *cli {
             Cli::Hotseat => {
                 // Set all players to server to play from a single machine and start the game right away.
@@ -348,11 +349,11 @@ impl TicTacToePlugin {
     /// Only for server.
     fn server_event_system(
         mut commands: Commands,
-        mut server_event: EventReader<ServerEvent>,
+        mut server_events: EventReader<ServerEvent>,
         mut game_state: ResMut<NextState<GameState>>,
         players: Query<&Symbol, With<Player>>,
     ) {
-        for event in server_event.read() {
+        for event in server_events.read() {
             match event {
                 ServerEvent::ClientConnected { client_id } => {
                     let server_symbol = players.single();
@@ -420,13 +421,13 @@ impl TicTacToePlugin {
                 .iter()
                 .any(|(player, &symbol)| player.0 == client_id && symbol == current_turn.0)
             {
-                debug!("player {client_id} chose cell {:?} at wrong turn", event.0);
+                debug!("{client_id:?} chose cell {:?} at wrong turn", event.0);
                 continue;
             }
 
             if symbols.iter().any(|cell_index| cell_index.0 == event.0) {
                 debug!(
-                    "player {client_id} has chosen an already occupied cell {:?}",
+                    "{client_id:?} has chosen an already occupied cell {:?}",
                     event.0
                 );
                 continue;
@@ -515,13 +516,10 @@ impl TicTacToePlugin {
 /// Returns `true` if the local player can select cells.
 fn local_player_turn(
     current_turn: Res<CurrentTurn>,
-    client_transport: Option<Res<NetcodeClientTransport>>,
+    client: Res<RepliconClient>,
     players: Query<(&Player, &Symbol)>,
 ) -> bool {
-    let client_id = client_transport
-        .map(|client| client.client_id())
-        .unwrap_or(SERVER_ID);
-
+    let client_id = client.id().unwrap_or(ClientId::SERVER);
     players
         .iter()
         .any(|(player, &symbol)| player.0 == client_id && symbol == current_turn.0)
@@ -670,9 +668,9 @@ impl PlayerBundle {
         }
     }
 
-    /// Same as [`Self::new`], but with [`SERVER_ID`].
+    /// Same as [`Self::new`], but with [`ClientId::SERVER`].
     fn server(symbol: Symbol) -> Self {
-        Self::new(SERVER_ID, symbol)
+        Self::new(ClientId::SERVER, symbol)
     }
 }
 

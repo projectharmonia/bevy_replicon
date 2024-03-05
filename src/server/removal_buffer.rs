@@ -8,13 +8,15 @@ use bevy::{
     prelude::*,
     utils::HashMap,
 };
-use bevy_renet::renet::RenetServer;
 
 use super::{
     despawn_buffer::{DespawnBuffer, DespawnBufferPlugin},
     ServerPlugin, ServerSet,
 };
-use crate::core::replication_rules::{ReplicationId, ReplicationRules};
+use crate::core::{
+    common_conditions::server_running,
+    replication_rules::{ReplicationId, ReplicationRules},
+};
 
 /// Buffers all replicated component removals in [`RemovalBuffer`] resource.
 ///
@@ -29,7 +31,7 @@ impl Plugin for RemovalBufferPlugin {
                 .after(DespawnBufferPlugin::detection_system)
                 .before(ServerPlugin::replication_sending_system)
                 .in_set(ServerSet::Send)
-                .run_if(resource_exists::<RenetServer>),
+                .run_if(server_running),
         );
     }
 }
@@ -103,15 +105,20 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::core::replication_rules::{AppReplicationExt, Replication};
+    use crate::{
+        core::replication_rules::{AppReplicationExt, Replication},
+        server::replicon_server::RepliconServer,
+    };
 
     #[test]
     fn removals() {
         let mut app = App::new();
         app.add_plugins((DespawnBufferPlugin, RemovalBufferPlugin))
-            .insert_resource(RenetServer::new(Default::default()))
+            .init_resource::<RepliconServer>()
             .init_resource::<ReplicationRules>()
             .replicate::<DummyComponent>();
+
+        app.world.resource_mut::<RepliconServer>().set_running(true);
 
         app.update();
 
@@ -133,9 +140,11 @@ mod tests {
     fn despawn_ignore() {
         let mut app = App::new();
         app.add_plugins((DespawnBufferPlugin, RemovalBufferPlugin))
-            .insert_resource(RenetServer::new(Default::default()))
+            .init_resource::<RepliconServer>()
             .init_resource::<ReplicationRules>()
             .replicate::<DummyComponent>();
+
+        app.world.resource_mut::<RepliconServer>().set_running(true);
 
         app.update();
 

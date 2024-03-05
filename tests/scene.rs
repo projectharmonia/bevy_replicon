@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 #[test]
 fn replicated_entity() {
     let mut app = App::new();
-    app.add_plugins(ReplicationPlugins)
+    app.add_plugins(RepliconPlugins)
         .register_type::<DummyComponent>()
         .replicate::<DummyComponent>();
 
@@ -25,7 +25,7 @@ fn replicated_entity() {
 #[test]
 fn empty_entity() {
     let mut app = App::new();
-    app.add_plugins(ReplicationPlugins)
+    app.add_plugins(RepliconPlugins)
         .register_type::<DummyComponent>()
         .replicate::<DummyComponent>();
 
@@ -50,7 +50,7 @@ fn empty_entity() {
 #[test]
 fn not_replicated_entity() {
     let mut app = App::new();
-    app.add_plugins(ReplicationPlugins)
+    app.add_plugins(RepliconPlugins)
         .register_type::<DummyComponent>()
         .replicate::<DummyComponent>();
 
@@ -66,7 +66,7 @@ fn not_replicated_entity() {
 #[test]
 fn entity_update() {
     let mut app = App::new();
-    app.add_plugins(ReplicationPlugins)
+    app.add_plugins(RepliconPlugins)
         .register_type::<DummyComponent>()
         .replicate::<DummyComponent>()
         .register_type::<OtherReflectedComponent>();
