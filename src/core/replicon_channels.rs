@@ -67,20 +67,6 @@ impl RepliconChannels {
         self.default_max_bytes = max_bytes;
     }
 
-    /// Creates a new client channel and returns its ID.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the number of events exceeds [`u8::MAX`].
-    pub fn create_client_channel(&mut self, channel: RepliconChannel) -> u8 {
-        if self.client.len() == u8::MAX.into() {
-            panic!("number of client channels shouldn't exceed `u8::MAX`");
-        }
-
-        self.client.push(channel);
-        self.client.len() as u8 - 1
-    }
-
     /// Creates a new server channel and returns its ID.
     ///
     /// # Panics
@@ -93,6 +79,20 @@ impl RepliconChannels {
 
         self.server.push(channel);
         self.server.len() as u8 - 1
+    }
+
+    /// Creates a new client channel and returns its ID.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of events exceeds [`u8::MAX`].
+    pub fn create_client_channel(&mut self, channel: RepliconChannel) -> u8 {
+        if self.client.len() == u8::MAX.into() {
+            panic!("number of client channels shouldn't exceed `u8::MAX`");
+        }
+
+        self.client.push(channel);
+        self.client.len() as u8 - 1
     }
 
     /// Returns a mutable reference to a server channel.
