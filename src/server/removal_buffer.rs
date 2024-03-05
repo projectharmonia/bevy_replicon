@@ -27,9 +27,9 @@ impl Plugin for RemovalBufferPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<RemovalBuffer>().add_systems(
             PostUpdate,
-            Self::detection_system
-                .after(DespawnBufferPlugin::detection_system)
-                .before(ServerPlugin::replication_sending_system)
+            Self::buffer_removals
+                .after(DespawnBufferPlugin::buffer_despawns)
+                .before(ServerPlugin::send_replication)
                 .in_set(ServerSet::Send)
                 .run_if(server_running),
         );
@@ -37,7 +37,7 @@ impl Plugin for RemovalBufferPlugin {
 }
 
 impl RemovalBufferPlugin {
-    fn detection_system(
+    fn buffer_removals(
         mut readers: Local<HashMap<ComponentId, ManualEventReader<RemovedComponentEntity>>>,
         remove_events: &RemovedComponentEvents,
         mut removal_buffer: ResMut<RemovalBuffer>,

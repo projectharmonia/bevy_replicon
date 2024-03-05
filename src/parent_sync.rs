@@ -23,10 +23,10 @@ impl Plugin for ParentSyncPlugin {
         app.register_type::<Option<Entity>>()
             .register_type::<ParentSync>()
             .replicate_mapped::<ParentSync>()
-            .add_systems(PreUpdate, Self::sync_system.after(ClientSet::Receive))
+            .add_systems(PreUpdate, Self::sync_hierarchy.after(ClientSet::Receive))
             .add_systems(
                 PostUpdate,
-                (Self::update_system, Self::removal_system)
+                (Self::store_changes, Self::store_removals)
                     .run_if(has_authority)
                     .before(ServerSet::Send),
             );
@@ -37,7 +37,7 @@ impl ParentSyncPlugin {
     /// Synchronizes hierarchy if [`ParentSync`] changes.
     ///
     /// Runs not only on clients, but also on server in order to update the hierarchy when the server state is deserialized.
-    fn sync_system(
+    fn sync_hierarchy(
         mut commands: Commands,
         hierarchy: Query<(Entity, &ParentSync, Option<&Parent>), Changed<ParentSync>>,
     ) {
@@ -52,13 +52,13 @@ impl ParentSyncPlugin {
         }
     }
 
-    fn update_system(mut hierarchy: Query<(&Parent, &mut ParentSync), Changed<Parent>>) {
+    fn store_changes(mut hierarchy: Query<(&Parent, &mut ParentSync), Changed<Parent>>) {
         for (parent, mut parent_sync) in &mut hierarchy {
             parent_sync.0 = Some(**parent);
         }
     }
 
-    fn removal_system(
+    fn store_removals(
         mut removed_parents: RemovedComponents<Parent>,
         mut hierarchy: Query<&mut ParentSync>,
     ) {

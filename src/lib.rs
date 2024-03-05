@@ -203,9 +203,9 @@ your initialization systems to [`ClientSet::Receive`]:
 # app.add_plugins(RepliconPlugins);
 app.replicate_with::<Transform>(serialize_transform, deserialize_transform, replication_rules::remove_component::<Transform>)
     .replicate::<Player>()
-    .add_systems(PreUpdate, player_init_system.after(ClientSet::Receive));
+    .add_systems(PreUpdate, init_player.after(ClientSet::Receive));
 
-fn player_init_system(
+fn init_player(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
@@ -273,21 +273,15 @@ on non-client instances (server or single-player):
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
 app.add_client_event::<DummyEvent>(ChannelKind::Ordered)
-    .add_systems(
-        Update,
-        (
-            event_sending_system,
-            event_receiving_system.run_if(has_authority),
-        ),
-    );
+    .add_systems(Update, (send_events, receive_events.run_if(has_authority)));
 
 /// Sends an event from client or listen server.
-fn event_sending_system(mut dummy_events: EventWriter<DummyEvent>) {
+fn send_events(mut dummy_events: EventWriter<DummyEvent>) {
     dummy_events.send_default();
 }
 
 /// Receives event on server and single-player.
-fn event_receiving_system(mut dummy_events: EventReader<FromClient<DummyEvent>>) {
+fn receive_events(mut dummy_events: EventReader<FromClient<DummyEvent>>) {
     for FromClient { client_id, event } in dummy_events.read() {
         info!("received event {event:?} from {client_id:?}");
     }
@@ -342,16 +336,10 @@ from the send list):
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
 app.add_server_event::<DummyEvent>(ChannelKind::Ordered)
-    .add_systems(
-        Update,
-        (
-            event_sending_system,
-            event_receiving_system.run_if(has_authority),
-        ),
-    );
+    .add_systems(Update, (send_events, receive_events.run_if(has_authority)));
 
 /// Sends an event from server or single-player.
-fn event_sending_system(mut dummy_events: EventWriter<ToClients<DummyEvent>>) {
+fn send_events(mut dummy_events: EventWriter<ToClients<DummyEvent>>) {
     dummy_events.send(ToClients {
         mode: SendMode::Broadcast,
         event: DummyEvent,
@@ -359,7 +347,7 @@ fn event_sending_system(mut dummy_events: EventWriter<ToClients<DummyEvent>>) {
 }
 
 /// Receives event on client and single-player.
-fn event_receiving_system(mut dummy_events: EventReader<DummyEvent>) {
+fn receive_events(mut dummy_events: EventReader<DummyEvent>) {
     for event in dummy_events.read() {
         info!("received event {event:?} from server");
     }
@@ -409,13 +397,10 @@ app.add_plugins((
         ..Default::default()
     }),
 ))
-.add_systems(
-    Update,
-    visibility_system.run_if(server_running),
-);
+.add_systems(Update, update_visibility.run_if(server_running));
 
 /// Disables the visibility of other players' entities that are further away than the visible distance.
-fn visibility_system(
+fn update_visibility(
     mut connected_clients: ResMut<ConnectedClients>,
     moved_players: Query<(&Transform, &Player), Changed<Transform>>,
     other_players: Query<(Entity, &Transform, &Player)>,

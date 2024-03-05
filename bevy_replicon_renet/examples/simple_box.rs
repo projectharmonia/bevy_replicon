@@ -43,21 +43,21 @@ impl Plugin for SimpleBoxPlugin {
             .add_client_event::<MoveDirection>(ChannelKind::Ordered)
             .add_systems(
                 Startup,
-                (Self::cli_system.map(Result::unwrap), Self::init_system),
+                (Self::read_cli.map(Result::unwrap), Self::spawn_camera),
             )
             .add_systems(
                 Update,
                 (
-                    Self::movement_system.run_if(has_authority), // Runs only on the server or a single player.
-                    Self::server_event_system.run_if(server_running), // Runs only on the server.
-                    (Self::draw_boxes_system, Self::input_system),
+                    Self::apply_movement.run_if(has_authority), // Runs only on the server or a single player.
+                    Self::handle_connections.run_if(server_running), // Runs only on the server.
+                    (Self::draw_boxes, Self::read_input),
                 ),
             );
     }
 }
 
 impl SimpleBoxPlugin {
-    fn cli_system(
+    fn read_cli(
         mut commands: Commands,
         cli: Res<Cli>,
         channels: Res<RepliconChannels>,
@@ -148,12 +148,12 @@ impl SimpleBoxPlugin {
         Ok(())
     }
 
-    fn init_system(mut commands: Commands) {
+    fn spawn_camera(mut commands: Commands) {
         commands.spawn(Camera2dBundle::default());
     }
 
     /// Logs server events and spawns a new player whenever a client connects.
-    fn server_event_system(mut commands: Commands, mut server_events: EventReader<ServerEvent>) {
+    fn handle_connections(mut commands: Commands, mut server_events: EventReader<ServerEvent>) {
         for event in server_events.read() {
             match event {
                 ServerEvent::ClientConnected { client_id } => {
@@ -175,7 +175,7 @@ impl SimpleBoxPlugin {
         }
     }
 
-    fn draw_boxes_system(mut gizmos: Gizmos, players: Query<(&PlayerPosition, &PlayerColor)>) {
+    fn draw_boxes(mut gizmos: Gizmos, players: Query<(&PlayerPosition, &PlayerColor)>) {
         for (position, color) in &players {
             gizmos.rect(
                 Vec3::new(position.x, position.y, 0.0),
@@ -186,8 +186,8 @@ impl SimpleBoxPlugin {
         }
     }
 
-    /// Reads player inputs and sends [`MoveCommandEvents`]
-    fn input_system(mut move_events: EventWriter<MoveDirection>, input: Res<ButtonInput<KeyCode>>) {
+    /// Reads player inputs and sends [`MoveDirection`] events.
+    fn read_input(mut move_events: EventWriter<MoveDirection>, input: Res<ButtonInput<KeyCode>>) {
         let mut direction = Vec2::ZERO;
         if input.pressed(KeyCode::ArrowRight) {
             direction.x += 1.0;
@@ -206,11 +206,11 @@ impl SimpleBoxPlugin {
         }
     }
 
-    /// Mutates [`PlayerPosition`] based on [`MoveCommandEvents`].
+    /// Mutates [`PlayerPosition`] based on [`MoveDirection`] events.
     ///
     /// Fast-paced games usually you don't want to wait until server send a position back because of the latency.
     /// But this example just demonstrates simple replication concept.
-    fn movement_system(
+    fn apply_movement(
         time: Res<Time>,
         mut move_events: EventReader<FromClient<MoveDirection>>,
         mut players: Query<(&Player, &mut PlayerPosition)>,

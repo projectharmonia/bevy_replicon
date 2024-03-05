@@ -34,7 +34,7 @@ impl Plugin for ClientDiagnosticsPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            Self::diagnostic_system.run_if(on_timer(Duration::from_secs(1))),
+            Self::add_measurements.run_if(on_timer(Duration::from_secs(1))),
         )
         .init_resource::<ClientStats>()
         .register_diagnostic(
@@ -89,7 +89,7 @@ impl ClientDiagnosticsPlugin {
     /// Max diagnostic history length.
     pub const DIAGNOSTIC_HISTORY_LEN: usize = 60;
 
-    fn diagnostic_system(mut stats: ResMut<ClientStats>, mut diagnostics: Diagnostics) {
+    fn add_measurements(mut stats: ResMut<ClientStats>, mut diagnostics: Diagnostics) {
         diagnostics.add_measurement(&Self::ENTITY_CHANGES, || {
             if stats.packets == 0 {
                 0_f64

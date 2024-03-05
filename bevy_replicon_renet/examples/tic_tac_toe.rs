@@ -56,33 +56,33 @@ impl Plugin for TicTacToePlugin {
             .insert_resource(ClearColor(BACKGROUND_COLOR))
             .add_systems(
                 Startup,
-                (Self::ui_setup_system, Self::cli_system.map(Result::unwrap)),
+                (Self::setup_ui, Self::read_cli.map(Result::unwrap)),
             )
             .add_systems(
                 OnEnter(GameState::InGame),
-                (Self::turn_text_system, Self::symbol_turn_text_system),
+                (Self::show_turn_text, Self::show_turn_symbol),
             )
             .add_systems(
                 OnEnter(GameState::Disconnected),
-                Self::client_disconnected_text_system,
+                Self::show_disconnected_text,
             )
-            .add_systems(OnEnter(GameState::Winner), Self::winner_text_system)
-            .add_systems(OnEnter(GameState::Tie), Self::tie_text_system)
+            .add_systems(OnEnter(GameState::Winner), Self::show_winner_text)
+            .add_systems(OnEnter(GameState::Tie), Self::show_tie_text)
             .add_systems(
                 Update,
                 (
-                    Self::connecting_text_system.run_if(resource_added::<RenetClient>),
-                    Self::server_waiting_text_system.run_if(resource_added::<RenetServer>),
-                    Self::server_event_system.run_if(server_running),
-                    Self::start_game_system
+                    Self::show_connecting_text.run_if(resource_added::<RenetClient>),
+                    Self::show_waiting_player_text.run_if(resource_added::<RenetServer>),
+                    Self::handle_connections.run_if(server_running),
+                    Self::start_game
                         .run_if(client_connected)
                         .run_if(any_component_added::<Player>), // Wait until client replicates players before starting the game.
                     (
-                        Self::cell_interatction_system.run_if(local_player_turn),
-                        Self::picking_system.run_if(has_authority),
-                        Self::symbol_init_system,
-                        Self::turn_advance_system.run_if(any_component_added::<CellIndex>),
-                        Self::symbol_turn_text_system.run_if(resource_changed::<CurrentTurn>),
+                        Self::handle_interactions.run_if(local_player_turn),
+                        Self::spawn_symbols.run_if(has_authority),
+                        Self::init_symbols,
+                        Self::advance_turn.run_if(any_component_added::<CellIndex>),
+                        Self::show_turn_symbol.run_if(resource_changed::<CurrentTurn>),
                     )
                         .run_if(in_state(GameState::InGame)),
                 ),
@@ -101,7 +101,7 @@ const TEXT_SECTION: usize = 0;
 const SYMBOL_SECTION: usize = 1;
 
 impl TicTacToePlugin {
-    fn ui_setup_system(mut commands: Commands, symbol_font: Res<SymbolFont>) {
+    fn setup_ui(mut commands: Commands, symbol_font: Res<SymbolFont>) {
         commands.spawn(Camera2dBundle::default());
 
         const LINES_COUNT: usize = GRID_SIZE + 1;
@@ -238,7 +238,7 @@ impl TicTacToePlugin {
             });
     }
 
-    fn cli_system(
+    fn read_cli(
         mut commands: Commands,
         mut game_state: ResMut<NextState<GameState>>,
         cli: Res<Cli>,
@@ -307,11 +307,11 @@ impl TicTacToePlugin {
         Ok(())
     }
 
-    fn turn_text_system(mut bottom_text: Query<&mut Text, With<BottomText>>) {
+    fn show_turn_text(mut bottom_text: Query<&mut Text, With<BottomText>>) {
         bottom_text.single_mut().sections[0].value = "Current turn: ".into();
     }
 
-    fn symbol_turn_text_system(
+    fn show_turn_symbol(
         mut bottom_text: Query<&mut Text, With<BottomText>>,
         current_turn: Res<CurrentTurn>,
     ) {
@@ -320,34 +320,34 @@ impl TicTacToePlugin {
         symbol_section.style.color = current_turn.color();
     }
 
-    fn client_disconnected_text_system(mut bottom_text: Query<&mut Text, With<BottomText>>) {
+    fn show_disconnected_text(mut bottom_text: Query<&mut Text, With<BottomText>>) {
         let sections = &mut bottom_text.single_mut().sections;
         sections[TEXT_SECTION].value = "Client disconnected".into();
         sections[SYMBOL_SECTION].value.clear();
     }
 
-    fn winner_text_system(mut bottom_text: Query<&mut Text, With<BottomText>>) {
+    fn show_winner_text(mut bottom_text: Query<&mut Text, With<BottomText>>) {
         bottom_text.single_mut().sections[TEXT_SECTION].value = "Winner: ".into();
     }
 
-    fn tie_text_system(mut bottom_text: Query<&mut Text, With<BottomText>>) {
+    fn show_tie_text(mut bottom_text: Query<&mut Text, With<BottomText>>) {
         let sections = &mut bottom_text.single_mut().sections;
         sections[TEXT_SECTION].value = "Tie".into();
         sections[SYMBOL_SECTION].value.clear();
     }
 
-    fn connecting_text_system(mut bottom_text: Query<&mut Text, With<BottomText>>) {
+    fn show_connecting_text(mut bottom_text: Query<&mut Text, With<BottomText>>) {
         bottom_text.single_mut().sections[TEXT_SECTION].value = "Connecting".into();
     }
 
-    fn server_waiting_text_system(mut bottom_text: Query<&mut Text, With<BottomText>>) {
+    fn show_waiting_player_text(mut bottom_text: Query<&mut Text, With<BottomText>>) {
         bottom_text.single_mut().sections[TEXT_SECTION].value = "Waiting player".into();
     }
 
     /// Waits for client to connect to start the game or disconnect to finish it.
     ///
     /// Only for server.
-    fn server_event_system(
+    fn handle_connections(
         mut commands: Commands,
         mut server_events: EventReader<ServerEvent>,
         mut game_state: ResMut<NextState<GameState>>,
@@ -367,11 +367,11 @@ impl TicTacToePlugin {
         }
     }
 
-    fn start_game_system(mut game_state: ResMut<NextState<GameState>>) {
+    fn start_game(mut game_state: ResMut<NextState<GameState>>) {
         game_state.set(GameState::InGame);
     }
 
-    fn cell_interatction_system(
+    fn handle_interactions(
         mut buttons: Query<
             (Entity, &Parent, &Interaction, &mut BackgroundColor),
             Changed<Interaction>,
@@ -403,7 +403,7 @@ impl TicTacToePlugin {
     /// Handles cell pick events.
     ///
     /// Only for single-player and server.
-    fn picking_system(
+    fn spawn_symbols(
         mut commands: Commands,
         mut pick_events: EventReader<FromClient<CellPick>>,
         symbols: Query<&CellIndex>,
@@ -439,7 +439,7 @@ impl TicTacToePlugin {
     }
 
     /// Initializes spawned symbol on client after replication and on server / single-player right after the spawn.
-    fn symbol_init_system(
+    fn init_symbols(
         mut commands: Commands,
         symbol_font: Res<SymbolFont>,
         symbols: Query<(Entity, &CellIndex, &Symbol), Added<Symbol>>,
@@ -476,7 +476,7 @@ impl TicTacToePlugin {
     }
 
     /// Checks the winner and advances the turn.
-    fn turn_advance_system(
+    fn advance_turn(
         mut current_turn: ResMut<CurrentTurn>,
         mut game_state: ResMut<NextState<GameState>>,
         symbols: Query<(&CellIndex, &Symbol)>,
