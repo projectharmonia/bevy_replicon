@@ -1,7 +1,10 @@
 [package]
 name = "bevy_replicon_renet"
 version = "0.1.0"
-authors = ["Hennadii Chernyshchyk <genaloner@gmail.com>", "koe <ukoe@protonmail.com>"]
+authors = [
+  "Hennadii Chernyshchyk <genaloner@gmail.com>",
+  "koe <ukoe@protonmail.com>",
+]
 edition = "2021"
 description = "Integration with renet for bevy_replicon"
 readme = "../README.md"
