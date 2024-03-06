@@ -1,7 +1,10 @@
 [package]
 name = "bevy_replicon"
 version = "0.24.0"
-authors = ["Hennadii Chernyshchyk <genaloner@gmail.com>"]
+authors = [
+  "Hennadii Chernyshchyk <genaloner@gmail.com>",
+  "koe <ukoe@protonmail.com>",
+]
 edition = "2021"
 rust-version = "1.65"
 description = "High level networking for the Bevy game engine"
