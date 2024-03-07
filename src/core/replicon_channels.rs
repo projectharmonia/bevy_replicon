@@ -77,7 +77,7 @@ impl RepliconChannels {
     ///
     /// Panics if the number of events exceeds [`u8::MAX`].
     pub fn create_server_channel(&mut self, channel: RepliconChannel) -> u8 {
-        if self.server.len() == u8::MAX.into() {
+        if self.server.len() == u8::MAX as usize {
             panic!("number of server channels shouldn't exceed `u8::MAX`");
         }
 
@@ -91,7 +91,7 @@ impl RepliconChannels {
     ///
     /// Panics if the number of events exceeds [`u8::MAX`].
     pub fn create_client_channel(&mut self, channel: RepliconChannel) -> u8 {
-        if self.client.len() == u8::MAX.into() {
+        if self.client.len() == u8::MAX as usize {
             panic!("number of client channels shouldn't exceed `u8::MAX`");
         }
 
