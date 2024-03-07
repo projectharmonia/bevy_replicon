@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.1] - 2024-03-07
+
+### Fixed
+
+- Fix compilation issue when multiple `PartialEq` impls are present for `usize`.
+
 ## [0.24.0] - 2024-03-06
 
 ### Added
@@ -409,7 +415,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release after separation from [Project Harmonia](https://github.com/projectharmonia/project_harmonia).
 
-[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.24.0...HEAD
+[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.24.1...HEAD
+[0.24.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.24.0...v0.24.1
 [0.24.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.21.2...v0.22.0
