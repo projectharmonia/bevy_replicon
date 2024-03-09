@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `ServerSet::StoreHierarchy` for systems that store hierarchy changes in `ParentSync`.
+
 ## [0.24.1] - 2024-03-07
 
 ### Fixed
