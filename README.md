@@ -32,6 +32,8 @@ See also [examples](https://github.com/projectharmonia/bevy_replicon/tree/master
 - [bevy_replicon_repair](https://github.com/UkoeHB/bevy_replicon_repair) - preserves replicated client state across reconnects.
 - [bevy_timewarp](https://github.com/RJ/bevy_timewarp) - a rollback library that buffers component state. See [this](https://github.com/RJ/bevy_timewarp/blob/main/REPLICON_INTEGRATION.md) instruction about how to integrate.
 
+**Note:** Ensure that your `bevy_replicon` version is compatible with the used crate according to semantic versioning.
+
 ## Bevy compatibility
 
 | bevy   | bevy_replicon | bevy_replicon_renet |
