@@ -82,7 +82,6 @@ pub trait ClientEventAppExt {
     fn receive_reflect(
         mut reflect_events: EventWriter<FromClient<ReflectEvent>>,
         mut server: ResMut<RepliconServer>,
-        connected_clients: Res<ConnectedClients>,
         channel: Res<ClientEventChannel<ReflectEvent>>,
         registry: Res<AppTypeRegistry>,
     ) {
