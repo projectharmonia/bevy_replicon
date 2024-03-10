@@ -18,6 +18,8 @@ pub struct ParentSyncPlugin;
 /// Automatically updates hierarchy on client if [`ParentSync`] component is present on entity.
 ///
 /// This allows to save / replicate hierarchy using only single component.
+/// If your system runs in [`PostUpdate`] and modifies hierarchy with [`ParentSync`],
+/// you need to run it before [`ServerSet::StoreHierarchy`].
 impl Plugin for ParentSyncPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<Option<Entity>>()
@@ -28,7 +30,7 @@ impl Plugin for ParentSyncPlugin {
                 PostUpdate,
                 (Self::store_changes, Self::store_removals)
                     .run_if(has_authority)
-                    .before(ServerSet::Send),
+                    .in_set(ServerSet::StoreHierarchy),
             );
     }
 }
