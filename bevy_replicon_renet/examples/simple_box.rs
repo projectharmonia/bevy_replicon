@@ -8,6 +8,7 @@ use std::{
 };
 
 use bevy::prelude::*;
+use bevy::winit::{UpdateMode::Continuous, WinitSettings};
 use bevy_replicon::prelude::*;
 use bevy_replicon_renet::{
     renet::{
@@ -25,6 +26,11 @@ use serde::{Deserialize, Serialize};
 fn main() {
     App::new()
         .init_resource::<Cli>() // Parse CLI before creating window.
+        // Makes the server update continuously even while unfocused.
+        .insert_resource(WinitSettings {
+            focused_mode: Continuous,
+            unfocused_mode: Continuous,
+        })
         .add_plugins((
             DefaultPlugins,
             RepliconPlugins,
