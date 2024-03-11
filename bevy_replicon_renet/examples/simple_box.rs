@@ -28,7 +28,7 @@ use serde::{Deserialize, Serialize};
 fn main() {
     App::new()
         .init_resource::<Cli>() // Parse CLI before creating window.
-        // Makes the server update continuously even while unfocused.
+        // Makes the server/client update continuously even while unfocused.
         .insert_resource(WinitSettings {
             focused_mode: Continuous,
             unfocused_mode: Continuous,
