@@ -7,8 +7,10 @@ use std::{
     time::SystemTime,
 };
 
-use bevy::prelude::*;
-use bevy::winit::{UpdateMode::Continuous, WinitSettings};
+use bevy::{
+    prelude::*,
+    winit::{UpdateMode::Continuous, WinitSettings},
+};
 use bevy_replicon::prelude::*;
 use bevy_replicon_renet::{
     renet::{
