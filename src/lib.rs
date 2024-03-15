@@ -246,6 +246,12 @@ This pairs nicely with server state serialization and keeps saves clean.
 You can use [`replicate_into`](scene::replicate_into) to
 fill [`DynamicScene`] with replicated entities and their components.
 
+**Performance note**: The blueprint pattern makes heavy use of [`Added`] and
+[`Changed`] filters, which are not true archetype-level filters like [`With`]
+or [`Without`]. See [the Bevy docs](https://docs.rs/bevy/latest/bevy/ecs/prelude/struct.Added.html#time-complexity)
+for more details. There is also an [open Bevy ticket](https://github.com/bevyengine/bevy/issues/5097)
+for improving performance for this.
+
 ### Component relations
 
 Sometimes components depend on each other. For example, [`Parent`] and
