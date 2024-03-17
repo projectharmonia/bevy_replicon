@@ -224,6 +224,7 @@ fn init_player(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    // Infer that the player was just added by the fact it's missing `GlobalTransform`.
     players: Query<Entity, (With<Player>, Without<GlobalTransform>)>,
 ) {
     for entity in &players {
