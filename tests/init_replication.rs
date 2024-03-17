@@ -375,7 +375,6 @@ fn insertion() {
         ))
         .replicate::<TableComponent>()
         .replicate::<SparseSetComponent>()
-        .replicate::<NotReplicatedComponent>()
         .replicate_mapped::<MappedComponent>();
     }
 
@@ -387,11 +386,7 @@ fn insertion() {
     let server_map_entity = server_app.world.spawn_empty().id();
     let client_map_entity = client_app.world.spawn_empty().id();
 
-    let server_entity = server_app
-        .world
-        .spawn(Replication)
-        .dont_replicate::<NotReplicatedComponent>()
-        .id();
+    let server_entity = server_app.world.spawn(Replication).id();
     let client_entity = client_app.world.spawn(Replication).id();
 
     let mut entity_map = client_app.world.resource_mut::<ServerEntityMap>();
@@ -407,7 +402,6 @@ fn insertion() {
         Replication,
         TableComponent,
         SparseSetComponent,
-        NonReplicatingComponent,
         MappedComponent(server_map_entity),
         NotReplicatedComponent,
     ));
@@ -419,103 +413,11 @@ fn insertion() {
     let client_entity = client_app.world.entity(client_entity);
     assert!(client_entity.contains::<SparseSetComponent>());
     assert!(client_entity.contains::<TableComponent>());
-    assert!(!client_entity.contains::<NonReplicatingComponent>());
     assert!(!client_entity.contains::<NotReplicatedComponent>());
     assert_eq!(
         client_entity.get::<MappedComponent>().unwrap().0,
         client_map_entity
     );
-}
-
-#[test]
-fn dont_replicate_after_insertion() {
-    let mut server_app = App::new();
-    let mut client_app = App::new();
-    for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((
-            MinimalPlugins,
-            RepliconPlugins.set(ServerPlugin {
-                tick_policy: TickPolicy::EveryFrame,
-                ..Default::default()
-            }),
-        ))
-        .replicate::<TableComponent>();
-    }
-
-    server_app.connect_client(&mut client_app);
-
-    let server_entity = server_app.world.spawn(Replication).id();
-    let client_entity = client_app.world.spawn(Replication).id();
-
-    client_app
-        .world
-        .resource_mut::<ServerEntityMap>()
-        .insert(server_entity, client_entity);
-
-    server_app.update();
-    server_app.exchange_with_client(&mut client_app);
-    client_app.update();
-    server_app.exchange_with_client(&mut client_app);
-
-    // Insert and disable replication.
-    server_app
-        .world
-        .entity_mut(server_entity)
-        .insert(TableComponent)
-        .dont_replicate::<TableComponent>();
-
-    server_app.update();
-    server_app.exchange_with_client(&mut client_app);
-    client_app.update();
-
-    let client_entity = client_app.world.entity(client_entity);
-    assert!(!client_entity.contains::<TableComponent>());
-}
-
-#[test]
-fn dont_replicate_after_reinsertion() {
-    let mut server_app = App::new();
-    let mut client_app = App::new();
-    for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((
-            MinimalPlugins,
-            RepliconPlugins.set(ServerPlugin {
-                tick_policy: TickPolicy::EveryFrame,
-                ..Default::default()
-            }),
-        ))
-        .replicate::<TableComponent>();
-    }
-
-    server_app.connect_client(&mut client_app);
-
-    let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
-    let client_entity = client_app.world.spawn((Replication, TableComponent)).id();
-
-    client_app
-        .world
-        .resource_mut::<ServerEntityMap>()
-        .insert(server_entity, client_entity);
-
-    server_app.update();
-    server_app.exchange_with_client(&mut client_app);
-    client_app.update();
-    server_app.exchange_with_client(&mut client_app);
-
-    // Reinsert and disable replication.
-    server_app
-        .world
-        .entity_mut(server_entity)
-        .remove::<TableComponent>()
-        .insert(TableComponent)
-        .dont_replicate::<TableComponent>();
-
-    server_app.update();
-    server_app.exchange_with_client(&mut client_app);
-    client_app.update();
-
-    let client_entity = client_app.world.entity(client_entity);
-    assert!(!client_entity.contains::<TableComponent>());
 }
 
 #[test]
@@ -537,11 +439,11 @@ fn removal() {
 
     let server_entity = server_app
         .world
-        .spawn((Replication, TableComponent, NonReplicatingComponent))
+        .spawn((Replication, TableComponent, NotReplicatedComponent))
         .id();
     let client_entity = client_app
         .world
-        .spawn((Replication, TableComponent, NonReplicatingComponent))
+        .spawn((Replication, TableComponent, NotReplicatedComponent))
         .id();
 
     client_app
@@ -565,7 +467,7 @@ fn removal() {
 
     let client_entity = client_app.world.entity(client_entity);
     assert!(!client_entity.contains::<TableComponent>());
-    assert!(client_entity.contains::<NonReplicatingComponent>());
+    assert!(client_entity.contains::<NotReplicatedComponent>());
 }
 
 #[test]
@@ -726,9 +628,6 @@ struct TableComponent;
 #[derive(Component, Deserialize, Serialize)]
 #[component(storage = "SparseSet")]
 struct SparseSetComponent;
-
-#[derive(Component)]
-struct NonReplicatingComponent;
 
 #[derive(Component, Deserialize, Serialize)]
 struct NotReplicatedComponent;

@@ -39,9 +39,6 @@ impl ReplicatedArchetypesInfo {
                 else {
                     continue;
                 };
-                if archetype.contains(replication_info.dont_replicate_id) {
-                    continue;
-                }
 
                 // SAFETY: component ID obtained from this archetype.
                 let storage_type =

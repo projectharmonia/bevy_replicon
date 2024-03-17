@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `ServerSet::StoreHierarchy` for systems that store hierarchy changes in `ParentSync`.
 
+### Removed
+
+- `dont_replicate` module. Use newtypes or [`bevy_bundlication`](https://github.com/NiseVoid/bevy_bundlication) for more complex cases.
+
 ## [0.24.1] - 2024-03-07
 
 ### Fixed
