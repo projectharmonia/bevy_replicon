@@ -195,10 +195,10 @@ The idea was borrowed from [iyes_scene_tools](https://github.com/IyesGames/iyes_
 You don't want to replicate all components because not all of them are
 necessary to send over the network. Components that computed based on other
 components (like [`GlobalTransform`]) can be inserted after replication.
-This can be easily done using a system with an [`Added`] query filter.
+This can be easily done using a system with query filter.
 This way, you detect when such entities are spawned into the world, and you can
 do any additional setup on them using code. For example, if you have a
-character with mesh, you can replicate only your `Player` component and insert
+character with mesh, you can replicate only your `Player` and [`Transform`] components and insert
 necessary components after replication. If you want to avoid one frame delay, put
 your initialization systems to [`ClientSet::Receive`]:
 
@@ -221,9 +221,10 @@ fn init_player(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    spawned_players: Query<Entity, Added<Player>>,
+    // Infer that the player was just added by the fact it's missing `GlobalTransform`.
+    players: Query<Entity, (With<Player>, Without<GlobalTransform>)>,
 ) {
-    for entity in &spawned_players {
+    for entity in &players {
         commands.entity(entity).insert((
             GlobalTransform::default(),
             VisibilityBundle::default(),
@@ -231,6 +232,17 @@ fn init_player(
             materials.add(Color::AZURE),
         ));
     }
+}
+
+/// Bundle to spawn a player.
+///
+/// All non-replicated components will be added inside [`init_player`]
+/// after spawn, replication or even deserialization from disk.
+#[derive(Bundle)]
+struct PlayerBundle {
+    player: Player,
+    transform: Transform,
+    replication: Replication,
 }
 
 #[derive(Component, Deserialize, Serialize)]
@@ -243,11 +255,12 @@ This pairs nicely with server state serialization and keeps saves clean.
 You can use [`replicate_into`](scene::replicate_into) to
 fill [`DynamicScene`] with replicated entities and their components.
 
-**Performance note**: The blueprint pattern makes heavy use of [`Added`] and
-[`Changed`] filters, which are not true archetype-level filters like [`With`]
-or [`Without`]. See [the Bevy docs](https://docs.rs/bevy/latest/bevy/ecs/prelude/struct.Added.html#time-complexity)
+**Performance note**: We used [`With<Player>`] and [`Without<GlobalTransform>`] to
+filter all non-initialized entities. It's possible to use [`Added`] / [`Changed`] too,
+but they aren't true archetype-level filters like [`With`] or [`Without`].
+See [the Bevy docs](https://docs.rs/bevy/latest/bevy/ecs/prelude/struct.Added.html#time-complexity)
 for more details. There is also an [open Bevy ticket](https://github.com/bevyengine/bevy/issues/5097)
-for improving the performance of `Added`/`Changed`.
+for improving the performance of [`Added`] / [`Changed`].
 
 ### Component relations
 
