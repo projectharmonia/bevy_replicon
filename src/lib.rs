@@ -168,9 +168,6 @@ component. Just insert it to the entity you want to replicate. Only components
 marked for replication through [`AppReplicationExt::replicate()`]
 will be replicated.
 
-If you need to disable replication for a specific component on an entity,
-you can call [`CommandDontReplicateExt::dont_replicate::<T>`] on it and replication will be skipped for `T`.
-
 ### Tick and fixed timestep games
 
 The [`ServerPlugin`] sends replication data in [`PostUpdate`] any time the
@@ -491,7 +488,6 @@ pub mod prelude {
         },
         core::{
             common_conditions::*,
-            dont_replicate::{CommandDontReplicateExt, EntityDontReplicateExt},
             replication_rules::{AppReplicationExt, Replication},
             replicon_channels::{ChannelKind, RepliconChannel, RepliconChannels},
             ClientId, RepliconCorePlugin,

@@ -73,14 +73,10 @@ pub fn replicate_into(scene: &mut DynamicScene, world: &World) {
             entities.entry(entity.id()).or_default();
         }
 
-        for component_id in archetype.components() {
-            let Some((_, replication_info)) = replication_rules.get(component_id) else {
-                continue;
-            };
-            if archetype.contains(replication_info.dont_replicate_id) {
-                continue;
-            }
-
+        for component_id in archetype
+            .components()
+            .filter(|&component_id| replication_rules.get(component_id).is_some())
+        {
             // SAFETY: `component_info` obtained from the world.
             let component_info = unsafe { world.components().get_info_unchecked(component_id) };
             let type_name = component_info.name();

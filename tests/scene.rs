@@ -25,15 +25,9 @@ fn replicated_entity() {
 #[test]
 fn empty_entity() {
     let mut app = App::new();
-    app.add_plugins(RepliconPlugins)
-        .register_type::<DummyComponent>()
-        .replicate::<DummyComponent>();
+    app.add_plugins(RepliconPlugins);
 
-    let entity = app
-        .world
-        .spawn((Replication, DummyComponent))
-        .dont_replicate::<DummyComponent>()
-        .id();
+    let entity = app.world.spawn(Replication).id();
 
     // Extend with replicated components.
     let mut scene = DynamicScene::default();
