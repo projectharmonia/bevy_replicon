@@ -13,7 +13,7 @@ pub struct ReplicationFns {
     ///
     /// By default uses [`despawn_recursive`].
     /// Useful if you need to intercept despawns and handle them in a special way.
-    pub despawn: EntityDespawnFn,
+    pub despawn: DespawnFn,
 
     /// Functions for replicated components.
     components: Vec<ComponentFns>,
@@ -63,10 +63,10 @@ pub type DeserializeFn = fn(
 ) -> bincode::Result<()>;
 
 /// Signature of component removal functions.
-pub type RemoveComponentFn = fn(&mut EntityWorldMut, RepliconTick);
+pub type RemoveFn = fn(&mut EntityWorldMut, RepliconTick);
 
 /// Signature of the entity despawn function.
-pub type EntityDespawnFn = fn(EntityWorldMut, RepliconTick);
+pub type DespawnFn = fn(EntityWorldMut, RepliconTick);
 
 /// Stores functions for replicated component.
 #[derive(Clone)]
@@ -78,7 +78,7 @@ pub struct ComponentFns {
     pub deserialize: DeserializeFn,
 
     /// Function that removes specific component from [`EntityWorldMut`].
-    pub remove: RemoveComponentFn,
+    pub remove: RemoveFn,
 }
 
 /// Represents index of [`ComponentFns`].

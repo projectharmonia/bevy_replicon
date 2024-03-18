@@ -15,8 +15,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use super::{
     replication_fns::{
-        ComponentFns, ComponentFnsIndex, DeserializeFn, RemoveComponentFn, ReplicationFns,
-        SerializeFn,
+        ComponentFns, ComponentFnsIndex, DeserializeFn, RemoveFn, ReplicationFns, SerializeFn,
     },
     replicon_tick::RepliconTick,
 };
@@ -42,7 +41,7 @@ pub trait AppReplicationExt {
         &mut self,
         serialize: SerializeFn,
         deserialize: DeserializeFn,
-        remove: RemoveComponentFn,
+        remove: RemoveFn,
     ) -> &mut Self
     where
         C: Component;
@@ -75,7 +74,7 @@ impl AppReplicationExt for App {
         &mut self,
         serialize: SerializeFn,
         deserialize: DeserializeFn,
-        remove: RemoveComponentFn,
+        remove: RemoveFn,
     ) -> &mut Self
     where
         C: Component,
