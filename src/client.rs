@@ -11,7 +11,8 @@ use varint_rs::VarintReader;
 
 use crate::core::{
     common_conditions::{client_connected, client_just_connected, client_just_disconnected},
-    replication_rules::{Replication, ReplicationRules},
+    component_rules::Replication,
+    replication_fns::ReplicationFns,
     replicon_channels::ReplicationChannel,
     replicon_channels::RepliconChannels,
     replicon_tick::RepliconTick,
@@ -82,7 +83,7 @@ impl ClientPlugin {
             world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
                 world.resource_scope(|world, mut entity_ticks: Mut<ServerEntityTicks>| {
                     world.resource_scope(|world, mut buffered_updates: Mut<BufferedUpdates>| {
-                        world.resource_scope(|world, replication_rules: Mut<ReplicationRules>| {
+                        world.resource_scope(|world, replication_fns: Mut<ReplicationFns>| {
                             let mut stats = world.remove_resource::<ClientStats>();
                             apply_replication(
                                 world,
@@ -91,7 +92,7 @@ impl ClientPlugin {
                                 &mut entity_ticks,
                                 &mut buffered_updates,
                                 stats.as_mut(),
-                                &replication_rules,
+                                &replication_fns,
                             )?;
 
                             if let Some(stats) = stats {
@@ -129,7 +130,7 @@ fn apply_replication(
     entity_ticks: &mut ServerEntityTicks,
     buffered_updates: &mut BufferedUpdates,
     mut stats: Option<&mut ClientStats>,
-    replication_rules: &ReplicationRules,
+    replication_fns: &ReplicationFns,
 ) -> Result<(), Box<bincode::ErrorKind>> {
     while let Some(message) = client.receive(ReplicationChannel::Init) {
         apply_init_message(
@@ -138,7 +139,7 @@ fn apply_replication(
             entity_map,
             entity_ticks,
             stats.as_deref_mut(),
-            replication_rules,
+            replication_fns,
         )?;
     }
 
@@ -151,7 +152,7 @@ fn apply_replication(
             entity_ticks,
             buffered_updates,
             stats.as_deref_mut(),
-            replication_rules,
+            replication_fns,
             replicon_tick,
         )?;
 
@@ -171,7 +172,7 @@ fn apply_replication(
             entity_map,
             entity_ticks,
             stats.as_deref_mut(),
-            replication_rules,
+            replication_fns,
             update.message_tick,
         ) {
             result = Err(e);
@@ -191,7 +192,7 @@ fn apply_init_message(
     entity_map: &mut ServerEntityMap,
     entity_ticks: &mut ServerEntityTicks,
     mut stats: Option<&mut ClientStats>,
-    replication_rules: &ReplicationRules,
+    replication_fns: &ReplicationFns,
 ) -> bincode::Result<()> {
     let end_pos: u64 = message.len().try_into().unwrap();
     let mut cursor = Cursor::new(message);
@@ -216,7 +217,7 @@ fn apply_init_message(
         entity_map,
         entity_ticks,
         stats.as_deref_mut(),
-        replication_rules,
+        replication_fns,
         replicon_tick,
     )?;
     if cursor.position() == end_pos {
@@ -230,7 +231,7 @@ fn apply_init_message(
         entity_ticks,
         stats.as_deref_mut(),
         ComponentsKind::Removal,
-        replication_rules,
+        replication_fns,
         replicon_tick,
     )?;
     if cursor.position() == end_pos {
@@ -244,7 +245,7 @@ fn apply_init_message(
         entity_ticks,
         stats,
         ComponentsKind::Insert,
-        replication_rules,
+        replication_fns,
         replicon_tick,
     )?;
 
@@ -265,7 +266,7 @@ fn apply_update_message(
     entity_ticks: &mut ServerEntityTicks,
     buffered_updates: &mut BufferedUpdates,
     mut stats: Option<&mut ClientStats>,
-    replication_rules: &ReplicationRules,
+    replication_fns: &ReplicationFns,
     replicon_tick: RepliconTick,
 ) -> bincode::Result<u16> {
     let end_pos: u64 = message.len().try_into().unwrap();
@@ -293,7 +294,7 @@ fn apply_update_message(
         entity_map,
         entity_ticks,
         stats,
-        replication_rules,
+        replication_fns,
         message_tick,
     )?;
 
@@ -336,7 +337,7 @@ fn apply_init_components(
     entity_ticks: &mut ServerEntityTicks,
     mut stats: Option<&mut ClientStats>,
     components_kind: ComponentsKind,
-    replication_rules: &ReplicationRules,
+    replication_fns: &ReplicationFns,
     replicon_tick: RepliconTick,
 ) -> bincode::Result<()> {
     let entities_len: u16 = bincode::deserialize_from(&mut *cursor)?;
@@ -349,14 +350,14 @@ fn apply_init_components(
         let end_pos = cursor.position() + data_size as u64;
         let mut components_len = 0u32;
         while cursor.position() < end_pos {
-            let replication_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
-            // SAFETY: server and client have identical `ReplicationRules` and server always sends valid IDs.
-            let replication_info = unsafe { replication_rules.get_info_unchecked(replication_id) };
+            let fns_index = DefaultOptions::new().deserialize_from(&mut *cursor)?;
+            // SAFETY: server and client have identical `ComponentRules` and server always sends valid IDs.
+            let component_fns = unsafe { replication_fns.get_unchecked(fns_index) };
             match components_kind {
                 ComponentsKind::Insert => {
-                    (replication_info.deserialize)(&mut entity, entity_map, cursor, replicon_tick)?
+                    (component_fns.deserialize)(&mut entity, entity_map, cursor, replicon_tick)?
                 }
-                ComponentsKind::Removal => (replication_info.remove)(&mut entity, replicon_tick),
+                ComponentsKind::Removal => (component_fns.remove)(&mut entity, replicon_tick),
             }
             components_len += 1;
         }
@@ -376,7 +377,7 @@ fn apply_despawns(
     entity_map: &mut ServerEntityMap,
     entity_ticks: &mut ServerEntityTicks,
     stats: Option<&mut ClientStats>,
-    replication_rules: &ReplicationRules,
+    replication_fns: &ReplicationFns,
     replicon_tick: RepliconTick,
 ) -> bincode::Result<()> {
     let entities_len: u16 = bincode::deserialize_from(&mut *cursor)?;
@@ -393,7 +394,7 @@ fn apply_despawns(
             .and_then(|entity| world.get_entity_mut(entity))
         {
             entity_ticks.remove(&client_entity.id());
-            (replication_rules.despawn_fn)(client_entity, replicon_tick);
+            (replication_fns.despawn)(client_entity, replicon_tick);
         }
     }
 
@@ -409,7 +410,7 @@ fn apply_update_components(
     entity_map: &mut ServerEntityMap,
     entity_ticks: &mut ServerEntityTicks,
     mut stats: Option<&mut ClientStats>,
-    replication_rules: &ReplicationRules,
+    replication_fns: &ReplicationFns,
     message_tick: RepliconTick,
 ) -> bincode::Result<()> {
     let message_end = cursor.get_ref().len() as u64;
@@ -435,10 +436,10 @@ fn apply_update_components(
         let end_pos = cursor.position() + data_size as u64;
         let mut components_count = 0u32;
         while cursor.position() < end_pos {
-            let replication_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
-            // SAFETY: server and client have identical `ReplicationRules` and server always sends valid IDs.
-            let replication_info = unsafe { replication_rules.get_info_unchecked(replication_id) };
-            (replication_info.deserialize)(&mut entity, entity_map, cursor, message_tick)?;
+            let fns_index = DefaultOptions::new().deserialize_from(&mut *cursor)?;
+            // SAFETY: server and client have identical `ComponentRules` and server always sends valid IDs.
+            let component_fns = unsafe { replication_fns.get_unchecked(fns_index) };
+            (component_fns.deserialize)(&mut entity, entity_map, cursor, message_tick)?;
             components_count += 1;
         }
         if let Some(stats) = &mut stats {

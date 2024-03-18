@@ -1,15 +1,25 @@
-use std::io::Cursor;
+use std::{io::Cursor, mem};
 
 use bevy::{
-    ecs::{component::ComponentId, entity::MapEntities},
+    ecs::{
+        archetype::{ArchetypeGeneration, Archetypes},
+        component::ComponentId,
+        entity::MapEntities,
+    },
     prelude::*,
     ptr::Ptr,
     utils::HashMap,
 };
 use bincode::{DefaultOptions, Options};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Serialize};
 
-use super::replicon_tick::RepliconTick;
+use super::{
+    replication_fns::{
+        ComponentFns, ComponentFnsIndex, DeserializeFn, RemoveComponentFn, ReplicationFns,
+        SerializeFn,
+    },
+    replicon_tick::RepliconTick,
+};
 use crate::client::client_mapper::{ClientMapper, ServerEntityMap};
 
 pub trait AppReplicationExt {
@@ -71,127 +81,73 @@ impl AppReplicationExt for App {
         C: Component,
     {
         let component_id = self.world.init_component::<C>();
-        let replicated_component = ReplicationInfo {
+        let component_fns = ComponentFns {
             serialize,
             deserialize,
             remove,
         };
 
-        let mut replication_rules = self.world.resource_mut::<ReplicationRules>();
-        replication_rules.info.push(replicated_component);
+        let mut replication_fns = self.world.resource_mut::<ReplicationFns>();
+        let fns_index = replication_fns.add_component_fns(component_fns);
 
-        let replication_id = ReplicationId(replication_rules.info.len() - 1);
-        replication_rules.ids.insert(component_id, replication_id);
+        let mut component_rules = self.world.resource_mut::<ComponentRules>();
+        component_rules.ids.insert(component_id, fns_index);
 
         self
     }
 }
 
-/// Stores information about which components will be serialized and how.
+/// Stores information about which components will be replicated.
 #[derive(Resource)]
-pub struct ReplicationRules {
-    /// Custom function to handle entity despawning.
-    ///
-    /// By default uses [`despawn_recursive`].
-    /// Useful if you need to intercept despawns and handle them in a special way.
-    pub despawn_fn: EntityDespawnFn,
-
-    /// Maps component IDs to their replication IDs.
-    ids: HashMap<ComponentId, ReplicationId>,
-
-    /// Meta information about components that should be replicated.
-    info: Vec<ReplicationInfo>,
+pub(crate) struct ComponentRules {
+    /// Maps component IDs to their function IDs.
+    ids: HashMap<ComponentId, ComponentFnsIndex>,
 
     /// ID of [`Replication`] component.
     marker_id: ComponentId,
+
+    /// Highest processed archetype ID.
+    ///
+    /// See also [`Self::update_generation`].
+    generation: ArchetypeGeneration,
 }
 
-impl ReplicationRules {
+impl ComponentRules {
+    /// Replaces stored generation with the highest archetype ID and returns previous.
+    ///
+    /// This should be used to iterate over newly introduced
+    /// [`Archetype`](bevy::ecs::archetype::Archetypes)s since the last time this function was called.
+    pub(crate) fn update_generation(&mut self, archetypes: &Archetypes) -> ArchetypeGeneration {
+        mem::replace(&mut self.generation, archetypes.generation())
+    }
+
     /// ID of [`Replication`] component.
-    pub(crate) fn get_marker_id(&self) -> ComponentId {
+    #[must_use]
+    pub(crate) fn marker_id(&self) -> ComponentId {
         self.marker_id
     }
 
-    /// Returns mapping of replicated components to their replication IDs.
-    pub(crate) fn get_ids(&self) -> &HashMap<ComponentId, ReplicationId> {
+    /// Returns mapping of replicated components to their function IDs.
+    #[must_use]
+    pub(crate) fn ids(&self) -> &HashMap<ComponentId, ComponentFnsIndex> {
         &self.ids
     }
-
-    /// Returns replication ID and meta information about the component if it's replicated.
-    pub(crate) fn get(
-        &self,
-        component_id: ComponentId,
-    ) -> Option<(ReplicationId, &ReplicationInfo)> {
-        let replication_id = self.ids.get(&component_id).copied()?;
-        let replication_info = &self.info[replication_id.0];
-
-        Some((replication_id, replication_info))
-    }
-
-    /// Returns meta information about replicated component.
-    ///
-    /// # Safety
-    ///
-    /// `replication_id` should come from the same replication rules.
-    pub(crate) unsafe fn get_info_unchecked(
-        &self,
-        replication_id: ReplicationId,
-    ) -> &ReplicationInfo {
-        self.info.get_unchecked(replication_id.0)
-    }
 }
 
-impl FromWorld for ReplicationRules {
+impl FromWorld for ComponentRules {
     fn from_world(world: &mut World) -> Self {
         Self {
-            info: Default::default(),
             ids: Default::default(),
             marker_id: world.init_component::<Replication>(),
-            despawn_fn: despawn_recursive,
+            generation: ArchetypeGeneration::initial(),
         }
     }
-}
-
-/// Signature of component serialization functions.
-pub type SerializeFn = fn(Ptr, &mut Cursor<Vec<u8>>) -> bincode::Result<()>;
-
-/// Signature of component deserialization functions.
-pub type DeserializeFn = fn(
-    &mut EntityWorldMut,
-    &mut ServerEntityMap,
-    &mut Cursor<&[u8]>,
-    RepliconTick,
-) -> bincode::Result<()>;
-
-/// Signature of component removal functions.
-pub type RemoveComponentFn = fn(&mut EntityWorldMut, RepliconTick);
-
-/// Signature of the entity despawn function.
-pub type EntityDespawnFn = fn(EntityWorldMut, RepliconTick);
-
-/// Stores meta information about replicated component.
-#[derive(Clone)]
-pub(crate) struct ReplicationInfo {
-    /// Function that serializes component into bytes.
-    pub(crate) serialize: SerializeFn,
-
-    /// Function that deserializes component from bytes and inserts it to [`EntityWorldMut`].
-    pub(crate) deserialize: DeserializeFn,
-
-    /// Function that removes specific component from [`EntityWorldMut`].
-    pub(crate) remove: RemoveComponentFn,
 }
 
 /// Marks entity for replication.
 #[derive(Component, Clone, Copy, Default, Reflect, Debug)]
 #[reflect(Component)]
 pub struct Replication;
-
-/// Same as [`ComponentId`], but consistent between server and clients.
-///
-/// Internally represents index of [`ReplicationInfo`].
-#[derive(Clone, Copy, Deserialize, Eq, Hash, PartialEq, Serialize)]
-pub(crate) struct ReplicationId(usize);
 
 /// Default serialization function.
 pub fn serialize_component<C: Component + Serialize>(
@@ -237,9 +193,4 @@ pub fn deserialize_mapped_component<C: Component + DeserializeOwned + MapEntitie
 /// Default component removal function.
 pub fn remove_component<C: Component>(entity: &mut EntityWorldMut, _replicon_tick: RepliconTick) {
     entity.remove::<C>();
-}
-
-/// Default entity despawn function.
-pub fn despawn_recursive(entity: EntityWorldMut, _replicon_tick: RepliconTick) {
-    entity.despawn_recursive();
 }

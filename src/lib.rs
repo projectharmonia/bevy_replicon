@@ -127,7 +127,7 @@ use std::io::Cursor;
 use bevy::{prelude::*, ptr::Ptr};
 use bevy_replicon::{
     client::client_mapper::ServerEntityMap,
-    core::{replication_rules, replicon_tick::RepliconTick},
+    core::{component_rules, replicon_tick::RepliconTick},
     prelude::*,
 };
 
@@ -136,7 +136,7 @@ use bevy_replicon::{
 app.replicate_with::<Transform>(
     serialize_transform,
     deserialize_transform,
-    replication_rules::remove_component::<Transform>,
+    component_rules::remove_component::<Transform>,
 );
 
 /// Serializes only translation.
@@ -160,7 +160,7 @@ fn deserialize_transform(
 }
 ```
 
-The used [`remove_component`](core::replication_rules::remove_component) is the default component removal,
+The used [`remove_component`](core::component_rules::remove_component) is the default component removal,
 but you can replace it with your own as well.
 
 2. You need to choose entities you want to replicate using [`Replication`]
@@ -205,14 +205,14 @@ your initialization systems to [`ClientSet::Receive`]:
 ```
 # use std::io::Cursor;
 # use bevy::{prelude::*, ptr::Ptr};
-# use bevy_replicon::{client::client_mapper::ServerEntityMap, core::{replication_rules, replicon_tick::RepliconTick}, prelude::*};
+# use bevy_replicon::{client::client_mapper::ServerEntityMap, core::{component_rules, replicon_tick::RepliconTick}, prelude::*};
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
 app.replicate_with::<Transform>(
     serialize_transform,
     deserialize_transform,
-    replication_rules::remove_component::<Transform>,
+    component_rules::remove_component::<Transform>,
 )
 .replicate::<Player>()
 .add_systems(PreUpdate, init_player.after(ClientSet::Receive));
@@ -501,7 +501,7 @@ pub mod prelude {
         },
         core::{
             common_conditions::*,
-            replication_rules::{AppReplicationExt, Replication},
+            component_rules::{AppReplicationExt, Replication},
             replicon_channels::{ChannelKind, RepliconChannel, RepliconChannels},
             ClientId, RepliconCorePlugin,
         },

@@ -14,8 +14,8 @@ use super::{
     ServerPlugin, ServerSet,
 };
 use crate::core::{
-    common_conditions::server_running,
-    replication_rules::{ReplicationId, ReplicationRules},
+    common_conditions::server_running, component_rules::ComponentRules,
+    replication_fns::ComponentFnsIndex,
 };
 
 /// Buffers all replicated component removals in [`RemovalBuffer`] resource.
@@ -41,10 +41,10 @@ impl RemovalBufferPlugin {
         mut readers: Local<HashMap<ComponentId, ManualEventReader<RemovedComponentEntity>>>,
         remove_events: &RemovedComponentEvents,
         mut removal_buffer: ResMut<RemovalBuffer>,
-        replication_rules: Res<ReplicationRules>,
+        component_rules: Res<ComponentRules>,
         despawn_buffer: Res<DespawnBuffer>,
     ) {
-        for (&component_id, &replication_id) in replication_rules.get_ids() {
+        for (&component_id, &fns_index) in component_rules.ids() {
             for removals in remove_events.get(component_id).into_iter() {
                 let reader = readers.entry(component_id).or_default();
                 for entity in reader
@@ -53,7 +53,7 @@ impl RemovalBufferPlugin {
                     .map(Into::into)
                     .filter(|entity| !despawn_buffer.contains(entity))
                 {
-                    removal_buffer.insert(entity, replication_id);
+                    removal_buffer.insert(entity, fns_index);
                 }
             }
         }
@@ -64,29 +64,29 @@ impl RemovalBufferPlugin {
 #[derive(Default, Resource)]
 pub(crate) struct RemovalBuffer {
     /// Component removals grouped by entity.
-    removals: EntityHashMap<Vec<ReplicationId>>,
+    removals: EntityHashMap<Vec<ComponentFnsIndex>>,
 
     /// [`Vec`]'s from entity removals.
     ///
     /// All data is cleared before the insertion.
     /// Stored to reuse allocated capacity.
-    component_buffer: Vec<Vec<ReplicationId>>,
+    component_buffer: Vec<Vec<ComponentFnsIndex>>,
 }
 
 impl RemovalBuffer {
     /// Returns an iterator over entities and their removed components.
-    pub(super) fn iter(&self) -> impl Iterator<Item = (Entity, &[ReplicationId])> {
+    pub(super) fn iter(&self) -> impl Iterator<Item = (Entity, &[ComponentFnsIndex])> {
         self.removals
             .iter()
             .map(|(&entity, components)| (entity, &**components))
     }
 
     /// Registers component removal for the specified entity.
-    fn insert(&mut self, entity: Entity, replication_id: ReplicationId) {
+    fn insert(&mut self, entity: Entity, fns_index: ComponentFnsIndex) {
         self.removals
             .entry(entity)
             .or_insert_with(|| self.component_buffer.pop().unwrap_or_default())
-            .push(replication_id);
+            .push(fns_index);
     }
 
     /// Clears all removals.
@@ -106,7 +106,10 @@ mod tests {
 
     use super::*;
     use crate::{
-        core::replication_rules::{AppReplicationExt, Replication},
+        core::{
+            component_rules::{AppReplicationExt, Replication},
+            replication_fns::ReplicationFns,
+        },
         server::replicon_server::RepliconServer,
     };
 
@@ -115,7 +118,8 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((DespawnBufferPlugin, RemovalBufferPlugin))
             .init_resource::<RepliconServer>()
-            .init_resource::<ReplicationRules>()
+            .init_resource::<ReplicationFns>()
+            .init_resource::<ComponentRules>()
             .replicate::<DummyComponent>();
 
         app.world.resource_mut::<RepliconServer>().set_running(true);
@@ -141,7 +145,8 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((DespawnBufferPlugin, RemovalBufferPlugin))
             .init_resource::<RepliconServer>()
-            .init_resource::<ReplicationRules>()
+            .init_resource::<ReplicationFns>()
+            .init_resource::<ComponentRules>()
             .replicate::<DummyComponent>();
 
         app.world.resource_mut::<RepliconServer>().set_running(true);

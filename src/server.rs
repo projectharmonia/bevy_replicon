@@ -1,7 +1,7 @@
 pub mod connected_clients;
 pub(super) mod despawn_buffer;
 pub(super) mod removal_buffer;
-pub(super) mod replicated_archetypes_info;
+pub mod replicated_archetypes;
 pub(super) mod replication_messages;
 pub mod replicon_server;
 
@@ -9,7 +9,7 @@ use std::{mem, time::Duration};
 
 use bevy::{
     ecs::{
-        archetype::ArchetypeEntity,
+        archetype::{ArchetypeEntity, Archetypes},
         component::{ComponentId, ComponentTicks, StorageType, Tick},
         storage::{SparseSets, Table},
         system::SystemChangeTick,
@@ -22,9 +22,9 @@ use bevy::{
 
 use crate::core::{
     common_conditions::{server_just_stopped, server_running},
-    replication_rules::ReplicationRules,
-    replicon_channels::ReplicationChannel,
-    replicon_channels::RepliconChannels,
+    component_rules::ComponentRules,
+    replication_fns::ReplicationFns,
+    replicon_channels::{ReplicationChannel, RepliconChannels},
     replicon_tick::RepliconTick,
     ClientId,
 };
@@ -33,9 +33,11 @@ use connected_clients::{
 };
 use despawn_buffer::{DespawnBuffer, DespawnBufferPlugin};
 use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
-use replicated_archetypes_info::ReplicatedArchetypesInfo;
+use replicated_archetypes::{ReplicatedArchetypes, ReplicatedComponent};
 use replication_messages::ReplicationMessages;
 use replicon_server::RepliconServer;
+
+use self::replicated_archetypes::ReplicatedArchetype;
 
 pub struct ServerPlugin {
     /// Tick configuration.
@@ -64,6 +66,7 @@ impl Plugin for ServerPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((DespawnBufferPlugin, RemovalBufferPlugin))
             .init_resource::<RepliconServer>()
+            .init_resource::<ReplicatedArchetypes>()
             .init_resource::<ClientBuffers>()
             .init_resource::<ClientEntityMap>()
             .insert_resource(ConnectedClients::new(self.visibility_policy))
@@ -81,6 +84,7 @@ impl Plugin for ServerPlugin {
                 PostUpdate,
                 (
                     ServerSet::StoreHierarchy,
+                    ServerSet::UpdateArchetypes,
                     ServerSet::Send,
                     ServerSet::SendPackets,
                 )
@@ -101,6 +105,7 @@ impl Plugin for ServerPlugin {
             .add_systems(
                 PostUpdate,
                 (
+                    Self::update_replicated_archetypes.in_set(ServerSet::UpdateArchetypes),
                     Self::send_replication
                         .map(Result::unwrap)
                         .in_set(ServerSet::Send)
@@ -196,11 +201,48 @@ impl ServerPlugin {
         }
     }
 
+    fn update_replicated_archetypes(
+        archetypes: &Archetypes,
+        mut replicated_archetypes: ResMut<ReplicatedArchetypes>,
+        mut component_rules: ResMut<ComponentRules>,
+    ) {
+        let old_generation = component_rules.update_generation(archetypes);
+
+        // Archetypes are never removed, iterate over newly added since the last update.
+        for archetype in archetypes[old_generation..]
+            .iter()
+            .filter(|archetype| archetype.contains(component_rules.marker_id()))
+        {
+            let mut replicated_archetype = ReplicatedArchetype::new(archetype.id());
+            for component_id in archetype.components() {
+                let Some(&fns_index) = component_rules.ids().get(&component_id) else {
+                    continue;
+                };
+
+                // SAFETY: component ID obtained from this archetype.
+                let storage_type =
+                    unsafe { archetype.get_storage_type(component_id).unwrap_unchecked() };
+
+                let replicated_component = ReplicatedComponent {
+                    component_id,
+                    storage_type,
+                    fns_index,
+                };
+
+                // SAFETY: Component ID and storage type obtained from this archetype,
+                // functions index points to existing functions from `ComponentRules`.
+                unsafe { replicated_archetype.add_component(replicated_component) };
+            }
+
+            // SAFETY: Archetype ID corresponds to a valid archetype.
+            unsafe { replicated_archetypes.add_archetype(replicated_archetype) };
+        }
+    }
+
     /// Collects [`ReplicationMessages`] and sends them.
-    #[allow(clippy::type_complexity)]
+    #[allow(clippy::type_complexity, clippy::too_many_arguments)]
     pub(super) fn send_replication(
         mut messages: Local<ReplicationMessages>,
-        mut archetypes_info: Local<ReplicatedArchetypesInfo>,
         change_tick: SystemChangeTick,
         mut set: ParamSet<(
             &World,
@@ -211,12 +253,12 @@ impl ServerPlugin {
             ResMut<ClientBuffers>,
             ResMut<RepliconServer>,
         )>,
-        replication_rules: Res<ReplicationRules>,
+        replicated_archetypes: Res<ReplicatedArchetypes>,
+        replication_fns: Res<ReplicationFns>,
+        component_rules: Res<ComponentRules>,
         replicon_tick: Res<RepliconTick>,
         time: Res<Time>,
     ) -> bincode::Result<()> {
-        archetypes_info.update(set.p0().archetypes(), &replication_rules);
-
         let connected_clients = mem::take(&mut *set.p1()); // Take ownership to avoid borrowing issues.
         messages.prepare(connected_clients);
 
@@ -225,8 +267,9 @@ impl ServerPlugin {
         collect_removals(&mut messages, &mut set.p4(), change_tick.this_run())?;
         collect_changes(
             &mut messages,
-            &archetypes_info,
-            &replication_rules,
+            &replicated_archetypes,
+            &replication_fns,
+            &component_rules,
             set.p0(),
             &change_tick,
         )?;
@@ -284,8 +327,9 @@ fn collect_mappings(
 /// since the last entity tick.
 fn collect_changes(
     messages: &mut ReplicationMessages,
-    archetypes_info: &ReplicatedArchetypesInfo,
-    replication_rules: &ReplicationRules,
+    replicated_archetypes: &ReplicatedArchetypes,
+    replication_fns: &ReplicationFns,
+    component_rules: &ComponentRules,
     world: &World,
     change_tick: &SystemChangeTick,
 ) -> bincode::Result<()> {
@@ -293,9 +337,14 @@ fn collect_changes(
         init_message.start_array();
     }
 
-    for archetype_info in archetypes_info.iter() {
+    for replicated_archetype in replicated_archetypes.iter() {
         // SAFETY: all IDs from replicated archetypes obtained from real archetypes.
-        let archetype = unsafe { world.archetypes().get(archetype_info.id).unwrap_unchecked() };
+        let archetype = unsafe {
+            world
+                .archetypes()
+                .get(replicated_archetype.id())
+                .unwrap_unchecked()
+        };
         // SAFETY: table obtained from this archetype.
         let table = unsafe {
             world
@@ -319,7 +368,7 @@ fn collect_changes(
                     &world.storages().sparse_sets,
                     entity,
                     StorageType::Table,
-                    replication_rules.get_marker_id(),
+                    component_rules.marker_id(),
                 )
             };
             // If the marker was added in this tick, the entity just started replicating.
@@ -328,17 +377,20 @@ fn collect_changes(
             let marker_added =
                 marker_ticks.is_added(change_tick.last_run(), change_tick.this_run());
 
-            for component_info in &archetype_info.components {
+            for replicated_component in replicated_archetype.components() {
                 // SAFETY: component and storage were obtained from this archetype.
                 let (component, ticks) = unsafe {
                     get_component_unchecked(
                         table,
                         &world.storages().sparse_sets,
                         entity,
-                        component_info.storage_type,
-                        component_info.component_id,
+                        replicated_component.storage_type,
+                        replicated_component.component_id,
                     )
                 };
+                // SAFETY: component index stored in `ReplicatedComponents` obtained from `ReplicationFns`.
+                let component_fns =
+                    unsafe { replication_fns.get_unchecked(replicated_component.fns_index) };
 
                 let mut shared_bytes = None;
                 for (init_message, update_message, client) in messages.iter_mut_with_clients() {
@@ -352,8 +404,8 @@ fn collect_changes(
                     {
                         init_message.write_component(
                             &mut shared_bytes,
-                            &component_info.replication_info,
-                            component_info.replication_id,
+                            component_fns,
+                            replicated_component.fns_index,
                             component,
                         )?;
                     } else {
@@ -363,8 +415,8 @@ fn collect_changes(
                         if ticks.is_changed(tick, change_tick.this_run()) {
                             update_message.write_component(
                                 &mut shared_bytes,
-                                &component_info.replication_info,
-                                component_info.replication_id,
+                                component_fns,
+                                replicated_component.fns_index,
                                 component,
                             )?;
                         }
@@ -468,12 +520,12 @@ fn collect_removals(
         message.start_array();
     }
 
-    for (entity, components) in removal_buffer.iter() {
+    for (entity, fn_indices) in removal_buffer.iter() {
         for (message, _, client) in messages.iter_mut_with_clients() {
             message.start_entity_data(entity);
-            for &replication_id in components {
+            for &fns_index in fn_indices {
                 client.set_change_limit(entity, tick);
-                message.write_replication_id(replication_id)?;
+                message.write_fns_index(fns_index)?;
             }
             message.end_entity_data(false)?;
         }
@@ -513,6 +565,10 @@ pub enum ServerSet {
     ///
     /// Runs in [`PostUpdate`].
     StoreHierarchy,
+    /// Systems that update [`ReplicatedArchetypes`].
+    ///
+    /// Runs in [`PostUpdate`].
+    UpdateArchetypes,
     /// Systems that send data to [`RepliconServer`].
     ///
     /// Used by `bevy_replicon`.

@@ -1,11 +1,13 @@
 pub mod common_conditions;
-pub mod replication_rules;
+pub mod component_rules;
+pub mod replication_fns;
 pub mod replicon_channels;
 pub mod replicon_tick;
 
 use bevy::prelude::*;
 
-use replication_rules::{Replication, ReplicationRules};
+use component_rules::{ComponentRules, Replication};
+use replication_fns::ReplicationFns;
 use replicon_channels::RepliconChannels;
 use replicon_tick::RepliconTick;
 use serde::{Deserialize, Serialize};
@@ -17,7 +19,8 @@ impl Plugin for RepliconCorePlugin {
         app.register_type::<Replication>()
             .init_resource::<RepliconTick>()
             .init_resource::<RepliconChannels>()
-            .init_resource::<ReplicationRules>();
+            .init_resource::<ReplicationFns>()
+            .init_resource::<ComponentRules>();
     }
 }
 

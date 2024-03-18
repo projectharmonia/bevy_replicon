@@ -10,6 +10,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `ServerSet::StoreHierarchy` for systems that store hierarchy changes in `ParentSync`.
+- `replicated_archetypes` module to control which archetypes are replicated and how. Useful for third-party crates.
+- `ServerSet::UpdateArchetypes` for functions that update replicated archetypes.
+
+# Changed
+
+- Rename `ReplicationRules` into `ReplicationFns` with its module.
+- Rename `ReplicationInfo` into `ComponentFns`.
+- Rename `despawn_fn` field from `ReplicationFns` into `despawn`.
+- Move `AppReplicationExt` and default component functions into `component_rules` module.
+- `scene::replicate_into` now relies on the newly added `ReplicatedArchetypes` that updated in `ServerSet::UpdateArchetypes`. So it's preferred to replicate into scene after this set.
 
 ### Removed
 

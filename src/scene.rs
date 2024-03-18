@@ -1,16 +1,16 @@
-use bevy::{
-    ecs::{archetype::ArchetypeId, entity::EntityHashMap},
-    prelude::*,
-    scene::DynamicEntity,
-};
+use bevy::{ecs::entity::EntityHashMap, prelude::*, scene::DynamicEntity};
 
-use crate::core::replication_rules::ReplicationRules;
+use crate::server::replicated_archetypes::ReplicatedArchetypes;
 
 /**
 Fills scene with all replicated entities and their components.
 
-Entities won't have the [`Replication`](crate::core::replication_rules::Replication) component.
+Entities won't have the [`Replication`](crate::core::component_rules::Replication) component.
 So on deserialization you need to insert it back if you want entities to continue to replicate.
+
+Internally relies on [`ReplicatedArchetypes`] which updates in
+[`ServerSet::UpdateArchetypes`](crate::server::ServerSet::UpdateArchetypes).
+So it's preferred to replicate into scene after this set.
 
 # Panics
 
@@ -21,11 +21,11 @@ or `#[reflect(Component)]` is missing.
 
 ```
 use bevy::{prelude::*, asset::ron, scene::serde::SceneDeserializer};
-use bevy_replicon::{core::replication_rules::ReplicationRules, prelude::*, scene};
+use bevy_replicon::{server::replicated_archetypes::ReplicatedArchetypes, prelude::*, scene};
 use serde::de::DeserializeSeed;
 # let mut world = World::new();
 # world.init_resource::<AppTypeRegistry>();
-# world.init_resource::<ReplicationRules>();
+# world.init_resource::<ReplicatedArchetypes>();
 
 // Serialization
 let registry = world.resource::<AppTypeRegistry>();
@@ -59,26 +59,29 @@ pub fn replicate_into(scene: &mut DynamicScene, world: &World) {
     let mut entities = EntityHashMap::from_iter(entities_iter);
 
     let registry = world.resource::<AppTypeRegistry>();
-    let replication_rules = world.resource::<ReplicationRules>();
     let registry = registry.read();
-    for archetype in world
-        .archetypes()
-        .iter()
-        .filter(|archetype| archetype.id() != ArchetypeId::EMPTY)
-        .filter(|archetype| archetype.id() != ArchetypeId::INVALID)
-        .filter(|archetype| archetype.contains(replication_rules.get_marker_id()))
-    {
+    let replicated_archetypes = world.resource::<ReplicatedArchetypes>();
+    for replicated_archetype in replicated_archetypes.iter() {
+        // SAFETY: all IDs from replicated archetypes obtained from real archetypes.
+        let archetype = unsafe {
+            world
+                .archetypes()
+                .get(replicated_archetype.id())
+                .unwrap_unchecked()
+        };
+
         // Populate entities ahead of time in order to extract entities without components too.
         for entity in archetype.entities() {
             entities.entry(entity.id()).or_default();
         }
 
-        for component_id in archetype
-            .components()
-            .filter(|&component_id| replication_rules.get(component_id).is_some())
-        {
-            // SAFETY: `component_info` obtained from the world.
-            let component_info = unsafe { world.components().get_info_unchecked(component_id) };
+        for replicated_component in replicated_archetype.components() {
+            // SAFETY: `component_id` obtained from the replicated component.
+            let component_info = unsafe {
+                world
+                    .components()
+                    .get_info_unchecked(replicated_component.component_id)
+            };
             let type_name = component_info.name();
             let type_id = component_info
                 .type_id()
