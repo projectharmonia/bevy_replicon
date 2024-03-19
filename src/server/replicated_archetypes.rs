@@ -6,9 +6,18 @@ use bevy::{
     prelude::*,
 };
 
-use crate::core::replication_fns::ComponentFnsIndex;
+use crate::core::replication_fns::SerdeFnsId;
 
 /// Stores cached information about all replicated archetypes.
+///
+/// By default it updated with [component-based](../../index.html#component-replication) replication rules.
+///
+/// But it's also possible to implement custom rules:
+/// - Register serde and remove functions inside [`ReplicationFns`](crate::core::replication_fns::ReplicationFns).
+/// - Update this struct for all newly added archetypes using the registered function IDs, see [`Self::add_archetype`].
+/// - Update [`RemovalBuffer`](super::removal_buffer::RemovalBuffer) when the rule components gets removed.
+/// - Update [`DespawnBuffer`](super::despawn_buffer::DespawnBuffer) when entity considered despawned for a client if the rule
+/// doesn't use [`Replication`](crate::core::component_rules::Replication).
 #[derive(Resource, Default)]
 pub struct ReplicatedArchetypes(Vec<ReplicatedArchetype>);
 
@@ -69,5 +78,5 @@ impl ReplicatedArchetype {
 pub struct ReplicatedComponent {
     pub component_id: ComponentId,
     pub storage_type: StorageType,
-    pub fns_index: ComponentFnsIndex,
+    pub serde_id: SerdeFnsId,
 }

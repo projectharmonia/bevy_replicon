@@ -15,7 +15,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use super::{
     replication_fns::{
-        ComponentFns, ComponentFnsIndex, DeserializeFn, RemoveFn, ReplicationFns, SerializeFn,
+        DeserializeFn, RemoveFn, RemoveFnId, ReplicationFns, SerdeFns, SerdeFnsId, SerializeFn,
     },
     replicon_tick::RepliconTick,
 };
@@ -80,17 +80,18 @@ impl AppReplicationExt for App {
         C: Component,
     {
         let component_id = self.world.init_component::<C>();
-        let component_fns = ComponentFns {
+        let serde_fns = SerdeFns {
             serialize,
             deserialize,
-            remove,
         };
 
         let mut replication_fns = self.world.resource_mut::<ReplicationFns>();
-        let fns_index = replication_fns.add_component_fns(component_fns);
+        let serde_id = replication_fns.add_serde_fns(serde_fns);
+        let remove_id = replication_fns.add_remove_fn(remove);
 
         let mut component_rules = self.world.resource_mut::<ComponentRules>();
-        component_rules.ids.insert(component_id, fns_index);
+        component_rules.serde_ids.insert(component_id, serde_id);
+        component_rules.remove_ids.insert(component_id, remove_id);
 
         self
     }
@@ -98,9 +99,12 @@ impl AppReplicationExt for App {
 
 /// Stores information about which components will be replicated.
 #[derive(Resource)]
-pub(crate) struct ComponentRules {
-    /// Maps component IDs to their function IDs.
-    ids: HashMap<ComponentId, ComponentFnsIndex>,
+pub struct ComponentRules {
+    /// Maps component IDs to their serde functions IDs.
+    serde_ids: HashMap<ComponentId, SerdeFnsId>,
+
+    /// Maps component IDs to their remove function IDs.
+    remove_ids: HashMap<ComponentId, RemoveFnId>,
 
     /// ID of [`Replication`] component.
     marker_id: ComponentId,
@@ -126,17 +130,24 @@ impl ComponentRules {
         self.marker_id
     }
 
-    /// Returns mapping of replicated components to their function IDs.
+    /// Returns mapping of replicated components to their serde function IDs.
     #[must_use]
-    pub(crate) fn ids(&self) -> &HashMap<ComponentId, ComponentFnsIndex> {
-        &self.ids
+    pub(crate) fn serde_ids(&self) -> &HashMap<ComponentId, SerdeFnsId> {
+        &self.serde_ids
+    }
+
+    /// Returns mapping of replicated components to their remove function IDs.
+    #[must_use]
+    pub(crate) fn remove_ids(&self) -> &HashMap<ComponentId, RemoveFnId> {
+        &self.remove_ids
     }
 }
 
 impl FromWorld for ComponentRules {
     fn from_world(world: &mut World) -> Self {
         Self {
-            ids: Default::default(),
+            serde_ids: Default::default(),
+            remove_ids: Default::default(),
             marker_id: world.init_component::<Replication>(),
             generation: ArchetypeGeneration::initial(),
         }

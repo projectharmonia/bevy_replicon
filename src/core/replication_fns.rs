@@ -15,38 +15,63 @@ pub struct ReplicationFns {
     /// Useful if you need to intercept despawns and handle them in a special way.
     pub despawn: DespawnFn,
 
-    /// Functions for replicated components.
-    components: Vec<ComponentFns>,
+    /// Functions for component serialization/deserialization.
+    serde: Vec<SerdeFns>,
+
+    /// Functions for removing components.
+    remove: Vec<RemoveFn>,
 }
 
 impl ReplicationFns {
-    /// Registers [`ComponentFns`] for a component and returns its index.
+    /// Registers [`SerdeFns`] for a component and returns its ID.
     ///
-    /// Returned index can be assigned for components inside
+    /// Returned ID can be assigned for components inside
     /// [`ReplicatedArchetype`](crate::server::replicated_archetypes::ReplicatedArchetype).
     ///
     /// Could be called multiple times for the same component with different functions.
-    pub fn add_component_fns(&mut self, component_fns: ComponentFns) -> ComponentFnsIndex {
-        self.components.push(component_fns);
+    pub fn add_serde_fns(&mut self, serde_fns: SerdeFns) -> SerdeFnsId {
+        self.serde.push(serde_fns);
 
-        ComponentFnsIndex(self.components.len() - 1)
+        SerdeFnsId(self.serde.len() - 1)
     }
 
-    /// Returns meta information about replicated component.
+    /// Registers [`RemoveFn`] for a component and returns its ID.
+    ///
+    /// Returned ID can be assigned for components inside
+    /// [`ReplicatedArchetype`](crate::server::replicated_archetypes::ReplicatedArchetype).
+    ///
+    /// Could be called multiple times for the same component with different functions.
+    pub fn add_remove_fn(&mut self, remove: RemoveFn) -> RemoveFnId {
+        self.remove.push(remove);
+
+        RemoveFnId(self.serde.len() - 1)
+    }
+
+    /// Returns a reference to registered serde functions.
     ///
     /// # Safety
     ///
-    /// `index` should point to a valid item.
-    pub(crate) unsafe fn get_unchecked(&self, index: ComponentFnsIndex) -> &ComponentFns {
-        self.components.get_unchecked(index.0)
+    /// `id` should point to a valid item.
+    pub(crate) unsafe fn serde_fn_unchecked(&self, id: SerdeFnsId) -> &SerdeFns {
+        self.serde.get_unchecked(id.0)
+    }
+
+    /// Returns a reference to registered remove function.
+    ///
+    /// # Safety
+    ///
+    /// `id` should point to a valid item.
+    pub(crate) unsafe fn remove_fn_unchecked(&self, id: RemoveFnId) -> &RemoveFn {
+        self.remove.get_unchecked(id.0)
     }
 }
 
 impl Default for ReplicationFns {
     fn default() -> Self {
         Self {
-            components: Default::default(),
             despawn: despawn_recursive,
+            serde: Default::default(),
+            remove: Default::default(),
         }
     }
 }
@@ -68,24 +93,27 @@ pub type RemoveFn = fn(&mut EntityWorldMut, RepliconTick);
 /// Signature of the entity despawn function.
 pub type DespawnFn = fn(EntityWorldMut, RepliconTick);
 
-/// Stores functions for replicated component.
+/// Serialization and deserialization functions for a replicated component.
 #[derive(Clone)]
-pub struct ComponentFns {
+pub struct SerdeFns {
     /// Function that serializes component into bytes.
     pub serialize: SerializeFn,
 
     /// Function that deserializes component from bytes and inserts it to [`EntityWorldMut`].
     pub deserialize: DeserializeFn,
-
-    /// Function that removes specific component from [`EntityWorldMut`].
-    pub remove: RemoveFn,
 }
 
-/// Represents index of [`ComponentFns`].
+/// Represents ID of [`SerdeFns`].
 ///
-/// Can be obtained from [`ReplicationFns::add_component_fns`].
+/// Can be obtained from [`ReplicationFns::add_serde_fns`].
 #[derive(Clone, Copy, Deserialize, Eq, Hash, PartialEq, Serialize)]
-pub struct ComponentFnsIndex(usize);
+pub struct SerdeFnsId(usize);
+
+/// Represents ID of [`RemoveFn`].
+///
+/// Can be obtained from [`ReplicationFns::add_remove_fn`].
+#[derive(Clone, Copy, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub struct RemoveFnId(usize);
 
 /// Default entity despawn function.
 pub fn despawn_recursive(entity: EntityWorldMut, _replicon_tick: RepliconTick) {

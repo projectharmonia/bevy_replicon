@@ -15,7 +15,7 @@ use super::{
     ClientMapping, ConnectedClient,
 };
 use crate::core::{
-    replication_fns::{ComponentFns, ComponentFnsIndex},
+    replication_fns::{RemoveFnId, SerdeFns, SerdeFnsId},
     replicon_channels::ReplicationChannel,
     replicon_tick::RepliconTick,
 };
@@ -281,7 +281,7 @@ impl InitMessage {
         Ok(())
     }
 
-    /// Serializes component and its functions index as an element of entity data.
+    /// Serializes component and its serde functions ID as an element of entity data.
     ///
     /// Reuses previously shared bytes if they exist, or updates them.
     /// Should be called only inside an entity data and increases its size.
@@ -289,8 +289,8 @@ impl InitMessage {
     pub(super) fn write_component<'a>(
         &'a mut self,
         shared_bytes: &mut Option<&'a [u8]>,
-        component_fns: &ComponentFns,
-        fns_index: ComponentFnsIndex,
+        serde_fns: &SerdeFns,
+        id: SerdeFnsId,
         ptr: Ptr,
     ) -> bincode::Result<()> {
         if self.entity_data_size == 0 {
@@ -298,8 +298,8 @@ impl InitMessage {
         }
 
         let size = write_with(shared_bytes, &mut self.cursor, |cursor| {
-            DefaultOptions::new().serialize_into(&mut *cursor, &fns_index)?;
-            (component_fns.serialize)(ptr, cursor)
+            DefaultOptions::new().serialize_into(&mut *cursor, &id)?;
+            (serde_fns.serialize)(ptr, cursor)
         })?;
 
         self.entity_data_size = self
@@ -310,17 +310,17 @@ impl InitMessage {
         Ok(())
     }
 
-    /// Serializes functions index as an element of entity data.
+    /// Serializes remove function ID as an element of entity data.
     ///
     /// Should be called only inside an entity data and increases its size.
     /// See also [`Self::start_entity_data`].
-    pub(super) fn write_fns_index(&mut self, fns_index: ComponentFnsIndex) -> bincode::Result<()> {
+    pub(super) fn write_remove_id(&mut self, id: RemoveFnId) -> bincode::Result<()> {
         if self.entity_data_size == 0 {
             self.write_data_entity()?;
         }
 
         let previous_pos = self.cursor.position();
-        DefaultOptions::new().serialize_into(&mut self.cursor, &fns_index)?;
+        DefaultOptions::new().serialize_into(&mut self.cursor, &id)?;
 
         let id_size = self.cursor.position() - previous_pos;
         self.entity_data_size = self
@@ -515,8 +515,8 @@ impl UpdateMessage {
     pub(super) fn write_component<'a>(
         &'a mut self,
         shared_bytes: &mut Option<&'a [u8]>,
-        component_fns: &ComponentFns,
-        fns_index: ComponentFnsIndex,
+        serde_fns: &SerdeFns,
+        id: SerdeFnsId,
         ptr: Ptr,
     ) -> bincode::Result<()> {
         if self.entity_data_size == 0 {
@@ -524,8 +524,8 @@ impl UpdateMessage {
         }
 
         let size = write_with(shared_bytes, &mut self.cursor, |cursor| {
-            DefaultOptions::new().serialize_into(&mut *cursor, &fns_index)?;
-            (component_fns.serialize)(ptr, cursor)
+            DefaultOptions::new().serialize_into(&mut *cursor, &id)?;
+            (serde_fns.serialize)(ptr, cursor)
         })?;
 
         self.entity_data_size = self

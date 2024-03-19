@@ -11,12 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `ServerSet::StoreHierarchy` for systems that store hierarchy changes in `ParentSync`.
 - `replicated_archetypes` module to control which archetypes are replicated and how. Useful for third-party crates.
+- `removal_buffer` and `despawn_buffer` modules to manually register removals and despawns. Useful for third-party crates.
 - `ServerSet::UpdateArchetypes` for functions that update replicated archetypes.
 
 # Changed
 
 - Rename `ReplicationRules` into `ReplicationFns` with its module.
-- Rename `ReplicationInfo` into `ComponentFns`.
 - Rename `DespawnEntityFn` into `DespawnFn`.
 - Rename `RemoveComponentFn` into `RemoveFn`.
 - Rename `despawn_fn` field from `ReplicationFns` into `despawn`.

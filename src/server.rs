@@ -1,6 +1,6 @@
 pub mod connected_clients;
-pub(super) mod despawn_buffer;
-pub(super) mod removal_buffer;
+pub mod despawn_buffer;
+pub mod removal_buffer;
 pub mod replicated_archetypes;
 pub(super) mod replication_messages;
 pub mod replicon_server;
@@ -215,7 +215,7 @@ impl ServerPlugin {
         {
             let mut replicated_archetype = ReplicatedArchetype::new(archetype.id());
             for component_id in archetype.components() {
-                let Some(&fns_index) = component_rules.ids().get(&component_id) else {
+                let Some(&serde_id) = component_rules.serde_ids().get(&component_id) else {
                     continue;
                 };
 
@@ -226,7 +226,7 @@ impl ServerPlugin {
                 let replicated_component = ReplicatedComponent {
                     component_id,
                     storage_type,
-                    fns_index,
+                    serde_id,
                 };
 
                 // SAFETY: Component ID and storage type obtained from this archetype,
@@ -389,8 +389,8 @@ fn collect_changes(
                     )
                 };
                 // SAFETY: component index stored in `ReplicatedComponents` obtained from `ReplicationFns`.
-                let component_fns =
-                    unsafe { replication_fns.get_unchecked(replicated_component.fns_index) };
+                let serde_fns =
+                    unsafe { replication_fns.serde_fn_unchecked(replicated_component.serde_id) };
 
                 let mut shared_bytes = None;
                 for (init_message, update_message, client) in messages.iter_mut_with_clients() {
@@ -404,8 +404,8 @@ fn collect_changes(
                     {
                         init_message.write_component(
                             &mut shared_bytes,
-                            component_fns,
-                            replicated_component.fns_index,
+                            serde_fns,
+                            replicated_component.serde_id,
                             component,
                         )?;
                     } else {
@@ -415,8 +415,8 @@ fn collect_changes(
                         if ticks.is_changed(tick, change_tick.this_run()) {
                             update_message.write_component(
                                 &mut shared_bytes,
-                                component_fns,
-                                replicated_component.fns_index,
+                                serde_fns,
+                                replicated_component.serde_id,
                                 component,
                             )?;
                         }
@@ -491,7 +491,7 @@ fn collect_despawns(
         message.start_array();
     }
 
-    for entity in despawn_buffer.drain(..) {
+    for entity in despawn_buffer.drain() {
         let mut shared_bytes = None;
         for (message, _, client) in messages.iter_mut_with_clients() {
             client.remove_despawned(entity);
@@ -520,12 +520,12 @@ fn collect_removals(
         message.start_array();
     }
 
-    for (entity, fn_indices) in removal_buffer.iter() {
+    for (entity, remove_ids) in removal_buffer.iter() {
         for (message, _, client) in messages.iter_mut_with_clients() {
             message.start_entity_data(entity);
-            for &fns_index in fn_indices {
+            for &id in remove_ids {
                 client.set_change_limit(entity, tick);
-                message.write_fns_index(fns_index)?;
+                message.write_remove_id(id)?;
             }
             message.end_entity_data(false)?;
         }

@@ -350,14 +350,19 @@ fn apply_init_components(
         let end_pos = cursor.position() + data_size as u64;
         let mut components_len = 0u32;
         while cursor.position() < end_pos {
-            let fns_index = DefaultOptions::new().deserialize_from(&mut *cursor)?;
-            // SAFETY: server and client have identical `ComponentRules` and server always sends valid IDs.
-            let component_fns = unsafe { replication_fns.get_unchecked(fns_index) };
             match components_kind {
                 ComponentsKind::Insert => {
-                    (component_fns.deserialize)(&mut entity, entity_map, cursor, replicon_tick)?
+                    // SAFETY: server and client have identical `ReplicationFns` and server always sends valid IDs.
+                    let serde_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
+                    let serde_fns = unsafe { replication_fns.serde_fn_unchecked(serde_id) };
+                    (serde_fns.deserialize)(&mut entity, entity_map, cursor, replicon_tick)?;
                 }
-                ComponentsKind::Removal => (component_fns.remove)(&mut entity, replicon_tick),
+                ComponentsKind::Removal => {
+                    let remove_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
+                    // SAFETY: server and client have identical `ReplicationFns` and server always sends valid IDs.
+                    let remove = unsafe { replication_fns.remove_fn_unchecked(remove_id) };
+                    (remove)(&mut entity, replicon_tick);
+                }
             }
             components_len += 1;
         }
@@ -436,10 +441,10 @@ fn apply_update_components(
         let end_pos = cursor.position() + data_size as u64;
         let mut components_count = 0u32;
         while cursor.position() < end_pos {
-            let fns_index = DefaultOptions::new().deserialize_from(&mut *cursor)?;
-            // SAFETY: server and client have identical `ComponentRules` and server always sends valid IDs.
-            let component_fns = unsafe { replication_fns.get_unchecked(fns_index) };
-            (component_fns.deserialize)(&mut entity, entity_map, cursor, message_tick)?;
+            let serde_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
+            // SAFETY: server and client have identical `ReplicationFns` and server always sends valid IDs.
+            let serde_fns = unsafe { replication_fns.serde_fn_unchecked(serde_id) };
+            (serde_fns.deserialize)(&mut entity, entity_map, cursor, message_tick)?;
             components_count += 1;
         }
         if let Some(stats) = &mut stats {

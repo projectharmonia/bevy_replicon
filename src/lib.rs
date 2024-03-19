@@ -168,6 +168,9 @@ component. Just insert it to the entity you want to replicate. Only components
 marked for replication through [`AppReplicationExt::replicate()`]
 will be replicated.
 
+It's possible to write plugins with custom replication rules.
+See [`ReplicatedArchetypes`](crate::server::replicated_archetypes::ReplicatedArchetypes) for more details.
+
 ### Tick and fixed timestep games
 
 The [`ServerPlugin`] sends replication data in [`PostUpdate`] any time the

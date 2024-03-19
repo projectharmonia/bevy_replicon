@@ -14,8 +14,7 @@ use super::{
     ServerPlugin, ServerSet,
 };
 use crate::core::{
-    common_conditions::server_running, component_rules::ComponentRules,
-    replication_fns::ComponentFnsIndex,
+    common_conditions::server_running, component_rules::ComponentRules, replication_fns::RemoveFnId,
 };
 
 /// Buffers all replicated component removals in [`RemovalBuffer`] resource.
@@ -44,16 +43,16 @@ impl RemovalBufferPlugin {
         component_rules: Res<ComponentRules>,
         despawn_buffer: Res<DespawnBuffer>,
     ) {
-        for (&component_id, &fns_index) in component_rules.ids() {
+        for (&component_id, &serde_id) in component_rules.remove_ids() {
             for removals in remove_events.get(component_id).into_iter() {
                 let reader = readers.entry(component_id).or_default();
                 for entity in reader
                     .read(removals)
                     .cloned()
                     .map(Into::into)
-                    .filter(|entity| !despawn_buffer.contains(entity))
+                    .filter(|&entity| !despawn_buffer.contains(entity))
                 {
-                    removal_buffer.insert(entity, fns_index);
+                    removal_buffer.insert(entity, serde_id);
                 }
             }
         }
@@ -62,31 +61,31 @@ impl RemovalBufferPlugin {
 
 /// Buffer with removed components.
 #[derive(Default, Resource)]
-pub(crate) struct RemovalBuffer {
+pub struct RemovalBuffer {
     /// Component removals grouped by entity.
-    removals: EntityHashMap<Vec<ComponentFnsIndex>>,
+    removals: EntityHashMap<Vec<RemoveFnId>>,
 
     /// [`Vec`]'s from entity removals.
     ///
     /// All data is cleared before the insertion.
     /// Stored to reuse allocated capacity.
-    component_buffer: Vec<Vec<ComponentFnsIndex>>,
+    component_buffer: Vec<Vec<RemoveFnId>>,
 }
 
 impl RemovalBuffer {
     /// Returns an iterator over entities and their removed components.
-    pub(super) fn iter(&self) -> impl Iterator<Item = (Entity, &[ComponentFnsIndex])> {
+    pub(super) fn iter(&self) -> impl Iterator<Item = (Entity, &[RemoveFnId])> {
         self.removals
             .iter()
             .map(|(&entity, components)| (entity, &**components))
     }
 
     /// Registers component removal for the specified entity.
-    fn insert(&mut self, entity: Entity, fns_index: ComponentFnsIndex) {
+    pub fn insert(&mut self, entity: Entity, remove_id: RemoveFnId) {
         self.removals
             .entry(entity)
             .or_insert_with(|| self.component_buffer.pop().unwrap_or_default())
-            .push(fns_index);
+            .push(remove_id);
     }
 
     /// Clears all removals.
