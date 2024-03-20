@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `replicated_archetypes` module to control which archetypes are replicated and how. Useful for third-party crates.
 - `removal_buffer` module to manually register removals. Useful for third-party crates.
 - `ServerSet::UpdateArchetypes` for functions that update replicated archetypes.
+- `ServerSet::BufferDespawns` for functions that buffer despawned entities.
+- `ServerSet::BufferRemovals` for functions that buffer removed components.
 
 # Changed
 

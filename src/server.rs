@@ -83,6 +83,8 @@ impl Plugin for ServerPlugin {
                 (
                     ServerSet::StoreHierarchy,
                     ServerSet::UpdateArchetypes,
+                    ServerSet::BufferDespawns,
+                    ServerSet::BufferRemovals,
                     ServerSet::Send,
                     ServerSet::SendPackets,
                 )
@@ -565,6 +567,14 @@ pub enum ServerSet {
     ///
     /// Runs in [`PostUpdate`].
     UpdateArchetypes,
+    /// Systems that update despawns buffer.
+    ///
+    /// Runs in [`PostUpdate`].
+    BufferDespawns,
+    /// Systems that update [`RemovalBuffer`].
+    ///
+    /// Runs in [`PostUpdate`].
+    BufferRemovals,
     /// Systems that send data to [`RepliconServer`].
     ///
     /// Used by `bevy_replicon`.

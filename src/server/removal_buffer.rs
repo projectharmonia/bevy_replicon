@@ -9,10 +9,7 @@ use bevy::{
     utils::HashMap,
 };
 
-use super::{
-    despawn_buffer::{DespawnBuffer, DespawnBufferPlugin},
-    ServerPlugin, ServerSet,
-};
+use super::{despawn_buffer::DespawnBuffer, ServerSet};
 use crate::core::{
     common_conditions::server_running, component_rules::ComponentRules, replication_fns::RemoveFnId,
 };
@@ -27,9 +24,7 @@ impl Plugin for RemovalBufferPlugin {
         app.init_resource::<RemovalBuffer>().add_systems(
             PostUpdate,
             Self::buffer_removals
-                .after(DespawnBufferPlugin::buffer_despawns)
-                .before(ServerPlugin::send_replication)
-                .in_set(ServerSet::Send)
+                .in_set(ServerSet::BufferRemovals)
                 .run_if(server_running),
         );
     }
@@ -105,17 +100,15 @@ mod tests {
 
     use super::*;
     use crate::{
-        core::{component_rules::AppReplicationExt, replication_fns::ReplicationFns, Replication},
+        core::{component_rules::AppReplicationExt, Replication},
         server::replicon_server::RepliconServer,
+        RepliconCorePlugin, ServerPlugin,
     };
 
     #[test]
     fn removals() {
         let mut app = App::new();
-        app.add_plugins((DespawnBufferPlugin, RemovalBufferPlugin))
-            .init_resource::<RepliconServer>()
-            .init_resource::<ReplicationFns>()
-            .init_resource::<ComponentRules>()
+        app.add_plugins((MinimalPlugins, RepliconCorePlugin, ServerPlugin::default()))
             .replicate::<DummyComponent>();
 
         app.world.resource_mut::<RepliconServer>().set_running(true);
@@ -139,10 +132,7 @@ mod tests {
     #[test]
     fn despawn_ignore() {
         let mut app = App::new();
-        app.add_plugins((DespawnBufferPlugin, RemovalBufferPlugin))
-            .init_resource::<RepliconServer>()
-            .init_resource::<ReplicationFns>()
-            .init_resource::<ComponentRules>()
+        app.add_plugins((MinimalPlugins, RepliconCorePlugin, ServerPlugin::default()))
             .replicate::<DummyComponent>();
 
         app.world.resource_mut::<RepliconServer>().set_running(true);
