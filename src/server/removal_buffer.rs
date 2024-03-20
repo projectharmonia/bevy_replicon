@@ -105,10 +105,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        core::{
-            component_rules::{AppReplicationExt, Replication},
-            replication_fns::ReplicationFns,
-        },
+        core::{component_rules::AppReplicationExt, replication_fns::ReplicationFns, Replication},
         server::replicon_server::RepliconServer,
     };
 

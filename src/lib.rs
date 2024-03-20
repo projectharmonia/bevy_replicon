@@ -504,9 +504,9 @@ pub mod prelude {
         },
         core::{
             common_conditions::*,
-            component_rules::{AppReplicationExt, Replication},
+            component_rules::AppReplicationExt,
             replicon_channels::{ChannelKind, RepliconChannel, RepliconChannels},
-            ClientId, RepliconCorePlugin,
+            ClientId, Replication, RepliconCorePlugin,
         },
         network_event::{
             client_event::{ClientEventAppExt, FromClient},

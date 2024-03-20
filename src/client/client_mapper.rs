@@ -1,6 +1,6 @@
 use bevy::{ecs::entity::EntityHashMap, prelude::*, utils::hashbrown::hash_map::Entry};
 
-use crate::core::component_rules::Replication;
+use crate::core::Replication;
 
 /// Maps server entities into client entities inside components.
 ///

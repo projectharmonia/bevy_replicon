@@ -209,9 +209,10 @@ impl ServerPlugin {
         let old_generation = component_rules.update_generation(archetypes);
 
         // Archetypes are never removed, iterate over newly added since the last update.
+        let marker_id = replicated_archetypes.marker_id();
         for archetype in archetypes[old_generation..]
             .iter()
-            .filter(|archetype| archetype.contains(component_rules.marker_id()))
+            .filter(|archetype| archetype.contains(marker_id))
         {
             let mut replicated_archetype = ReplicatedArchetype::new(archetype.id());
             for component_id in archetype.components() {
@@ -240,7 +241,7 @@ impl ServerPlugin {
     }
 
     /// Collects [`ReplicationMessages`] and sends them.
-    #[allow(clippy::type_complexity, clippy::too_many_arguments)]
+    #[allow(clippy::type_complexity)]
     pub(super) fn send_replication(
         mut messages: Local<ReplicationMessages>,
         change_tick: SystemChangeTick,
@@ -255,7 +256,6 @@ impl ServerPlugin {
         )>,
         replicated_archetypes: Res<ReplicatedArchetypes>,
         replication_fns: Res<ReplicationFns>,
-        component_rules: Res<ComponentRules>,
         replicon_tick: Res<RepliconTick>,
         time: Res<Time>,
     ) -> bincode::Result<()> {
@@ -269,7 +269,6 @@ impl ServerPlugin {
             &mut messages,
             &replicated_archetypes,
             &replication_fns,
-            &component_rules,
             set.p0(),
             &change_tick,
         )?;
@@ -329,7 +328,6 @@ fn collect_changes(
     messages: &mut ReplicationMessages,
     replicated_archetypes: &ReplicatedArchetypes,
     replication_fns: &ReplicationFns,
-    component_rules: &ComponentRules,
     world: &World,
     change_tick: &SystemChangeTick,
 ) -> bincode::Result<()> {
@@ -368,7 +366,7 @@ fn collect_changes(
                     &world.storages().sparse_sets,
                     entity,
                     StorageType::Table,
-                    component_rules.marker_id(),
+                    replicated_archetypes.marker_id(),
                 )
             };
             // If the marker was added in this tick, the entity just started replicating.

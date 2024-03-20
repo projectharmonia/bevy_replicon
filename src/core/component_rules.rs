@@ -106,9 +106,6 @@ pub struct ComponentRules {
     /// Maps component IDs to their remove function IDs.
     remove_ids: HashMap<ComponentId, RemoveFnId>,
 
-    /// ID of [`Replication`] component.
-    marker_id: ComponentId,
-
     /// Highest processed archetype ID.
     ///
     /// See also [`Self::update_generation`].
@@ -124,12 +121,6 @@ impl ComponentRules {
         mem::replace(&mut self.generation, archetypes.generation())
     }
 
-    /// ID of [`Replication`] component.
-    #[must_use]
-    pub(crate) fn marker_id(&self) -> ComponentId {
-        self.marker_id
-    }
-
     /// Returns mapping of replicated components to their serde function IDs.
     #[must_use]
     pub(crate) fn serde_ids(&self) -> &HashMap<ComponentId, SerdeFnsId> {
@@ -143,21 +134,15 @@ impl ComponentRules {
     }
 }
 
-impl FromWorld for ComponentRules {
-    fn from_world(world: &mut World) -> Self {
+impl Default for ComponentRules {
+    fn default() -> Self {
         Self {
             serde_ids: Default::default(),
             remove_ids: Default::default(),
-            marker_id: world.init_component::<Replication>(),
             generation: ArchetypeGeneration::initial(),
         }
     }
 }
-
-/// Marks entity for replication.
-#[derive(Component, Clone, Copy, Default, Reflect, Debug)]
-#[reflect(Component)]
-pub struct Replication;
 
 /// Default serialization function.
 pub fn serialize_component<C: Component + Serialize>(

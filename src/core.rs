@@ -6,7 +6,7 @@ pub mod replicon_tick;
 
 use bevy::prelude::*;
 
-use component_rules::{ComponentRules, Replication};
+use component_rules::ComponentRules;
 use replication_fns::ReplicationFns;
 use replicon_channels::RepliconChannels;
 use replicon_tick::RepliconTick;
@@ -44,3 +44,8 @@ impl ClientId {
         self.0
     }
 }
+
+/// Marks entity for replication.
+#[derive(Component, Clone, Copy, Default, Reflect, Debug)]
+#[reflect(Component)]
+pub struct Replication;

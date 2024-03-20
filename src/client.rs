@@ -11,11 +11,11 @@ use varint_rs::VarintReader;
 
 use crate::core::{
     common_conditions::{client_connected, client_just_connected, client_just_disconnected},
-    component_rules::Replication,
     replication_fns::ReplicationFns,
     replicon_channels::ReplicationChannel,
     replicon_channels::RepliconChannels,
     replicon_tick::RepliconTick,
+    Replication,
 };
 use client_mapper::ServerEntityMap;
 use diagnostics::ClientStats;

@@ -6,7 +6,7 @@ use bevy::{
     prelude::*,
 };
 
-use crate::core::replication_fns::SerdeFnsId;
+use crate::core::{replication_fns::SerdeFnsId, Replication};
 
 /// Stores cached information about all replicated archetypes.
 ///
@@ -19,8 +19,13 @@ use crate::core::replication_fns::SerdeFnsId;
 /// - Update [`RemovalBuffer`](super::removal_buffer::RemovalBuffer) when your special components get removed.
 /// - Update [`DespawnBuffer`](super::despawn_buffer::DespawnBuffer) when an entity is considered despawned for
 /// a client, if your rule doesn't use [`Replication`](crate::core::component_rules::Replication).
-#[derive(Resource, Default)]
-pub struct ReplicatedArchetypes(Vec<ReplicatedArchetype>);
+#[derive(Resource)]
+pub struct ReplicatedArchetypes {
+    archetypes: Vec<ReplicatedArchetype>,
+
+    /// ID of [`Replication`] component.
+    marker_id: ComponentId,
+}
 
 impl ReplicatedArchetypes {
     /// Marks an archetype as being relevant for replicating entities.
@@ -29,12 +34,27 @@ impl ReplicatedArchetypes {
     ///
     /// ID of [`ReplicatedArchetype`] should exist in [`Archetypes`](bevy::ecs::archetype::Archetypes).
     pub unsafe fn add_archetype(&mut self, replicated_archetype: ReplicatedArchetype) {
-        self.0.push(replicated_archetype);
+        self.archetypes.push(replicated_archetype);
     }
 
     /// Returns an iterator over replicated archetypes.
     pub(crate) fn iter(&self) -> impl Iterator<Item = &ReplicatedArchetype> {
-        self.0.iter()
+        self.archetypes.iter()
+    }
+
+    /// ID of [`Replication`] component.
+    #[must_use]
+    pub(crate) fn marker_id(&self) -> ComponentId {
+        self.marker_id
+    }
+}
+
+impl FromWorld for ReplicatedArchetypes {
+    fn from_world(world: &mut World) -> Self {
+        Self {
+            archetypes: Default::default(),
+            marker_id: world.init_component::<Replication>(),
+        }
     }
 }
 
