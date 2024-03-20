@@ -1,14 +1,12 @@
 use bevy::{ecs::entity::MapEntities, prelude::*};
 use bevy_replicon::{
     client::client_mapper::ServerEntityMap,
+    core::replicated_archetypes::{ReplicatedArchetype, ReplicatedArchetypes, ReplicatedComponent},
     core::{
         component_rules,
         replication_fns::{ReplicationFns, SerdeFns},
     },
     prelude::*,
-    server::replicated_archetypes::{
-        ReplicatedArchetype, ReplicatedArchetypes, ReplicatedComponent,
-    },
     test_app::ServerTestAppExt,
 };
 use serde::{Deserialize, Serialize};

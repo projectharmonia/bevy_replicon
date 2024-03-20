@@ -15,9 +15,9 @@ use crate::core::{replication_fns::SerdeFnsId, Replication};
 /// But it's also possible to implement custom rules:
 /// - Register 'serde' and 'remove' functions inside [`ReplicationFns`](crate::core::replication_fns::ReplicationFns).
 /// - Update this struct for all newly added archetypes in
-/// [`ServerSet::UpdateArchetypes`](super::ServerSet::UpdateArchetypes) using the registered function IDs.
-/// - Update [`RemovalBuffer`](super::removal_buffer::RemovalBuffer) in
-/// [`ServerSet::BufferRemovals`](super::ServerSet::BufferRemovals) when the rule components should be removed.
+/// [`ServerSet::UpdateArchetypes`](crate::server::ServerSet::UpdateArchetypes) using the registered function IDs.
+/// - Update [`RemovalBuffer`](crate::server::removal_buffer::RemovalBuffer) in
+/// [`ServerSet::BufferRemovals`](crate::server::ServerSet::BufferRemovals) when the rule components should be removed.
 #[derive(Resource)]
 pub struct ReplicatedArchetypes {
     archetypes: Vec<ReplicatedArchetype>,

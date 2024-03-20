@@ -169,7 +169,7 @@ marked for replication through [`AppReplicationExt::replicate()`]
 will be replicated.
 
 It's possible to write plugins with custom replication rules.
-See [`ReplicatedArchetypes`](crate::server::replicated_archetypes::ReplicatedArchetypes) for more details.
+See [`ReplicatedArchetypes`](crate::core::replicated_archetypes::ReplicatedArchetypes) for more details.
 
 ### Tick and fixed timestep games
 

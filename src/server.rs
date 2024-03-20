@@ -1,7 +1,6 @@
 pub mod connected_clients;
 pub mod despawn_buffer;
 pub mod removal_buffer;
-pub mod replicated_archetypes;
 pub(super) mod replication_messages;
 pub mod replicon_server;
 
@@ -23,6 +22,7 @@ use bevy::{
 use crate::core::{
     common_conditions::{server_just_stopped, server_running},
     component_rules::ComponentRules,
+    replicated_archetypes::{ReplicatedArchetype, ReplicatedArchetypes, ReplicatedComponent},
     replication_fns::ReplicationFns,
     replicon_channels::{ReplicationChannel, RepliconChannels},
     replicon_tick::RepliconTick,
@@ -33,7 +33,6 @@ use connected_clients::{
 };
 use despawn_buffer::{DespawnBuffer, DespawnBufferPlugin};
 use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
-use replicated_archetypes::{ReplicatedArchetype, ReplicatedArchetypes, ReplicatedComponent};
 use replication_messages::ReplicationMessages;
 use replicon_server::RepliconServer;
 
@@ -64,7 +63,6 @@ impl Plugin for ServerPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((DespawnBufferPlugin, RemovalBufferPlugin))
             .init_resource::<RepliconServer>()
-            .init_resource::<ReplicatedArchetypes>()
             .init_resource::<ClientBuffers>()
             .init_resource::<ClientEntityMap>()
             .insert_resource(ConnectedClients::new(self.visibility_policy))

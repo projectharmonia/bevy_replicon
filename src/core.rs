@@ -1,5 +1,6 @@
 pub mod common_conditions;
 pub mod component_rules;
+pub mod replicated_archetypes;
 pub mod replication_fns;
 pub mod replicon_channels;
 pub mod replicon_tick;
@@ -7,6 +8,7 @@ pub mod replicon_tick;
 use bevy::prelude::*;
 
 use component_rules::ComponentRules;
+use replicated_archetypes::ReplicatedArchetypes;
 use replication_fns::ReplicationFns;
 use replicon_channels::RepliconChannels;
 use replicon_tick::RepliconTick;
@@ -18,6 +20,7 @@ impl Plugin for RepliconCorePlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<Replication>()
             .init_resource::<RepliconTick>()
+            .init_resource::<ReplicatedArchetypes>()
             .init_resource::<RepliconChannels>()
             .init_resource::<ReplicationFns>()
             .init_resource::<ComponentRules>();

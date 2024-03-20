@@ -1,6 +1,6 @@
 use bevy::{ecs::entity::EntityHashMap, prelude::*, scene::DynamicEntity};
 
-use crate::server::replicated_archetypes::ReplicatedArchetypes;
+use crate::core::replicated_archetypes::ReplicatedArchetypes;
 
 /**
 Fills scene with all replicated entities and their components.
@@ -21,7 +21,7 @@ or `#[reflect(Component)]` is missing.
 
 ```
 use bevy::{prelude::*, asset::ron, scene::serde::SceneDeserializer};
-use bevy_replicon::{server::replicated_archetypes::ReplicatedArchetypes, prelude::*, scene};
+use bevy_replicon::{core::replicated_archetypes::ReplicatedArchetypes, prelude::*, scene};
 use serde::de::DeserializeSeed;
 # let mut world = World::new();
 # world.init_resource::<AppTypeRegistry>();

@@ -26,7 +26,7 @@ impl ReplicationFns {
     /// Registers [`SerdeFns`] for a component and returns its ID.
     ///
     /// Returned ID can be assigned for components inside
-    /// [`ReplicatedArchetype`](crate::server::replicated_archetypes::ReplicatedArchetype).
+    /// [`ReplicatedArchetype`](super::replicated_archetypes::ReplicatedArchetype).
     ///
     /// Could be called multiple times for the same component with different functions.
     pub fn add_serde_fns(&mut self, serde_fns: SerdeFns) -> SerdeFnsId {
@@ -38,7 +38,7 @@ impl ReplicationFns {
     /// Registers [`RemoveFn`] for a component and returns its ID.
     ///
     /// Returned ID can be assigned for components inside
-    /// [`ReplicatedArchetype`](crate::server::replicated_archetypes::ReplicatedArchetype).
+    /// [`ReplicatedArchetype`](super::replicated_archetypes::ReplicatedArchetype).
     ///
     /// Could be called multiple times for the same component with different functions.
     pub fn add_remove_fn(&mut self, remove: RemoveFn) -> RemoveFnId {
