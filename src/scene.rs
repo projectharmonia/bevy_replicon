@@ -10,7 +10,7 @@ So on deserialization you need to insert it back if you want entities to continu
 
 Internally relies on [`ReplicatedArchetypes`] which updates in
 [`ServerSet::UpdateArchetypes`](crate::server::ServerSet::UpdateArchetypes).
-So it's preferred to replicate into scene after this set.
+It's recommended to replicate into scenes after that set.
 
 # Panics
 

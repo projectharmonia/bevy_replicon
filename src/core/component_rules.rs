@@ -119,7 +119,7 @@ impl ComponentRules {
     /// Replaces stored generation with the highest archetype ID and returns previous.
     ///
     /// This should be used to iterate over newly introduced
-    /// [`Archetype`](bevy::ecs::archetype::Archetypes)s since the last time this function was called.
+    /// [`Archetype`](bevy::ecs::archetype::Archetype)s since the last time this function was called.
     pub(crate) fn update_generation(&mut self, archetypes: &Archetypes) -> ArchetypeGeneration {
         mem::replace(&mut self.generation, archetypes.generation())
     }

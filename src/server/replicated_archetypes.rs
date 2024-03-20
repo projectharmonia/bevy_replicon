@@ -10,20 +10,20 @@ use crate::core::replication_fns::SerdeFnsId;
 
 /// Stores cached information about all replicated archetypes.
 ///
-/// By default it updated with [component-based](../../index.html#component-replication) replication rules.
+/// By default it's updated with [component-based](../../index.html#component-replication) replication rules.
 ///
 /// But it's also possible to implement custom rules:
-/// - Register serde and remove functions inside [`ReplicationFns`](crate::core::replication_fns::ReplicationFns).
+/// - Register 'serde' and 'remove' functions inside [`ReplicationFns`](crate::core::replication_fns::ReplicationFns).
 /// - Update this struct for all newly added archetypes in
 /// [`ServerSet::UpdateArchetypes`](super::ServerSet::UpdateArchetypes) using the registered function IDs.
-/// - Update [`RemovalBuffer`](super::removal_buffer::RemovalBuffer) when the rule components gets removed.
-/// - Update [`DespawnBuffer`](super::despawn_buffer::DespawnBuffer) when entity considered despawned for
-/// a client if the rule doesn't use [`Replication`](crate::core::component_rules::Replication).
+/// - Update [`RemovalBuffer`](super::removal_buffer::RemovalBuffer) when your special components get removed.
+/// - Update [`DespawnBuffer`](super::despawn_buffer::DespawnBuffer) when an entity is considered despawned for
+/// a client, if your rule doesn't use [`Replication`](crate::core::component_rules::Replication).
 #[derive(Resource, Default)]
 pub struct ReplicatedArchetypes(Vec<ReplicatedArchetype>);
 
 impl ReplicatedArchetypes {
-    /// Marks an archetype as replicated and returns a mutable reference to its data.
+    /// Marks an archetype as being relevant for replicating entities.
     ///
     /// # Safety
     ///
@@ -52,7 +52,7 @@ impl ReplicatedArchetype {
         }
     }
 
-    /// Adds replicated component to the archetype.
+    /// Adds a replicated component to the archetype.
     ///
     /// # Safety
     ///
@@ -62,7 +62,7 @@ impl ReplicatedArchetype {
         self.components.push(replicated_component);
     }
 
-    /// Returns associated archetype ID.
+    /// Returns the associated archetype ID.
     #[must_use]
     pub(crate) fn id(&self) -> ArchetypeId {
         self.id
@@ -75,7 +75,7 @@ impl ReplicatedArchetype {
     }
 }
 
-/// Stores information about replicated component.
+/// Stores information about a replicated component.
 pub struct ReplicatedComponent {
     pub component_id: ComponentId,
     pub storage_type: StorageType,

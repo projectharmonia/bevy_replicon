@@ -96,10 +96,10 @@ pub type DespawnFn = fn(EntityWorldMut, RepliconTick);
 /// Serialization and deserialization functions for a replicated component.
 #[derive(Clone)]
 pub struct SerdeFns {
-    /// Function that serializes component into bytes.
+    /// Function that serializes a component into bytes.
     pub serialize: SerializeFn,
 
-    /// Function that deserializes component from bytes and inserts it to [`EntityWorldMut`].
+    /// Function that deserializes a component from bytes and inserts it to [`EntityWorldMut`].
     pub deserialize: DeserializeFn,
 }
 
