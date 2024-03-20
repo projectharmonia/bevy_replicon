@@ -50,7 +50,7 @@ impl RemovalBufferPlugin {
                     .read(removals)
                     .cloned()
                     .map(Into::into)
-                    .filter(|&entity| !despawn_buffer.contains(entity))
+                    .filter(|entity| !despawn_buffer.contains(entity))
                 {
                     removal_buffer.insert(entity, serde_id);
                 }

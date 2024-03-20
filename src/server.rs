@@ -489,7 +489,7 @@ fn collect_despawns(
         message.start_array();
     }
 
-    for entity in despawn_buffer.drain() {
+    for entity in despawn_buffer.drain(..) {
         let mut shared_bytes = None;
         for (message, _, client) in messages.iter_mut_with_clients() {
             client.remove_despawned(entity);

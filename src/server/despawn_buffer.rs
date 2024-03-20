@@ -32,25 +32,10 @@ impl DespawnBufferPlugin {
 }
 
 /// Buffer with all despawned entities.
-#[derive(Default, Resource)]
-pub struct DespawnBuffer(Vec<Entity>);
-
-impl DespawnBuffer {
-    /// Adds an entity to the end of the buffer.
-    pub fn push(&mut self, entity: Entity) {
-        self.0.push(entity);
-    }
-
-    /// Returns `true` if the buffer contains an entity.
-    pub fn contains(&self, entity: Entity) -> bool {
-        self.0.contains(&entity)
-    }
-
-    /// Removes all entities, returning them as an iterator.
-    pub(crate) fn drain(&mut self) -> impl Iterator<Item = Entity> + '_ {
-        self.0.drain(..)
-    }
-}
+///
+/// Should be cleaned up manually.
+#[derive(Default, Resource, Deref, DerefMut)]
+pub(crate) struct DespawnBuffer(Vec<Entity>);
 
 #[cfg(test)]
 mod tests {
@@ -72,6 +57,6 @@ mod tests {
         app.update();
 
         let despawn_buffer = app.world.resource::<DespawnBuffer>();
-        assert_eq!(despawn_buffer.0.len(), 1);
+        assert_eq!(despawn_buffer.len(), 1);
     }
 }

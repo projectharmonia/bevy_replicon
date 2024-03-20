@@ -17,8 +17,6 @@ use crate::core::{replication_fns::SerdeFnsId, Replication};
 /// - Update this struct for all newly added archetypes in
 /// [`ServerSet::UpdateArchetypes`](super::ServerSet::UpdateArchetypes) using the registered function IDs.
 /// - Update [`RemovalBuffer`](super::removal_buffer::RemovalBuffer) when your special components get removed.
-/// - Update [`DespawnBuffer`](super::despawn_buffer::DespawnBuffer) when an entity is considered despawned for
-/// a client, if your rule doesn't use [`Replication`](crate::core::component_rules::Replication).
 #[derive(Resource)]
 pub struct ReplicatedArchetypes {
     archetypes: Vec<ReplicatedArchetype>,
