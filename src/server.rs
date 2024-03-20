@@ -33,11 +33,9 @@ use connected_clients::{
 };
 use despawn_buffer::{DespawnBuffer, DespawnBufferPlugin};
 use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
-use replicated_archetypes::{ReplicatedArchetypes, ReplicatedComponent};
+use replicated_archetypes::{ReplicatedArchetype, ReplicatedArchetypes, ReplicatedComponent};
 use replication_messages::ReplicationMessages;
 use replicon_server::RepliconServer;
-
-use self::replicated_archetypes::ReplicatedArchetype;
 
 pub struct ServerPlugin {
     /// Tick configuration.
