@@ -1,6 +1,15 @@
 use bevy::{ecs::entity::MapEntities, prelude::*};
 use bevy_replicon::{
-    client::client_mapper::ServerEntityMap, prelude::*, test_app::ServerTestAppExt,
+    client::client_mapper::ServerEntityMap,
+    core::{
+        component_rules,
+        replication_fns::{ReplicationFns, SerdeFns},
+    },
+    prelude::*,
+    server::replicated_archetypes::{
+        ReplicatedArchetype, ReplicatedArchetypes, ReplicatedComponent,
+    },
+    test_app::ServerTestAppExt,
 };
 use serde::{Deserialize, Serialize};
 
@@ -611,6 +620,78 @@ fn removal_with_despawn() {
     client_app.update();
 
     assert!(client_app.world.entities().is_empty());
+}
+
+#[test]
+fn duplicate_replicated_archetypes() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<TableComponent>(); // Mark a single component for replication.
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    // Create a custom replication rule for a different component.
+    let serde_fns = SerdeFns {
+        serialize: component_rules::serialize_component::<SparseSetComponent>,
+        deserialize: component_rules::deserialize_component::<SparseSetComponent>,
+    };
+    client_app
+        .world
+        .resource_mut::<ReplicationFns>()
+        .add_serde_fns(serde_fns.clone());
+    let serde_id = server_app
+        .world
+        .resource_mut::<ReplicationFns>()
+        .add_serde_fns(serde_fns);
+
+    // Spawn an entity that contain a component marked for replication.
+    let archetype_id = server_app
+        .world
+        .spawn((Replication, TableComponent, SparseSetComponent))
+        .archetype()
+        .id();
+
+    // Make it also match the custom replication rule.
+    let component_id = server_app.world.init_component::<SparseSetComponent>();
+    let component_info = server_app
+        .world
+        .components()
+        .get_info(component_id)
+        .unwrap();
+    let replicated_component = ReplicatedComponent {
+        component_id,
+        storage_type: component_info.storage_type(),
+        serde_id,
+    };
+    let mut replicated_archetypes = server_app.world.resource_mut::<ReplicatedArchetypes>();
+    let mut replicated_archetype = ReplicatedArchetype::new(archetype_id);
+
+    // SAFETY: Component ID and storage type obtained from this archetype,
+    // serde functions ID points to existing functions from `ComponentRules`.
+    unsafe { replicated_archetype.add_component(replicated_component) };
+
+    // SAFETY: Archetype ID corresponds to the entity spawned above.
+    unsafe { replicated_archetypes.add_archetype(replicated_archetype) };
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    let mut both_rules = client_app.world.query_filtered::<(), (
+        With<Replication>,
+        With<TableComponent>,
+        With<SparseSetComponent>,
+    )>();
+    both_rules.single(&client_app.world);
 }
 
 #[derive(Component, Deserialize, Serialize)]
