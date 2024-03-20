@@ -229,7 +229,7 @@ impl ServerPlugin {
                 };
 
                 // SAFETY: Component ID and storage type obtained from this archetype,
-                // functions index points to existing functions from `ComponentRules`.
+                // serde functions ID points to existing functions from `ComponentRules`.
                 unsafe { replicated_archetype.add_component(replicated_component) };
             }
 
