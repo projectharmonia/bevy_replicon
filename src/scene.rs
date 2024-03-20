@@ -5,7 +5,7 @@ use crate::server::replicated_archetypes::ReplicatedArchetypes;
 /**
 Fills scene with all replicated entities and their components.
 
-Entities won't have the [`Replication`](crate::core::component_rules::Replication) component.
+Entities won't have the [`Replication`](crate::core::Replication) component.
 So on deserialization you need to insert it back if you want entities to continue to replicate.
 
 Internally relies on [`ReplicatedArchetypes`] which updates in
