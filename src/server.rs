@@ -1,14 +1,13 @@
 pub mod connected_clients;
-pub mod despawn_buffer;
-pub mod removal_buffer;
 pub(super) mod replication_messages;
 pub mod replicon_server;
+pub mod world_buffers;
 
 use std::{mem, time::Duration};
 
 use bevy::{
     ecs::{
-        archetype::{ArchetypeEntity, Archetypes},
+        archetype::ArchetypeEntity,
         component::{ComponentId, ComponentTicks, StorageType, Tick},
         storage::{SparseSets, Table},
         system::SystemChangeTick,
@@ -21,8 +20,7 @@ use bevy::{
 
 use crate::core::{
     common_conditions::{server_just_stopped, server_running},
-    component_rules::ComponentRules,
-    replicated_archetypes::{ReplicatedArchetype, ReplicatedArchetypes, ReplicatedComponent},
+    replicated_archetypes::ReplicatedArchetypes,
     replication_fns::ReplicationFns,
     replicon_channels::{ReplicationChannel, RepliconChannels},
     replicon_tick::RepliconTick,
@@ -31,10 +29,9 @@ use crate::core::{
 use connected_clients::{
     client_visibility::Visibility, ClientBuffers, ConnectedClient, ConnectedClients,
 };
-use despawn_buffer::{DespawnBuffer, DespawnBufferPlugin};
-use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
 use replication_messages::ReplicationMessages;
 use replicon_server::RepliconServer;
+use world_buffers::{DespawnBuffer, RemovalBuffer, WorldBuffersPlugin};
 
 pub struct ServerPlugin {
     /// Tick configuration.
@@ -61,7 +58,7 @@ impl Default for ServerPlugin {
 
 impl Plugin for ServerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins((DespawnBufferPlugin, RemovalBufferPlugin))
+        app.add_plugins(WorldBuffersPlugin)
             .init_resource::<RepliconServer>()
             .init_resource::<ClientBuffers>()
             .init_resource::<ClientEntityMap>()
@@ -103,7 +100,6 @@ impl Plugin for ServerPlugin {
             .add_systems(
                 PostUpdate,
                 (
-                    Self::update_replicated_archetypes.in_set(ServerSet::UpdateArchetypes),
                     Self::send_replication
                         .map(Result::unwrap)
                         .in_set(ServerSet::Send)
@@ -196,45 +192,6 @@ impl ServerPlugin {
                 }
                 Err(e) => debug!("unable to deserialize update index from {client_id:?}: {e}"),
             }
-        }
-    }
-
-    fn update_replicated_archetypes(
-        archetypes: &Archetypes,
-        mut replicated_archetypes: ResMut<ReplicatedArchetypes>,
-        mut component_rules: ResMut<ComponentRules>,
-    ) {
-        let old_generation = component_rules.update_generation(archetypes);
-
-        // Archetypes are never removed, iterate over newly added since the last update.
-        let marker_id = replicated_archetypes.marker_id();
-        for archetype in archetypes[old_generation..]
-            .iter()
-            .filter(|archetype| archetype.contains(marker_id))
-        {
-            let mut replicated_archetype = ReplicatedArchetype::new(archetype.id());
-            for component_id in archetype.components() {
-                let Some(&serde_id) = component_rules.serde_ids().get(&component_id) else {
-                    continue;
-                };
-
-                // SAFETY: component ID obtained from this archetype.
-                let storage_type =
-                    unsafe { archetype.get_storage_type(component_id).unwrap_unchecked() };
-
-                let replicated_component = ReplicatedComponent {
-                    component_id,
-                    storage_type,
-                    serde_id,
-                };
-
-                // SAFETY: Component ID and storage type obtained from this archetype,
-                // serde functions ID points to existing functions from `ComponentRules`.
-                unsafe { replicated_archetype.add_component(replicated_component) };
-            }
-
-            // SAFETY: Archetype ID corresponds to a valid archetype.
-            unsafe { replicated_archetypes.add_archetype(replicated_archetype) };
         }
     }
 

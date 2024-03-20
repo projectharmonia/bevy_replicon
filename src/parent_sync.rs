@@ -8,8 +8,7 @@ use bevy::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    client::ClientSet,
-    core::{common_conditions::has_authority, component_rules::AppReplicationExt},
+    client::ClientSet, component_rules::AppReplicationExt, core::common_conditions::has_authority,
     server::ServerSet,
 };
 
@@ -94,12 +93,12 @@ mod tests {
     use bevy::scene::ScenePlugin;
 
     use super::*;
-    use crate::core::RepliconCorePlugin;
+    use crate::{core::RepliconCorePlugin, ComponentRulesPlugin};
 
     #[test]
     fn update() {
         let mut app = App::new();
-        app.add_plugins((RepliconCorePlugin, ParentSyncPlugin));
+        app.add_plugins((RepliconCorePlugin, ComponentRulesPlugin, ParentSyncPlugin));
 
         let child_entity = app.world.spawn_empty().id();
         app.world.spawn_empty().add_child(child_entity);
@@ -120,7 +119,7 @@ mod tests {
     #[test]
     fn removal() {
         let mut app = App::new();
-        app.add_plugins((RepliconCorePlugin, ParentSyncPlugin));
+        app.add_plugins((RepliconCorePlugin, ComponentRulesPlugin, ParentSyncPlugin));
 
         let parent_entity = app.world.spawn_empty().id();
         let child_entity = app
@@ -146,7 +145,7 @@ mod tests {
     #[test]
     fn update_sync() {
         let mut app = App::new();
-        app.add_plugins((RepliconCorePlugin, ParentSyncPlugin));
+        app.add_plugins((RepliconCorePlugin, ComponentRulesPlugin, ParentSyncPlugin));
 
         let parent_entity = app.world.spawn_empty().id();
         let child_entity = app.world.spawn(ParentSync(Some(parent_entity))).id();
@@ -162,7 +161,7 @@ mod tests {
     #[test]
     fn removal_sync() {
         let mut app = App::new();
-        app.add_plugins((RepliconCorePlugin, ParentSyncPlugin));
+        app.add_plugins((RepliconCorePlugin, ComponentRulesPlugin, ParentSyncPlugin));
 
         let child_entity = app.world.spawn_empty().id();
         app.world.spawn_empty().add_child(child_entity);
@@ -187,6 +186,7 @@ mod tests {
             AssetPlugin::default(),
             ScenePlugin,
             RepliconCorePlugin,
+            ComponentRulesPlugin,
             ParentSyncPlugin,
         ));
 

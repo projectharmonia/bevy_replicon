@@ -127,7 +127,8 @@ use std::io::Cursor;
 use bevy::{prelude::*, ptr::Ptr};
 use bevy_replicon::{
     client::client_mapper::ServerEntityMap,
-    core::{component_rules, replicon_tick::RepliconTick},
+    component_rules,
+    core::replicon_tick::RepliconTick,
     prelude::*,
 };
 
@@ -160,7 +161,7 @@ fn deserialize_transform(
 }
 ```
 
-The used [`remove_component`](core::component_rules::remove_component) is the default component removal,
+The used [`remove_component`](component_rules::remove_component) is the default component removal,
 but you can replace it with your own as well.
 
 2. You need to choose entities you want to replicate using [`Replication`]
@@ -208,7 +209,7 @@ your initialization systems to [`ClientSet::Receive`]:
 ```
 # use std::io::Cursor;
 # use bevy::{prelude::*, ptr::Ptr};
-# use bevy_replicon::{client::client_mapper::ServerEntityMap, core::{component_rules, replicon_tick::RepliconTick}, prelude::*};
+# use bevy_replicon::{client::client_mapper::ServerEntityMap, component_rules, core::{replicon_tick::RepliconTick}, prelude::*};
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
@@ -488,6 +489,7 @@ To reduce packet size there are the following limits per replication update:
 */
 
 pub mod client;
+pub mod component_rules;
 pub mod core;
 pub mod network_event;
 pub mod parent_sync;
@@ -502,9 +504,9 @@ pub mod prelude {
             replicon_client::{RepliconClient, RepliconClientStatus},
             ClientPlugin, ClientSet,
         },
+        component_rules::{AppReplicationExt, ComponentRulesPlugin},
         core::{
             common_conditions::*,
-            component_rules::AppReplicationExt,
             replicon_channels::{ChannelKind, RepliconChannel, RepliconChannels},
             ClientId, Replication, RepliconCorePlugin,
         },
@@ -537,6 +539,7 @@ impl PluginGroup for RepliconPlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<Self>()
             .add(RepliconCorePlugin)
+            .add(ComponentRulesPlugin)
             .add(ParentSyncPlugin)
             .add(ClientPlugin)
             .add(ServerPlugin::default())
