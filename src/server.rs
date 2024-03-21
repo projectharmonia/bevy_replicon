@@ -79,7 +79,7 @@ impl Plugin for ServerPlugin {
                     ServerSet::StoreHierarchy,
                     ServerSet::UpdateArchetypes,
                     ServerSet::BufferDespawns,
-                    ServerSet::BufferRemovals,
+                    ServerSet::BufferRemovals,  // Comes after despawns to exclude them from removals.
                     ServerSet::Send,
                     ServerSet::SendPackets,
                 )
