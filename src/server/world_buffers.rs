@@ -49,7 +49,7 @@ pub struct RemovalBuffer {
     /// Component removals grouped by entity.
     removals: EntityHashMap<Vec<RemoveFnId>>,
 
-    /// [`Vec`]'s from entity removals.
+    /// [`Vec`]s from entity removals.
     ///
     /// All data is cleared before the insertion.
     /// Stored to reuse allocated capacity.

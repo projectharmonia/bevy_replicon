@@ -25,7 +25,7 @@ pub struct ReplicationFns {
 impl ReplicationFns {
     /// Registers [`SerdeFns`] for a component and returns its ID.
     ///
-    /// Returned ID can be assigned for components inside
+    /// Returned ID can be assigned to components inside
     /// [`ReplicatedArchetype`](super::replicated_archetypes::ReplicatedArchetype).
     ///
     /// Could be called multiple times for the same component with different functions.
@@ -37,7 +37,7 @@ impl ReplicationFns {
 
     /// Registers [`RemoveFn`] for a component and returns its ID.
     ///
-    /// Returned ID can be assigned for components inside
+    /// Returned ID can be assigned to components inside
     /// [`ReplicatedArchetype`](super::replicated_archetypes::ReplicatedArchetype).
     ///
     /// Could be called multiple times for the same component with different functions.

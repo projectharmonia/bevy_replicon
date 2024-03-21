@@ -15,7 +15,8 @@ use crate::core::{replication_fns::SerdeFnsId, Replication};
 /// But it's also possible to implement custom rules:
 /// - Register 'serde' and 'remove' functions inside [`ReplicationFns`](crate::core::replication_fns::ReplicationFns).
 /// - Update this struct for all newly added archetypes in
-/// [`ServerSet::UpdateArchetypes`](crate::server::ServerSet::UpdateArchetypes) using the registered function IDs.
+/// [`ServerSet::UpdateArchetypes`](crate::server::ServerSet::UpdateArchetypes).
+/// Use [`Self::add_archetype`] with the registered function IDs for your custom components.
 /// - Update [`RemovalBuffer`](crate::server::world_buffers::RemovalBuffer) in
 /// [`ServerSet::BufferRemovals`](crate::server::ServerSet::BufferRemovals) when the rule components should be removed.
 #[derive(Resource)]
@@ -32,6 +33,7 @@ impl ReplicatedArchetypes {
     /// # Safety
     ///
     /// ID of [`ReplicatedArchetype`] should exist in [`Archetypes`](bevy::ecs::archetype::Archetypes).
+    /// The archetype must contain the [`Replication`] component.
     pub unsafe fn add_archetype(&mut self, replicated_archetype: ReplicatedArchetype) {
         self.archetypes.push(replicated_archetype);
     }
@@ -58,6 +60,7 @@ impl FromWorld for ReplicatedArchetypes {
     }
 }
 
+/// An archetype that can be stored in [`ReplicatedArchetypes`].
 pub struct ReplicatedArchetype {
     id: ArchetypeId,
     components: Vec<ReplicatedComponent>,
