@@ -204,7 +204,7 @@ your initialization systems to [`ClientSet::Receive`]:
 
 ```
 # use std::io::Cursor;
-# use bevy::{prelude::*, ptr::Ptr};
+# use bevy::{prelude::*, ptr::Ptr, sprite::Mesh2dHandle};
 # use bevy_replicon::{client::client_mapper::ServerEntityMap, core::{replication_rules, replicon_tick::RepliconTick}, prelude::*};
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
@@ -228,7 +228,7 @@ fn init_player(
         commands.entity(entity).insert((
             GlobalTransform::default(),
             VisibilityBundle::default(),
-            meshes.add(Mesh::from(Capsule3d::default())),
+            Mesh2dHandle(meshes.add(Capsule2d::default())),
             materials.add(Color::AZURE),
         ));
     }
