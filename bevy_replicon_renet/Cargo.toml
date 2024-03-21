@@ -29,10 +29,6 @@ bevy = { version = "0.13", default-features = false }
 serde = "1.0"
 clap = { version = "4.1", features = ["derive"] }
 bevy = { version = "0.13", default-features = false, features = [
-  "bevy_asset",
-  "bevy_core_pipeline",
-  "bevy_render",
-  "bevy_sprite",
   "bevy_text",
   "bevy_ui",
   "bevy_gizmos",
