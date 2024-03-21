@@ -5,11 +5,13 @@ use serde::{Deserialize, Serialize};
 #[test]
 fn replicated_entity() {
     let mut app = App::new();
-    app.add_plugins(RepliconPlugins)
+    app.add_plugins((MinimalPlugins, RepliconPlugins))
         .register_type::<DummyComponent>()
         .replicate::<DummyComponent>();
 
     let entity = app.world.spawn((Replication, DummyComponent)).id();
+
+    app.update();
 
     let mut scene = DynamicScene::default();
     scene::replicate_into(&mut scene, &app.world);
@@ -25,9 +27,11 @@ fn replicated_entity() {
 #[test]
 fn empty_entity() {
     let mut app = App::new();
-    app.add_plugins(RepliconPlugins);
+    app.add_plugins((MinimalPlugins, RepliconPlugins));
 
     let entity = app.world.spawn(Replication).id();
+
+    app.update();
 
     // Extend with replicated components.
     let mut scene = DynamicScene::default();
@@ -44,11 +48,13 @@ fn empty_entity() {
 #[test]
 fn not_replicated_entity() {
     let mut app = App::new();
-    app.add_plugins(RepliconPlugins)
+    app.add_plugins((MinimalPlugins, RepliconPlugins))
         .register_type::<DummyComponent>()
         .replicate::<DummyComponent>();
 
     app.world.spawn(DummyComponent);
+
+    app.update();
 
     let mut scene = DynamicScene::default();
     scene::replicate_into(&mut scene, &app.world);
@@ -60,7 +66,7 @@ fn not_replicated_entity() {
 #[test]
 fn entity_update() {
     let mut app = App::new();
-    app.add_plugins(RepliconPlugins)
+    app.add_plugins((MinimalPlugins, RepliconPlugins))
         .register_type::<DummyComponent>()
         .replicate::<DummyComponent>()
         .register_type::<OtherReflectedComponent>();
@@ -69,6 +75,8 @@ fn entity_update() {
         .world
         .spawn((Replication, DummyComponent, OtherReflectedComponent))
         .id();
+
+    app.update();
 
     // Populate scene only with a single non-replicated component.
     let mut scene = DynamicSceneBuilder::from_world(&app.world)

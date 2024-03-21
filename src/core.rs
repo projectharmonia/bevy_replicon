@@ -1,11 +1,13 @@
 pub mod common_conditions;
-pub mod replication_rules;
+pub mod replicated_archetypes;
+pub mod replication_fns;
 pub mod replicon_channels;
 pub mod replicon_tick;
 
 use bevy::prelude::*;
 
-use replication_rules::{Replication, ReplicationRules};
+use replicated_archetypes::ReplicatedArchetypes;
+use replication_fns::ReplicationFns;
 use replicon_channels::RepliconChannels;
 use replicon_tick::RepliconTick;
 use serde::{Deserialize, Serialize};
@@ -16,8 +18,9 @@ impl Plugin for RepliconCorePlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<Replication>()
             .init_resource::<RepliconTick>()
+            .init_resource::<ReplicatedArchetypes>()
             .init_resource::<RepliconChannels>()
-            .init_resource::<ReplicationRules>();
+            .init_resource::<ReplicationFns>();
     }
 }
 
@@ -41,3 +44,8 @@ impl ClientId {
         self.0
     }
 }
+
+/// Marks entity for replication.
+#[derive(Component, Clone, Copy, Default, Reflect, Debug)]
+#[reflect(Component)]
+pub struct Replication;

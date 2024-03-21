@@ -1,9 +1,7 @@
 pub mod connected_clients;
-pub(super) mod despawn_buffer;
-pub(super) mod removal_buffer;
-pub(super) mod replicated_archetypes_info;
 pub(super) mod replication_messages;
 pub mod replicon_server;
+pub mod world_buffers;
 
 use std::{mem, time::Duration};
 
@@ -22,20 +20,18 @@ use bevy::{
 
 use crate::core::{
     common_conditions::{server_just_stopped, server_running},
-    replication_rules::ReplicationRules,
-    replicon_channels::ReplicationChannel,
-    replicon_channels::RepliconChannels,
+    replicated_archetypes::ReplicatedArchetypes,
+    replication_fns::ReplicationFns,
+    replicon_channels::{ReplicationChannel, RepliconChannels},
     replicon_tick::RepliconTick,
     ClientId,
 };
 use connected_clients::{
     client_visibility::Visibility, ClientBuffers, ConnectedClient, ConnectedClients,
 };
-use despawn_buffer::{DespawnBuffer, DespawnBufferPlugin};
-use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
-use replicated_archetypes_info::ReplicatedArchetypesInfo;
 use replication_messages::ReplicationMessages;
 use replicon_server::RepliconServer;
+use world_buffers::{DespawnBuffer, RemovalBuffer, WorldBuffersPlugin};
 
 pub struct ServerPlugin {
     /// Tick configuration.
@@ -62,7 +58,7 @@ impl Default for ServerPlugin {
 
 impl Plugin for ServerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins((DespawnBufferPlugin, RemovalBufferPlugin))
+        app.add_plugins(WorldBuffersPlugin)
             .init_resource::<RepliconServer>()
             .init_resource::<ClientBuffers>()
             .init_resource::<ClientEntityMap>()
@@ -81,6 +77,9 @@ impl Plugin for ServerPlugin {
                 PostUpdate,
                 (
                     ServerSet::StoreHierarchy,
+                    ServerSet::UpdateArchetypes,
+                    ServerSet::BufferDespawns,
+                    ServerSet::BufferRemovals,
                     ServerSet::Send,
                     ServerSet::SendPackets,
                 )
@@ -200,7 +199,6 @@ impl ServerPlugin {
     #[allow(clippy::type_complexity)]
     pub(super) fn send_replication(
         mut messages: Local<ReplicationMessages>,
-        mut archetypes_info: Local<ReplicatedArchetypesInfo>,
         change_tick: SystemChangeTick,
         mut set: ParamSet<(
             &World,
@@ -211,12 +209,11 @@ impl ServerPlugin {
             ResMut<ClientBuffers>,
             ResMut<RepliconServer>,
         )>,
-        replication_rules: Res<ReplicationRules>,
+        replicated_archetypes: Res<ReplicatedArchetypes>,
+        replication_fns: Res<ReplicationFns>,
         replicon_tick: Res<RepliconTick>,
         time: Res<Time>,
     ) -> bincode::Result<()> {
-        archetypes_info.update(set.p0().archetypes(), &replication_rules);
-
         let connected_clients = mem::take(&mut *set.p1()); // Take ownership to avoid borrowing issues.
         messages.prepare(connected_clients);
 
@@ -225,8 +222,8 @@ impl ServerPlugin {
         collect_removals(&mut messages, &mut set.p4(), change_tick.this_run())?;
         collect_changes(
             &mut messages,
-            &archetypes_info,
-            &replication_rules,
+            &replicated_archetypes,
+            &replication_fns,
             set.p0(),
             &change_tick,
         )?;
@@ -284,8 +281,8 @@ fn collect_mappings(
 /// since the last entity tick.
 fn collect_changes(
     messages: &mut ReplicationMessages,
-    archetypes_info: &ReplicatedArchetypesInfo,
-    replication_rules: &ReplicationRules,
+    replicated_archetypes: &ReplicatedArchetypes,
+    replication_fns: &ReplicationFns,
     world: &World,
     change_tick: &SystemChangeTick,
 ) -> bincode::Result<()> {
@@ -293,9 +290,14 @@ fn collect_changes(
         init_message.start_array();
     }
 
-    for archetype_info in archetypes_info.iter() {
+    for replicated_archetype in replicated_archetypes.archetypes() {
         // SAFETY: all IDs from replicated archetypes obtained from real archetypes.
-        let archetype = unsafe { world.archetypes().get(archetype_info.id).unwrap_unchecked() };
+        let archetype = unsafe {
+            world
+                .archetypes()
+                .get(replicated_archetype.id())
+                .unwrap_unchecked()
+        };
         // SAFETY: table obtained from this archetype.
         let table = unsafe {
             world
@@ -319,7 +321,7 @@ fn collect_changes(
                     &world.storages().sparse_sets,
                     entity,
                     StorageType::Table,
-                    replication_rules.get_marker_id(),
+                    replicated_archetypes.marker_id(),
                 )
             };
             // If the marker was added in this tick, the entity just started replicating.
@@ -328,17 +330,20 @@ fn collect_changes(
             let marker_added =
                 marker_ticks.is_added(change_tick.last_run(), change_tick.this_run());
 
-            for component_info in &archetype_info.components {
+            for replicated_component in replicated_archetype.components() {
                 // SAFETY: component and storage were obtained from this archetype.
                 let (component, ticks) = unsafe {
                     get_component_unchecked(
                         table,
                         &world.storages().sparse_sets,
                         entity,
-                        component_info.storage_type,
-                        component_info.component_id,
+                        replicated_component.storage_type,
+                        replicated_component.component_id,
                     )
                 };
+                // SAFETY: component index stored in `ReplicatedComponents` obtained from `ReplicationFns`.
+                let serde_fns =
+                    unsafe { replication_fns.serde_fn_unchecked(replicated_component.serde_id) };
 
                 let mut shared_bytes = None;
                 for (init_message, update_message, client) in messages.iter_mut_with_clients() {
@@ -352,8 +357,8 @@ fn collect_changes(
                     {
                         init_message.write_component(
                             &mut shared_bytes,
-                            &component_info.replication_info,
-                            component_info.replication_id,
+                            serde_fns,
+                            replicated_component.serde_id,
                             component,
                         )?;
                     } else {
@@ -363,8 +368,8 @@ fn collect_changes(
                         if ticks.is_changed(tick, change_tick.this_run()) {
                             update_message.write_component(
                                 &mut shared_bytes,
-                                &component_info.replication_info,
-                                component_info.replication_id,
+                                serde_fns,
+                                replicated_component.serde_id,
                                 component,
                             )?;
                         }
@@ -468,12 +473,12 @@ fn collect_removals(
         message.start_array();
     }
 
-    for (entity, components) in removal_buffer.iter() {
+    for (entity, remove_ids) in removal_buffer.iter() {
         for (message, _, client) in messages.iter_mut_with_clients() {
             message.start_entity_data(entity);
-            for &replication_id in components {
+            for &id in remove_ids {
                 client.set_change_limit(entity, tick);
-                message.write_replication_id(replication_id)?;
+                message.write_remove_id(id)?;
             }
             message.end_entity_data(false)?;
         }
@@ -513,6 +518,18 @@ pub enum ServerSet {
     ///
     /// Runs in [`PostUpdate`].
     StoreHierarchy,
+    /// Systems that update [`ReplicatedArchetypes`].
+    ///
+    /// Runs in [`PostUpdate`].
+    UpdateArchetypes,
+    /// Systems that update despawns buffer.
+    ///
+    /// Runs in [`PostUpdate`].
+    BufferDespawns,
+    /// Systems that update [`RemovalBuffer`].
+    ///
+    /// Runs in [`PostUpdate`].
+    BufferRemovals,
     /// Systems that send data to [`RepliconServer`].
     ///
     /// Used by `bevy_replicon`.

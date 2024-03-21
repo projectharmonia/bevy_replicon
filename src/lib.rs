@@ -127,7 +127,8 @@ use std::io::Cursor;
 use bevy::{prelude::*, ptr::Ptr};
 use bevy_replicon::{
     client::client_mapper::ServerEntityMap,
-    core::{replication_rules, replicon_tick::RepliconTick},
+    component_rules,
+    core::replicon_tick::RepliconTick,
     prelude::*,
 };
 
@@ -136,7 +137,7 @@ use bevy_replicon::{
 app.replicate_with::<Transform>(
     serialize_transform,
     deserialize_transform,
-    replication_rules::remove_component::<Transform>,
+    component_rules::remove_component::<Transform>,
 );
 
 /// Serializes only translation.
@@ -160,13 +161,16 @@ fn deserialize_transform(
 }
 ```
 
-The used [`remove_component`](core::replication_rules::remove_component) is the default component removal,
+The used [`remove_component`](component_rules::remove_component) is the default component removal,
 but you can replace it with your own as well.
 
 2. You need to choose entities you want to replicate using [`Replication`]
 component. Just insert it to the entity you want to replicate. Only components
 marked for replication through [`AppReplicationExt::replicate()`]
 will be replicated.
+
+It's possible to write plugins with custom replication rules.
+See [`ReplicatedArchetypes`](crate::core::replicated_archetypes::ReplicatedArchetypes) for more details.
 
 ### Tick and fixed timestep games
 
@@ -205,14 +209,14 @@ your initialization systems to [`ClientSet::Receive`]:
 ```
 # use std::io::Cursor;
 # use bevy::{prelude::*, ptr::Ptr};
-# use bevy_replicon::{client::client_mapper::ServerEntityMap, core::{replication_rules, replicon_tick::RepliconTick}, prelude::*};
+# use bevy_replicon::{client::client_mapper::ServerEntityMap, component_rules, core::{replicon_tick::RepliconTick}, prelude::*};
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
 app.replicate_with::<Transform>(
     serialize_transform,
     deserialize_transform,
-    replication_rules::remove_component::<Transform>,
+    component_rules::remove_component::<Transform>,
 )
 .replicate::<Player>()
 .add_systems(PreUpdate, init_player.after(ClientSet::Receive));
@@ -485,6 +489,7 @@ To reduce packet size there are the following limits per replication update:
 */
 
 pub mod client;
+pub mod component_rules;
 pub mod core;
 pub mod network_event;
 pub mod parent_sync;
@@ -499,11 +504,11 @@ pub mod prelude {
             replicon_client::{RepliconClient, RepliconClientStatus},
             ClientPlugin, ClientSet,
         },
+        component_rules::{AppReplicationExt, ComponentRulesPlugin},
         core::{
             common_conditions::*,
-            replication_rules::{AppReplicationExt, Replication},
             replicon_channels::{ChannelKind, RepliconChannel, RepliconChannels},
-            ClientId, RepliconCorePlugin,
+            ClientId, Replication, RepliconCorePlugin,
         },
         network_event::{
             client_event::{ClientEventAppExt, FromClient},
@@ -534,6 +539,7 @@ impl PluginGroup for RepliconPlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<Self>()
             .add(RepliconCorePlugin)
+            .add(ComponentRulesPlugin)
             .add(ParentSyncPlugin)
             .add(ClientPlugin)
             .add(ServerPlugin::default())
