@@ -61,7 +61,7 @@ pub fn replicate_into(scene: &mut DynamicScene, world: &World) {
     let registry = world.resource::<AppTypeRegistry>();
     let registry = registry.read();
     let replicated_archetypes = world.resource::<ReplicatedArchetypes>();
-    for replicated_archetype in replicated_archetypes.iter() {
+    for replicated_archetype in replicated_archetypes.archetypes() {
         // SAFETY: all IDs from replicated archetypes obtained from real archetypes.
         let archetype = unsafe {
             world

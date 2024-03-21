@@ -290,7 +290,7 @@ fn collect_changes(
         init_message.start_array();
     }
 
-    for replicated_archetype in replicated_archetypes.iter() {
+    for replicated_archetype in replicated_archetypes.archetypes() {
         // SAFETY: all IDs from replicated archetypes obtained from real archetypes.
         let archetype = unsafe {
             world

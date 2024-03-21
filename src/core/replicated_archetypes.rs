@@ -36,14 +36,15 @@ impl ReplicatedArchetypes {
         self.archetypes.push(replicated_archetype);
     }
 
-    /// Returns an iterator over replicated archetypes.
-    pub(crate) fn iter(&self) -> impl Iterator<Item = &ReplicatedArchetype> {
-        self.archetypes.iter()
+    /// Returns archetypes marked as replicated.
+    #[must_use]
+    pub fn archetypes(&self) -> &[ReplicatedArchetype] {
+        &self.archetypes
     }
 
     /// ID of [`Replication`] component.
     #[must_use]
-    pub(crate) fn marker_id(&self) -> ComponentId {
+    pub fn marker_id(&self) -> ComponentId {
         self.marker_id
     }
 }
@@ -83,13 +84,13 @@ impl ReplicatedArchetype {
 
     /// Returns the associated archetype ID.
     #[must_use]
-    pub(crate) fn id(&self) -> ArchetypeId {
+    pub fn id(&self) -> ArchetypeId {
         self.id
     }
 
-    /// Returns component marked as replicated.
+    /// Returns components marked as replicated.
     #[must_use]
-    pub(crate) fn components(&self) -> &[ReplicatedComponent] {
+    pub fn components(&self) -> &[ReplicatedComponent] {
         &self.components
     }
 }
