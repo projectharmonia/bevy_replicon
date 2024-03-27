@@ -93,7 +93,7 @@ pub trait AppReplicationExt {
     }
     ```
 
-    The used [`remove`] is the default component removal,
+    The used [`remove`](replication_fns::remove) is the default component removal,
     but you can replace it with your own as well.
     */
     fn replicate_with<C>(
