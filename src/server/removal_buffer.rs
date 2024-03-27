@@ -38,14 +38,11 @@ impl RemovalBufferPlugin {
         mut readers: Local<HashMap<ComponentId, ManualEventReader<RemovedComponentEntity>>>,
         remove_events: &RemovedComponentEvents,
         mut removal_buffer: ResMut<RemovalBuffer>,
-        replication_rules: Res<ReplicationRules>,
+        rules: Res<ReplicationRules>,
         replicatred: Query<(), With<Replication>>,
     ) {
         // TODO: Ask Bevy to provide an iterator over `RemovedComponentEvents`.
-        for &(component_id, _) in replication_rules
-            .iter()
-            .flat_map(|replication_rule| replication_rule.components.iter())
-        {
+        for &(component_id, _) in rules.iter().flat_map(|rule| rule.components.iter()) {
             let Some(component_events) = remove_events.get(component_id) else {
                 continue;
             };
@@ -62,7 +59,7 @@ impl RemovalBufferPlugin {
             }
         }
 
-        removal_buffer.read_removals(&entity_removals, &replication_rules);
+        removal_buffer.read_removals(&entity_removals, &rules);
         entity_removals.clear();
     }
 }
@@ -123,16 +120,12 @@ impl RemovalBuffer {
     }
 
     /// Converts component removals into replication rule removals.
-    fn read_removals(
-        &mut self,
-        entity_removals: &EntityRemovals,
-        replication_rules: &ReplicationRules,
-    ) {
+    fn read_removals(&mut self, entity_removals: &EntityRemovals, rules: &ReplicationRules) {
         for (entity, components) in &entity_removals.removals {
             let mut removed_ids = self.ids_buffer.pop().unwrap_or_default();
-            for replication_rule in replication_rules.iter() {
-                if replication_rule.matches(components) {
-                    removed_ids.push(replication_rule.remove_id);
+            for rule in rules.iter() {
+                if rule.matches(components) {
+                    removed_ids.push(rule.remove_id);
                 }
             }
             self.removals.push((*entity, removed_ids));

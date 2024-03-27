@@ -157,15 +157,15 @@ impl AppReplicationExt for App {
         C: Component,
     {
         let component_id = self.world.init_component::<C>();
-        let mut replication_fns = self.world.resource_mut::<ReplicationFns>();
-        let serde_id = replication_fns.register_serde_fns(SerdeFns {
+        let mut fns = self.world.resource_mut::<ReplicationFns>();
+        let serde_id = fns.register_serde_fns(SerdeFns {
             serialize,
             deserialize,
         });
-        let remove_id = replication_fns.register_remove_fn(remove);
+        let remove_id = fns.register_remove_fn(remove);
 
-        let mut replication_rules = self.world.resource_mut::<ReplicationRules>();
-        replication_rules.push(ReplicationRule {
+        let mut rules = self.world.resource_mut::<ReplicationRules>();
+        rules.push(ReplicationRule {
             components: vec![(component_id, serde_id)],
             remove_id,
         });
@@ -174,15 +174,11 @@ impl AppReplicationExt for App {
     }
 
     fn replicate_group<C: GroupReplication>(&mut self) -> &mut Self {
-        let replication_rule =
-            self.world
-                .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| {
-                    C::register(world, &mut replication_fns)
-                });
+        let rule = self
+            .world
+            .resource_scope(|world, mut fns: Mut<ReplicationFns>| C::register(world, &mut fns));
 
-        let mut replication_rules = self.world.resource_mut::<ReplicationRules>();
-        replication_rules.push(replication_rule);
-
+        self.world.resource_mut::<ReplicationRules>().push(rule);
         self
     }
 }
@@ -192,8 +188,8 @@ impl AppReplicationExt for App {
 pub struct ReplicationRules(Vec<ReplicationRule>);
 
 impl ReplicationRules {
-    fn push(&mut self, replication_rule: ReplicationRule) {
-        self.0.push(replication_rule);
+    fn push(&mut self, rule: ReplicationRule) {
+        self.0.push(rule);
     }
 }
 
@@ -271,10 +267,10 @@ struct PlayerBundle {
 struct Player;
 
 impl GroupReplication for PlayerBundle {
-    fn register(world: &mut World, replication_fns: &mut ReplicationFns) -> ReplicationRule {
+    fn register(world: &mut World, fns: &mut ReplicationFns) -> ReplicationRule {
         // Customize serlialization to serialize only `translation`.
         let transform_id = world.init_component::<Transform>();
-        let transform_serde_id = replication_fns.register_serde_fns(SerdeFns {
+        let transform_serde_id = fns.register_serde_fns(SerdeFns {
             // For function definitions see the example from `AppReplicationExt::replicate_with`.
             serialize: serialize_translation,
             deserialize: deserialize_translation,
@@ -282,7 +278,7 @@ impl GroupReplication for PlayerBundle {
 
         // Serialize `player` as usual.
         let visibility_id = world.init_component::<Player>();
-        let visibility_serde_id = replication_fns.register_serde_fns(SerdeFns {
+        let visibility_serde_id = fns.register_serde_fns(SerdeFns {
             serialize: replication_fns::serialize::<Player>,
             deserialize: replication_fns::deserialize::<Player>,
         });
@@ -296,7 +292,7 @@ impl GroupReplication for PlayerBundle {
             (transform_id, transform_serde_id),
             (visibility_id, visibility_serde_id),
         ];
-        let remove_id = replication_fns.register_remove_fn(replication_fns::remove::<(Transform, Player)>);
+        let remove_id = fns.register_remove_fn(replication_fns::remove::<(Transform, Player)>);
 
         ReplicationRule {
             components,
@@ -311,24 +307,24 @@ impl GroupReplication for PlayerBundle {
 **/
 pub trait GroupReplication {
     /// Creates the associated replication rules and register its functions in [`ReplicationFns`].
-    fn register(world: &mut World, replication_fns: &mut ReplicationFns) -> ReplicationRule;
+    fn register(world: &mut World, fns: &mut ReplicationFns) -> ReplicationRule;
 }
 
 macro_rules! impl_registrations {
     ($($type:ident),*) => {
         impl<$($type: Component + Serialize + DeserializeOwned),*> GroupReplication for ($($type,)*) {
-            fn register(world: &mut World, replication_fns: &mut ReplicationFns) -> ReplicationRule {
+            fn register(world: &mut World, fns: &mut ReplicationFns) -> ReplicationRule {
                 // TODO: initialize with capacity after stabilization: https://github.com/rust-lang/rust/pull/122808
                 let mut components = Vec::new();
                 $(
                     let component_id = world.init_component::<$type>();
-                    let serde_id = replication_fns.register_serde_fns(SerdeFns {
+                    let serde_id = fns.register_serde_fns(SerdeFns {
                         serialize: replication_fns::serialize::<$type>,
                         deserialize: replication_fns::deserialize::<$type>,
                     });
                     components.push((component_id, serde_id));
                 )*
-                let remove_id = replication_fns.register_remove_fn(replication_fns::remove::<($($type),*,)>);
+                let remove_id = fns.register_remove_fn(replication_fns::remove::<($($type),*,)>);
 
                 ReplicationRule {
                     components,

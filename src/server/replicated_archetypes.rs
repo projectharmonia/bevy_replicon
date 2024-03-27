@@ -36,7 +36,7 @@ impl ReplicatedArchetypes {
     /// Updates internal view of the [`World`]'s replicated archetypes.
     ///
     /// If this is not called before querying data, the results may not accurately reflect what is in the world.
-    pub(super) fn update(&mut self, archetypes: &Archetypes, replication_rules: &ReplicationRules) {
+    pub(super) fn update(&mut self, archetypes: &Archetypes, rules: &ReplicationRules) {
         let old_generation = mem::replace(&mut self.generation, archetypes.generation());
 
         // Archetypes are never removed, iterate over newly added since the last update.
@@ -45,11 +45,11 @@ impl ReplicatedArchetypes {
             .filter(|archetype| archetype.contains(self.marker_id))
         {
             let mut replicated_archetype = ReplicatedArchetype::new(archetype.id());
-            for replication_rule in replication_rules
+            for rule in rules
                 .iter()
                 .filter(|rule| rule.matches_archetype(archetype))
             {
-                for &(component_id, serde_id) in &replication_rule.components {
+                for &(component_id, serde_id) in &rule.components {
                     // SAFETY: component ID obtained from this archetype.
                     let storage_type =
                         unsafe { archetype.get_storage_type(component_id).unwrap_unchecked() };

@@ -59,7 +59,7 @@ pub fn replicate_into(scene: &mut DynamicScene, world: &World) {
     let mut entities = EntityHashMap::from_iter(entities_iter);
 
     let registry = world.resource::<AppTypeRegistry>();
-    let replication_rules = world.resource::<ReplicationRules>();
+    let rules = world.resource::<ReplicationRules>();
     let registry = registry.read();
     for archetype in world
         .archetypes()
@@ -71,11 +71,11 @@ pub fn replicate_into(scene: &mut DynamicScene, world: &World) {
             entities.entry(entity.id()).or_default();
         }
 
-        for replication_rule in replication_rules
+        for rule in rules
             .iter()
             .filter(|rule| rule.matches_archetype(archetype))
         {
-            for &(component_id, _) in &replication_rule.components {
+            for &(component_id, _) in &rule.components {
                 // SAFETY: replication rules can be registered only with valid component IDs.
                 let replicated_component =
                     unsafe { world.components().get_info_unchecked(component_id) };

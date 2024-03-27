@@ -211,12 +211,12 @@ impl ServerPlugin {
             ResMut<ClientBuffers>,
             ResMut<RepliconServer>,
         )>,
-        replication_fns: Res<ReplicationFns>,
-        replication_rules: Res<ReplicationRules>,
+        fns: Res<ReplicationFns>,
+        rules: Res<ReplicationRules>,
         replicon_tick: Res<RepliconTick>,
         time: Res<Time>,
     ) -> bincode::Result<()> {
-        replicated_archetypes.update(set.p0().archetypes(), &replication_rules);
+        replicated_archetypes.update(set.p0().archetypes(), &rules);
 
         let connected_clients = mem::take(&mut *set.p1()); // Take ownership to avoid borrowing issues.
         messages.prepare(connected_clients);
@@ -227,7 +227,7 @@ impl ServerPlugin {
         collect_changes(
             &mut messages,
             &replicated_archetypes,
-            &replication_fns,
+            &fns,
             set.p0(),
             &change_tick,
         )?;
@@ -286,7 +286,7 @@ fn collect_mappings(
 fn collect_changes(
     messages: &mut ReplicationMessages,
     replicated_archetypes: &ReplicatedArchetypes,
-    replication_fns: &ReplicationFns,
+    fns: &ReplicationFns,
     world: &World,
     change_tick: &SystemChangeTick,
 ) -> bincode::Result<()> {
@@ -346,8 +346,7 @@ fn collect_changes(
                     )
                 };
                 // SAFETY: functions ID obtained from `ReplicationFns` that returns only always IDs.
-                let serde_fns =
-                    unsafe { replication_fns.serde_fn_unchecked(replicated_component.serde_id) };
+                let serde_fns = unsafe { fns.serde_fn_unchecked(replicated_component.serde_id) };
 
                 let mut shared_bytes = None;
                 for (init_message, update_message, client) in messages.iter_mut_with_clients() {

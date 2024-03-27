@@ -25,9 +25,9 @@ impl Plugin for RepliconCorePlugin {
 
     fn finish(&self, app: &mut App) {
         if cfg!(debug_assertions) {
-            let replication_rules = app.world.resource::<ReplicationRules>();
-            for (index, rule_a) in replication_rules.iter().enumerate() {
-                for rule_b in &replication_rules[index + 1..] {
+            let rules = app.world.resource::<ReplicationRules>();
+            for (index, rule_a) in rules.iter().enumerate() {
+                for rule_b in &rules[index + 1..] {
                     if rule_a.is_subset(rule_b) {
                         subset_panic(app, rule_a, rule_b);
                     } else if rule_b.is_subset(rule_a) {
