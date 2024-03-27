@@ -15,7 +15,7 @@ use super::{
     ClientMapping, ConnectedClient,
 };
 use crate::core::{
-    replication_rules::{ReplicationId, ReplicationInfo},
+    replication_fns::{RemoveFnId, SerdeFns, SerdeFnsId},
     replicon_channels::ReplicationChannel,
     replicon_tick::RepliconTick,
 };
@@ -289,8 +289,8 @@ impl InitMessage {
     pub(super) fn write_component<'a>(
         &'a mut self,
         shared_bytes: &mut Option<&'a [u8]>,
-        replication_info: &ReplicationInfo,
-        replication_id: ReplicationId,
+        serde_fns: &SerdeFns,
+        serde_id: SerdeFnsId,
         ptr: Ptr,
     ) -> bincode::Result<()> {
         if self.entity_data_size == 0 {
@@ -298,8 +298,8 @@ impl InitMessage {
         }
 
         let size = write_with(shared_bytes, &mut self.cursor, |cursor| {
-            DefaultOptions::new().serialize_into(&mut *cursor, &replication_id)?;
-            (replication_info.serialize)(ptr, cursor)
+            DefaultOptions::new().serialize_into(&mut *cursor, &serde_id)?;
+            (serde_fns.serialize)(ptr, cursor)
         })?;
 
         self.entity_data_size = self
@@ -314,16 +314,13 @@ impl InitMessage {
     ///
     /// Should be called only inside an entity data and increases its size.
     /// See also [`Self::start_entity_data`].
-    pub(super) fn write_replication_id(
-        &mut self,
-        replication_id: ReplicationId,
-    ) -> bincode::Result<()> {
+    pub(super) fn write_remove_id(&mut self, remove_id: RemoveFnId) -> bincode::Result<()> {
         if self.entity_data_size == 0 {
             self.write_data_entity()?;
         }
 
         let previous_pos = self.cursor.position();
-        DefaultOptions::new().serialize_into(&mut self.cursor, &replication_id)?;
+        DefaultOptions::new().serialize_into(&mut self.cursor, &remove_id)?;
 
         let id_size = self.cursor.position() - previous_pos;
         self.entity_data_size = self
@@ -518,8 +515,8 @@ impl UpdateMessage {
     pub(super) fn write_component<'a>(
         &'a mut self,
         shared_bytes: &mut Option<&'a [u8]>,
-        replication_info: &ReplicationInfo,
-        replication_id: ReplicationId,
+        serde_fns: &SerdeFns,
+        serde_id: SerdeFnsId,
         ptr: Ptr,
     ) -> bincode::Result<()> {
         if self.entity_data_size == 0 {
@@ -527,8 +524,8 @@ impl UpdateMessage {
         }
 
         let size = write_with(shared_bytes, &mut self.cursor, |cursor| {
-            DefaultOptions::new().serialize_into(&mut *cursor, &replication_id)?;
-            (replication_info.serialize)(ptr, cursor)
+            DefaultOptions::new().serialize_into(&mut *cursor, &serde_id)?;
+            (serde_fns.serialize)(ptr, cursor)
         })?;
 
         self.entity_data_size = self

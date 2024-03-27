@@ -1,11 +1,13 @@
 pub mod common_conditions;
+pub mod replication_fns;
 pub mod replication_rules;
 pub mod replicon_channels;
 pub mod replicon_tick;
 
 use bevy::prelude::*;
 
-use replication_rules::{Replication, ReplicationRules};
+use replication_fns::ReplicationFns;
+use replication_rules::{ReplicationRule, ReplicationRules};
 use replicon_channels::RepliconChannels;
 use replicon_tick::RepliconTick;
 use serde::{Deserialize, Serialize};
@@ -17,9 +19,45 @@ impl Plugin for RepliconCorePlugin {
         app.register_type::<Replication>()
             .init_resource::<RepliconTick>()
             .init_resource::<RepliconChannels>()
+            .init_resource::<ReplicationFns>()
             .init_resource::<ReplicationRules>();
     }
+
+    fn finish(&self, app: &mut App) {
+        if cfg!(debug_assertions) {
+            let replication_rules = app.world.resource::<ReplicationRules>();
+            for (index, rule_a) in replication_rules.iter().enumerate() {
+                for rule_b in &replication_rules[index + 1..] {
+                    if rule_a.is_subset(rule_b) {
+                        subset_panic(app, rule_a, rule_b);
+                    } else if rule_b.is_subset(rule_a) {
+                        subset_panic(app, rule_b, rule_a);
+                    }
+                }
+            }
+        }
+    }
 }
+
+fn subset_panic(app: &App, subset_rule: &ReplicationRule, rule: &ReplicationRule) {
+    let components: Vec<_> = rule
+        .components
+        .iter()
+        .filter_map(|&(component_id, _)| app.world.components().get_name(component_id))
+        .collect();
+    let subset_components: Vec<_> = subset_rule
+        .components
+        .iter()
+        .filter_map(|&(component_id, _)| app.world.components().get_name(component_id))
+        .collect();
+
+    panic!("rule with components {subset_components:?} is a subset of {components:?}, try splitting it");
+}
+
+/// Marks entity for replication.
+#[derive(Component, Clone, Copy, Default, Reflect, Debug)]
+#[reflect(Component)]
+pub struct Replication;
 
 /// Unique client ID.
 ///

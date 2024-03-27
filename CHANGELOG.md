@@ -9,7 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `AppReplicationExt::register_group` and `GroupRegistration` trait to register and customize component groups.
 - `ServerSet::StoreHierarchy` for systems that store hierarchy changes in `ParentSync`.
+- `ReplicationRule` that describes how component or a group of components will be serialized, deserialized and removed.
+
+### Changed
+
+- Move `Replication` to `core` module.
+- Move all functions-related logic from `ReplicationRules` into a new `ReplicationFns`.
+- Rename `serialize_component` into `serialize` and move into `replication_fns` module.
+- Rename `deserialize_component` into `deserialize` and move into `replication_fns` module.
+- Rename `remove_component` into `remove` and move into `replication_fns` module.
+- Move `despawn_recursive` into `replication_fns` module.
 
 ### Removed
 

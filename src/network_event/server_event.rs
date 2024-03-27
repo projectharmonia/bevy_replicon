@@ -304,13 +304,13 @@ pub fn send_with<T>(
     connected_clients: &ConnectedClients,
     channel: ServerEventChannel<T>,
     mode: SendMode,
-    serialize_fn: impl Fn(&mut Cursor<Vec<u8>>) -> bincode::Result<()>,
+    serialize: impl Fn(&mut Cursor<Vec<u8>>) -> bincode::Result<()>,
 ) -> bincode::Result<()> {
     match mode {
         SendMode::Broadcast => {
             let mut previous_message = None;
             for client in connected_clients.iter() {
-                let message = serialize_with(client, previous_message, &serialize_fn)?;
+                let message = serialize_with(client, previous_message, &serialize)?;
                 server.send(client.id(), channel, message.bytes.clone());
                 previous_message = Some(message);
             }
@@ -321,7 +321,7 @@ pub fn send_with<T>(
                 if client.id() == client_id {
                     continue;
                 }
-                let message = serialize_with(client, previous_message, &serialize_fn)?;
+                let message = serialize_with(client, previous_message, &serialize)?;
                 server.send(client.id(), channel, message.bytes.clone());
                 previous_message = Some(message);
             }
@@ -329,7 +329,7 @@ pub fn send_with<T>(
         SendMode::Direct(client_id) => {
             if client_id != ClientId::SERVER {
                 if let Some(client) = connected_clients.get_client(client_id) {
-                    let message = serialize_with(client, None, &serialize_fn)?;
+                    let message = serialize_with(client, None, &serialize)?;
                     server.send(client.id(), channel, message.bytes);
                 }
             }
@@ -347,7 +347,7 @@ pub fn send_with<T>(
 fn serialize_with(
     client: &ConnectedClient,
     previous_message: Option<SerializedMessage>,
-    serialize_fn: impl Fn(&mut Cursor<Vec<u8>>) -> bincode::Result<()>,
+    serialize: impl Fn(&mut Cursor<Vec<u8>>) -> bincode::Result<()>,
 ) -> bincode::Result<SerializedMessage> {
     if let Some(previous_message) = previous_message {
         if previous_message.tick == client.change_tick() {
@@ -369,7 +369,7 @@ fn serialize_with(
         let mut cursor = Cursor::new(Vec::new());
         DefaultOptions::new().serialize_into(&mut cursor, &client.change_tick())?;
         let tick_size = cursor.get_ref().len();
-        (serialize_fn)(&mut cursor)?;
+        (serialize)(&mut cursor)?;
         let message = SerializedMessage {
             tick: client.change_tick(),
             tick_size,
@@ -396,11 +396,11 @@ impl SerializedMessage {
 /// Deserializes event change tick first and then calls the specified deserialization function to get the event itself.
 pub fn deserialize_with<T>(
     message: &[u8],
-    deserialize_fn: impl FnOnce(&mut Cursor<&[u8]>) -> bincode::Result<T>,
+    deserialize: impl FnOnce(&mut Cursor<&[u8]>) -> bincode::Result<T>,
 ) -> bincode::Result<(RepliconTick, T)> {
     let mut cursor = Cursor::new(message);
     let tick = DefaultOptions::new().deserialize_from(&mut cursor)?;
-    let event = (deserialize_fn)(&mut cursor)?;
+    let event = (deserialize)(&mut cursor)?;
 
     Ok((tick, event))
 }
