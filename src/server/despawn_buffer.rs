@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use super::{ServerPlugin, ServerSet};
-use crate::core::{common_conditions::server_running, replication_rules::Replication};
+use crate::core::{common_conditions::server_running, Replication};
 
 /// Treats removals of [`Replication`] component as despawns and stores them into [`DespawnBuffer`] resource.
 ///
@@ -21,7 +21,7 @@ impl Plugin for DespawnBufferPlugin {
 }
 
 impl DespawnBufferPlugin {
-    pub(super) fn buffer_despawns(
+    fn buffer_despawns(
         mut removed_replications: RemovedComponents<Replication>,
         mut despawn_buffer: ResMut<DespawnBuffer>,
     ) {
