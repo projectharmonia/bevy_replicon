@@ -214,11 +214,11 @@ impl ReplicationRules {
 
             for (right_index, right_rule) in right.iter_mut().enumerate() {
                 if left_rule.components_count < right_rule.components_count
-                    && left_rule.is_subset(&right_rule)
+                    && left_rule.is_subset(right_rule)
                 {
                     right_rule.subsets.push(index);
                 } else if left_rule.components_count > right_rule.components_count
-                    && right_rule.is_subset(&left_rule)
+                    && right_rule.is_subset(left_rule)
                 {
                     left_rule.subsets.push(index + right_index);
                 }
