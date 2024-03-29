@@ -1,3 +1,5 @@
+use std::cmp::Reverse;
+
 use bevy::{
     ecs::{archetype::Archetype, component::ComponentId, entity::MapEntities},
     prelude::*,
@@ -194,9 +196,9 @@ impl AppReplicationExt for App {
 pub struct ReplicationRules(Vec<ReplicationRule>);
 
 impl ReplicationRules {
-    /// Inserts a new rule, maintaining sorting by the number of components.
+    /// Inserts a new rule, maintaining sorting by the number of components in descending order.
     pub fn insert(&mut self, rule: ReplicationRule) {
-        match self.binary_search_by_key(&rule.components_count, |rule| rule.components_count) {
+        match self.binary_search_by_key(&Reverse(rule.len), |rule| Reverse(rule.len)) {
             Ok(index) => self.0.insert(index, rule),
             Err(index) => self.0.insert(index, rule),
         };
@@ -228,7 +230,7 @@ pub struct ReplicationRule {
     /// Number of all components in a rule.
     ///
     /// May differ from the length of `components`, which includes only serializable components.
-    components_count: usize,
+    len: usize,
 
     /// Rule indexes that are a subset of this rule.
     pub(crate) subsets: Vec<usize>,
@@ -246,7 +248,7 @@ impl ReplicationRule {
     /// See also [`Self::with_skipped_components`].
     pub fn new(components: Vec<(ComponentId, SerdeFnsId)>, remove_id: RemoveFnId) -> Self {
         Self {
-            components_count: components.len(),
+            len: components.len(),
             subsets: Default::default(),
             components,
             remove_id,
@@ -263,8 +265,8 @@ impl ReplicationRule {
     /// In other words, use it if you skip serialization of some components.
     ///
     /// For usage example see [`GroupReplication`].
-    pub fn with_skipped_components(mut self, components_count: usize) -> Self {
-        self.components_count += components_count;
+    pub fn with_skipped_components(mut self, count: usize) -> Self {
+        self.len += count;
         self
     }
 
@@ -282,7 +284,7 @@ impl ReplicationRule {
 
     /// Returns `true` if `other_rule` is a subset of this rule.
     pub(super) fn contains(&self, other_rule: &ReplicationRule) -> bool {
-        if self.components_count < other_rule.components_count {
+        if self.len < other_rule.len {
             return false;
         }
 
