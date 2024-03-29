@@ -4,6 +4,7 @@ use bevy::{
         entity::EntityHashMap,
         event::ManualEventReader,
         removal_detection::{RemovedComponentEntity, RemovedComponentEvents},
+        system::SystemParam,
     },
     prelude::*,
     utils::{HashMap, HashSet},
@@ -34,56 +35,68 @@ impl Plugin for RemovalBufferPlugin {
 
 impl RemovalBufferPlugin {
     fn buffer_removals(
-        mut entity_removals: Local<EntityRemovals>,
-        mut readers: Local<HashMap<ComponentId, ManualEventReader<RemovedComponentEntity>>>,
-        remove_events: &RemovedComponentEvents,
+        mut removal_reader: RemovalReader,
         mut removal_buffer: ResMut<RemovalBuffer>,
         rules: Res<ReplicationRules>,
-        replicatred: Query<(), With<Replication>>,
     ) {
-        // TODO: Ask Bevy to provide an iterator over `RemovedComponentEvents`.
-        for &(component_id, _) in rules.iter().flat_map(|rule| rule.components.iter()) {
-            let Some(component_events) = remove_events.get(component_id) else {
-                continue;
-            };
-
-            // Removed components are grouped by type, not by entity, so we need an intermediate container.
-            let reader = readers.entry(component_id).or_default();
-            for entity in reader
-                .read(component_events)
-                .cloned()
-                .map(Into::into)
-                .filter(|&entity| replicatred.get(entity).is_ok())
-            {
-                entity_removals.insert(entity, component_id);
-            }
+        for (&entity, components) in removal_reader.read() {
+            removal_buffer.update(&rules, entity, components);
         }
-
-        removal_buffer.read_removals(&entity_removals, &rules);
-        entity_removals.clear();
     }
 }
 
-/// An intermediate container to group removals by entity.
-#[derive(Default)]
-struct EntityRemovals {
+/// Reads removals and returns them in per-entity format, unlike [`RemovedComponentEvents`].
+#[derive(SystemParam)]
+struct RemovalReader<'w, 's> {
+    /// Individual readers for each component.
+    readers: Local<'s, HashMap<ComponentId, ManualEventReader<RemovedComponentEntity>>>,
+
     /// Component removals grouped by entity.
-    removals: EntityHashMap<HashSet<ComponentId>>,
+    removals: Local<'s, EntityHashMap<HashSet<ComponentId>>>,
 
     /// [`HashSet`]'s from removals.
     ///
     /// All data is cleared before the insertion.
     /// Stored to reuse allocated capacity.
-    ids_buffer: Vec<HashSet<ComponentId>>,
+    ids_buffer: Local<'s, Vec<HashSet<ComponentId>>>,
+
+    /// Component removals grouped by [`ComponentId`].
+    remove_events: &'w RemovedComponentEvents,
+
+    /// Filter for replicated components
+    rules: Res<'w, ReplicationRules>,
+
+    /// Checks is an entity exists and replicated.
+    replicated: Query<'w, 's, (), With<Replication>>,
 }
 
-impl EntityRemovals {
-    /// Registers component removal for the specified entity.
-    fn insert(&mut self, entity: Entity, component_id: ComponentId) {
-        self.removals
-            .entry(entity)
-            .or_insert_with(|| self.ids_buffer.pop().unwrap_or_default())
-            .insert(component_id);
+impl RemovalReader<'_, '_> {
+    /// Returns iterator over all components removed since the last call.
+    fn read(&mut self) -> impl Iterator<Item = (&Entity, &HashSet<ComponentId>)> {
+        self.clear();
+
+        // TODO: Ask Bevy to provide an iterator over `RemovedComponentEvents`.
+        for &(component_id, _) in self.rules.iter().flat_map(|rule| &rule.components) {
+            let Some(component_events) = self.remove_events.get(component_id) else {
+                continue;
+            };
+
+            // Removed components are grouped by type, not by entity, so we need an intermediate container.
+            let reader = self.readers.entry(component_id).or_default();
+            for entity in reader
+                .read(component_events)
+                .cloned()
+                .map(Into::into)
+                .filter(|&entity| self.replicated.get(entity).is_ok())
+            {
+                self.removals
+                    .entry(entity)
+                    .or_insert_with(|| self.ids_buffer.pop().unwrap_or_default())
+                    .insert(component_id);
+            }
+        }
+
+        self.removals.iter()
     }
 
     /// Clears all removals.
@@ -124,19 +137,22 @@ impl RemovalBuffer {
             .map(|(entity, remove_ids)| (*entity, &**remove_ids))
     }
 
-    /// Converts component removals into replication rule removals.
-    fn read_removals(&mut self, entity_removals: &EntityRemovals, rules: &ReplicationRules) {
-        for (entity, components) in &entity_removals.removals {
-            let mut removed_ids = self.ids_buffer.pop().unwrap_or_default();
-            for (index, rule) in rules.iter().enumerate() {
-                if !self.current_subsets.contains(&index) && rule.matches(components) {
-                    removed_ids.push(rule.remove_id);
-                    self.current_subsets.extend_from_slice(&rule.subsets);
-                }
+    /// Reads component removals and stores them as replication rule removals.
+    fn update(
+        &mut self,
+        rules: &ReplicationRules,
+        entity: Entity,
+        components: &HashSet<ComponentId>,
+    ) {
+        let mut removed_ids = self.ids_buffer.pop().unwrap_or_default();
+        for (index, rule) in rules.iter().enumerate() {
+            if !self.current_subsets.contains(&index) && rule.matches(components) {
+                removed_ids.push(rule.remove_id);
+                self.current_subsets.extend_from_slice(&rule.subsets);
             }
-            self.removals.push((*entity, removed_ids));
-            self.current_subsets.clear();
         }
+        self.removals.push((entity, removed_ids));
+        self.current_subsets.clear();
     }
 
     /// Clears all removals.
