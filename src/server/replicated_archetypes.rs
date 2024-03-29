@@ -11,6 +11,7 @@ use bevy::{
 use crate::core::{replication_fns::SerdeFnsId, replication_rules::ReplicationRules, Replication};
 
 /// Cached information about all replicated archetypes.
+#[derive(Deref)]
 pub(crate) struct ReplicatedArchetypes {
     /// ID of [`Replication`] component.
     marker_id: ComponentId,
@@ -19,6 +20,7 @@ pub(crate) struct ReplicatedArchetypes {
     generation: ArchetypeGeneration,
 
     /// Archetypes marked as replicated.
+    #[deref]
     archetypes: Vec<ReplicatedArchetype>,
 
     /// Temporary container for storing indices of rule subsets for currently processing archetype.
@@ -31,11 +33,6 @@ impl ReplicatedArchetypes {
     /// ID of [`Replication`] component.
     pub(crate) fn marker_id(&self) -> ComponentId {
         self.marker_id
-    }
-
-    /// Returns an iterator over the archetypes.
-    pub(super) fn iter(&self) -> impl Iterator<Item = &ReplicatedArchetype> {
-        self.archetypes.iter()
     }
 
     /// Updates internal view of the [`World`]'s replicated archetypes.
@@ -86,7 +83,7 @@ impl FromWorld for ReplicatedArchetypes {
 }
 
 /// An archetype that can be stored in [`ReplicatedArchetypes`].
-pub(super) struct ReplicatedArchetype {
+pub(crate) struct ReplicatedArchetype {
     /// Associated archetype ID.
     pub(super) id: ArchetypeId,
 
