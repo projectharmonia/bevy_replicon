@@ -247,7 +247,7 @@ pub struct ReplicationRule {
 impl ReplicationRule {
     /// Creates a new rule with components count equal to the number of serialized components.
     ///
-    /// See also [`Self::with_components_count`].
+    /// See also [`Self::with_skipped_components`].
     pub fn new(components: Vec<(ComponentId, SerdeFnsId)>, remove_id: RemoveFnId) -> Self {
         Self {
             components_count: components.len(),
@@ -257,7 +257,7 @@ impl ReplicationRule {
         }
     }
 
-    /// Creates a new rule with specified components count.
+    /// Returns a new rule with skipped components taken into account.
     ///
     /// Useful for cases when some components aren't serialized.
     /// For example, a rule with [`Transform`] and user's `Player` marker,
@@ -267,17 +267,9 @@ impl ReplicationRule {
     /// In other words, use it if you skip serialization of some components.
     ///
     /// For usage example see [`GroupReplication`].
-    pub fn with_components_count(
-        components_count: usize,
-        components: Vec<(ComponentId, SerdeFnsId)>,
-        remove_id: RemoveFnId,
-    ) -> Self {
-        Self {
-            components_count,
-            subsets: Default::default(),
-            components,
-            remove_id,
-        }
+    pub fn with_skipped_components(mut self, components_count: usize) -> Self {
+        self.components_count += components_count;
+        self
     }
 
     pub(crate) fn matches_archetype(&self, archetype: &Archetype) -> bool {
@@ -371,8 +363,7 @@ impl GroupReplication for PlayerBundle {
         ];
         let remove_id = fns.register_remove_fn(replication_fns::remove::<(Transform, Player)>);
 
-         // +1 because we skipped `Visibility`.
-        ReplicationRule::new(components, remove_id).with_components_count(components.len() + 1);
+        ReplicationRule::new(components, remove_id).with_skipped_components(1)
     }
 }
 
