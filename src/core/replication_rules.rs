@@ -112,7 +112,7 @@ pub trait AppReplicationExt {
 
     If a group contains a single component, it will work exactly as [`Self::replicate`].
 
-    If one group is a superset of another group or component, then the superset will take precedence.
+    If one group is a subset of another group or component, then the superset will take precedence.
     For example, a rule with [`Transform`] and user's `Player` marker will take precedence over single [`Transform`] rule.
 
     If you remove a single component from a group, only a single removal will be sent to clients.
@@ -205,7 +205,7 @@ impl ReplicationRules {
     /// Calculates subset rules.
     ///
     /// Should be called only after all [`Self::insert`] and only once.
-    pub(super) fn calculate_subsets(&mut self) {
+    pub(crate) fn calculate_subsets(&mut self) {
         for index in 1..self.len() {
             let (left, right) = self.0.split_at_mut(index);
             let left_rule = left
@@ -213,14 +213,10 @@ impl ReplicationRules {
                 .expect("slice isn't empty because index starts from 1");
 
             for (right_index, right_rule) in right.iter_mut().enumerate() {
-                if left_rule.components_count < right_rule.components_count
-                    && left_rule.is_subset(right_rule)
-                {
-                    right_rule.subsets.push(index);
-                } else if left_rule.components_count > right_rule.components_count
-                    && right_rule.is_subset(left_rule)
-                {
+                if left_rule.contains(right_rule) {
                     left_rule.subsets.push(index + right_index);
+                } else if right_rule.contains(left_rule) {
+                    right_rule.subsets.push(index);
                 }
             }
         }
@@ -284,18 +280,23 @@ impl ReplicationRule {
             .all(|(component_id, _)| components.contains(component_id))
     }
 
-    pub(super) fn is_subset(&self, other_rule: &ReplicationRule) -> bool {
-        for (component_id, _) in &self.components {
-            if other_rule
+    /// Returns `true` if `other_rule` is a subset of this rule.
+    pub(super) fn contains(&self, other_rule: &ReplicationRule) -> bool {
+        if self.components_count < other_rule.components_count {
+            return false;
+        }
+
+        for (component_id, _) in &other_rule.components {
+            if self
                 .components
                 .iter()
                 .all(|(other_id, _)| component_id != other_id)
             {
-                return true;
+                return false;
             }
         }
 
-        false
+        true
     }
 }
 
