@@ -113,11 +113,11 @@ pub trait AppReplicationExt {
     If a group contains a single component, it will work exactly as [`Self::replicate`].
 
     If one group is a superset of another group or component, then the superset will take precedence.
-    For example, a rule with [`Transform`] and [`Visibility`] will take precedence over single [`Transform`] rule.
+    For example, a rule with [`Transform`] and user's `Player` marker will take precedence over single [`Transform`] rule.
 
     If you remove a single component from a group, only a single removal will be sent to clients.
-    Other group components will continue to be present on server **and** clients and replication for them will stop,
-    unless they match other rule.
+    Other group components will continue to be present on both server and clients.
+    Replication for them will be stopped, unless they match other rule.
 
     If an entity archetype matches several overlapping rules, overlapping components will
     be replicated server times (for each rule they match).

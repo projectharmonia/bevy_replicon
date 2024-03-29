@@ -69,19 +69,20 @@ Never initialize a client and server in the same app for single-player, it will 
 Use the described pattern in [system sets and conditions](#system-sets-and-conditions)
 in combination with [network events](#network-events).
 
-## Component replication
+## Replication
 
-It's a process of sending component changes from server to clients in order to
+It's a process of sending changes from server to clients in order to
 keep the world in sync.
 
 ### Marking for replication
 
-User need to choose which entities and which components will be replicated.
+By default nothing is replicated. User need to choose which entities
+and components needs be replicated.
 
 #### Entities
 
-Add [`Replication`] component on the server for entities you want to replicate. Only components
-registered for replication will be replicated.
+By default no entities are replicated. Add [`Replication`] marker
+component on the server for entities you want to replicate.
 
 On clients [`Replication`] will be automatically inserted after replication.
 
@@ -89,7 +90,10 @@ If you remove [`Replication`] component from an entity, it will be despawned on 
 
 #### Components
 
-You can use [`AppReplicationExt::replicate()`] to register the component for replication:
+Components will be replicated only on entities marked for replication.
+By default no components are replicated.
+
+Use [`AppReplicationExt::replicate()`] to enable replication for a component:
 
 ```
 # use bevy::prelude::*;
