@@ -20,6 +20,11 @@ pub(crate) struct ReplicatedArchetypes {
 
     /// Archetypes marked as replicated.
     archetypes: Vec<ReplicatedArchetype>,
+
+    /// Temporary container for storing indices of rule subsets for currently processing archetype.
+    ///
+    /// Cleaned after each archetype processing.
+    current_subsets: Vec<usize>,
 }
 
 impl ReplicatedArchetypes {
@@ -45,10 +50,11 @@ impl ReplicatedArchetypes {
             .filter(|archetype| archetype.contains(self.marker_id))
         {
             let mut replicated_archetype = ReplicatedArchetype::new(archetype.id());
-            for rule in rules
-                .iter()
-                .filter(|rule| rule.matches_archetype(archetype))
-            {
+            for (index, rule) in rules.iter().enumerate() {
+                if self.current_subsets.contains(&index) || !rule.matches_archetype(archetype) {
+                    continue;
+                }
+
                 for &(component_id, serde_id) in &rule.components {
                     // SAFETY: component ID obtained from this archetype.
                     let storage_type =
@@ -60,8 +66,10 @@ impl ReplicatedArchetypes {
                         serde_id,
                     });
                 }
+                self.current_subsets.extend_from_slice(&rule.subsets);
             }
             self.archetypes.push(replicated_archetype);
+            self.current_subsets.clear();
         }
     }
 }
@@ -72,6 +80,7 @@ impl FromWorld for ReplicatedArchetypes {
             marker_id: world.init_component::<Replication>(),
             generation: ArchetypeGeneration::initial(),
             archetypes: Default::default(),
+            current_subsets: Default::default(),
         }
     }
 }

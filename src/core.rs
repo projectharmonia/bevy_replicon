@@ -7,7 +7,7 @@ pub mod replicon_tick;
 use bevy::prelude::*;
 
 use replication_fns::ReplicationFns;
-use replication_rules::{ReplicationRule, ReplicationRules};
+use replication_rules::ReplicationRules;
 use replicon_channels::RepliconChannels;
 use replicon_tick::RepliconTick;
 use serde::{Deserialize, Serialize};
@@ -24,34 +24,9 @@ impl Plugin for RepliconCorePlugin {
     }
 
     fn finish(&self, app: &mut App) {
-        if cfg!(debug_assertions) {
-            let rules = app.world.resource::<ReplicationRules>();
-            for (index, rule_a) in rules.iter().enumerate() {
-                for rule_b in &rules[index + 1..] {
-                    if rule_a.is_subset(rule_b) {
-                        subset_panic(app, rule_a, rule_b);
-                    } else if rule_b.is_subset(rule_a) {
-                        subset_panic(app, rule_b, rule_a);
-                    }
-                }
-            }
-        }
+        let mut rules = app.world.resource_mut::<ReplicationRules>();
+        rules.calculate_subsets();
     }
-}
-
-fn subset_panic(app: &App, subset_rule: &ReplicationRule, rule: &ReplicationRule) {
-    let components: Vec<_> = rule
-        .components
-        .iter()
-        .filter_map(|&(component_id, _)| app.world.components().get_name(component_id))
-        .collect();
-    let subset_components: Vec<_> = subset_rule
-        .components
-        .iter()
-        .filter_map(|&(component_id, _)| app.world.components().get_name(component_id))
-        .collect();
-
-    panic!("rule with components {subset_components:?} is a subset of {components:?}, try splitting it");
 }
 
 /// Marks entity for replication.

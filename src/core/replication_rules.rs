@@ -11,7 +11,7 @@ use super::replication_fns::{
 
 /// Replication functions for [`App`].
 pub trait AppReplicationExt {
-    /// Marks single component for replication.
+    /// Creates a replication rule for a single component.
     ///
     /// The component will be replicated if its entity contains [`Replication`](super::Replication) marker component.
     ///
@@ -106,18 +106,24 @@ pub trait AppReplicationExt {
         C: Component;
 
     /**
-    Marks group of components for replication.
+    Creates a replication rule for a group of components.
 
     Group will only be replicated if all its components are present on the entity.
-    Never remove grouped components from an entity partially, you can only **remove the whole group at once**.
-
-    We provide blanket impls for tuples to replicate them as is, but user could manually implement the trait
-    to customize how components will be serialized, deserialized and removed. For details see [`GroupReplication`].
 
     If a group contains a single component, it will work exactly as [`Self::replicate`].
 
-    Never register rules where one is a subset of another.
-    For example, if you registered a single `Player`, never register `(Player, Human)`.
+    If one group is a superset of another group or component, then the superset will take precedence.
+    For example, a rule with [`Transform`] and [`Visibility`] will take precedence over single [`Transform`] rule.
+
+    If you remove a single component from a group, only a single removal will be sent to clients.
+    Other group components will continue to be present on server **and** clients and replication for them will stop,
+    unless they match other rule.
+
+    If an entity archetype matches several overlapping rules, overlapping components will
+    be replicated server times (for each rule they match).
+
+    We provide blanket impls for tuples to replicate them as is, but user could manually implement the trait
+    to customize how components will be serialized, deserialized and removed. For details see [`GroupReplication`].
 
     # Panics
 
@@ -125,7 +131,7 @@ pub trait AppReplicationExt {
 
     # Examples
 
-    Replicate [`Transform`] and `Player` only if both of them are present on an entity:
+    Replicate [`Transform`] and user's `Player` marker only if both of them are present on an entity:
 
     ```
     use bevy::prelude::*;
@@ -165,10 +171,10 @@ impl AppReplicationExt for App {
         let remove_id = fns.register_remove_fn(remove);
 
         let mut rules = self.world.resource_mut::<ReplicationRules>();
-        rules.push(ReplicationRule {
-            components: vec![(component_id, serde_id)],
+        rules.insert(ReplicationRule::new(
+            vec![(component_id, serde_id)],
             remove_id,
-        });
+        ));
 
         self
     }
@@ -178,7 +184,7 @@ impl AppReplicationExt for App {
             .world
             .resource_scope(|world, mut fns: Mut<ReplicationFns>| C::register(world, &mut fns));
 
-        self.world.resource_mut::<ReplicationRules>().push(rule);
+        self.world.resource_mut::<ReplicationRules>().insert(rule);
         self
     }
 }
@@ -188,21 +194,92 @@ impl AppReplicationExt for App {
 pub struct ReplicationRules(Vec<ReplicationRule>);
 
 impl ReplicationRules {
-    fn push(&mut self, rule: ReplicationRule) {
-        self.0.push(rule);
+    /// Inserts a new rule, maintaining sorting by the number of components.
+    pub fn insert(&mut self, rule: ReplicationRule) {
+        match self.binary_search_by_key(&rule.components_count, |rule| rule.components_count) {
+            Ok(index) => self.0.insert(index, rule),
+            Err(index) => self.0.insert(index, rule),
+        };
+    }
+
+    /// Calculates subset rules.
+    ///
+    /// Should be called only after all [`Self::insert`] and only once.
+    pub(super) fn calculate_subsets(&mut self) {
+        for index in 1..self.len() {
+            let (left, right) = self.0.split_at_mut(index);
+            let left_rule = left
+                .last_mut()
+                .expect("slice isn't empty because index starts from 1");
+
+            for (right_index, right_rule) in right.iter_mut().enumerate() {
+                if left_rule.components_count < right_rule.components_count
+                    && left_rule.is_subset(&right_rule)
+                {
+                    right_rule.subsets.push(index);
+                } else if left_rule.components_count > right_rule.components_count
+                    && right_rule.is_subset(&left_rule)
+                {
+                    left_rule.subsets.push(index + right_index);
+                }
+            }
+        }
     }
 }
 
-/// Describes how component or a group of components will be serialized, deserialized and removed.
+/// Describes a replicated group of components that.
 pub struct ReplicationRule {
+    /// Number of all components in a rule.
+    ///
+    /// May differ from the length of `components`, which includes only serializable components.
+    components_count: usize,
+
+    /// Rule indexes that are a subset of this rule.
+    pub(crate) subsets: Vec<usize>,
+
     /// Rule components and their serialization and deserialization.
-    pub components: Vec<(ComponentId, SerdeFnsId)>,
+    pub(crate) components: Vec<(ComponentId, SerdeFnsId)>,
 
     /// ID of the function that removes rule components from [`EntityWorldMut`].
-    pub remove_id: RemoveFnId,
+    pub(crate) remove_id: RemoveFnId,
 }
 
 impl ReplicationRule {
+    /// Creates a new rule with components count equal to the number of serialized components.
+    ///
+    /// See also [`Self::with_components_count`].
+    pub fn new(components: Vec<(ComponentId, SerdeFnsId)>, remove_id: RemoveFnId) -> Self {
+        Self {
+            components_count: components.len(),
+            subsets: Default::default(),
+            components,
+            remove_id,
+        }
+    }
+
+    /// Creates a new rule with specified components count.
+    ///
+    /// Useful for cases when some components aren't serialized.
+    /// For example, a rule with [`Transform`] and user's `Player` marker,
+    /// where only [`Transform`] is serialized, will have one serializable component,
+    /// but two components overall. This way it will override a rule with only [`Transform`].
+    ///
+    /// In other words, use it if you skip serialization of some components.
+    ///
+    /// For usage example see [`GroupReplication`].
+    pub fn with_components_count(
+        components_count: usize,
+        components: Vec<(ComponentId, SerdeFnsId)>,
+        remove_id: RemoveFnId,
+    ) -> Self {
+        Self {
+            components_count,
+            subsets: Default::default(),
+            components,
+            remove_id,
+        }
+    }
+
     pub(crate) fn matches_archetype(&self, archetype: &Archetype) -> bool {
         self.components
             .iter()
@@ -294,10 +371,8 @@ impl GroupReplication for PlayerBundle {
         ];
         let remove_id = fns.register_remove_fn(replication_fns::remove::<(Transform, Player)>);
 
-        ReplicationRule {
-            components,
-            remove_id,
-        }
+         // +1 because we skipped `Visibility`.
+        ReplicationRule::new(components, remove_id).with_components_count(components.len() + 1);
     }
 }
 
@@ -326,10 +401,10 @@ macro_rules! impl_registrations {
                 )*
                 let remove_id = fns.register_remove_fn(replication_fns::remove::<($($type),*,)>);
 
-                ReplicationRule {
+                ReplicationRule::new(
                     components,
                     remove_id,
-                }
+                )
             }
         }
     }

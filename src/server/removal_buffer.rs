@@ -109,6 +109,11 @@ pub(crate) struct RemovalBuffer {
     /// All data is cleared before the insertion.
     /// Stored to reuse allocated capacity.
     ids_buffer: Vec<Vec<RemoveFnId>>,
+
+    /// Temporary container for storing indices of rule subsets for currently reading entity.
+    ///
+    /// Cleaned after each entity reading.
+    current_subsets: Vec<usize>,
 }
 
 impl RemovalBuffer {
@@ -123,12 +128,14 @@ impl RemovalBuffer {
     fn read_removals(&mut self, entity_removals: &EntityRemovals, rules: &ReplicationRules) {
         for (entity, components) in &entity_removals.removals {
             let mut removed_ids = self.ids_buffer.pop().unwrap_or_default();
-            for rule in rules.iter() {
-                if rule.matches(components) {
+            for (index, rule) in rules.iter().enumerate() {
+                if !self.current_subsets.contains(&index) && rule.matches(components) {
                     removed_ids.push(rule.remove_id);
+                    self.current_subsets.extend_from_slice(&rule.subsets);
                 }
             }
             self.removals.push((*entity, removed_ids));
+            self.current_subsets.clear();
         }
     }
 
