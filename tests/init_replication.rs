@@ -375,7 +375,8 @@ fn insertion() {
         ))
         .replicate::<TableComponent>()
         .replicate::<SparseSetComponent>()
-        .replicate_mapped::<MappedComponent>();
+        .replicate_mapped::<MappedComponent>()
+        .replicate_group::<(GroupComponentA, GroupComponentB)>();
     }
 
     server_app.connect_client(&mut client_app);
@@ -403,6 +404,7 @@ fn insertion() {
         TableComponent,
         SparseSetComponent,
         MappedComponent(server_map_entity),
+        (GroupComponentA, GroupComponentB),
         NotReplicatedComponent,
     ));
 
@@ -413,6 +415,8 @@ fn insertion() {
     let client_entity = client_app.world.entity(client_entity);
     assert!(client_entity.contains::<SparseSetComponent>());
     assert!(client_entity.contains::<TableComponent>());
+    assert!(client_entity.contains::<GroupComponentA>());
+    assert!(client_entity.contains::<GroupComponentB>());
     assert!(!client_entity.contains::<NotReplicatedComponent>());
     assert_eq!(
         client_entity.get::<MappedComponent>().unwrap().0,
@@ -432,18 +436,30 @@ fn removal() {
                 ..Default::default()
             }),
         ))
-        .replicate::<TableComponent>();
+        .replicate::<TableComponent>()
+        .replicate_group::<(GroupComponentA, GroupComponentB)>();
     }
 
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
         .world
-        .spawn((Replication, TableComponent, NotReplicatedComponent))
+        .spawn((
+            Replication,
+            TableComponent,
+            (GroupComponentA, GroupComponentB),
+            NotReplicatedComponent,
+        ))
         .id();
+
     let client_entity = client_app
         .world
-        .spawn((Replication, TableComponent, NotReplicatedComponent))
+        .spawn((
+            Replication,
+            TableComponent,
+            NotReplicatedComponent,
+            (GroupComponentA, GroupComponentB),
+        ))
         .id();
 
     client_app
@@ -459,7 +475,7 @@ fn removal() {
     server_app
         .world
         .entity_mut(server_entity)
-        .remove::<TableComponent>();
+        .remove::<(TableComponent, (GroupComponentA, GroupComponentB))>();
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -467,6 +483,8 @@ fn removal() {
 
     let client_entity = client_app.world.entity(client_entity);
     assert!(!client_entity.contains::<TableComponent>());
+    assert!(!client_entity.contains::<GroupComponentA>());
+    assert!(!client_entity.contains::<GroupComponentB>());
     assert!(client_entity.contains::<NotReplicatedComponent>());
 }
 
@@ -628,6 +646,12 @@ struct TableComponent;
 #[derive(Component, Deserialize, Serialize)]
 #[component(storage = "SparseSet")]
 struct SparseSetComponent;
+
+#[derive(Component, Deserialize, Serialize)]
+struct GroupComponentA;
+
+#[derive(Component, Deserialize, Serialize)]
+struct GroupComponentB;
 
 #[derive(Component, Deserialize, Serialize)]
 struct NotReplicatedComponent;
