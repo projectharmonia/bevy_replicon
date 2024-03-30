@@ -49,6 +49,8 @@ for entity in &mut scene.entities {
 */
 pub fn replicate_into(scene: &mut DynamicScene, world: &World) {
     let Some(marker_id) = world.component_id::<Replication>() else {
+        // Components are initialized lazily.
+        // If there is no replication marker, then we have nothing to replicate.
         return;
     };
 

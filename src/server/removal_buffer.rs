@@ -53,7 +53,9 @@ impl RemovalBufferPlugin {
     }
 }
 
-/// Reads removals and returns them in per-entity format, unlike [`RemovedComponentEvents`].
+/// Reader for removed components.
+///
+/// Like [`RemovedComponentEvents`], but reads them in per-entity format.
 #[derive(SystemParam)]
 struct RemovalReader<'w, 's> {
     /// Individual readers for each component.
@@ -74,7 +76,7 @@ struct RemovalReader<'w, 's> {
     /// Filter for replicated components
     rules: Res<'w, ReplicationRules>,
 
-    /// Checks is an entity exists and replicated.
+    /// Filter for replicated and valid entities.
     replicated: Query<'w, 's, (), With<Replication>>,
 }
 
@@ -121,10 +123,10 @@ impl RemovalReader<'_, '_> {
     }
 }
 
-/// Buffer with replication rule removals.
+/// Buffer with removed components.
 #[derive(Default, Resource)]
 pub(crate) struct RemovalBuffer {
-    /// Replication rule removals for entities.
+    /// Component removals grouped by entity.
     removals: Vec<(Entity, Vec<(ComponentId, ComponentFnsId)>)>,
 
     /// [`Vec`]'s from removals.
@@ -142,7 +144,7 @@ impl RemovalBuffer {
             .map(|(entity, remove_ids)| (*entity, &**remove_ids))
     }
 
-    /// Reads component removals and stores them as replication rule removals.
+    /// Registers component removals that match replication rules for an entity.
     fn update(
         &mut self,
         rules: &ReplicationRules,
