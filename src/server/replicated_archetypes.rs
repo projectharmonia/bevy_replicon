@@ -143,6 +143,20 @@ mod tests {
     }
 
     #[test]
+    fn not_replicated() {
+        let mut app = App::new();
+        app.init_resource::<ReplicationRules>()
+            .init_resource::<ReplicationFns>()
+            .replicate::<ComponentA>();
+
+        app.world.spawn((Replication, ComponentB));
+
+        let replicated_archetypes = match_archetypes(&mut app.world);
+        let replicated_component = replicated_archetypes.first().unwrap();
+        assert!(replicated_component.components.is_empty());
+    }
+
+    #[test]
     fn component() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
@@ -154,20 +168,6 @@ mod tests {
         let replicated_archetypes = match_archetypes(&mut app.world);
         let replicated_component = replicated_archetypes.first().unwrap();
         assert_eq!(replicated_component.components.len(), 1);
-    }
-
-    #[test]
-    fn component_mismatch() {
-        let mut app = App::new();
-        app.init_resource::<ReplicationRules>()
-            .init_resource::<ReplicationFns>()
-            .replicate::<ComponentA>();
-
-        app.world.spawn((Replication, ComponentB));
-
-        let replicated_archetypes = match_archetypes(&mut app.world);
-        let replicated_component = replicated_archetypes.first().unwrap();
-        assert!(replicated_component.components.is_empty());
     }
 
     #[test]
@@ -185,7 +185,7 @@ mod tests {
     }
 
     #[test]
-    fn group_mismatch() {
+    fn part_of_group() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationFns>()
