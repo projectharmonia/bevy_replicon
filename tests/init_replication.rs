@@ -482,10 +482,7 @@ fn removal_after_insertion() {
                 ..Default::default()
             }),
         ))
-        .replicate::<TableComponent>()
-        .replicate::<SparseSetComponent>()
-        .replicate::<NotReplicatedComponent>()
-        .replicate_mapped::<MappedComponent>();
+        .replicate::<TableComponent>();
     }
 
     server_app.connect_client(&mut client_app);
@@ -530,10 +527,7 @@ fn insertion_after_removal() {
                 ..Default::default()
             }),
         ))
-        .replicate::<TableComponent>()
-        .replicate::<SparseSetComponent>()
-        .replicate::<NotReplicatedComponent>()
-        .replicate_mapped::<MappedComponent>();
+        .replicate::<TableComponent>();
     }
 
     server_app.connect_client(&mut client_app);
@@ -578,10 +572,7 @@ fn removal_with_despawn() {
                 ..Default::default()
             }),
         ))
-        .replicate::<TableComponent>()
-        .replicate::<SparseSetComponent>()
-        .replicate::<NotReplicatedComponent>()
-        .replicate_mapped::<MappedComponent>();
+        .replicate::<TableComponent>();
     }
 
     server_app.connect_client(&mut client_app);
