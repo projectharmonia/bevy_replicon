@@ -106,3 +106,163 @@ pub(super) struct ReplicatedComponent {
     pub(super) storage_type: StorageType,
     pub(super) serde_id: SerdeFnsId,
 }
+
+#[cfg(test)]
+mod tests {
+    use serde::{Deserialize, Serialize};
+
+    use super::*;
+    use crate::{core::replication_fns::ReplicationFns, AppReplicationExt};
+
+    #[test]
+    fn empty() {
+        let mut app = App::new();
+        app.init_resource::<ReplicationRules>();
+
+        app.world.spawn_empty();
+
+        let replicated_archetypes = match_archetypes(&mut app.world);
+        assert!(replicated_archetypes.is_empty());
+    }
+
+    #[test]
+    fn no_rules() {
+        let mut app = App::new();
+        app.init_resource::<ReplicationRules>();
+
+        app.world.spawn(Replication);
+
+        let replicated_archetypes = match_archetypes(&mut app.world);
+        assert_eq!(replicated_archetypes.len(), 1);
+
+        let replicated_component = replicated_archetypes.first().unwrap();
+        assert!(replicated_component.components.is_empty());
+    }
+
+    #[test]
+    fn component_rule() {
+        let mut app = App::new();
+        app.init_resource::<ReplicationRules>()
+            .init_resource::<ReplicationFns>()
+            .replicate::<ComponentA>();
+
+        app.world.spawn((Replication, ComponentA));
+
+        let replicated_archetypes = match_archetypes(&mut app.world);
+        let replicated_component = replicated_archetypes.first().unwrap();
+        assert_eq!(replicated_component.components.len(), 1);
+    }
+
+    #[test]
+    fn component_rule_mismatch() {
+        let mut app = App::new();
+        app.init_resource::<ReplicationRules>()
+            .init_resource::<ReplicationFns>()
+            .replicate::<ComponentA>();
+
+        app.world.spawn((Replication, ComponentB));
+
+        let replicated_archetypes = match_archetypes(&mut app.world);
+        let replicated_component = replicated_archetypes.first().unwrap();
+        assert!(replicated_component.components.is_empty());
+    }
+
+    #[test]
+    fn group_rule() {
+        let mut app = App::new();
+        app.init_resource::<ReplicationRules>()
+            .init_resource::<ReplicationFns>()
+            .replicate_group::<(ComponentA, ComponentB)>();
+
+        app.world.spawn((Replication, ComponentA, ComponentB));
+
+        let replicated_archetypes = match_archetypes(&mut app.world);
+        let replicated_component = replicated_archetypes.first().unwrap();
+        assert_eq!(replicated_component.components.len(), 2);
+    }
+
+    #[test]
+    fn group_rule_mismatch() {
+        let mut app = App::new();
+        app.init_resource::<ReplicationRules>()
+            .init_resource::<ReplicationFns>()
+            .replicate_group::<(ComponentA, ComponentB)>();
+
+        app.world.spawn((Replication, ComponentA));
+
+        let replicated_archetypes = match_archetypes(&mut app.world);
+        let replicated_component = replicated_archetypes.first().unwrap();
+        assert!(replicated_component.components.is_empty());
+    }
+
+    #[test]
+    fn rule_with_subset() {
+        let mut app = App::new();
+        app.init_resource::<ReplicationRules>()
+            .init_resource::<ReplicationFns>()
+            .replicate::<ComponentA>()
+            .replicate_group::<(ComponentA, ComponentB)>();
+
+        app.world.spawn((Replication, ComponentA, ComponentB));
+
+        let replicated_archetypes = match_archetypes(&mut app.world);
+        let replicated_component = replicated_archetypes.first().unwrap();
+        assert_eq!(replicated_component.components.len(), 2);
+    }
+
+    #[test]
+    fn rule_with_multiple_subsets() {
+        let mut app = App::new();
+        app.init_resource::<ReplicationRules>()
+            .init_resource::<ReplicationFns>()
+            .replicate::<ComponentA>()
+            .replicate::<ComponentB>()
+            .replicate_group::<(ComponentA, ComponentB)>();
+
+        app.world.spawn((Replication, ComponentA, ComponentB));
+
+        let replicated_archetypes = match_archetypes(&mut app.world);
+        let replicated_component = replicated_archetypes.first().unwrap();
+        assert_eq!(replicated_component.components.len(), 2);
+    }
+
+    #[test]
+    fn rule_overlap() {
+        let mut app = App::new();
+        app.init_resource::<ReplicationRules>()
+            .init_resource::<ReplicationFns>()
+            .replicate_group::<(ComponentA, ComponentC)>()
+            .replicate_group::<(ComponentA, ComponentB)>();
+
+        app.world
+            .spawn((Replication, ComponentA, ComponentB, ComponentC));
+
+        let replicated_archetypes = match_archetypes(&mut app.world);
+        let replicated_component = replicated_archetypes.first().unwrap();
+        assert_eq!(
+            replicated_component.components.len(),
+            4,
+            "overlapped component should be replicated twice"
+        );
+    }
+
+    fn match_archetypes(world: &mut World) -> ReplicatedArchetypes {
+        world.resource_scope(|world, mut rules: Mut<ReplicationRules>| {
+            rules.calculate_subsets();
+
+            let mut replicated_archetypes = ReplicatedArchetypes::from_world(world);
+            replicated_archetypes.update(world.archetypes(), &rules);
+
+            replicated_archetypes
+        })
+    }
+
+    #[derive(Serialize, Deserialize, Component)]
+    struct ComponentA;
+
+    #[derive(Serialize, Deserialize, Component)]
+    struct ComponentB;
+
+    #[derive(Serialize, Deserialize, Component)]
+    struct ComponentC;
+}
