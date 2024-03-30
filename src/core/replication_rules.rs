@@ -414,3 +414,91 @@ impl_registrations!(A, B, C, D, E, F, G);
 impl_registrations!(A, B, C, D, E, F, G, H);
 impl_registrations!(A, B, C, D, E, F, G, H, I);
 impl_registrations!(A, B, C, D, E, F, G, H, I, J);
+
+#[cfg(test)]
+mod tests {
+    use serde::{Deserialize, Serialize};
+
+    use super::*;
+    use crate::{core::replication_fns::ReplicationFns, AppReplicationExt};
+
+    #[test]
+    fn sorting() {
+        let mut app = App::new();
+        app.init_resource::<ReplicationRules>()
+            .init_resource::<ReplicationFns>()
+            .replicate::<ComponentA>()
+            .replicate::<ComponentB>()
+            .replicate_group::<(ComponentA, ComponentB)>()
+            .replicate_group::<(ComponentB, ComponentC)>()
+            .replicate::<ComponentC>()
+            .replicate::<ComponentD>();
+
+        let replication_rules = app.world.resource::<ReplicationRules>();
+
+        let lens: Vec<_> = replication_rules
+            .iter()
+            .map(|rule| (rule.len, rule.components.len()))
+            .collect();
+
+        assert_eq!(lens, [(2, 2), (2, 2), (1, 1), (1, 1), (1, 1), (1, 1)]);
+    }
+
+    #[test]
+    fn single_subset() {
+        let mut app = App::new();
+        app.init_resource::<ReplicationRules>()
+            .init_resource::<ReplicationFns>()
+            .replicate::<ComponentA>()
+            .replicate_group::<(ComponentA, ComponentB)>();
+
+        let mut replication_rules = app.world.resource_mut::<ReplicationRules>();
+        replication_rules.calculate_subsets();
+
+        let replication_rule = replication_rules.first().unwrap();
+        assert_eq!(replication_rule.subsets, [1]);
+    }
+
+    #[test]
+    fn multiple_subsets() {
+        let mut app = App::new();
+        app.init_resource::<ReplicationRules>()
+            .init_resource::<ReplicationFns>()
+            .replicate::<ComponentA>()
+            .replicate::<ComponentB>()
+            .replicate_group::<(ComponentA, ComponentB)>();
+
+        let mut replication_rules = app.world.resource_mut::<ReplicationRules>();
+        replication_rules.calculate_subsets();
+
+        let replication_rule = replication_rules.first().unwrap();
+        assert_eq!(replication_rule.subsets, [1, 2]);
+    }
+
+    #[test]
+    fn no_subsets() {
+        let mut app = App::new();
+        app.init_resource::<ReplicationRules>()
+            .init_resource::<ReplicationFns>()
+            .replicate::<ComponentD>()
+            .replicate_group::<(ComponentA, ComponentB)>()
+            .replicate_group::<(ComponentB, ComponentC)>();
+
+        let mut replication_rules = app.world.resource_mut::<ReplicationRules>();
+        replication_rules.calculate_subsets();
+
+        assert!(replication_rules.iter().all(|rule| rule.subsets.is_empty()))
+    }
+
+    #[derive(Serialize, Deserialize, Component)]
+    struct ComponentA;
+
+    #[derive(Serialize, Deserialize, Component)]
+    struct ComponentB;
+
+    #[derive(Serialize, Deserialize, Component)]
+    struct ComponentC;
+
+    #[derive(Serialize, Deserialize, Component)]
+    struct ComponentD;
+}
