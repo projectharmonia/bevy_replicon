@@ -217,8 +217,6 @@ impl ReplicationRules {
             for (right_index, right_rule) in right.iter_mut().enumerate() {
                 if left_rule.contains(right_rule) {
                     left_rule.subsets.push(index + right_index);
-                } else if right_rule.contains(left_rule) {
-                    right_rule.subsets.push(index);
                 }
             }
         }
@@ -284,10 +282,6 @@ impl ReplicationRule {
 
     /// Returns `true` if `other_rule` is a subset of this rule.
     pub(super) fn contains(&self, other_rule: &ReplicationRule) -> bool {
-        if self.len < other_rule.len {
-            return false;
-        }
-
         for (component_id, _) in &other_rule.components {
             if self
                 .components
