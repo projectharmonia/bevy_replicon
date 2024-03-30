@@ -211,7 +211,7 @@ impl ServerPlugin {
             ResMut<ClientBuffers>,
             ResMut<RepliconServer>,
         )>,
-        fns: Res<ReplicationFns>,
+        replication_fns: Res<ReplicationFns>,
         rules: Res<ReplicationRules>,
         replicon_tick: Res<RepliconTick>,
         time: Res<Time>,
@@ -227,7 +227,7 @@ impl ServerPlugin {
         collect_changes(
             &mut messages,
             &replicated_archetypes,
-            &fns,
+            &replication_fns,
             set.p0(),
             &change_tick,
         )?;
@@ -286,7 +286,7 @@ fn collect_mappings(
 fn collect_changes(
     messages: &mut ReplicationMessages,
     replicated_archetypes: &ReplicatedArchetypes,
-    fns: &ReplicationFns,
+    replication_fns: &ReplicationFns,
     world: &World,
     change_tick: &SystemChangeTick,
 ) -> bincode::Result<()> {
@@ -346,7 +346,7 @@ fn collect_changes(
                     )
                 };
                 // SAFETY: functions ID obtained from `ReplicationFns` that returns only always IDs.
-                let serde_fns = unsafe { fns.serde_fn_unchecked(replicated_component.serde_id) };
+                let fns = unsafe { replication_fns.fns_unchecked(replicated_component.fns_id) };
 
                 let mut shared_bytes = None;
                 for (init_message, update_message, client) in messages.iter_mut_with_clients() {
@@ -360,8 +360,8 @@ fn collect_changes(
                     {
                         init_message.write_component(
                             &mut shared_bytes,
-                            serde_fns,
-                            replicated_component.serde_id,
+                            fns,
+                            replicated_component.fns_id,
                             component,
                         )?;
                     } else {
@@ -371,8 +371,8 @@ fn collect_changes(
                         if ticks.is_changed(tick, change_tick.this_run()) {
                             update_message.write_component(
                                 &mut shared_bytes,
-                                serde_fns,
-                                replicated_component.serde_id,
+                                fns,
+                                replicated_component.fns_id,
                                 component,
                             )?;
                         }
@@ -479,9 +479,9 @@ fn collect_removals(
     for (entity, remove_ids) in removal_buffer.iter() {
         for (message, _, client) in messages.iter_mut_with_clients() {
             message.start_entity_data(entity);
-            for &id in remove_ids {
+            for &(_, fns_id) in remove_ids {
                 client.set_change_limit(entity, tick);
-                message.write_remove_id(id)?;
+                message.write_fns_id(fns_id)?;
             }
             message.end_entity_data(false)?;
         }

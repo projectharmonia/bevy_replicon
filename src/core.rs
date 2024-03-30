@@ -22,11 +22,6 @@ impl Plugin for RepliconCorePlugin {
             .init_resource::<ReplicationFns>()
             .init_resource::<ReplicationRules>();
     }
-
-    fn finish(&self, app: &mut App) {
-        let mut rules = app.world.resource_mut::<ReplicationRules>();
-        rules.calculate_subsets();
-    }
 }
 
 /// Marks entity for replication.

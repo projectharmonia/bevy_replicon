@@ -16,56 +16,30 @@ pub struct ReplicationFns {
     /// Useful if you need to intercept despawns and handle them in a special way.
     pub despawn: DespawnFn,
 
-    /// Functions for component serialization/deserialization.
-    serde: Vec<SerdeFns>,
-
-    /// Functions for removing components.
-    ///
-    /// Unlike `serde` functions, removals are registered per replication rule.
-    remove: Vec<RemoveFn>,
+    /// Registered functions for replicated components.
+    components: Vec<ComponentFns>,
 }
 
 impl ReplicationFns {
-    /// Registers [`SerdeFns`] for a component and returns its ID.
+    /// Registers [`ComponentFns`] for a component and returns its ID.
     ///
-    /// Returned ID can be assigned to components inside
+    /// Returned ID can be assigned to a component inside
     /// [`ReplicationRule`](super::replication_rules::ReplicationRule).
     ///
     /// Could be called multiple times for the same component with different functions.
-    pub fn register_serde_fns(&mut self, serde_fns: SerdeFns) -> SerdeFnsId {
-        self.serde.push(serde_fns);
+    pub fn register_fns(&mut self, fns: ComponentFns) -> ComponentFnsId {
+        self.components.push(fns);
 
-        SerdeFnsId(self.serde.len() - 1)
+        ComponentFnsId(self.components.len() - 1)
     }
 
-    /// Registers removal functions a component group and returns its ID.
-    ///
-    /// Returned ID can be assigned to
-    /// [`ReplicationRule`](super::replication_rules::ReplicationRule).
-    ///
-    /// Could be called multiple times for a replication rule with different functions.
-    pub fn register_remove_fn(&mut self, remove: RemoveFn) -> RemoveFnId {
-        self.remove.push(remove);
-
-        RemoveFnId(self.remove.len() - 1)
-    }
-
-    /// Returns a reference to registered serde functions.
+    /// Returns a reference to registered component functions.
     ///
     /// # Safety
     ///
     /// `id` should point to a valid item.
-    pub(crate) unsafe fn serde_fn_unchecked(&self, id: SerdeFnsId) -> &SerdeFns {
-        self.serde.get_unchecked(id.0)
-    }
-
-    /// Returns a reference to registered remove function.
-    ///
-    /// # Safety
-    ///
-    /// `id` should point to a valid item.
-    pub(crate) unsafe fn remove_fn_unchecked(&self, id: RemoveFnId) -> &RemoveFn {
-        self.remove.get_unchecked(id.0)
+    pub(crate) unsafe fn fns_unchecked(&self, id: ComponentFnsId) -> &ComponentFns {
+        self.components.get_unchecked(id.0)
     }
 }
 
@@ -73,8 +47,7 @@ impl Default for ReplicationFns {
     fn default() -> Self {
         Self {
             despawn: despawn_recursive,
-            serde: Default::default(),
-            remove: Default::default(),
+            components: Default::default(),
         }
     }
 }
@@ -96,27 +69,24 @@ pub type RemoveFn = fn(&mut EntityWorldMut, RepliconTick);
 /// Signature of the entity despawn function.
 pub type DespawnFn = fn(EntityWorldMut, RepliconTick);
 
-/// Serialization and deserialization functions for a replicated component.
+/// Functions for a replicated component.
 #[derive(Clone)]
-pub struct SerdeFns {
+pub struct ComponentFns {
     /// Function that serializes a component into bytes.
     pub serialize: SerializeFn,
 
     /// Function that deserializes a component from bytes and inserts it to [`EntityWorldMut`].
     pub deserialize: DeserializeFn,
+
+    /// Function that removes a component from [`EntityWorldMut`].
+    pub remove: RemoveFn,
 }
 
-/// Represents ID of [`SerdeFns`].
+/// Represents ID of [`ComponentFns`].
 ///
-/// Can be obtained from [`ReplicationFns::register_serde_fns`].
+/// Can be obtained from [`ReplicationFns::register_fns`].
 #[derive(Clone, Copy, Deserialize, Eq, Hash, PartialEq, Serialize)]
-pub struct SerdeFnsId(usize);
-
-/// Represents ID of [`Vec<RemoveFn>`].
-///
-/// Can be obtained from [`ReplicationFns::register_remove_fn`].
-#[derive(Clone, Copy, Deserialize, Eq, Hash, PartialEq, Serialize)]
-pub struct RemoveFnId(usize);
+pub struct ComponentFnsId(usize);
 
 /// Default serialization function.
 pub fn serialize<C: Component + Serialize>(

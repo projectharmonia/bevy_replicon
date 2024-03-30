@@ -15,7 +15,7 @@ use super::{
     ClientMapping, ConnectedClient,
 };
 use crate::core::{
-    replication_fns::{RemoveFnId, SerdeFns, SerdeFnsId},
+    replication_fns::{ComponentFns, ComponentFnsId},
     replicon_channels::ReplicationChannel,
     replicon_tick::RepliconTick,
 };
@@ -281,7 +281,7 @@ impl InitMessage {
         Ok(())
     }
 
-    /// Serializes component and its replication ID as an element of entity data.
+    /// Serializes component and its replication functions ID as an element of entity data.
     ///
     /// Reuses previously shared bytes if they exist, or updates them.
     /// Should be called only inside an entity data and increases its size.
@@ -289,8 +289,8 @@ impl InitMessage {
     pub(super) fn write_component<'a>(
         &'a mut self,
         shared_bytes: &mut Option<&'a [u8]>,
-        serde_fns: &SerdeFns,
-        serde_id: SerdeFnsId,
+        fns: &ComponentFns,
+        fns_id: ComponentFnsId,
         ptr: Ptr,
     ) -> bincode::Result<()> {
         if self.entity_data_size == 0 {
@@ -298,8 +298,8 @@ impl InitMessage {
         }
 
         let size = write_with(shared_bytes, &mut self.cursor, |cursor| {
-            DefaultOptions::new().serialize_into(&mut *cursor, &serde_id)?;
-            (serde_fns.serialize)(ptr, cursor)
+            DefaultOptions::new().serialize_into(&mut *cursor, &fns_id)?;
+            (fns.serialize)(ptr, cursor)
         })?;
 
         self.entity_data_size = self
@@ -310,17 +310,17 @@ impl InitMessage {
         Ok(())
     }
 
-    /// Serializes replication ID as an element of entity data.
+    /// Serializes replication functions ID as an element of entity data.
     ///
     /// Should be called only inside an entity data and increases its size.
     /// See also [`Self::start_entity_data`].
-    pub(super) fn write_remove_id(&mut self, remove_id: RemoveFnId) -> bincode::Result<()> {
+    pub(super) fn write_fns_id(&mut self, fns_id: ComponentFnsId) -> bincode::Result<()> {
         if self.entity_data_size == 0 {
             self.write_data_entity()?;
         }
 
         let previous_pos = self.cursor.position();
-        DefaultOptions::new().serialize_into(&mut self.cursor, &remove_id)?;
+        DefaultOptions::new().serialize_into(&mut self.cursor, &fns_id)?;
 
         let id_size = self.cursor.position() - previous_pos;
         self.entity_data_size = self
@@ -507,7 +507,7 @@ impl UpdateMessage {
         Ok(())
     }
 
-    /// Serializes component and its replication ID as an element of entity data.
+    /// Serializes component and its replication functions ID as an element of entity data.
     ///
     /// Reuses previously shared bytes if they exist, or updates them.
     /// Should be called only inside an entity data and increases its size.
@@ -515,8 +515,8 @@ impl UpdateMessage {
     pub(super) fn write_component<'a>(
         &'a mut self,
         shared_bytes: &mut Option<&'a [u8]>,
-        serde_fns: &SerdeFns,
-        serde_id: SerdeFnsId,
+        fns: &ComponentFns,
+        fns_id: ComponentFnsId,
         ptr: Ptr,
     ) -> bincode::Result<()> {
         if self.entity_data_size == 0 {
@@ -524,8 +524,8 @@ impl UpdateMessage {
         }
 
         let size = write_with(shared_bytes, &mut self.cursor, |cursor| {
-            DefaultOptions::new().serialize_into(&mut *cursor, &serde_id)?;
-            (serde_fns.serialize)(ptr, cursor)
+            DefaultOptions::new().serialize_into(&mut *cursor, &fns_id)?;
+            (fns.serialize)(ptr, cursor)
         })?;
 
         self.entity_data_size = self

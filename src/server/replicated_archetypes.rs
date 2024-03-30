@@ -8,7 +8,9 @@ use bevy::{
     prelude::*,
 };
 
-use crate::core::{replication_fns::SerdeFnsId, replication_rules::ReplicationRules, Replication};
+use crate::core::{
+    replication_fns::ComponentFnsId, replication_rules::ReplicationRules, Replication,
+};
 
 /// Cached information about all replicated archetypes.
 #[derive(Deref)]
@@ -22,11 +24,6 @@ pub(crate) struct ReplicatedArchetypes {
     /// Archetypes marked as replicated.
     #[deref]
     archetypes: Vec<ReplicatedArchetype>,
-
-    /// Temporary container for storing indices of rule subsets for currently processing archetype.
-    ///
-    /// Cleaned after each archetype processing.
-    current_subsets: Vec<usize>,
 }
 
 impl ReplicatedArchetypes {
@@ -47,12 +44,21 @@ impl ReplicatedArchetypes {
             .filter(|archetype| archetype.contains(self.marker_id))
         {
             let mut replicated_archetype = ReplicatedArchetype::new(archetype.id());
-            for (index, rule) in rules.iter().enumerate() {
-                if self.current_subsets.contains(&index) || !rule.matches_archetype(archetype) {
-                    continue;
-                }
+            for rule in rules
+                .iter()
+                .filter(|rule| rule.matches_archetype(archetype))
+            {
+                for &(component_id, fns_id) in &rule.components {
+                    // Since rules are sorted by priority,
+                    // we are inserting only new components that aren't present.
+                    if replicated_archetype
+                        .components
+                        .iter()
+                        .any(|component| component.component_id == component_id)
+                    {
+                        continue;
+                    }
 
-                for &(component_id, serde_id) in &rule.components {
                     // SAFETY: component ID obtained from this archetype.
                     let storage_type =
                         unsafe { archetype.get_storage_type(component_id).unwrap_unchecked() };
@@ -60,13 +66,11 @@ impl ReplicatedArchetypes {
                     replicated_archetype.components.push(ReplicatedComponent {
                         component_id,
                         storage_type,
-                        serde_id,
+                        fns_id,
                     });
                 }
-                self.current_subsets.extend_from_slice(&rule.subsets);
             }
             self.archetypes.push(replicated_archetype);
-            self.current_subsets.clear();
         }
     }
 }
@@ -77,7 +81,6 @@ impl FromWorld for ReplicatedArchetypes {
             marker_id: world.init_component::<Replication>(),
             generation: ArchetypeGeneration::initial(),
             archetypes: Default::default(),
-            current_subsets: Default::default(),
         }
     }
 }
@@ -104,7 +107,7 @@ impl ReplicatedArchetype {
 pub(super) struct ReplicatedComponent {
     pub(super) component_id: ComponentId,
     pub(super) storage_type: StorageType,
-    pub(super) serde_id: SerdeFnsId,
+    pub(super) fns_id: ComponentFnsId,
 }
 
 #[cfg(test)]
@@ -126,7 +129,7 @@ mod tests {
     }
 
     #[test]
-    fn no_rules() {
+    fn no_components() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>();
 
@@ -140,7 +143,7 @@ mod tests {
     }
 
     #[test]
-    fn component_rule() {
+    fn component() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationFns>()
@@ -154,7 +157,7 @@ mod tests {
     }
 
     #[test]
-    fn component_rule_mismatch() {
+    fn component_mismatch() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationFns>()
@@ -168,7 +171,7 @@ mod tests {
     }
 
     #[test]
-    fn group_rule() {
+    fn group() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationFns>()
@@ -182,7 +185,7 @@ mod tests {
     }
 
     #[test]
-    fn group_rule_mismatch() {
+    fn group_mismatch() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationFns>()
@@ -196,7 +199,7 @@ mod tests {
     }
 
     #[test]
-    fn rule_with_subset() {
+    fn grup_with_subset() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationFns>()
@@ -211,7 +214,7 @@ mod tests {
     }
 
     #[test]
-    fn rule_with_multiple_subsets() {
+    fn group_with_multiple_subsets() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationFns>()
@@ -227,7 +230,7 @@ mod tests {
     }
 
     #[test]
-    fn rule_overlap() {
+    fn groups_with_overlap() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationFns>()
@@ -239,22 +242,14 @@ mod tests {
 
         let replicated_archetypes = match_archetypes(&mut app.world);
         let replicated_component = replicated_archetypes.first().unwrap();
-        assert_eq!(
-            replicated_component.components.len(),
-            4,
-            "overlapped component should be replicated twice"
-        );
+        assert_eq!(replicated_component.components.len(), 3);
     }
 
     fn match_archetypes(world: &mut World) -> ReplicatedArchetypes {
-        world.resource_scope(|world, mut rules: Mut<ReplicationRules>| {
-            rules.calculate_subsets();
+        let mut replicated_archetypes = ReplicatedArchetypes::from_world(world);
+        replicated_archetypes.update(world.archetypes(), world.resource::<ReplicationRules>());
 
-            let mut replicated_archetypes = ReplicatedArchetypes::from_world(world);
-            replicated_archetypes.update(world.archetypes(), &rules);
-
-            replicated_archetypes
-        })
+        replicated_archetypes
     }
 
     #[derive(Serialize, Deserialize, Component)]

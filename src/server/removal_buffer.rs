@@ -12,7 +12,7 @@ use bevy::{
 
 use super::{ServerPlugin, ServerSet};
 use crate::core::{
-    common_conditions::server_running, replication_fns::RemoveFnId,
+    common_conditions::server_running, replication_fns::ComponentFnsId,
     replication_rules::ReplicationRules, Replication,
 };
 
@@ -115,23 +115,18 @@ impl RemovalReader<'_, '_> {
 #[derive(Default, Resource)]
 pub(crate) struct RemovalBuffer {
     /// Replication rule removals for entities.
-    removals: Vec<(Entity, Vec<RemoveFnId>)>,
+    removals: Vec<(Entity, Vec<(ComponentId, ComponentFnsId)>)>,
 
     /// [`Vec`]'s from removals.
     ///
     /// All data is cleared before the insertion.
     /// Stored to reuse allocated capacity.
-    ids_buffer: Vec<Vec<RemoveFnId>>,
-
-    /// Temporary container for storing indices of rule subsets for currently reading entity.
-    ///
-    /// Cleaned after each entity reading.
-    current_subsets: Vec<usize>,
+    ids_buffer: Vec<Vec<(ComponentId, ComponentFnsId)>>,
 }
 
 impl RemovalBuffer {
-    /// Returns an iterator over entities and their removed replication rules.
-    pub(super) fn iter(&self) -> impl Iterator<Item = (Entity, &[RemoveFnId])> {
+    /// Returns an iterator over entities and their removed components.
+    pub(super) fn iter(&self) -> impl Iterator<Item = (Entity, &[(ComponentId, ComponentFnsId)])> {
         self.removals
             .iter()
             .map(|(entity, remove_ids)| (*entity, &**remove_ids))
@@ -145,14 +140,19 @@ impl RemovalBuffer {
         components: &HashSet<ComponentId>,
     ) {
         let mut removed_ids = self.ids_buffer.pop().unwrap_or_default();
-        for (index, rule) in rules.iter().enumerate() {
-            if !self.current_subsets.contains(&index) && rule.matches(components) {
-                removed_ids.push(rule.remove_id);
-                self.current_subsets.extend_from_slice(&rule.subsets);
+        for rule in rules.iter().filter(|rule| rule.matches(components)) {
+            for &(component_id, fns_id) in &rule.components {
+                // Since rules are sorted by priority,
+                // we are inserting only new components that aren't present.
+                if removed_ids
+                    .iter()
+                    .all(|&(removed_id, _)| removed_id != component_id)
+                {
+                    removed_ids.push((component_id, fns_id));
+                }
             }
         }
         self.removals.push((entity, removed_ids));
-        self.current_subsets.clear();
     }
 
     /// Clears all removals.
