@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- `dont_replicate` module. Use the newly added `replicate_group`, newtypes or [`bevy_bundlication`](https://github.com/NiseVoid/bevy_bundlication) for more complex cases.
+- `dont_replicate` module. Use the newly added `AppReplicationExt::replicate_group` or newtypes.
 
 ## [0.24.1] - 2024-03-07
 
