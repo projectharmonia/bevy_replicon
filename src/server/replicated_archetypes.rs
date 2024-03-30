@@ -44,10 +44,7 @@ impl ReplicatedArchetypes {
             .filter(|archetype| archetype.contains(self.marker_id))
         {
             let mut replicated_archetype = ReplicatedArchetype::new(archetype.id());
-            for rule in rules
-                .iter()
-                .filter(|rule| rule.matches_archetype(archetype))
-            {
+            for rule in rules.iter().filter(|rule| rule.matches(archetype)) {
                 for &(component_id, fns_id) in &rule.components {
                     // Since rules are sorted by priority,
                     // we are inserting only new components that aren't present.

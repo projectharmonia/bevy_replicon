@@ -1,7 +1,8 @@
 use bevy::{
     ecs::{
+        archetype::{Archetype, Archetypes},
         component::ComponentId,
-        entity::EntityHashMap,
+        entity::{Entities, EntityHashMap},
         event::ManualEventReader,
         removal_detection::{RemovedComponentEntity, RemovedComponentEvents},
         system::SystemParam,
@@ -35,12 +36,19 @@ impl Plugin for RemovalBufferPlugin {
 
 impl RemovalBufferPlugin {
     fn buffer_removals(
+        entities: &Entities,
+        archetypes: &Archetypes,
         mut removal_reader: RemovalReader,
         mut removal_buffer: ResMut<RemovalBuffer>,
         rules: Res<ReplicationRules>,
     ) {
         for (&entity, components) in removal_reader.read() {
-            removal_buffer.update(&rules, entity, components);
+            let location = entities
+                .get(entity)
+                .expect("removals count only existing entities");
+            let archetype = archetypes.get(location.archetype_id).unwrap();
+
+            removal_buffer.update(&rules, archetype, entity, components);
         }
     }
 }
@@ -72,6 +80,8 @@ struct RemovalReader<'w, 's> {
 
 impl RemovalReader<'_, '_> {
     /// Returns iterator over all components removed since the last call.
+    ///
+    /// Only replicated entities taken into account.
     fn read(&mut self) -> impl Iterator<Item = (&Entity, &HashSet<ComponentId>)> {
         self.clear();
 
@@ -136,17 +146,22 @@ impl RemovalBuffer {
     fn update(
         &mut self,
         rules: &ReplicationRules,
+        archetype: &Archetype,
         entity: Entity,
         components: &HashSet<ComponentId>,
     ) {
         let mut removed_ids = self.ids_buffer.pop().unwrap_or_default();
-        for rule in rules.iter().filter(|rule| rule.matches(components)) {
+        for rule in rules
+            .iter()
+            .filter(|rule| rule.matches_removals(archetype, components))
+        {
             for &(component_id, fns_id) in &rule.components {
                 // Since rules are sorted by priority,
                 // we are inserting only new components that aren't present.
                 if removed_ids
                     .iter()
                     .all(|&(removed_id, _)| removed_id != component_id)
+                    && !archetype.contains(component_id)
                 {
                     removed_ids.push((component_id, fns_id));
                 }
@@ -180,46 +195,173 @@ mod tests {
     };
 
     #[test]
-    fn removals() {
+    fn not_replicated() {
         let mut app = App::new();
         app.add_plugins(RemovalBufferPlugin)
             .init_resource::<RepliconServer>()
             .init_resource::<ReplicationFns>()
-            .init_resource::<ReplicationRules>()
-            .replicate::<DummyComponent>();
+            .init_resource::<ReplicationRules>();
 
         app.world.resource_mut::<RepliconServer>().set_running(true);
 
         app.update();
 
         app.world
-            .spawn((DummyComponent, Replication))
-            .remove::<DummyComponent>();
+            .spawn((Replication, ComponentA))
+            .remove::<ComponentA>();
 
         app.update();
 
-        let mut removal_buffer = app.world.resource_mut::<RemovalBuffer>();
-        assert_eq!(removal_buffer.removals.len(), 1);
-
-        removal_buffer.clear();
+        let removal_buffer = app.world.resource::<RemovalBuffer>();
         assert!(removal_buffer.removals.is_empty());
-        assert_eq!(removal_buffer.ids_buffer.len(), 1);
     }
 
     #[test]
-    fn despawn_ignore() {
+    fn component() {
         let mut app = App::new();
         app.add_plugins(RemovalBufferPlugin)
             .init_resource::<RepliconServer>()
             .init_resource::<ReplicationFns>()
             .init_resource::<ReplicationRules>()
-            .replicate::<DummyComponent>();
+            .replicate::<ComponentA>();
 
         app.world.resource_mut::<RepliconServer>().set_running(true);
 
         app.update();
 
-        app.world.spawn((DummyComponent, Replication)).despawn();
+        app.world
+            .spawn((Replication, ComponentA))
+            .remove::<ComponentA>();
+
+        app.update();
+
+        let removal_buffer = app.world.resource::<RemovalBuffer>();
+        assert_eq!(removal_buffer.removals.len(), 1);
+
+        let (_, removals_id) = removal_buffer.removals.first().unwrap();
+        assert_eq!(removals_id.len(), 1);
+    }
+
+    #[test]
+    fn group() {
+        let mut app = App::new();
+        app.add_plugins(RemovalBufferPlugin)
+            .init_resource::<RepliconServer>()
+            .init_resource::<ReplicationFns>()
+            .init_resource::<ReplicationRules>()
+            .replicate_group::<(ComponentA, ComponentB)>();
+
+        app.world.resource_mut::<RepliconServer>().set_running(true);
+
+        app.update();
+
+        app.world
+            .spawn((Replication, ComponentA, ComponentB))
+            .remove::<(ComponentA, ComponentB)>();
+
+        app.update();
+
+        let removal_buffer = app.world.resource::<RemovalBuffer>();
+        assert_eq!(removal_buffer.removals.len(), 1);
+
+        let (_, removals_id) = removal_buffer.removals.first().unwrap();
+        assert_eq!(removals_id.len(), 2);
+    }
+
+    #[test]
+    fn part_of_group() {
+        let mut app = App::new();
+        app.add_plugins(RemovalBufferPlugin)
+            .init_resource::<RepliconServer>()
+            .init_resource::<ReplicationFns>()
+            .init_resource::<ReplicationRules>()
+            .replicate_group::<(ComponentA, ComponentB)>();
+
+        app.world.resource_mut::<RepliconServer>().set_running(true);
+
+        app.update();
+
+        app.world
+            .spawn((Replication, ComponentA, ComponentB))
+            .remove::<ComponentA>();
+
+        app.update();
+
+        let removal_buffer = app.world.resource::<RemovalBuffer>();
+        assert_eq!(removal_buffer.removals.len(), 1);
+
+        let (_, removals_id) = removal_buffer.removals.first().unwrap();
+        assert_eq!(removals_id.len(), 1);
+    }
+
+    #[test]
+    fn group_with_subset() {
+        let mut app = App::new();
+        app.add_plugins(RemovalBufferPlugin)
+            .init_resource::<RepliconServer>()
+            .init_resource::<ReplicationFns>()
+            .init_resource::<ReplicationRules>()
+            .replicate::<ComponentA>()
+            .replicate_group::<(ComponentA, ComponentB)>();
+
+        app.world.resource_mut::<RepliconServer>().set_running(true);
+
+        app.update();
+
+        app.world
+            .spawn((Replication, ComponentA, ComponentB))
+            .remove::<(ComponentA, ComponentB)>();
+
+        app.update();
+
+        let removal_buffer = app.world.resource::<RemovalBuffer>();
+        assert_eq!(removal_buffer.removals.len(), 1);
+
+        let (_, removals_id) = removal_buffer.removals.first().unwrap();
+        assert_eq!(removals_id.len(), 2);
+    }
+
+    #[test]
+    fn part_of_group_with_subset() {
+        let mut app = App::new();
+        app.add_plugins(RemovalBufferPlugin)
+            .init_resource::<RepliconServer>()
+            .init_resource::<ReplicationFns>()
+            .init_resource::<ReplicationRules>()
+            .replicate::<ComponentA>()
+            .replicate_group::<(ComponentA, ComponentB)>();
+
+        app.world.resource_mut::<RepliconServer>().set_running(true);
+
+        app.update();
+
+        app.world
+            .spawn((Replication, ComponentA, ComponentB))
+            .remove::<ComponentA>();
+
+        app.update();
+
+        let removal_buffer = app.world.resource::<RemovalBuffer>();
+        assert_eq!(removal_buffer.removals.len(), 1);
+
+        let (_, removals_id) = removal_buffer.removals.first().unwrap();
+        assert_eq!(removals_id.len(), 1);
+    }
+
+    #[test]
+    fn despawn() {
+        let mut app = App::new();
+        app.add_plugins(RemovalBufferPlugin)
+            .init_resource::<RepliconServer>()
+            .init_resource::<ReplicationFns>()
+            .init_resource::<ReplicationRules>()
+            .replicate::<ComponentA>();
+
+        app.world.resource_mut::<RepliconServer>().set_running(true);
+
+        app.update();
+
+        app.world.spawn((ComponentA, Replication)).despawn();
 
         app.update();
 
@@ -231,5 +373,8 @@ mod tests {
     }
 
     #[derive(Serialize, Deserialize, Component)]
-    struct DummyComponent;
+    struct ComponentA;
+
+    #[derive(Serialize, Deserialize, Component)]
+    struct ComponentB;
 }

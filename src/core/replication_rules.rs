@@ -223,16 +223,29 @@ impl ReplicationRule {
         }
     }
 
-    pub(crate) fn matches_archetype(&self, archetype: &Archetype) -> bool {
+    /// Determines whether an archetype contains all components required by the rule.
+    pub(crate) fn matches(&self, archetype: &Archetype) -> bool {
         self.components
             .iter()
             .all(|&(component_id, _)| archetype.contains(component_id))
     }
 
-    pub(crate) fn matches(&self, components: &HashSet<ComponentId>) -> bool {
-        self.components
-            .iter()
-            .all(|(component_id, _)| components.contains(component_id))
+    /// Determines whether the rule is applicable to an archetype with removals included and contains at least one removal.
+    pub(crate) fn matches_removals(
+        &self,
+        archetype: &Archetype,
+        removed_components: &HashSet<ComponentId>,
+    ) -> bool {
+        let mut matches = false;
+        for &(component_id, _) in &self.components {
+            if removed_components.contains(&component_id) {
+                matches = true;
+            } else if !archetype.contains(component_id) {
+                return false;
+            }
+        }
+
+        matches
     }
 }
 
