@@ -257,7 +257,6 @@ fn apply_init_message(
 /// corresponding tick hasn't arrived), it will be buffered.
 ///
 /// Returns update index to be used for acknowledgment.
-#[allow(clippy::too_many_arguments)]
 fn apply_update_message(
     message: Bytes,
     world: &mut World,
@@ -328,7 +327,6 @@ fn apply_entity_mappings(
 }
 
 /// Deserializes replicated components of `components_kind` and applies them to the `world`.
-#[allow(clippy::too_many_arguments)]
 fn apply_init_components(
     cursor: &mut Cursor<&[u8]>,
     world: &mut World,

@@ -197,7 +197,6 @@ impl ServerPlugin {
     }
 
     /// Collects [`ReplicationMessages`] and sends them.
-    #[allow(clippy::type_complexity, clippy::too_many_arguments)]
     pub(super) fn send_replication(
         mut messages: Local<ReplicationMessages>,
         mut replicated_archetypes: Local<ReplicatedArchetypes>,
