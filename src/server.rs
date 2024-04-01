@@ -215,7 +215,7 @@ impl ServerPlugin {
         replicon_tick: Res<RepliconTick>,
         time: Res<Time>,
     ) -> bincode::Result<()> {
-        replicated_archetypes.update(set.p0().archetypes(), &rules);
+        replicated_archetypes.update(set.p0(), &rules);
 
         let connected_clients = mem::take(&mut *set.p1()); // Take ownership to avoid borrowing issues.
         messages.prepare(connected_clients);

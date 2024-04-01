@@ -2,10 +2,12 @@ use std::mem;
 
 use bevy::{
     ecs::{
-        archetype::{ArchetypeGeneration, ArchetypeId, Archetypes},
+        archetype::{ArchetypeGeneration, ArchetypeId},
         component::{ComponentId, StorageType},
     },
+    log::Level,
     prelude::*,
+    utils::tracing::enabled,
 };
 
 use crate::core::{
@@ -35,11 +37,11 @@ impl ReplicatedArchetypes {
     /// Updates the internal view of the [`World`]'s replicated archetypes.
     ///
     /// If this is not called before querying data, the results may not accurately reflect what is in the world.
-    pub(super) fn update(&mut self, archetypes: &Archetypes, rules: &ReplicationRules) {
-        let old_generation = mem::replace(&mut self.generation, archetypes.generation());
+    pub(super) fn update(&mut self, world: &World, rules: &ReplicationRules) {
+        let old_generation = mem::replace(&mut self.generation, world.archetypes().generation());
 
         // Archetypes are never removed, iterate over newly added since the last update.
-        for archetype in archetypes[old_generation..]
+        for archetype in world.archetypes()[old_generation..]
             .iter()
             .filter(|archetype| archetype.contains(self.marker_id))
         {
@@ -53,6 +55,23 @@ impl ReplicatedArchetypes {
                         .iter()
                         .any(|component| component.component_id == component_id)
                     {
+                        if enabled!(Level::DEBUG) {
+                            let component_name = world
+                                .components()
+                                .get_name(component_id)
+                                .expect("rules should be registered with valid component");
+
+                            let component_names: Vec<_> = replicated_archetype
+                                .components
+                                .iter()
+                                .flat_map(|component| {
+                                    world.components().get_name(component.component_id)
+                                })
+                                .collect();
+
+                            debug!("ignoring component `{component_name}` with priority {} for archetype with `{component_names:?}`", rule.priority);
+                        }
+
                         continue;
                     }
 
@@ -244,7 +263,7 @@ mod tests {
 
     fn match_archetypes(world: &mut World) -> ReplicatedArchetypes {
         let mut replicated_archetypes = ReplicatedArchetypes::from_world(world);
-        replicated_archetypes.update(world.archetypes(), world.resource::<ReplicationRules>());
+        replicated_archetypes.update(world, world.resource::<ReplicationRules>());
 
         replicated_archetypes
     }
