@@ -140,8 +140,8 @@ mod tests {
 
         app.world.spawn_empty();
 
-        let replicated_archetypes = match_archetypes(&mut app.world);
-        assert!(replicated_archetypes.is_empty());
+        let archetypes = match_archetypes(&mut app.world);
+        assert!(archetypes.is_empty());
     }
 
     #[test]
@@ -151,11 +151,11 @@ mod tests {
 
         app.world.spawn(Replication);
 
-        let replicated_archetypes = match_archetypes(&mut app.world);
-        assert_eq!(replicated_archetypes.len(), 1);
+        let archetypes = match_archetypes(&mut app.world);
+        assert_eq!(archetypes.len(), 1);
 
-        let replicated_component = replicated_archetypes.first().unwrap();
-        assert!(replicated_component.components.is_empty());
+        let archetype = archetypes.first().unwrap();
+        assert!(archetype.components.is_empty());
     }
 
     #[test]
@@ -167,9 +167,9 @@ mod tests {
 
         app.world.spawn((Replication, ComponentB));
 
-        let replicated_archetypes = match_archetypes(&mut app.world);
-        let replicated_component = replicated_archetypes.first().unwrap();
-        assert!(replicated_component.components.is_empty());
+        let archetypes = match_archetypes(&mut app.world);
+        let archetype = archetypes.first().unwrap();
+        assert!(archetype.components.is_empty());
     }
 
     #[test]
@@ -181,9 +181,9 @@ mod tests {
 
         app.world.spawn((Replication, ComponentA));
 
-        let replicated_archetypes = match_archetypes(&mut app.world);
-        let replicated_component = replicated_archetypes.first().unwrap();
-        assert_eq!(replicated_component.components.len(), 1);
+        let archetypes = match_archetypes(&mut app.world);
+        let archetype = archetypes.first().unwrap();
+        assert_eq!(archetype.components.len(), 1);
     }
 
     #[test]
@@ -195,9 +195,9 @@ mod tests {
 
         app.world.spawn((Replication, ComponentA, ComponentB));
 
-        let replicated_archetypes = match_archetypes(&mut app.world);
-        let replicated_component = replicated_archetypes.first().unwrap();
-        assert_eq!(replicated_component.components.len(), 2);
+        let archetypes = match_archetypes(&mut app.world);
+        let archetype = archetypes.first().unwrap();
+        assert_eq!(archetype.components.len(), 2);
     }
 
     #[test]
@@ -209,9 +209,9 @@ mod tests {
 
         app.world.spawn((Replication, ComponentA));
 
-        let replicated_archetypes = match_archetypes(&mut app.world);
-        let replicated_component = replicated_archetypes.first().unwrap();
-        assert!(replicated_component.components.is_empty());
+        let archetypes = match_archetypes(&mut app.world);
+        let archetype = archetypes.first().unwrap();
+        assert!(archetype.components.is_empty());
     }
 
     #[test]
@@ -224,9 +224,9 @@ mod tests {
 
         app.world.spawn((Replication, ComponentA, ComponentB));
 
-        let replicated_archetypes = match_archetypes(&mut app.world);
-        let replicated_component = replicated_archetypes.first().unwrap();
-        assert_eq!(replicated_component.components.len(), 2);
+        let archetypes = match_archetypes(&mut app.world);
+        let archetype = archetypes.first().unwrap();
+        assert_eq!(archetype.components.len(), 2);
     }
 
     #[test]
@@ -240,9 +240,9 @@ mod tests {
 
         app.world.spawn((Replication, ComponentA, ComponentB));
 
-        let replicated_archetypes = match_archetypes(&mut app.world);
-        let replicated_component = replicated_archetypes.first().unwrap();
-        assert_eq!(replicated_component.components.len(), 2);
+        let archetypes = match_archetypes(&mut app.world);
+        let archetype = archetypes.first().unwrap();
+        assert_eq!(archetype.components.len(), 2);
     }
 
     #[test]
@@ -256,16 +256,16 @@ mod tests {
         app.world
             .spawn((Replication, ComponentA, ComponentB, ComponentC));
 
-        let replicated_archetypes = match_archetypes(&mut app.world);
-        let replicated_component = replicated_archetypes.first().unwrap();
-        assert_eq!(replicated_component.components.len(), 3);
+        let archetypes = match_archetypes(&mut app.world);
+        let archetype = archetypes.first().unwrap();
+        assert_eq!(archetype.components.len(), 3);
     }
 
     fn match_archetypes(world: &mut World) -> ReplicatedArchetypes {
-        let mut replicated_archetypes = ReplicatedArchetypes::from_world(world);
-        replicated_archetypes.update(world, world.resource::<ReplicationRules>());
+        let mut archetypes = ReplicatedArchetypes::from_world(world);
+        archetypes.update(world, world.resource::<ReplicationRules>());
 
-        replicated_archetypes
+        archetypes
     }
 
     #[derive(Serialize, Deserialize, Component)]
