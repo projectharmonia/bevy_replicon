@@ -27,12 +27,12 @@ pub(crate) struct ReplicatedArchetypes {
 }
 
 impl ReplicatedArchetypes {
-    /// ID of [`Replication`] component.
+    /// ID of the [`Replication`] component.
     pub(crate) fn marker_id(&self) -> ComponentId {
         self.marker_id
     }
 
-    /// Updates internal view of the [`World`]'s replicated archetypes.
+    /// Updates the internal view of the [`World`]'s replicated archetypes.
     ///
     /// If this is not called before querying data, the results may not accurately reflect what is in the world.
     pub(super) fn update(&mut self, archetypes: &Archetypes, rules: &ReplicationRules) {

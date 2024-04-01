@@ -345,7 +345,7 @@ fn collect_changes(
                         replicated_component.component_id,
                     )
                 };
-                // SAFETY: functions ID obtained from `ReplicationFns` that returns only always IDs.
+                // SAFETY: `fns_id` obtained from `ReplicatedArchetypes` which only stores ids known by `ReplicationRules`
                 let fns = unsafe { replication_fns.fns_unchecked(replicated_component.fns_id) };
 
                 let mut shared_bytes = None;
