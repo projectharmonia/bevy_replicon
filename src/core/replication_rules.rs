@@ -161,7 +161,7 @@ impl AppReplicationExt for App {
     {
         let component_id = self.world.init_component::<C>();
         let mut replication_fns = self.world.resource_mut::<ReplicationFns>();
-        let fns_id = replication_fns.register_fns(ComponentFns {
+        let fns_id = replication_fns.register_component_fns(ComponentFns {
             serialize,
             deserialize,
             remove,
@@ -286,7 +286,7 @@ impl GroupReplication for PlayerBundle {
     fn register(world: &mut World, replication_fns: &mut ReplicationFns) -> ReplicationRule {
         // Customize serlialization to serialize only `translation`.
         let transform_id = world.init_component::<Transform>();
-        let transform_fns_id = replication_fns.register_fns(ComponentFns {
+        let transform_fns_id = replication_fns.register_component_fns(ComponentFns {
             // For function definitions see the example from `AppReplicationExt::replicate_with`.
             serialize: serialize_translation,
             deserialize: deserialize_translation,
@@ -295,7 +295,7 @@ impl GroupReplication for PlayerBundle {
 
         // Serialize `player` as usual.
         let visibility_id = world.init_component::<Player>();
-        let visibility_fns_id = replication_fns.register_fns(ComponentFns {
+        let visibility_fns_id = replication_fns.register_component_fns(ComponentFns {
             serialize: replication_fns::serialize::<Player>,
             deserialize: replication_fns::deserialize::<Player>,
             remove: replication_fns::remove::<Player>,
@@ -331,7 +331,7 @@ macro_rules! impl_registrations {
                 let mut components = Vec::new();
                 $(
                     let component_id = world.init_component::<$type>();
-                    let fns_id = replication_fns.register_fns(ComponentFns {
+                    let fns_id = replication_fns.register_component_fns(ComponentFns {
                         serialize: replication_fns::serialize::<$type>,
                         deserialize: replication_fns::deserialize::<$type>,
                         remove: replication_fns::remove::<$type>,

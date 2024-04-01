@@ -348,8 +348,7 @@ fn apply_init_components(
         let mut components_len = 0u32;
         while cursor.position() < end_pos {
             let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
-            // SAFETY: server and client have identical `ReplicationFns` and server always sends valid IDs.
-            let fns = unsafe { replication_fns.fns_unchecked(fns_id) };
+            let fns = replication_fns.component_fns(fns_id);
             match components_kind {
                 ComponentsKind::Insert => {
                     (fns.deserialize)(&mut entity, entity_map, cursor, replicon_tick)?
@@ -434,8 +433,7 @@ fn apply_update_components(
         let mut components_count = 0u32;
         while cursor.position() < end_pos {
             let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
-            // SAFETY: server and client have identical `ReplicationFns` and server always sends valid IDs.
-            let fns = unsafe { replication_fns.fns_unchecked(fns_id) };
+            let fns = replication_fns.component_fns(fns_id);
             (fns.deserialize)(&mut entity, entity_map, cursor, message_tick)?;
             components_count += 1;
         }

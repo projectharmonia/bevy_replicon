@@ -27,7 +27,7 @@ impl ReplicationFns {
     /// [`ReplicationRule`](super::replication_rules::ReplicationRule).
     ///
     /// Could be called multiple times for the same component with different functions.
-    pub fn register_fns(&mut self, fns: ComponentFns) -> ComponentFnsId {
+    pub fn register_component_fns(&mut self, fns: ComponentFns) -> ComponentFnsId {
         self.components.push(fns);
 
         ComponentFnsId(self.components.len() - 1)
@@ -38,8 +38,10 @@ impl ReplicationFns {
     /// # Safety
     ///
     /// `id` should point to a valid item.
-    pub(crate) unsafe fn fns_unchecked(&self, id: ComponentFnsId) -> &ComponentFns {
-        self.components.get_unchecked(id.0)
+    pub(crate) fn component_fns(&self, fns_id: ComponentFnsId) -> &ComponentFns {
+        self.components
+            .get(fns_id.0)
+            .expect("used functions IDs should be obtained from the same instance")
     }
 }
 
@@ -84,7 +86,7 @@ pub struct ComponentFns {
 
 /// Represents ID of [`ComponentFns`].
 ///
-/// Can be obtained from [`ReplicationFns::register_fns`].
+/// Can be obtained from [`ReplicationFns::register_component_fns`].
 #[derive(Clone, Copy, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub struct ComponentFnsId(usize);
 

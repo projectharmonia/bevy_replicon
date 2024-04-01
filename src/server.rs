@@ -344,9 +344,8 @@ fn collect_changes(
                         replicated_component.component_id,
                     )
                 };
-                // SAFETY: `fns_id` obtained from `ReplicatedArchetypes` which only stores ids known by `ReplicationRules`
-                let fns = unsafe { replication_fns.fns_unchecked(replicated_component.fns_id) };
 
+                let fns = replication_fns.component_fns(replicated_component.fns_id);
                 let mut shared_bytes = None;
                 for (init_message, update_message, client) in messages.iter_mut_with_clients() {
                     let visibility = client.visibility().cached_visibility();
