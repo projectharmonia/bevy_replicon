@@ -135,6 +135,8 @@ you can use [`AppReplicationExt::replicate_with`].
 If you want a group of components to be replicated only if all of them are present on an entity,
 you can use [`AppReplicationExt::replicate_group`].
 
+In order to serialize Bevy components you need to enable `serialize` feature on Bevy.
+
 ### Tick and fixed timestep games
 
 The [`ServerPlugin`] sends replication data in [`PostUpdate`] any time the
@@ -209,9 +211,6 @@ struct PlayerBundle {
 
 #[derive(Component, Deserialize, Serialize)]
 struct Player;
-# /// To avoid enabling `serialize` feature on Bevy.
-# #[derive(Component, Deserialize, Serialize)]
-# struct Transform;
 ```
 
 This pairs nicely with server state serialization and keeps saves clean.

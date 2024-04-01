@@ -144,9 +144,6 @@ pub trait AppReplicationExt {
 
     #[derive(Component, Deserialize, Serialize)]
     struct Player;
-    # /// To avoid enabling `serialize` feature on Bevy.
-    # #[derive(Component, Deserialize, Serialize)]
-    # struct Transform;
     ```
     **/
     fn replicate_group<C: GroupReplication>(&mut self) -> &mut Self;
