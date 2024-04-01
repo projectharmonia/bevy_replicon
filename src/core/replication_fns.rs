@@ -35,13 +35,13 @@ impl ReplicationFns {
 
     /// Returns a reference to registered component functions.
     ///
-    /// # Safety
+    /// # Panics
     ///
-    /// `id` should point to a valid item.
+    /// If functions ID points to an invalid item.
     pub(crate) fn component_fns(&self, fns_id: ComponentFnsId) -> &ComponentFns {
         self.components
             .get(fns_id.0)
-            .expect("used functions IDs should be obtained from the same instance")
+            .expect("function IDs should should always be valid if obtained from the same instance")
     }
 }
 
