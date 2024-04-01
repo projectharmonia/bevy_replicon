@@ -76,17 +76,17 @@ keep the world in sync.
 
 ### Marking for replication
 
-By default nothing is replicated. User need to choose which entities
-and components needs be replicated.
+By default nothing is replicated. User needs to choose which entities
+and components need to be replicated.
 
 #### Entities
 
-By default no entities are replicated. Add [`Replication`] marker
+By default no entities are replicated. Add the [`Replication`] marker
 component on the server for entities you want to replicate.
 
-On clients [`Replication`] will be automatically inserted after replication.
+On clients [`Replication`] will be automatically inserted to newly-replicated entities.
 
-If you remove [`Replication`] component from an entity, it will be despawned on all clients.
+If you remove the [`Replication`] component from an entity on the server, it will be despawned on all clients.
 
 #### Components
 
@@ -127,12 +127,12 @@ impl MapEntities for MappedComponent {
 }
 ```
 
-By default all components serialized with [`bincode`] using [`DefaultOptions`](bincode::DefaultOptions).
+By default all components are serialized with [`bincode`] using [`DefaultOptions`](bincode::DefaultOptions).
 If your component doesn't implement serde traits or you want to serialize it partially
-(for example, only replicate `translation` field from [`Transform`]),
+(for example, only replicate the `translation` field from [`Transform`]),
 you can use [`AppReplicationExt::replicate_with`].
 
-If you want a group of components to be replicated only if all of them present on an entity,
+If you want a group of components to be replicated only if all of them are present on an entity,
 you can use [`AppReplicationExt::replicate_group`].
 
 ### Tick and fixed timestep games
