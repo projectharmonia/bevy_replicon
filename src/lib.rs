@@ -135,7 +135,7 @@ you can use [`AppReplicationExt::replicate_with`].
 If you want a group of components to be replicated only if all of them are present on an entity,
 you can use [`AppReplicationExt::replicate_group`].
 
-In order to serialize Bevy components you need to enable `serialize` feature on Bevy.
+In order to serialize Bevy components you need to enable the `serialize` feature on Bevy.
 
 ### Tick and fixed timestep games
 

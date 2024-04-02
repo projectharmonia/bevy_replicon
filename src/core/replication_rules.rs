@@ -15,10 +15,11 @@ use super::replication_fns::{
 pub trait AppReplicationExt {
     /// Creates a replication rule for a single component.
     ///
-    /// The component will be replicated if its entity contains [`Replication`](super::Replication) marker component.
+    /// The component will be replicated if its entity contains the [`Replication`](super::Replication)
+    /// marker component.
     ///
-    /// Component will be serialized and deserialized as is using bincode.
-    /// To customize how component will be serialized, use [`Self::replicate_group`].
+    /// Component will be serialized and deserialized as-is using bincode.
+    /// To customize how the component will be serialized, use [`Self::replicate_group`].
     ///
     /// If your component contains any [`Entity`] inside, use [`Self::replicate_mapped`].
     fn replicate<C>(&mut self) -> &mut Self
@@ -52,7 +53,7 @@ pub trait AppReplicationExt {
     Same as [`Self::replicate`], but uses the specified functions for serialization, deserialization, and removal.
 
     Can be used to customize how the component will be replicated or
-    for components that doesn't implement [`Serialize`] or [`DeserializeOwned`].
+    for components that don't implement [`Serialize`] or [`DeserializeOwned`].
 
     # Examples
 
@@ -95,8 +96,8 @@ pub trait AppReplicationExt {
     }
     ```
 
-    The used [`remove`](replication_fns::remove) is the default component removal,
-    but you can replace it with your own as well.
+    The [`remove`](replication_fns::remove) used in this example is the default component
+    removal function, but you can replace it with your own as well.
     */
     fn replicate_with<C>(
         &mut self,
@@ -110,19 +111,19 @@ pub trait AppReplicationExt {
     /**
     Creates a replication rule for a group of components.
 
-    Group will only be replicated if all its components are present on the entity.
+    A group will only be replicated if all its components are present on the entity.
 
-    If a group contains a single component, it will work exactly as [`Self::replicate`].
+    If a group contains a single component, it will work the same as [`Self::replicate`].
 
-    If an entity matches multiple groups, functions from a group with bigger priority
+    If an entity matches multiple groups, functions from a group with higher [priority](ReplicationRule::priority)
     will take precedence for overlapping components. For example, a rule with [`Transform`]
-    and user's `Player` marker will take precedence over single [`Transform`] rule.
+    and a `Player` marker will take precedence over a single [`Transform`] rule.
 
     If you remove a single component from a group, only a single removal will be sent to clients.
     Other group components will continue to be present on both server and clients.
-    Replication for them will be stopped, unless they match other rule.
+    Replication for them will be stopped, unless they match other rules.
 
-    We provide blanket impls for tuples to replicate them as is, but user could manually implement the trait
+    We provide blanket impls for tuples to replicate them as-is, but a user could manually implement the trait
     to customize how components will be serialized, deserialized and removed. For details see [`GroupReplication`].
 
     # Panics
@@ -176,8 +177,8 @@ impl AppReplicationExt for App {
     fn replicate_group<C: GroupReplication>(&mut self) -> &mut Self {
         let rule = self
             .world
-            .resource_scope(|world, mut replicaiton_fns: Mut<ReplicationFns>| {
-                C::register(world, &mut replicaiton_fns)
+            .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| {
+                C::register(world, &mut replication_fns)
             });
 
         self.world.resource_mut::<ReplicationRules>().insert(rule);
@@ -201,13 +202,13 @@ impl ReplicationRules {
 
 /// Describes a replicated group of components that.
 pub struct ReplicationRule {
-    /// Functions priority.
+    /// Priority for this rule.
     ///
     /// Usually equal to the number of serialized components,
-    /// but can be adjusted by user.
+    /// but can be adjusted by the user.
     pub priority: usize,
 
-    /// Rule components and their serialization and deserialization.
+    /// Rule components and their serialization/deserialization/removal functions.
     pub components: Vec<(ComponentId, ComponentFnsId)>,
 }
 
@@ -228,16 +229,21 @@ impl ReplicationRule {
     }
 
     /// Determines whether the rule is applicable to an archetype with removals included and contains at least one removal.
+    ///
+    /// Returns `true` if all components in this rule are found in either `removed_components` or the
+    /// `post_removal_archetype`, and at least one component is found in `removed_components`.
+    /// Returning true means the entity with this archetype satisfied this
+    /// rule in the previous tick, but then a component within this rule was removed from the entity.
     pub(crate) fn matches_removals(
         &self,
-        archetype: &Archetype,
+        post_removal_archetype: &Archetype,
         removed_components: &HashSet<ComponentId>,
     ) -> bool {
         let mut matches = false;
         for &(component_id, _) in &self.components {
             if removed_components.contains(&component_id) {
                 matches = true;
-            } else if !archetype.contains(component_id) {
+            } else if !post_removal_archetype.contains(component_id) {
                 return false;
             }
         }
@@ -247,7 +253,7 @@ impl ReplicationRule {
 }
 
 /**
-Describes how component group should be serialized, deserialized and removed.
+Describes how a component group should be serialized, deserialized, and removed.
 
 Can be implemented on any struct to create a custom replication group.
 
@@ -302,7 +308,7 @@ impl GroupReplication for PlayerBundle {
         });
 
         // We skip `replication` registration since it's a special component.
-        // It automatically inserted on client after replicaiton and
+        // It's automatically inserted on clients after replication and
         // deserialization from scenes.
 
         let components = vec![
@@ -319,7 +325,7 @@ impl GroupReplication for PlayerBundle {
 ```
 **/
 pub trait GroupReplication {
-    /// Creates the associated replication rules and register its functions in [`ReplicationFns`].
+    /// Creates the associated replication rules and registers its functions in [`ReplicationFns`].
     fn register(world: &mut World, replication_fns: &mut ReplicationFns) -> ReplicationRule;
 }
 

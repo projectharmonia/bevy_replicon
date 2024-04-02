@@ -129,7 +129,7 @@ pub(crate) struct RemovalBuffer {
     /// Component removals grouped by entity.
     removals: Vec<(Entity, Vec<(ComponentId, ComponentFnsId)>)>,
 
-    /// [`Vec`]'s from removals.
+    /// [`Vec`]s from removals.
     ///
     /// All data is cleared before the insertion.
     /// Stored to reuse allocated capacity.

@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `AppReplicationExt::register_group` and `GroupRegistration` trait to register and customize component groups.
+- `AppReplicationExt::replicate_group` and `GroupRegistration` trait to register and customize component groups.
 - `ServerSet::StoreHierarchy` for systems that store hierarchy changes in `ParentSync`.
 - `ReplicationRule` that describes how a component or a group of components will be serialized, deserialized and removed.
 
