@@ -1,15 +1,11 @@
-use bevy::{
-    ecs::{archetype::ArchetypeId, entity::EntityHashMap},
-    prelude::*,
-    scene::DynamicEntity,
-};
+use bevy::{ecs::entity::EntityHashMap, prelude::*, scene::DynamicEntity};
 
-use crate::core::replication_rules::ReplicationRules;
+use crate::{core::replication_rules::ReplicationRules, Replication};
 
 /**
 Fills scene with all replicated entities and their components.
 
-Entities won't have the [`Replication`](crate::core::replication_rules::Replication) component.
+Entities won't have the [`Replication`] component.
 So on deserialization you need to insert it back if you want entities to continue to replicate.
 
 # Panics
@@ -52,6 +48,12 @@ for entity in &mut scene.entities {
 ```
 */
 pub fn replicate_into(scene: &mut DynamicScene, world: &World) {
+    let Some(marker_id) = world.component_id::<Replication>() else {
+        // Components are initialized lazily.
+        // If there is no replication marker, then we have nothing to replicate.
+        return;
+    };
+
     let entities_iter = scene
         .entities
         .drain(..)
@@ -59,46 +61,44 @@ pub fn replicate_into(scene: &mut DynamicScene, world: &World) {
     let mut entities = EntityHashMap::from_iter(entities_iter);
 
     let registry = world.resource::<AppTypeRegistry>();
-    let replication_rules = world.resource::<ReplicationRules>();
+    let rules = world.resource::<ReplicationRules>();
     let registry = registry.read();
     for archetype in world
         .archetypes()
         .iter()
-        .filter(|archetype| archetype.id() != ArchetypeId::EMPTY)
-        .filter(|archetype| archetype.id() != ArchetypeId::INVALID)
-        .filter(|archetype| archetype.contains(replication_rules.get_marker_id()))
+        .filter(|archetype| archetype.contains(marker_id))
     {
         // Populate entities ahead of time in order to extract entities without components too.
         for entity in archetype.entities() {
             entities.entry(entity.id()).or_default();
         }
 
-        for component_id in archetype
-            .components()
-            .filter(|&component_id| replication_rules.get(component_id).is_some())
-        {
-            // SAFETY: `component_info` obtained from the world.
-            let component_info = unsafe { world.components().get_info_unchecked(component_id) };
-            let type_name = component_info.name();
-            let type_id = component_info
-                .type_id()
-                .unwrap_or_else(|| panic!("{type_name} should have registered TypeId"));
-            let registration = registry
-                .get(type_id)
-                .unwrap_or_else(|| panic!("{type_name} should be registered"));
-            let reflect_component = registration
-                .data::<ReflectComponent>()
-                .unwrap_or_else(|| panic!("{type_name} should have reflect(Component)"));
+        for rule in rules.iter().filter(|rule| rule.matches(archetype)) {
+            for &(component_id, _) in &rule.components {
+                // SAFETY: replication rules can be registered only with valid component IDs.
+                let replicated_component =
+                    unsafe { world.components().get_info_unchecked(component_id) };
+                let type_name = replicated_component.name();
+                let type_id = replicated_component
+                    .type_id()
+                    .unwrap_or_else(|| panic!("{type_name} should have registered TypeId"));
+                let registration = registry
+                    .get(type_id)
+                    .unwrap_or_else(|| panic!("{type_name} should be registered"));
+                let reflect_component = registration
+                    .data::<ReflectComponent>()
+                    .unwrap_or_else(|| panic!("{type_name} should have reflect(Component)"));
 
-            for entity in archetype.entities() {
-                let component = reflect_component
-                    .reflect(world.entity(entity.id()))
-                    .unwrap_or_else(|| panic!("entity should have {type_name}"));
+                for entity in archetype.entities() {
+                    let component = reflect_component
+                        .reflect(world.entity(entity.id()))
+                        .unwrap_or_else(|| panic!("entity should have {type_name}"));
 
-                let components = entities
-                    .get_mut(&entity.id())
-                    .expect("all entities should be populated ahead of time");
-                components.push(component.clone_value());
+                    let components = entities
+                        .get_mut(&entity.id())
+                        .expect("all entities should be populated ahead of time");
+                    components.push(component.clone_value());
+                }
             }
         }
     }

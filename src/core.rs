@@ -1,11 +1,13 @@
 pub mod common_conditions;
+pub mod replication_fns;
 pub mod replication_rules;
 pub mod replicon_channels;
 pub mod replicon_tick;
 
 use bevy::prelude::*;
 
-use replication_rules::{Replication, ReplicationRules};
+use replication_fns::ReplicationFns;
+use replication_rules::ReplicationRules;
 use replicon_channels::RepliconChannels;
 use replicon_tick::RepliconTick;
 use serde::{Deserialize, Serialize};
@@ -17,9 +19,15 @@ impl Plugin for RepliconCorePlugin {
         app.register_type::<Replication>()
             .init_resource::<RepliconTick>()
             .init_resource::<RepliconChannels>()
+            .init_resource::<ReplicationFns>()
             .init_resource::<ReplicationRules>();
     }
 }
+
+/// Marks entity for replication.
+#[derive(Component, Clone, Copy, Default, Reflect, Debug)]
+#[reflect(Component)]
+pub struct Replication;
 
 /// Unique client ID.
 ///

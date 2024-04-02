@@ -1,21 +1,20 @@
 use bevy::{
     ecs::{
+        archetype::{Archetype, Archetypes},
         component::ComponentId,
-        entity::EntityHashMap,
+        entity::{Entities, EntityHashMap},
         event::ManualEventReader,
         removal_detection::{RemovedComponentEntity, RemovedComponentEvents},
+        system::SystemParam,
     },
     prelude::*,
-    utils::HashMap,
+    utils::{HashMap, HashSet},
 };
 
-use super::{
-    despawn_buffer::{DespawnBuffer, DespawnBufferPlugin},
-    ServerPlugin, ServerSet,
-};
+use super::{ServerPlugin, ServerSet};
 use crate::core::{
-    common_conditions::server_running,
-    replication_rules::{ReplicationId, ReplicationRules},
+    common_conditions::server_running, replication_fns::ComponentFnsId,
+    replication_rules::ReplicationRules, Replication,
 };
 
 /// Buffers all replicated component removals in [`RemovalBuffer`] resource.
@@ -28,7 +27,6 @@ impl Plugin for RemovalBufferPlugin {
         app.init_resource::<RemovalBuffer>().add_systems(
             PostUpdate,
             Self::buffer_removals
-                .after(DespawnBufferPlugin::buffer_despawns)
                 .before(ServerPlugin::send_replication)
                 .in_set(ServerSet::Send)
                 .run_if(server_running),
@@ -38,25 +36,105 @@ impl Plugin for RemovalBufferPlugin {
 
 impl RemovalBufferPlugin {
     fn buffer_removals(
-        mut readers: Local<HashMap<ComponentId, ManualEventReader<RemovedComponentEntity>>>,
-        remove_events: &RemovedComponentEvents,
+        entities: &Entities,
+        archetypes: &Archetypes,
+        mut removal_reader: RemovalReader,
         mut removal_buffer: ResMut<RemovalBuffer>,
-        replication_rules: Res<ReplicationRules>,
-        despawn_buffer: Res<DespawnBuffer>,
+        rules: Res<ReplicationRules>,
     ) {
-        for (&component_id, &replication_id) in replication_rules.get_ids() {
-            for removals in remove_events.get(component_id).into_iter() {
-                let reader = readers.entry(component_id).or_default();
-                for entity in reader
-                    .read(removals)
-                    .cloned()
-                    .map(Into::into)
-                    .filter(|entity| !despawn_buffer.contains(entity))
-                {
-                    removal_buffer.insert(entity, replication_id);
-                }
+        for (&entity, components) in removal_reader.read() {
+            let location = entities
+                .get(entity)
+                .expect("removals count only existing entities");
+            let archetype = archetypes.get(location.archetype_id).unwrap();
+
+            removal_buffer.update(&rules, archetype, entity, components);
+        }
+    }
+}
+
+/// Reader for removed components.
+///
+/// Like [`RemovedComponentEvents`], but reads them in per-entity format.
+#[derive(SystemParam)]
+struct RemovalReader<'w, 's> {
+    /// Cached components list from [`ReplicationRules`].
+    components: Local<'s, ReplicatedComponents>,
+
+    /// Individual readers for each component.
+    readers: Local<'s, HashMap<ComponentId, ManualEventReader<RemovedComponentEntity>>>,
+
+    /// Component removals grouped by entity.
+    removals: Local<'s, EntityHashMap<HashSet<ComponentId>>>,
+
+    /// [`HashSet`]'s from removals.
+    ///
+    /// All data is cleared before the insertion.
+    /// Stored to reuse allocated capacity.
+    ids_buffer: Local<'s, Vec<HashSet<ComponentId>>>,
+
+    /// Component removals grouped by [`ComponentId`].
+    remove_events: &'w RemovedComponentEvents,
+
+    /// Filter for replicated and valid entities.
+    replicated: Query<'w, 's, (), With<Replication>>,
+}
+
+impl RemovalReader<'_, '_> {
+    /// Returns iterator over all components removed since the last call.
+    ///
+    /// Only replicated entities taken into account.
+    fn read(&mut self) -> impl Iterator<Item = (&Entity, &HashSet<ComponentId>)> {
+        self.clear();
+
+        // TODO: Ask Bevy to provide an iterator over `RemovedComponentEvents`.
+        for &component_id in &self.components.0 {
+            let Some(component_events) = self.remove_events.get(component_id) else {
+                continue;
+            };
+
+            // Removed components are grouped by type, not by entity, so we need an intermediate container.
+            let reader = self.readers.entry(component_id).or_default();
+            for entity in reader
+                .read(component_events)
+                .cloned()
+                .map(Into::into)
+                .filter(|&entity| self.replicated.get(entity).is_ok())
+            {
+                self.removals
+                    .entry(entity)
+                    .or_insert_with(|| self.ids_buffer.pop().unwrap_or_default())
+                    .insert(component_id);
             }
         }
+
+        self.removals.iter()
+    }
+
+    /// Clears all removals.
+    ///
+    /// Keeps the allocated memory for reuse.
+    pub(super) fn clear(&mut self) {
+        self.ids_buffer
+            .extend(self.removals.drain().map(|(_, mut components)| {
+                components.clear();
+                components
+            }));
+    }
+}
+
+struct ReplicatedComponents(HashSet<ComponentId>);
+
+impl FromWorld for ReplicatedComponents {
+    fn from_world(world: &mut World) -> Self {
+        let rules = world.resource::<ReplicationRules>();
+        let component_ids = rules
+            .iter()
+            .flat_map(|rule| &rule.components)
+            .map(|&(component_id, _)| component_id)
+            .collect();
+
+        Self(component_ids)
     }
 }
 
@@ -64,91 +142,243 @@ impl RemovalBufferPlugin {
 #[derive(Default, Resource)]
 pub(crate) struct RemovalBuffer {
     /// Component removals grouped by entity.
-    removals: EntityHashMap<Vec<ReplicationId>>,
+    removals: Vec<(Entity, Vec<(ComponentId, ComponentFnsId)>)>,
 
-    /// [`Vec`]'s from entity removals.
+    /// [`Vec`]s from removals.
     ///
     /// All data is cleared before the insertion.
     /// Stored to reuse allocated capacity.
-    component_buffer: Vec<Vec<ReplicationId>>,
+    ids_buffer: Vec<Vec<(ComponentId, ComponentFnsId)>>,
 }
 
 impl RemovalBuffer {
     /// Returns an iterator over entities and their removed components.
-    pub(super) fn iter(&self) -> impl Iterator<Item = (Entity, &[ReplicationId])> {
+    pub(super) fn iter(&self) -> impl Iterator<Item = (Entity, &[(ComponentId, ComponentFnsId)])> {
         self.removals
             .iter()
-            .map(|(&entity, components)| (entity, &**components))
+            .map(|(entity, remove_ids)| (*entity, &**remove_ids))
     }
 
-    /// Registers component removal for the specified entity.
-    fn insert(&mut self, entity: Entity, replication_id: ReplicationId) {
-        self.removals
-            .entry(entity)
-            .or_insert_with(|| self.component_buffer.pop().unwrap_or_default())
-            .push(replication_id);
+    /// Registers component removals that match replication rules for an entity.
+    fn update(
+        &mut self,
+        rules: &ReplicationRules,
+        archetype: &Archetype,
+        entity: Entity,
+        components: &HashSet<ComponentId>,
+    ) {
+        let mut removed_ids = self.ids_buffer.pop().unwrap_or_default();
+        for rule in rules
+            .iter()
+            .filter(|rule| rule.matches_removals(archetype, components))
+        {
+            for &(component_id, fns_id) in &rule.components {
+                // Since rules are sorted by priority,
+                // we are inserting only new components that aren't present.
+                if removed_ids
+                    .iter()
+                    .all(|&(removed_id, _)| removed_id != component_id)
+                    && !archetype.contains(component_id)
+                {
+                    removed_ids.push((component_id, fns_id));
+                }
+            }
+        }
+        self.removals.push((entity, removed_ids));
     }
 
     /// Clears all removals.
     ///
     /// Keeps the allocated memory for reuse.
     pub(super) fn clear(&mut self) {
-        self.component_buffer
-            .extend(self.removals.drain().map(|(_, mut components)| {
+        self.ids_buffer
+            .extend(self.removals.drain(..).map(|(_, mut components)| {
                 components.clear();
                 components
             }));
     }
 }
+
 #[cfg(test)]
 mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
     use crate::{
-        core::replication_rules::{AppReplicationExt, Replication},
+        core::{
+            replication_fns::ReplicationFns, replication_rules::AppReplicationExt, Replication,
+        },
         server::replicon_server::RepliconServer,
     };
 
     #[test]
-    fn removals() {
+    fn not_replicated() {
         let mut app = App::new();
-        app.add_plugins((DespawnBufferPlugin, RemovalBufferPlugin))
+        app.add_plugins(RemovalBufferPlugin)
             .init_resource::<RepliconServer>()
-            .init_resource::<ReplicationRules>()
-            .replicate::<DummyComponent>();
+            .init_resource::<ReplicationFns>()
+            .init_resource::<ReplicationRules>();
 
         app.world.resource_mut::<RepliconServer>().set_running(true);
 
         app.update();
 
         app.world
-            .spawn((DummyComponent, Replication))
-            .remove::<DummyComponent>();
+            .spawn((Replication, ComponentA))
+            .remove::<ComponentA>();
 
         app.update();
 
-        let mut removal_buffer = app.world.resource_mut::<RemovalBuffer>();
-        assert_eq!(removal_buffer.removals.len(), 1);
-
-        removal_buffer.clear();
+        let removal_buffer = app.world.resource::<RemovalBuffer>();
         assert!(removal_buffer.removals.is_empty());
-        assert_eq!(removal_buffer.component_buffer.len(), 1);
     }
 
     #[test]
-    fn despawn_ignore() {
+    fn component() {
         let mut app = App::new();
-        app.add_plugins((DespawnBufferPlugin, RemovalBufferPlugin))
+        app.add_plugins(RemovalBufferPlugin)
             .init_resource::<RepliconServer>()
+            .init_resource::<ReplicationFns>()
             .init_resource::<ReplicationRules>()
-            .replicate::<DummyComponent>();
+            .replicate::<ComponentA>();
 
         app.world.resource_mut::<RepliconServer>().set_running(true);
 
         app.update();
 
-        app.world.spawn((DummyComponent, Replication)).despawn();
+        app.world
+            .spawn((Replication, ComponentA))
+            .remove::<ComponentA>();
+
+        app.update();
+
+        let removal_buffer = app.world.resource::<RemovalBuffer>();
+        assert_eq!(removal_buffer.removals.len(), 1);
+
+        let (_, removals_id) = removal_buffer.removals.first().unwrap();
+        assert_eq!(removals_id.len(), 1);
+    }
+
+    #[test]
+    fn group() {
+        let mut app = App::new();
+        app.add_plugins(RemovalBufferPlugin)
+            .init_resource::<RepliconServer>()
+            .init_resource::<ReplicationFns>()
+            .init_resource::<ReplicationRules>()
+            .replicate_group::<(ComponentA, ComponentB)>();
+
+        app.world.resource_mut::<RepliconServer>().set_running(true);
+
+        app.update();
+
+        app.world
+            .spawn((Replication, ComponentA, ComponentB))
+            .remove::<(ComponentA, ComponentB)>();
+
+        app.update();
+
+        let removal_buffer = app.world.resource::<RemovalBuffer>();
+        assert_eq!(removal_buffer.removals.len(), 1);
+
+        let (_, removals_id) = removal_buffer.removals.first().unwrap();
+        assert_eq!(removals_id.len(), 2);
+    }
+
+    #[test]
+    fn part_of_group() {
+        let mut app = App::new();
+        app.add_plugins(RemovalBufferPlugin)
+            .init_resource::<RepliconServer>()
+            .init_resource::<ReplicationFns>()
+            .init_resource::<ReplicationRules>()
+            .replicate_group::<(ComponentA, ComponentB)>();
+
+        app.world.resource_mut::<RepliconServer>().set_running(true);
+
+        app.update();
+
+        app.world
+            .spawn((Replication, ComponentA, ComponentB))
+            .remove::<ComponentA>();
+
+        app.update();
+
+        let removal_buffer = app.world.resource::<RemovalBuffer>();
+        assert_eq!(removal_buffer.removals.len(), 1);
+
+        let (_, removals_id) = removal_buffer.removals.first().unwrap();
+        assert_eq!(removals_id.len(), 1);
+    }
+
+    #[test]
+    fn group_with_subset() {
+        let mut app = App::new();
+        app.add_plugins(RemovalBufferPlugin)
+            .init_resource::<RepliconServer>()
+            .init_resource::<ReplicationFns>()
+            .init_resource::<ReplicationRules>()
+            .replicate::<ComponentA>()
+            .replicate_group::<(ComponentA, ComponentB)>();
+
+        app.world.resource_mut::<RepliconServer>().set_running(true);
+
+        app.update();
+
+        app.world
+            .spawn((Replication, ComponentA, ComponentB))
+            .remove::<(ComponentA, ComponentB)>();
+
+        app.update();
+
+        let removal_buffer = app.world.resource::<RemovalBuffer>();
+        assert_eq!(removal_buffer.removals.len(), 1);
+
+        let (_, removals_id) = removal_buffer.removals.first().unwrap();
+        assert_eq!(removals_id.len(), 2);
+    }
+
+    #[test]
+    fn part_of_group_with_subset() {
+        let mut app = App::new();
+        app.add_plugins(RemovalBufferPlugin)
+            .init_resource::<RepliconServer>()
+            .init_resource::<ReplicationFns>()
+            .init_resource::<ReplicationRules>()
+            .replicate::<ComponentA>()
+            .replicate_group::<(ComponentA, ComponentB)>();
+
+        app.world.resource_mut::<RepliconServer>().set_running(true);
+
+        app.update();
+
+        app.world
+            .spawn((Replication, ComponentA, ComponentB))
+            .remove::<ComponentA>();
+
+        app.update();
+
+        let removal_buffer = app.world.resource::<RemovalBuffer>();
+        assert_eq!(removal_buffer.removals.len(), 1);
+
+        let (_, removals_id) = removal_buffer.removals.first().unwrap();
+        assert_eq!(removals_id.len(), 1);
+    }
+
+    #[test]
+    fn despawn() {
+        let mut app = App::new();
+        app.add_plugins(RemovalBufferPlugin)
+            .init_resource::<RepliconServer>()
+            .init_resource::<ReplicationFns>()
+            .init_resource::<ReplicationRules>()
+            .replicate::<ComponentA>();
+
+        app.world.resource_mut::<RepliconServer>().set_running(true);
+
+        app.update();
+
+        app.world.spawn((ComponentA, Replication)).despawn();
 
         app.update();
 
@@ -160,5 +390,8 @@ mod tests {
     }
 
     #[derive(Serialize, Deserialize, Component)]
-    struct DummyComponent;
+    struct ComponentA;
+
+    #[derive(Serialize, Deserialize, Component)]
+    struct ComponentB;
 }

@@ -6,7 +6,6 @@ authors = [
   "koe <ukoe@protonmail.com>",
 ]
 edition = "2021"
-rust-version = "1.65"
 description = "High level networking for the Bevy game engine"
 readme = "README.md"
 repository = "https://github.com/projectharmonia/bevy_replicon"
@@ -31,12 +30,17 @@ ordered-multimap = "0.7"
 
 [dev-dependencies]
 bevy = { version = "0.13", default-features = false, features = [
+  "serialize",
   "bevy_asset",
   "bevy_sprite",
 ] }
 criterion = { version = "0.5", default-features = false, features = [
   "cargo_bench_support",
 ] }
+
+[lints.clippy]
+type_complexity = "allow"
+too_many_arguments = "allow"
 
 [[bench]]
 name = "replication"

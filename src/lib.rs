@@ -69,21 +69,31 @@ Never initialize a client and server in the same app for single-player, it will 
 Use the described pattern in [system sets and conditions](#system-sets-and-conditions)
 in combination with [network events](#network-events).
 
-## Component replication
+## Replication
 
-It's a process of sending component changes from server to clients in order to
+It's a process of sending changes from server to clients in order to
 keep the world in sync.
 
 ### Marking for replication
 
-By default, no components are replicated. A component will be replicated if it has been registered for replication
-**and** its entity has the [`Replication`] component.
+By default nothing is replicated. User needs to choose which entities
+and components need to be replicated.
 
-In other words you need two things to start replication:
+#### Entities
 
-1. Register component type for replication. Component should implement
-[`Serialize`](serde::Serialize) and [`Deserialize`](serde::Deserialize).
-You can use [`AppReplicationExt::replicate()`] to register the component for replication:
+By default no entities are replicated. Add the [`Replication`] marker
+component on the server for entities you want to replicate.
+
+On clients [`Replication`] will be automatically inserted to newly-replicated entities.
+
+If you remove the [`Replication`] component from an entity on the server, it will be despawned on all clients.
+
+#### Components
+
+Components will be replicated only on entities marked for replication.
+By default no components are replicated.
+
+Use [`AppReplicationExt::replicate()`] to enable replication for a component:
 
 ```
 # use bevy::prelude::*;
@@ -117,56 +127,15 @@ impl MapEntities for MappedComponent {
 }
 ```
 
-By default all components serialized with [`bincode`] using [`DefaultOptions`](bincode::DefaultOptions).
+By default all components are serialized with [`bincode`] using [`DefaultOptions`](bincode::DefaultOptions).
 If your component doesn't implement serde traits or you want to serialize it partially
-you can use [`AppReplicationExt::replicate_with`]:
+(for example, only replicate the `translation` field from [`Transform`]),
+you can use [`AppReplicationExt::replicate_with`].
 
-```
-use std::io::Cursor;
+If you want a group of components to be replicated only if all of them are present on an entity,
+you can use [`AppReplicationExt::replicate_group`].
 
-use bevy::{prelude::*, ptr::Ptr};
-use bevy_replicon::{
-    client::client_mapper::ServerEntityMap,
-    core::{replication_rules, replicon_tick::RepliconTick},
-    prelude::*,
-};
-
-# let mut app = App::new();
-# app.add_plugins(RepliconPlugins);
-app.replicate_with::<Transform>(
-    serialize_transform,
-    deserialize_transform,
-    replication_rules::remove_component::<Transform>,
-);
-
-/// Serializes only translation.
-fn serialize_transform(component: Ptr, cursor: &mut Cursor<Vec<u8>>) -> bincode::Result<()> {
-    // SAFETY: Function called for registered `ComponentId`.
-    let transform: &Transform = unsafe { component.deref() };
-    bincode::serialize_into(cursor, &transform.translation)
-}
-
-/// Deserializes translation and creates [`Transform`] from it.
-fn deserialize_transform(
-    entity: &mut EntityWorldMut,
-    _entity_map: &mut ServerEntityMap,
-    cursor: &mut Cursor<&[u8]>,
-    _replicon_tick: RepliconTick,
-) -> bincode::Result<()> {
-    let translation: Vec3 = bincode::deserialize_from(cursor)?;
-    entity.insert(Transform::from_translation(translation));
-
-    Ok(())
-}
-```
-
-The used [`remove_component`](core::replication_rules::remove_component) is the default component removal,
-but you can replace it with your own as well.
-
-2. You need to choose entities you want to replicate using [`Replication`]
-component. Just insert it to the entity you want to replicate. Only components
-marked for replication through [`AppReplicationExt::replicate()`]
-will be replicated.
+In order to serialize Bevy components you need to enable the `serialize` feature on Bevy.
 
 ### Tick and fixed timestep games
 
@@ -203,19 +172,14 @@ necessary components after replication. If you want to avoid one frame delay, pu
 your initialization systems to [`ClientSet::Receive`]:
 
 ```
-# use std::io::Cursor;
-# use bevy::{prelude::*, ptr::Ptr, sprite::Mesh2dHandle};
-# use bevy_replicon::{client::client_mapper::ServerEntityMap, core::{replication_rules, replicon_tick::RepliconTick}, prelude::*};
+# use bevy::{prelude::*, sprite::Mesh2dHandle};
+# use bevy_replicon::prelude::*;
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
-app.replicate_with::<Transform>(
-    serialize_transform,
-    deserialize_transform,
-    replication_rules::remove_component::<Transform>,
-)
-.replicate::<Player>()
-.add_systems(PreUpdate, init_player.after(ClientSet::Receive));
+app.replicate::<Transform>()
+    .replicate::<Player>()
+    .add_systems(PreUpdate, init_player.after(ClientSet::Receive));
 
 fn init_player(
     mut commands: Commands,
@@ -247,8 +211,6 @@ struct PlayerBundle {
 
 #[derive(Component, Deserialize, Serialize)]
 struct Player;
-# fn serialize_transform(_: Ptr, _: &mut Cursor<Vec<u8>>) -> bincode::Result<()> { unimplemented!() }
-# fn deserialize_transform(_: &mut EntityWorldMut, _: &mut ServerEntityMap, _: &mut Cursor<&[u8]>, _: RepliconTick) -> bincode::Result<()> { unimplemented!() }
 ```
 
 This pairs nicely with server state serialization and keeps saves clean.
@@ -501,9 +463,9 @@ pub mod prelude {
         },
         core::{
             common_conditions::*,
-            replication_rules::{AppReplicationExt, Replication},
+            replication_rules::AppReplicationExt,
             replicon_channels::{ChannelKind, RepliconChannel, RepliconChannels},
-            ClientId, RepliconCorePlugin,
+            ClientId, Replication, RepliconCorePlugin,
         },
         network_event::{
             client_event::{ClientEventAppExt, FromClient},
