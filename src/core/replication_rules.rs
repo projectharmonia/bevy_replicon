@@ -180,7 +180,7 @@ impl ReplicationRules {
     }
 }
 
-/// Describes a replicated group of components that.
+/// Describes a replicated component or a group of components.
 pub struct ReplicationRule {
     /// Priority for this rule.
     ///
