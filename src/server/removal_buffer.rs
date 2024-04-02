@@ -58,6 +58,9 @@ impl RemovalBufferPlugin {
 /// Like [`RemovedComponentEvents`], but reads them in per-entity format.
 #[derive(SystemParam)]
 struct RemovalReader<'w, 's> {
+    /// Cached components list from [`ReplicationRules`].
+    components: Local<'s, ReplicatedComponents>,
+
     /// Individual readers for each component.
     readers: Local<'s, HashMap<ComponentId, ManualEventReader<RemovedComponentEntity>>>,
 
@@ -73,9 +76,6 @@ struct RemovalReader<'w, 's> {
     /// Component removals grouped by [`ComponentId`].
     remove_events: &'w RemovedComponentEvents,
 
-    /// Filter for replicated components
-    rules: Res<'w, ReplicationRules>,
-
     /// Filter for replicated and valid entities.
     replicated: Query<'w, 's, (), With<Replication>>,
 }
@@ -88,7 +88,7 @@ impl RemovalReader<'_, '_> {
         self.clear();
 
         // TODO: Ask Bevy to provide an iterator over `RemovedComponentEvents`.
-        for &(component_id, _) in self.rules.iter().flat_map(|rule| &rule.components) {
+        for &component_id in &self.components.0 {
             let Some(component_events) = self.remove_events.get(component_id) else {
                 continue;
             };
@@ -120,6 +120,21 @@ impl RemovalReader<'_, '_> {
                 components.clear();
                 components
             }));
+    }
+}
+
+struct ReplicatedComponents(HashSet<ComponentId>);
+
+impl FromWorld for ReplicatedComponents {
+    fn from_world(world: &mut World) -> Self {
+        let rules = world.resource::<ReplicationRules>();
+        let component_ids = rules
+            .iter()
+            .flat_map(|rule| &rule.components)
+            .map(|&(component_id, _)| component_id)
+            .collect();
+
+        Self(component_ids)
     }
 }
 
