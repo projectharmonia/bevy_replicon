@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `AppReplicationExt::replicate_with` now accepts newly added `ReplicationFns`.
 - Move `Replication` to `core` module.
 - Move all functions-related logic from `ReplicationRules` into a new `ReplicationFns`.
 - Rename `serialize_component` into `serialize` and move into `replication_fns` module.

@@ -7,9 +7,7 @@ use bevy::{
 };
 use serde::{de::DeserializeOwned, Serialize};
 
-use super::replication_fns::{
-    self, ComponentFns, ComponentFnsId, DeserializeFn, RemoveFn, ReplicationFns, SerializeFn,
-};
+use super::replication_fns::{self, ComponentFns, ComponentFnsId, ReplicationFns};
 
 /// Replication functions for [`App`].
 pub trait AppReplicationExt {
@@ -22,30 +20,26 @@ pub trait AppReplicationExt {
     /// To customize how the component will be serialized, use [`Self::replicate_group`].
     ///
     /// If your component contains any [`Entity`] inside, use [`Self::replicate_mapped`].
+    ///
+    /// See also [`ComponentFns::default`].
     fn replicate<C>(&mut self) -> &mut Self
     where
         C: Component + Serialize + DeserializeOwned,
     {
-        self.replicate_with::<C>(
-            replication_fns::serialize::<C>,
-            replication_fns::deserialize::<C>,
-            replication_fns::remove::<C>,
-        );
+        self.replicate_with::<C>(ComponentFns::default_fns::<C>());
         self
     }
 
     /// Same as [`Self::replicate`], but additionally maps server entities to client inside the component after receiving.
     ///
     /// Always use it for components that contain entities.
+    ///
+    /// See also [`ComponentFns::default_mapped`].
     fn replicate_mapped<C>(&mut self) -> &mut Self
     where
         C: Component + Serialize + DeserializeOwned + MapEntities,
     {
-        self.replicate_with::<C>(
-            replication_fns::serialize::<C>,
-            replication_fns::deserialize_mapped::<C>,
-            replication_fns::remove::<C>,
-        );
+        self.replicate_with::<C>(ComponentFns::default_mapped_fns::<C>());
         self
     }
 
@@ -99,12 +93,7 @@ pub trait AppReplicationExt {
     The [`remove`](replication_fns::remove) used in this example is the default component
     removal function, but you can replace it with your own as well.
     */
-    fn replicate_with<C>(
-        &mut self,
-        serialize: SerializeFn,
-        deserialize: DeserializeFn,
-        remove: RemoveFn,
-    ) -> &mut Self
+    fn replicate_with<C>(&mut self, component_fns: ComponentFns) -> &mut Self
     where
         C: Component;
 
@@ -151,22 +140,13 @@ pub trait AppReplicationExt {
 }
 
 impl AppReplicationExt for App {
-    fn replicate_with<C>(
-        &mut self,
-        serialize: SerializeFn,
-        deserialize: DeserializeFn,
-        remove: RemoveFn,
-    ) -> &mut Self
+    fn replicate_with<C>(&mut self, component_fns: ComponentFns) -> &mut Self
     where
         C: Component,
     {
         let component_id = self.world.init_component::<C>();
         let mut replication_fns = self.world.resource_mut::<ReplicationFns>();
-        let fns_id = replication_fns.register_component_fns(ComponentFns {
-            serialize,
-            deserialize,
-            remove,
-        });
+        let fns_id = replication_fns.register_component_fns(component_fns);
 
         let mut rules = self.world.resource_mut::<ReplicationRules>();
         rules.insert(ReplicationRule::new(vec![(component_id, fns_id)]));
@@ -301,11 +281,8 @@ impl GroupReplication for PlayerBundle {
 
         // Serialize `player` as usual.
         let visibility_id = world.init_component::<Player>();
-        let visibility_fns_id = replication_fns.register_component_fns(ComponentFns {
-            serialize: replication_fns::serialize::<Player>,
-            deserialize: replication_fns::deserialize::<Player>,
-            remove: replication_fns::remove::<Player>,
-        });
+        let visibility_fns_id =
+            replication_fns.register_component_fns(ComponentFns::default_fns::<Player>());
 
         // We skip `replication` registration since it's a special component.
         // It's automatically inserted on clients after replication and

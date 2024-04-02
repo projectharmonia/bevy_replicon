@@ -84,6 +84,36 @@ pub struct ComponentFns {
     pub remove: RemoveFn,
 }
 
+impl ComponentFns {
+    /// Creates a new instance with [`serialize`], [`deserialize`] and [`remove`] functions.
+    ///
+    /// If your component contains any [`Entity`] inside, use [`Self::default_mapped`].
+    pub fn default_fns<C>() -> Self
+    where
+        C: Component + Serialize + DeserializeOwned,
+    {
+        Self {
+            serialize: serialize::<C>,
+            deserialize: deserialize::<C>,
+            remove: remove::<C>,
+        }
+    }
+
+    /// Creates a new instance with [`serialize`], [`deserialize_mapped`] and [`remove`] functions.
+    ///
+    /// Always use it for components that contain entities.
+    pub fn default_mapped_fns<C>() -> Self
+    where
+        C: Component + Serialize + DeserializeOwned + MapEntities,
+    {
+        Self {
+            serialize: serialize::<C>,
+            deserialize: deserialize_mapped::<C>,
+            remove: remove::<C>,
+        }
+    }
+}
+
 /// Represents ID of [`ComponentFns`].
 ///
 /// Can be obtained from [`ReplicationFns::register_component_fns`].
@@ -131,9 +161,9 @@ pub fn deserialize_mapped<C: Component + DeserializeOwned + MapEntities>(
     Ok(())
 }
 
-/// Default components removal function.
-pub fn remove<B: Bundle>(entity: &mut EntityWorldMut, _replicon_tick: RepliconTick) {
-    entity.remove::<B>();
+/// Default component removal function.
+pub fn remove<C: Component>(entity: &mut EntityWorldMut, _replicon_tick: RepliconTick) {
+    entity.remove::<C>();
 }
 
 /// Default entity despawn function.
