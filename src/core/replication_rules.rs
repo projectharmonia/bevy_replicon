@@ -351,16 +351,7 @@ macro_rules! impl_registrations {
     }
 }
 
-impl_registrations!(A);
-impl_registrations!(A, B);
-impl_registrations!(A, B, C);
-impl_registrations!(A, B, C, D);
-impl_registrations!(A, B, C, D, E);
-impl_registrations!(A, B, C, D, E, F);
-impl_registrations!(A, B, C, D, E, F, G);
-impl_registrations!(A, B, C, D, E, F, G, H);
-impl_registrations!(A, B, C, D, E, F, G, H, I);
-impl_registrations!(A, B, C, D, E, F, G, H, I, J);
+bevy::utils::all_tuples!(impl_registrations, 1, 15, B);
 
 #[cfg(test)]
 mod tests {
