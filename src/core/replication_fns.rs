@@ -87,7 +87,7 @@ pub struct ComponentFns {
 impl ComponentFns {
     /// Creates a new instance with [`serialize`], [`deserialize`] and [`remove`] functions.
     ///
-    /// If your component contains any [`Entity`] inside, use [`Self::default_mapped`].
+    /// If your component contains any [`Entity`] inside, use [`Self::default_mapped_fns`].
     pub fn default_fns<C>() -> Self
     where
         C: Component + Serialize + DeserializeOwned,

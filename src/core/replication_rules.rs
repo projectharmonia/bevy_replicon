@@ -21,7 +21,7 @@ pub trait AppReplicationExt {
     ///
     /// If your component contains any [`Entity`] inside, use [`Self::replicate_mapped`].
     ///
-    /// See also [`ComponentFns::default`].
+    /// See also [`ComponentFns::default_fns`].
     fn replicate<C>(&mut self) -> &mut Self
     where
         C: Component + Serialize + DeserializeOwned,
@@ -34,7 +34,7 @@ pub trait AppReplicationExt {
     ///
     /// Always use it for components that contain entities.
     ///
-    /// See also [`ComponentFns::default_mapped`].
+    /// See also [`ComponentFns::default_mapped_fns`].
     fn replicate_mapped<C>(&mut self) -> &mut Self
     where
         C: Component + Serialize + DeserializeOwned + MapEntities,
