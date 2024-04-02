@@ -57,17 +57,17 @@ pub trait AppReplicationExt {
     use bevy::{prelude::*, ptr::Ptr};
     use bevy_replicon::{
         client::client_mapper::ServerEntityMap,
-        core::{replication_fns, replicon_tick::RepliconTick},
+        core::{replication_fns::{self, ComponentFns}, replicon_tick::RepliconTick},
         prelude::*,
     };
 
     # let mut app = App::new();
     # app.add_plugins(RepliconPlugins);
-    app.replicate_with::<Transform>(
-        serialize_translation,
-        deserialize_translation,
-        replication_fns::remove::<Transform>,
-    );
+    app.replicate_with::<Transform>(ComponentFns {
+        serialize: serialize_translation,
+        deserialize: deserialize_translation,
+        remove: replication_fns::remove::<Transform>,
+    });
 
     /// Serializes only `translation` from [`Transform`].
     fn serialize_translation(component: Ptr, cursor: &mut Cursor<Vec<u8>>) -> bincode::Result<()> {
