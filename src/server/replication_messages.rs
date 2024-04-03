@@ -299,7 +299,9 @@ impl InitMessage {
 
         let size = write_with(shared_bytes, &mut self.cursor, |cursor| {
             DefaultOptions::new().serialize_into(&mut *cursor, &fns_id)?;
-            (fns.serialize)(ptr, cursor)
+            // SAFETY: User ensured that the registered component can be
+            // safely passed to its serialization function.
+            unsafe { (fns.serialize)(ptr, cursor) }
         })?;
 
         self.entity_data_size = self
@@ -525,7 +527,9 @@ impl UpdateMessage {
 
         let size = write_with(shared_bytes, &mut self.cursor, |cursor| {
             DefaultOptions::new().serialize_into(&mut *cursor, &fns_id)?;
-            (fns.serialize)(ptr, cursor)
+            // SAFETY: User ensured that the registered component can be
+            // safely passed to its serialization function.
+            unsafe { (fns.serialize)(ptr, cursor) }
         })?;
 
         self.entity_data_size = self

@@ -55,7 +55,7 @@ impl Default for ReplicationFns {
 }
 
 /// Signature of component serialization functions.
-pub type SerializeFn = fn(Ptr, &mut Cursor<Vec<u8>>) -> bincode::Result<()>;
+pub type SerializeFn = unsafe fn(Ptr, &mut Cursor<Vec<u8>>) -> bincode::Result<()>;
 
 /// Signature of component deserialization functions.
 pub type DeserializeFn = fn(
@@ -121,12 +121,15 @@ impl ComponentFns {
 pub struct ComponentFnsId(usize);
 
 /// Default serialization function.
-pub fn serialize<C: Component + Serialize>(
+///
+/// # Safety
+///
+/// `T` must be the erased pointee type for this [`Ptr`].
+pub unsafe fn serialize<C: Component + Serialize>(
     component: Ptr,
     cursor: &mut Cursor<Vec<u8>>,
 ) -> bincode::Result<()> {
-    // SAFETY: function called for registered `ComponentId`.
-    let component: &C = unsafe { component.deref() };
+    let component: &C = component.deref();
     DefaultOptions::new().serialize_into(cursor, component)
 }
 
