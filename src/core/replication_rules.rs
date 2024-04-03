@@ -7,7 +7,7 @@ use bevy::{
 };
 use serde::{de::DeserializeOwned, Serialize};
 
-use super::replication_fns::{self, ComponentFns, ComponentFnsId, ReplicationFns};
+use super::replication_fns::{ComponentFns, ComponentFnsId, ReplicationFns};
 
 /// Replication functions for [`App`].
 pub trait AppReplicationExt {
@@ -337,11 +337,7 @@ macro_rules! impl_registrations {
                 let mut components = Vec::new();
                 $(
                     let component_id = world.init_component::<$type>();
-                    let fns_id = replication_fns.register_component_fns(ComponentFns {
-                        serialize: replication_fns::serialize::<$type>,
-                        deserialize: replication_fns::deserialize::<$type>,
-                        remove: replication_fns::remove::<$type>,
-                    });
+                    let fns_id = replication_fns.register_component_fns(ComponentFns::default_fns::<$type>());
                     components.push((component_id, fns_id));
                 )*
 
