@@ -102,7 +102,7 @@ pub trait AppReplicationExt {
     }
     ```
 
-    The [`remove`](replication_fns::remove) used in this example is the default component
+    The [`remove`](super::replication_fns::remove) used in this example is the default component
     removal function, but you can replace it with your own as well.
     */
     unsafe fn replicate_with<C>(&mut self, component_fns: ComponentFns) -> &mut Self
