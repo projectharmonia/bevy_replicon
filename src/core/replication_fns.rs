@@ -124,7 +124,7 @@ pub struct ComponentFnsId(usize);
 ///
 /// # Safety
 ///
-/// `T` must be the erased pointee type for this [`Ptr`].
+/// `C` must be the erased pointee type for this [`Ptr`].
 pub unsafe fn serialize<C: Component + Serialize>(
     component: Ptr,
     cursor: &mut Cursor<Vec<u8>>,
