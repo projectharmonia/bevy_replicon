@@ -7,7 +7,7 @@ use bevy::{
 };
 use serde::{de::DeserializeOwned, Serialize};
 
-use super::replication_fns::{self, ComponentFns, ComponentFnsId, ReplicationFns};
+use super::replication_fns::{ComponentFns, ComponentFnsId, ReplicationFns};
 
 /// Replication functions for [`App`].
 pub trait AppReplicationExt {
@@ -26,7 +26,8 @@ pub trait AppReplicationExt {
     where
         C: Component + Serialize + DeserializeOwned,
     {
-        self.replicate_with::<C>(ComponentFns::default_fns::<C>());
+        // SAFETY: Component is registered with the corresponding default serialization function.
+        unsafe { self.replicate_with::<C>(ComponentFns::default_fns::<C>()) };
         self
     }
 
@@ -39,7 +40,8 @@ pub trait AppReplicationExt {
     where
         C: Component + Serialize + DeserializeOwned + MapEntities,
     {
-        self.replicate_with::<C>(ComponentFns::default_mapped_fns::<C>());
+        // SAFETY: Component is registered with the corresponding default serialization function.
+        unsafe { self.replicate_with::<C>(ComponentFns::default_mapped_fns::<C>()) };
         self
     }
 
@@ -48,6 +50,10 @@ pub trait AppReplicationExt {
 
     Can be used to customize how the component will be replicated or
     for components that don't implement [`Serialize`] or [`DeserializeOwned`].
+
+    # Safety
+
+    Caller must ensure that component `C` can be safely passed to [`ComponentFns::serialize`].
 
     # Examples
 
@@ -63,16 +69,22 @@ pub trait AppReplicationExt {
 
     # let mut app = App::new();
     # app.add_plugins(RepliconPlugins);
-    app.replicate_with::<Transform>(ComponentFns {
-        serialize: serialize_translation,
-        deserialize: deserialize_translation,
-        remove: replication_fns::remove::<Transform>,
-    });
+    // SAFETY: `serialize_translation` expects `Transform`.
+    unsafe {
+        app.replicate_with::<Transform>(ComponentFns {
+            serialize: serialize_translation,
+            deserialize: deserialize_translation,
+            remove: replication_fns::remove::<Transform>,
+        });
+    }
 
     /// Serializes only `translation` from [`Transform`].
-    fn serialize_translation(component: Ptr, cursor: &mut Cursor<Vec<u8>>) -> bincode::Result<()> {
-        // SAFETY: function called for registered `ComponentId`.
-        let transform: &Transform = unsafe { component.deref() };
+    ///
+    /// # Safety
+    ///
+    /// [`Transform`] must be the erased pointee type for this [`Ptr`].
+    unsafe fn serialize_translation(component: Ptr, cursor: &mut Cursor<Vec<u8>>) -> bincode::Result<()> {
+        let transform: &Transform = component.deref();
         bincode::serialize_into(cursor, &transform.translation)
     }
 
@@ -90,10 +102,10 @@ pub trait AppReplicationExt {
     }
     ```
 
-    The [`remove`](replication_fns::remove) used in this example is the default component
+    The [`remove`](super::replication_fns::remove) used in this example is the default component
     removal function, but you can replace it with your own as well.
     */
-    fn replicate_with<C>(&mut self, component_fns: ComponentFns) -> &mut Self
+    unsafe fn replicate_with<C>(&mut self, component_fns: ComponentFns) -> &mut Self
     where
         C: Component;
 
@@ -140,7 +152,7 @@ pub trait AppReplicationExt {
 }
 
 impl AppReplicationExt for App {
-    fn replicate_with<C>(&mut self, component_fns: ComponentFns) -> &mut Self
+    unsafe fn replicate_with<C>(&mut self, component_fns: ComponentFns) -> &mut Self
     where
         C: Component,
     {
@@ -148,8 +160,8 @@ impl AppReplicationExt for App {
         let mut replication_fns = self.world.resource_mut::<ReplicationFns>();
         let fns_id = replication_fns.register_component_fns(component_fns);
 
-        let mut rules = self.world.resource_mut::<ReplicationRules>();
-        rules.insert(ReplicationRule::new(vec![(component_id, fns_id)]));
+        let rule = ReplicationRule::new(vec![(component_id, fns_id)]);
+        self.world.resource_mut::<ReplicationRules>().insert(rule);
 
         self
     }
@@ -189,16 +201,26 @@ pub struct ReplicationRule {
     pub priority: usize,
 
     /// Rule components and their serialization/deserialization/removal functions.
-    pub components: Vec<(ComponentId, ComponentFnsId)>,
+    components: Vec<(ComponentId, ComponentFnsId)>,
 }
 
 impl ReplicationRule {
     /// Creates a new rule with priority equal to the number of serialized components.
-    pub fn new(components: Vec<(ComponentId, ComponentFnsId)>) -> Self {
+    ///
+    /// # Safety
+    ///
+    /// Caller must ensure that in each pair the associated component can be safely
+    /// passed to the associated [`ComponentFns::serialize`].
+    pub unsafe fn new(components: Vec<(ComponentId, ComponentFnsId)>) -> Self {
         Self {
             priority: components.len(),
             components,
         }
+    }
+
+    /// Returns associated components and functions IDs.
+    pub(crate) fn components(&self) -> &[(ComponentId, ComponentFnsId)] {
+        &self.components
     }
 
     /// Determines whether an archetype contains all components required by the rule.
@@ -293,7 +315,8 @@ impl GroupReplication for PlayerBundle {
             (visibility_id, visibility_fns_id),
         ];
 
-        ReplicationRule::new(components)
+        // SAFETY: all components can be safely passed to their serialization functions.
+        unsafe { ReplicationRule::new(components) }
     }
 }
 
@@ -314,15 +337,12 @@ macro_rules! impl_registrations {
                 let mut components = Vec::new();
                 $(
                     let component_id = world.init_component::<$type>();
-                    let fns_id = replication_fns.register_component_fns(ComponentFns {
-                        serialize: replication_fns::serialize::<$type>,
-                        deserialize: replication_fns::deserialize::<$type>,
-                        remove: replication_fns::remove::<$type>,
-                    });
+                    let fns_id = replication_fns.register_component_fns(ComponentFns::default_fns::<$type>());
                     components.push((component_id, fns_id));
                 )*
 
-                ReplicationRule::new(components)
+                // SAFETY: Components are registered with the appropriate default serialization functions.
+                unsafe { ReplicationRule::new(components) }
             }
         }
     }

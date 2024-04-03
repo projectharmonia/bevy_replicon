@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `AppReplicationExt::replicate_with` now accepts newly added `ReplicationFns`.
+- `AppReplicationExt::replicate_with` now accepts newly added `ReplicationFns` and the function is now `unsafe` (it was never "safe" before, caller must ensure that used `C` can be passed to the serialization function).
 - Move `Replication` to `core` module.
 - Move all functions-related logic from `ReplicationRules` into a new `ReplicationFns`.
 - Rename `serialize_component` into `serialize` and move into `replication_fns` module.
