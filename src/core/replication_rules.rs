@@ -26,7 +26,7 @@ pub trait AppReplicationExt {
     where
         C: Component + Serialize + DeserializeOwned,
     {
-        // SAFETY: functions operate on the same component.
+        // SAFETY: default functions for the same component.
         unsafe { self.replicate_with::<C>(ComponentFns::default_fns::<C>()) };
         self
     }
@@ -40,7 +40,7 @@ pub trait AppReplicationExt {
     where
         C: Component + Serialize + DeserializeOwned + MapEntities,
     {
-        // SAFETY: functions operate on the same component.
+        // SAFETY: default functions for the same component.
         unsafe { self.replicate_with::<C>(ComponentFns::default_mapped_fns::<C>()) };
         self
     }
@@ -55,9 +55,7 @@ pub trait AppReplicationExt {
 
     Caller must ensure the following:
     - Component `C` can be safely passed as [`Ptr`](bevy::ptr::Ptr) to [`ComponentFns::serialize`].
-    In other words, [`ComponentFns::serialize`] should expect `C`.
     - [`ComponentFns::write`] can be safely called with [`ComponentFns::deserialize`].
-    In other words, they should operate on the same type, but it could be different from `C`.
 
     # Examples
 
@@ -76,7 +74,8 @@ pub trait AppReplicationExt {
 
     # let mut app = App::new();
     # app.add_plugins(RepliconPlugins);
-    // SAFETY: functions operate on the same component.
+    // SAFETY: `serialize_translation` can be safely called with `Transform` as `Ptr`
+    // and `deserialize_translation` can be used with the default write function.
     unsafe {
         app.replicate_with::<Transform>(ComponentFns {
             serialize: serialize_translation,
@@ -90,16 +89,17 @@ pub trait AppReplicationExt {
     ///
     /// # Safety
     ///
-    /// [`MaybeUninit<Transform>`] must be the erased pointee type for this [`Ptr`].
+    /// [`Transform`] must be the erased pointee type for this [`Ptr`].
     unsafe fn serialize_translation(ptr: Ptr, cursor: &mut Cursor<Vec<u8>>) -> bincode::Result<()> {
         let transform: &Transform = ptr.deref();
         bincode::serialize_into(cursor, &transform.translation)
     }
 
     /// Deserializes `translation` and creates [`Transform`] from it.
+    ///
     /// # Safety
     ///
-    /// `write` must be safely callable with [`Transform`] as [`Ptr`].
+    /// [`MaybeUninit<Transform>`] must be the erased pointee type for this [`Ptr`].
     unsafe fn deserialize_translation(
         _entity: &mut EntityWorldMut,
         ptr: PtrMut,
@@ -221,10 +221,9 @@ impl ReplicationRule {
     ///
     /// # Safety
     ///
-    /// Caller must ensure that in each pair the associated component can be safely
-    /// passed to [`ComponentFns::serialize`] and [`ComponentFns::write`] can
-    /// be safely called with [`ComponentFns::deserialize`].
-    /// In other words, functions should operate on the same component.
+    /// Caller must ensure the following for each pair:
+    /// - Associated component can be safely passed as [`Ptr`](bevy::ptr::Ptr) to [`ComponentFns::serialize`].
+    /// - In associated functions [`ComponentFns::write`] can be safely called with [`ComponentFns::deserialize`].
     pub unsafe fn new(components: Vec<(ComponentId, ComponentFnsId)>) -> Self {
         Self {
             priority: components.len(),
@@ -333,7 +332,7 @@ impl GroupReplication for PlayerBundle {
             (visibility_id, visibility_fns_id),
         ];
 
-        // SAFETY: in all pairs functions operate on the same component
+        // SAFETY: all pairs consists of default functions for the same component.
         unsafe { ReplicationRule::new(components) }
     }
 }
@@ -359,7 +358,7 @@ macro_rules! impl_registrations {
                     components.push((component_id, fns_id));
                 )*
 
-                // SAFETY: in all pairs functions operate on the same component
+                // SAFETY: all pairs consists of default functions for the same component.
                 unsafe { ReplicationRule::new(components) }
             }
         }
