@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rename `deserialize_component` into `deserialize` and move into `replication_fns` module.
 - Rename `remove_component` into `remove` and move into `replication_fns` module.
 - Move `despawn_recursive` into `replication_fns` module.
-- Split writing logic from `deserialize` into separate `write` function to customize it independently. In `deserialize` `ServerEntityMap` and `Cursor<&[u8]>` arguments now swanned and it additionally accepts `WriteFn`.
+- Split writing logic from `deserialize` into separate `write` function to customize it independently and `write` calls `deserialize` inside it. Also `ServerEntityMap` and `Cursor<&[u8]>` arguments now swapped.
 
 ### Removed
 

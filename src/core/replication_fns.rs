@@ -1,9 +1,9 @@
-use std::io::Cursor;
+use std::{io::Cursor, mem::MaybeUninit};
 
 use bevy::{
     ecs::entity::MapEntities,
     prelude::*,
-    ptr::{OwningPtr, Ptr},
+    ptr::{Ptr, PtrMut},
 };
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -64,14 +64,19 @@ pub type SerializeFn = unsafe fn(Ptr, &mut Cursor<Vec<u8>>) -> bincode::Result<(
 /// Signature of component deserialization functions.
 pub type DeserializeFn = unsafe fn(
     &mut EntityWorldMut,
+    PtrMut,
     &mut Cursor<&[u8]>,
     &mut ServerEntityMap,
-    RepliconTick,
-    WriteFn,
 ) -> bincode::Result<()>;
 
 /// Signature of component writing functions.
-pub type WriteFn = unsafe fn(&mut EntityWorldMut, OwningPtr, RepliconTick);
+pub type WriteFn = unsafe fn(
+    &mut EntityWorldMut,
+    &mut Cursor<&[u8]>,
+    &mut ServerEntityMap,
+    RepliconTick,
+    DeserializeFn,
+) -> bincode::Result<()>;
 
 /// Signature of component removal functions.
 pub type RemoveFn = fn(&mut EntityWorldMut, RepliconTick);
@@ -88,7 +93,7 @@ pub struct ComponentFns {
     /// Function that deserializes a component from bytes.
     pub deserialize: DeserializeFn,
 
-    /// Function that inserts a component to [`EntityWorldMut`].
+    /// Function that calls [Self::deserialize] and inserts a component to [`EntityWorldMut`].
     pub write: WriteFn,
 
     /// Function that removes a component from [`EntityWorldMut`].
@@ -150,18 +155,15 @@ pub unsafe fn serialize<C: Component + Serialize>(
 ///
 /// # Safety
 ///
-/// `write` must be safely callable with `C` as [`Ptr`].
+/// [`MaybeUninit<C>`] must be the erased pointee type for this [`Ptr`].
 pub unsafe fn deserialize<C: Component + DeserializeOwned>(
-    entity: &mut EntityWorldMut,
+    _entity: &mut EntityWorldMut,
+    ptr: PtrMut,
     cursor: &mut Cursor<&[u8]>,
     _entity_map: &mut ServerEntityMap,
-    replicon_tick: RepliconTick,
-    write: WriteFn,
 ) -> bincode::Result<()> {
     let component: C = DefaultOptions::new().deserialize_from(cursor)?;
-    OwningPtr::make(component, |ptr| {
-        (write)(entity, ptr, replicon_tick);
-    });
+    *ptr.deref_mut() = MaybeUninit::new(component);
 
     Ok(())
 }
@@ -170,13 +172,12 @@ pub unsafe fn deserialize<C: Component + DeserializeOwned>(
 ///
 /// # Safety
 ///
-/// `write` must be safely callable with `C` as [`Ptr`].
+/// [`MaybeUninit<C>`] must be the erased pointee type for this [`Ptr`].
 pub unsafe fn deserialize_mapped<C: Component + DeserializeOwned + MapEntities>(
     entity: &mut EntityWorldMut,
+    ptr: PtrMut,
     cursor: &mut Cursor<&[u8]>,
     entity_map: &mut ServerEntityMap,
-    replicon_tick: RepliconTick,
-    write: WriteFn,
 ) -> bincode::Result<()> {
     let mut component: C = DefaultOptions::new().deserialize_from(cursor)?;
 
@@ -184,9 +185,7 @@ pub unsafe fn deserialize_mapped<C: Component + DeserializeOwned + MapEntities>(
         component.map_entities(&mut ClientMapper::new(world, entity_map));
     });
 
-    OwningPtr::make(component, |ptr| {
-        (write)(entity, ptr, replicon_tick);
-    });
+    *ptr.deref_mut() = MaybeUninit::new(component);
 
     Ok(())
 }
@@ -195,14 +194,22 @@ pub unsafe fn deserialize_mapped<C: Component + DeserializeOwned + MapEntities>(
 ///
 /// # Safety
 ///
-/// `C` must be the erased pointee type for this [`Ptr`].
+/// `deserialize` must be safely callable with [`MaybeUninit<C>`] as [`Ptr`]
+/// and should initialize passed component.
 pub unsafe fn write<C: Component + DeserializeOwned>(
     entity: &mut EntityWorldMut,
-    ptr: OwningPtr,
+    cursor: &mut Cursor<&[u8]>,
+    entity_map: &mut ServerEntityMap,
     _replicon_tick: RepliconTick,
-) {
-    let component: C = ptr.read();
-    entity.insert(component);
+    deserialize: DeserializeFn,
+) -> bincode::Result<()> {
+    let mut component = MaybeUninit::<C>::uninit();
+
+    (deserialize)(entity, PtrMut::from(&mut component), cursor, entity_map)?;
+
+    entity.insert(component.assume_init());
+
+    Ok(())
 }
 
 /// Default component removal function.

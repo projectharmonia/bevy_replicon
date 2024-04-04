@@ -56,24 +56,21 @@ pub trait AppReplicationExt {
     Caller must ensure the following:
     - Component `C` can be safely passed as [`Ptr`](bevy::ptr::Ptr) to [`ComponentFns::serialize`].
     In other words, [`ComponentFns::serialize`] should expect `C`.
-    - [`ComponentFns::deserialize`] can be safely called with [`ComponentFns::write`].
+    - [`ComponentFns::write`] can be safely called with [`ComponentFns::deserialize`].
     In other words, they should operate on the same type, but it could be different from `C`.
 
     # Examples
 
     ```
-    use std::io::Cursor;
+    use std::{io::Cursor, mem::MaybeUninit};
 
     use bevy::{
         prelude::*,
-        ptr::{OwningPtr, Ptr},
+        ptr::{PtrMut, Ptr},
     };
     use bevy_replicon::{
         client::client_mapper::ServerEntityMap,
-        core::{
-            replication_fns::{self, ComponentFns, WriteFn},
-            replicon_tick::RepliconTick,
-        },
+        core::replication_fns::{self, ComponentFns},
         prelude::*,
     };
 
@@ -93,7 +90,7 @@ pub trait AppReplicationExt {
     ///
     /// # Safety
     ///
-    /// [`Transform`] must be the erased pointee type for this [`Ptr`].
+    /// [`MaybeUninit<Transform>`] must be the erased pointee type for this [`Ptr`].
     unsafe fn serialize_translation(ptr: Ptr, cursor: &mut Cursor<Vec<u8>>) -> bincode::Result<()> {
         let transform: &Transform = ptr.deref();
         bincode::serialize_into(cursor, &transform.translation)
@@ -104,16 +101,13 @@ pub trait AppReplicationExt {
     ///
     /// `write` must be safely callable with [`Transform`] as [`Ptr`].
     unsafe fn deserialize_translation(
-        entity: &mut EntityWorldMut,
+        _entity: &mut EntityWorldMut,
+        ptr: PtrMut,
         cursor: &mut Cursor<&[u8]>,
         _entity_map: &mut ServerEntityMap,
-        replicon_tick: RepliconTick,
-        write: WriteFn,
     ) -> bincode::Result<()> {
         let translation: Vec3 = bincode::deserialize_from(cursor)?;
-        OwningPtr::make(translation, |ptr| {
-            (write)(entity, ptr, replicon_tick);
-        });
+        *ptr.deref_mut() = MaybeUninit::new(translation);
 
         Ok(())
     }
@@ -228,8 +222,8 @@ impl ReplicationRule {
     /// # Safety
     ///
     /// Caller must ensure that in each pair the associated component can be safely
-    /// passed to [`ComponentFns::serialize`] and [`ComponentFns::deserialize`] can
-    /// be safely called with [`ComponentFns::write`].
+    /// passed to [`ComponentFns::serialize`] and [`ComponentFns::write`] can
+    /// be safely called with [`ComponentFns::deserialize`].
     /// In other words, functions should operate on the same component.
     pub unsafe fn new(components: Vec<(ComponentId, ComponentFnsId)>) -> Self {
         Self {
@@ -284,13 +278,15 @@ Can be implemented on any struct to create a custom replication group.
 ```
 use std::io::Cursor;
 
-use bevy::{prelude::*, ptr::Ptr};
+use bevy::{
+    prelude::*,
+    ptr::{PtrMut, Ptr},
+};
 use bevy_replicon::{
     client::client_mapper::ServerEntityMap,
     core::{
         replication_rules::{self, GroupReplication, ReplicationRule},
-        replication_fns::{self, ReplicationFns, ComponentFns, WriteFn},
-        replicon_tick::RepliconTick,
+        replication_fns::{self, ReplicationFns, ComponentFns},
     },
     prelude::*,
 };
@@ -343,7 +339,7 @@ impl GroupReplication for PlayerBundle {
 }
 
 # fn serialize_translation(_: Ptr, _: &mut Cursor<Vec<u8>>) -> bincode::Result<()> { unimplemented!() }
-# fn deserialize_translation(_: &mut EntityWorldMut, _: &mut Cursor<&[u8]>, _: &mut ServerEntityMap, _: RepliconTick, _: WriteFn) -> bincode::Result<()> { unimplemented!() }
+# fn deserialize_translation(_: &mut EntityWorldMut, _: PtrMut, _: &mut Cursor<&[u8]>, _: &mut ServerEntityMap) -> bincode::Result<()> { unimplemented!() }
 ```
 **/
 pub trait GroupReplication {
