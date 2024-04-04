@@ -17,7 +17,7 @@ pub trait AppReplicationExt {
     /// marker component.
     ///
     /// Component will be serialized and deserialized as-is using bincode.
-    /// To customize how the component will be serialized, use [`Self::replicate_group`].
+    /// To customize it, use [`Self::replicate_group`].
     ///
     /// If your component contains any [`Entity`] inside, use [`Self::replicate_mapped`].
     ///
@@ -26,7 +26,7 @@ pub trait AppReplicationExt {
     where
         C: Component + Serialize + DeserializeOwned,
     {
-        // SAFETY: Component is registered with the corresponding default serialization function.
+        // SAFETY: functions operate on the same component.
         unsafe { self.replicate_with::<C>(ComponentFns::default_fns::<C>()) };
         self
     }
@@ -40,7 +40,7 @@ pub trait AppReplicationExt {
     where
         C: Component + Serialize + DeserializeOwned + MapEntities,
     {
-        // SAFETY: Component is registered with the corresponding default serialization function.
+        // SAFETY: functions operate on the same component.
         unsafe { self.replicate_with::<C>(ComponentFns::default_mapped_fns::<C>()) };
         self
     }
@@ -53,27 +53,38 @@ pub trait AppReplicationExt {
 
     # Safety
 
-    Caller must ensure that component `C` can be safely passed to [`ComponentFns::serialize`].
+    Caller must ensure the following:
+    - Component `C` can be safely passed as [`Ptr`](bevy::ptr::Ptr) to [`ComponentFns::serialize`].
+    In other words, [`ComponentFns::serialize`] should expect `C`.
+    - [`ComponentFns::deserialize`] can be safely called with [`ComponentFns::write`].
+    In other words, they should operate on the same type, but it could be different from `C`.
 
     # Examples
 
     ```
     use std::io::Cursor;
 
-    use bevy::{prelude::*, ptr::Ptr};
+    use bevy::{
+        prelude::*,
+        ptr::{OwningPtr, Ptr},
+    };
     use bevy_replicon::{
         client::client_mapper::ServerEntityMap,
-        core::{replication_fns::{self, ComponentFns}, replicon_tick::RepliconTick},
+        core::{
+            replication_fns::{self, ComponentFns, WriteFn},
+            replicon_tick::RepliconTick,
+        },
         prelude::*,
     };
 
     # let mut app = App::new();
     # app.add_plugins(RepliconPlugins);
-    // SAFETY: `serialize_translation` expects `Transform`.
+    // SAFETY: functions operate on the same component.
     unsafe {
         app.replicate_with::<Transform>(ComponentFns {
             serialize: serialize_translation,
             deserialize: deserialize_translation,
+            write: replication_fns::write::<Transform>,
             remove: replication_fns::remove::<Transform>,
         });
     }
@@ -83,27 +94,34 @@ pub trait AppReplicationExt {
     /// # Safety
     ///
     /// [`Transform`] must be the erased pointee type for this [`Ptr`].
-    unsafe fn serialize_translation(component: Ptr, cursor: &mut Cursor<Vec<u8>>) -> bincode::Result<()> {
-        let transform: &Transform = component.deref();
+    unsafe fn serialize_translation(ptr: Ptr, cursor: &mut Cursor<Vec<u8>>) -> bincode::Result<()> {
+        let transform: &Transform = ptr.deref();
         bincode::serialize_into(cursor, &transform.translation)
     }
 
     /// Deserializes `translation` and creates [`Transform`] from it.
-    fn deserialize_translation(
+    /// # Safety
+    ///
+    /// `write` must be safely callable with [`Transform`] as [`Ptr`].
+    unsafe fn deserialize_translation(
         entity: &mut EntityWorldMut,
-        _entity_map: &mut ServerEntityMap,
         cursor: &mut Cursor<&[u8]>,
-        _replicon_tick: RepliconTick,
+        _entity_map: &mut ServerEntityMap,
+        replicon_tick: RepliconTick,
+        write: WriteFn,
     ) -> bincode::Result<()> {
         let translation: Vec3 = bincode::deserialize_from(cursor)?;
-        entity.insert(Transform::from_translation(translation));
+        OwningPtr::make(translation, |ptr| {
+            (write)(entity, ptr, replicon_tick);
+        });
 
         Ok(())
     }
     ```
 
-    The [`remove`](super::replication_fns::remove) used in this example is the default component
-    removal function, but you can replace it with your own as well.
+    The [`write`](super::replication_fns::write) and [`remove`](super::replication_fns::remove) functions
+    used in this example are the default component writing and removal functions,
+    but you can replace them with your own as well.
     */
     unsafe fn replicate_with<C>(&mut self, component_fns: ComponentFns) -> &mut Self
     where
@@ -125,7 +143,7 @@ pub trait AppReplicationExt {
     Replication for them will be stopped, unless they match other rules.
 
     We provide blanket impls for tuples to replicate them as-is, but a user could manually implement the trait
-    to customize how components will be serialized, deserialized and removed. For details see [`GroupReplication`].
+    to customize how components will be serialized, deserialized, written and removed. For details see [`GroupReplication`].
 
     # Panics
 
@@ -210,7 +228,9 @@ impl ReplicationRule {
     /// # Safety
     ///
     /// Caller must ensure that in each pair the associated component can be safely
-    /// passed to the associated [`ComponentFns::serialize`].
+    /// passed to [`ComponentFns::serialize`] and [`ComponentFns::deserialize`] can
+    /// be safely called with [`ComponentFns::write`].
+    /// In other words, functions should operate on the same component.
     pub unsafe fn new(components: Vec<(ComponentId, ComponentFnsId)>) -> Self {
         Self {
             priority: components.len(),
@@ -255,7 +275,7 @@ impl ReplicationRule {
 }
 
 /**
-Describes how a component group should be serialized, deserialized, and removed.
+Describes how a component group should be serialized, deserialized, written, and removed.
 
 Can be implemented on any struct to create a custom replication group.
 
@@ -269,7 +289,7 @@ use bevy_replicon::{
     client::client_mapper::ServerEntityMap,
     core::{
         replication_rules::{self, GroupReplication, ReplicationRule},
-        replication_fns::{self, ReplicationFns, ComponentFns},
+        replication_fns::{self, ReplicationFns, ComponentFns, WriteFn},
         replicon_tick::RepliconTick,
     },
     prelude::*,
@@ -298,7 +318,9 @@ impl GroupReplication for PlayerBundle {
             // For function definitions see the example from `AppReplicationExt::replicate_with`.
             serialize: serialize_translation,
             deserialize: deserialize_translation,
-            remove: replication_fns::remove::<Transform>, // Use default removal function.
+            // Use default write and removal functions.
+            write: replication_fns::write::<Transform>,
+            remove: replication_fns::remove::<Transform>,
         });
 
         // Serialize `player` as usual.
@@ -315,13 +337,13 @@ impl GroupReplication for PlayerBundle {
             (visibility_id, visibility_fns_id),
         ];
 
-        // SAFETY: all components can be safely passed to their serialization functions.
+        // SAFETY: in all pairs functions operate on the same component
         unsafe { ReplicationRule::new(components) }
     }
 }
 
 # fn serialize_translation(_: Ptr, _: &mut Cursor<Vec<u8>>) -> bincode::Result<()> { unimplemented!() }
-# fn deserialize_translation(_: &mut EntityWorldMut, _: &mut ServerEntityMap, _: &mut Cursor<&[u8]>, _: RepliconTick) -> bincode::Result<()> { unimplemented!() }
+# fn deserialize_translation(_: &mut EntityWorldMut, _: &mut Cursor<&[u8]>, _: &mut ServerEntityMap, _: RepliconTick, _: WriteFn) -> bincode::Result<()> { unimplemented!() }
 ```
 **/
 pub trait GroupReplication {
@@ -341,7 +363,7 @@ macro_rules! impl_registrations {
                     components.push((component_id, fns_id));
                 )*
 
-                // SAFETY: Components are registered with the appropriate default serialization functions.
+                // SAFETY: in all pairs functions operate on the same component
                 unsafe { ReplicationRule::new(components) }
             }
         }

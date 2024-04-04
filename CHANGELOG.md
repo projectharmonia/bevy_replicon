@@ -11,17 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `AppReplicationExt::replicate_group` and `GroupRegistration` trait to register and customize component groups.
 - `ServerSet::StoreHierarchy` for systems that store hierarchy changes in `ParentSync`.
-- `ReplicationRule` that describes how a component or a group of components will be serialized, deserialized and removed.
+- `ReplicationRule` that describes how a component or a group of components will be serialized, deserialized, written and removed.
 
 ### Changed
 
-- `AppReplicationExt::replicate_with` now accepts newly added `ReplicationFns` and the function is now `unsafe` (it was never "safe" before, caller must ensure that used `C` can be passed to the serialization function).
+- `AppReplicationExt::replicate_with` now accepts newly added `ReplicationFns` and the function is now `unsafe` (it was never "safe" before, caller had to make sure that used `C` can be passed to the serialization function).
 - Move `Replication` to `core` module.
 - Move all functions-related logic from `ReplicationRules` into a new `ReplicationFns`.
 - Rename `serialize_component` into `serialize` and move into `replication_fns` module.
 - Rename `deserialize_component` into `deserialize` and move into `replication_fns` module.
 - Rename `remove_component` into `remove` and move into `replication_fns` module.
 - Move `despawn_recursive` into `replication_fns` module.
+- Split writing logic from `deserialize` into separate `write` function to customize it independently. In `deserialize` `ServerEntityMap` and `Cursor<&[u8]>` arguments now swanned and it additionally accepts `WriteFn`.
 
 ### Removed
 

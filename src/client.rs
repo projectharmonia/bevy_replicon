@@ -350,9 +350,11 @@ fn apply_init_components(
             let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
             let fns = replication_fns.component_fns(fns_id);
             match components_kind {
-                ComponentsKind::Insert => {
-                    (fns.deserialize)(&mut entity, entity_map, cursor, replicon_tick)?
-                }
+                ComponentsKind::Insert => unsafe {
+                    // SAFETY: User ensured that the registered deserialize function can
+                    // safely call its writing function.
+                    (fns.deserialize)(&mut entity, cursor, entity_map, replicon_tick, fns.write)?
+                },
                 ComponentsKind::Removal => (fns.remove)(&mut entity, replicon_tick),
             }
             components_len += 1;
@@ -434,7 +436,11 @@ fn apply_update_components(
         while cursor.position() < end_pos {
             let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
             let fns = replication_fns.component_fns(fns_id);
-            (fns.deserialize)(&mut entity, entity_map, cursor, message_tick)?;
+            // SAFETY: User ensured that the registered deserialize function can
+            // safely call its writing function.
+            unsafe {
+                (fns.deserialize)(&mut entity, cursor, entity_map, message_tick, fns.write)?;
+            }
             components_count += 1;
         }
         if let Some(stats) = &mut stats {
