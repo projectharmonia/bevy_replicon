@@ -117,12 +117,12 @@ impl RepliconChannels {
         &mut self.client[channel_id.into() as usize]
     }
 
-    /// Returns the number of server channels.
+    /// Returns registered server channels.
     pub fn server_channels(&self) -> &[RepliconChannel] {
         &self.server
     }
 
-    /// Returns the number of client channels.
+    /// Returns registered client channels.
     pub fn client_channels(&self) -> &[RepliconChannel] {
         &self.client
     }
