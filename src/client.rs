@@ -4,7 +4,10 @@ pub mod replicon_client;
 
 use std::io::Cursor;
 
-use bevy::{ecs::entity::EntityHashMap, prelude::*};
+use bevy::{
+    ecs::{entity::EntityHashMap, system::CommandQueue},
+    prelude::*,
+};
 use bincode::{DefaultOptions, Options};
 use bytes::Bytes;
 use varint_rs::VarintReader;
@@ -77,7 +80,10 @@ impl ClientPlugin {
     /// Acknowledgments for received entity update messages are sent back to the server.
     ///
     /// See also [`ReplicationMessages`](crate::server::replication_messages::ReplicationMessages).
-    pub(super) fn receive_replication(world: &mut World) -> bincode::Result<()> {
+    pub(super) fn receive_replication(
+        world: &mut World,
+        mut queue: Local<CommandQueue>,
+    ) -> bincode::Result<()> {
         world.resource_scope(|world, mut client: Mut<RepliconClient>| {
             world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
                 world.resource_scope(|world, mut entity_ticks: Mut<ServerEntityTicks>| {
@@ -86,6 +92,7 @@ impl ClientPlugin {
                             let mut stats = world.remove_resource::<ClientStats>();
                             apply_replication(
                                 world,
+                                &mut queue,
                                 &mut client,
                                 &mut entity_map,
                                 &mut entity_ticks,
@@ -124,6 +131,7 @@ impl ClientPlugin {
 /// Sends acknowledgments for update messages back.
 fn apply_replication(
     world: &mut World,
+    queue: &mut CommandQueue,
     client: &mut RepliconClient,
     entity_map: &mut ServerEntityMap,
     entity_ticks: &mut ServerEntityTicks,
@@ -135,6 +143,7 @@ fn apply_replication(
         apply_init_message(
             &message,
             world,
+            queue,
             entity_map,
             entity_ticks,
             stats.as_deref_mut(),
@@ -147,6 +156,7 @@ fn apply_replication(
         let index = apply_update_message(
             message,
             world,
+            queue,
             entity_map,
             entity_ticks,
             buffered_updates,
@@ -168,6 +178,7 @@ fn apply_replication(
         if let Err(e) = apply_update_components(
             &mut Cursor::new(&*update.message),
             world,
+            queue,
             entity_map,
             entity_ticks,
             stats.as_deref_mut(),
@@ -188,6 +199,7 @@ fn apply_replication(
 fn apply_init_message(
     message: &[u8],
     world: &mut World,
+    queue: &mut CommandQueue,
     entity_map: &mut ServerEntityMap,
     entity_ticks: &mut ServerEntityTicks,
     mut stats: Option<&mut ClientStats>,
@@ -226,6 +238,7 @@ fn apply_init_message(
     apply_init_components(
         &mut cursor,
         world,
+        queue,
         entity_map,
         entity_ticks,
         stats.as_deref_mut(),
@@ -240,6 +253,7 @@ fn apply_init_message(
     apply_init_components(
         &mut cursor,
         world,
+        queue,
         entity_map,
         entity_ticks,
         stats,
@@ -260,6 +274,7 @@ fn apply_init_message(
 fn apply_update_message(
     message: Bytes,
     world: &mut World,
+    queue: &mut CommandQueue,
     entity_map: &mut ServerEntityMap,
     entity_ticks: &mut ServerEntityTicks,
     buffered_updates: &mut BufferedUpdates,
@@ -289,6 +304,7 @@ fn apply_update_message(
     apply_update_components(
         &mut cursor,
         world,
+        queue,
         entity_map,
         entity_ticks,
         stats,
@@ -330,6 +346,7 @@ fn apply_entity_mappings(
 fn apply_init_components(
     cursor: &mut Cursor<&[u8]>,
     world: &mut World,
+    queue: &mut CommandQueue,
     entity_map: &mut ServerEntityMap,
     entity_ticks: &mut ServerEntityTicks,
     mut stats: Option<&mut ClientStats>,
@@ -341,7 +358,14 @@ fn apply_init_components(
     for _ in 0..entities_len {
         let entity = deserialize_entity(cursor)?;
         let data_size: u16 = bincode::deserialize_from(&mut *cursor)?;
-        let mut entity = entity_map.get_by_server_or_spawn(world, entity);
+
+        let world_cell = world.as_unsafe_world_cell();
+        // SAFETY: access is unique and `EntityMut` is just a wrapper over `UnsafeEntityCell`.
+        let mut entity: EntityMut = unsafe {
+            let world = world_cell.world_mut();
+            entity_map.get_by_server_or_spawn(world, entity).into()
+        };
+        let mut commands = Commands::new_from_entities(queue, world_cell.entities());
         entity_ticks.insert(entity.id(), replicon_tick);
 
         let end_pos = cursor.position() + data_size as u64;
@@ -354,6 +378,7 @@ fn apply_init_components(
                     // SAFETY: User ensured that the registered write function can
                     // safely call its deserialize function.
                     (fns.write)(
+                        &mut commands,
                         &mut entity,
                         cursor,
                         entity_map,
@@ -361,7 +386,9 @@ fn apply_init_components(
                         fns.deserialize,
                     )?
                 },
-                ComponentsKind::Removal => (fns.remove)(&mut entity, replicon_tick),
+                ComponentsKind::Removal => {
+                    (fns.remove)(commands.entity(entity.id()), replicon_tick)
+                }
             }
             components_len += 1;
         }
@@ -369,6 +396,7 @@ fn apply_init_components(
             stats.entities_changed += 1;
             stats.components_changed += components_len;
         }
+        queue.apply(world);
     }
 
     Ok(())
@@ -411,6 +439,7 @@ fn apply_despawns(
 fn apply_update_components(
     cursor: &mut Cursor<&[u8]>,
     world: &mut World,
+    queue: &mut CommandQueue,
     entity_map: &mut ServerEntityMap,
     entity_ticks: &mut ServerEntityTicks,
     mut stats: Option<&mut ClientStats>,
@@ -421,21 +450,27 @@ fn apply_update_components(
     while cursor.position() < message_end {
         let entity = deserialize_entity(cursor)?;
         let data_size: u16 = bincode::deserialize_from(&mut *cursor)?;
-        let Some(mut entity) = entity_map.get_by_server(world, entity) else {
+
+        let Some(entity) = entity_map.get_by_server(entity) else {
             // Update could arrive after a despawn from init message.
             debug!("ignoring update received for unknown server's {entity:?}");
             cursor.set_position(cursor.position() + data_size as u64);
             continue;
         };
         let entity_tick = entity_ticks
-            .get_mut(&entity.id())
+            .get_mut(&entity)
             .expect("all entities from update should have assigned ticks");
         if message_tick <= *entity_tick {
-            trace!("ignoring outdated update for client's {:?}", entity.id());
+            trace!("ignoring outdated update for client's {entity:?}");
             cursor.set_position(cursor.position() + data_size as u64);
             continue;
         }
         *entity_tick = message_tick;
+
+        let world_cell = world.as_unsafe_world_cell();
+        // SAFETY: access is unique and `EntityMut` is just a wrapper over `UnsafeEntityCell`.
+        let mut entity: EntityMut = unsafe { world_cell.world_mut().entity_mut(entity).into() };
+        let mut commands = Commands::new_from_entities(queue, world_cell.entities());
 
         let end_pos = cursor.position() + data_size as u64;
         let mut components_count = 0u32;
@@ -446,6 +481,7 @@ fn apply_update_components(
             // safely call its deserialize function.
             unsafe {
                 (fns.write)(
+                    &mut commands,
                     &mut entity,
                     cursor,
                     entity_map,
@@ -459,6 +495,7 @@ fn apply_update_components(
             stats.entities_changed += 1;
             stats.components_changed += components_count;
         }
+        queue.apply(world);
     }
 
     Ok(())
