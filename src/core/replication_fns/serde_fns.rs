@@ -4,11 +4,9 @@ use bevy::{ecs::entity::MapEntities, prelude::*};
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Serialize};
 
-use super::CommandFnsId;
 use crate::client::client_mapper::ClientMapper;
 
 pub struct SerdeFns {
-    commands_id: CommandFnsId,
     serialize: unsafe fn(),
     deserialize: unsafe fn(),
     deserialize_in_place: unsafe fn(),
@@ -16,13 +14,11 @@ pub struct SerdeFns {
 
 impl SerdeFns {
     pub(super) fn new<C: Component>(
-        commands_id: CommandFnsId,
         serialize: SerializeFn<C>,
         deserialize: DeserializeFn<C>,
         deserialize_in_place: DeserializeInPlaceFn<C>,
     ) -> Self {
         Self {
-            commands_id,
             serialize: unsafe { mem::transmute(serialize) },
             deserialize: unsafe { mem::transmute(deserialize) },
             deserialize_in_place: unsafe { mem::transmute(deserialize_in_place) },
@@ -57,10 +53,6 @@ impl SerdeFns {
             mem::transmute(self.deserialize_in_place);
         let deserialize: DeserializeFn<C> = mem::transmute(self.deserialize);
         (deserialize_in_place)(deserialize, component, cursor, mapper)
-    }
-
-    pub(crate) fn commands_id(&self) -> CommandFnsId {
-        self.commands_id
     }
 }
 

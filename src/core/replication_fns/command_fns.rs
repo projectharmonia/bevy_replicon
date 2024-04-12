@@ -1,10 +1,6 @@
 use std::io::Cursor;
 
-use bevy::{
-    ecs::{component::ComponentId, system::EntityCommands},
-    prelude::*,
-    ptr::Ptr,
-};
+use bevy::{ecs::system::EntityCommands, prelude::*, ptr::Ptr};
 
 use super::serde_fns::SerdeFns;
 use crate::{
@@ -13,16 +9,14 @@ use crate::{
 };
 
 pub(crate) struct CommandFns {
-    component_id: ComponentId,
     read: ReadFn,
     write: WriteFn,
     remove: RemoveFn,
 }
 
 impl CommandFns {
-    pub(super) fn new<C: Component>(component_id: ComponentId) -> Self {
+    pub(super) fn new<C: Component>() -> Self {
         Self {
-            component_id,
             read: read::<C>,
             write: write::<C>,
             remove: remove::<C>,
@@ -59,10 +53,6 @@ impl CommandFns {
 
     pub(crate) fn remove(&self, entity_commands: EntityCommands, replicon_tick: RepliconTick) {
         (self.remove)(entity_commands, replicon_tick)
-    }
-
-    pub(super) fn component_id(&self) -> ComponentId {
-        self.component_id
     }
 }
 

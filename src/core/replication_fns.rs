@@ -18,9 +18,9 @@ pub struct ReplicationFns {
     pub despawn: DespawnFn,
 
     /// Registered functions for replicated components.
-    commands: Vec<CommandFns>,
+    commands: Vec<(ComponentId, CommandFns)>,
 
-    serde: Vec<SerdeFns>,
+    serde: Vec<(CommandFnsId, SerdeFns)>,
 }
 
 impl ReplicationFns {
@@ -48,20 +48,15 @@ impl ReplicationFns {
         let index = self
             .commands
             .iter()
-            .position(|fns| fns.component_id() == component_id)
+            .position(|&(id, _)| id == component_id)
             .unwrap_or_else(|| {
-                self.commands.push(CommandFns::new::<C>(component_id));
+                self.commands.push((component_id, CommandFns::new::<C>()));
                 self.commands.len() - 1
             });
 
-        let serde_fns = SerdeFns::new(
-            CommandFnsId(index),
-            serialize,
-            deserialize,
-            deserialize_in_place,
-        );
+        let serde_fns = SerdeFns::new(serialize, deserialize, deserialize_in_place);
 
-        self.serde.push(serde_fns);
+        self.serde.push((CommandFnsId(index), serde_fns));
 
         SerdeInfo {
             component_id,
@@ -69,16 +64,13 @@ impl ReplicationFns {
         }
     }
 
-    pub(crate) fn serde_fns(&self, serde_id: SerdeFnsId) -> &SerdeFns {
-        self.serde
+    pub(crate) fn fns(&self, serde_id: SerdeFnsId) -> (&SerdeFns, &CommandFns) {
+        let (commands_id, serde_fns) = self
+            .serde
             .get(serde_id.0)
-            .expect("serde function IDs should be obtained from the same instance")
-    }
-
-    pub(crate) fn command_fns(&self, commands_id: CommandFnsId) -> &CommandFns {
-        self.commands
-            .get(commands_id.0)
-            .expect("command function IDs should be obtained from the same instance")
+            .expect("serde function IDs should be obtained from the same instance");
+        let (_, command_fns) = unsafe { self.commands.get_unchecked(commands_id.0) };
+        (serde_fns, command_fns)
     }
 }
 
@@ -112,7 +104,7 @@ impl SerdeInfo {
 ///
 /// Can be obtained from [`ReplicationFns::register_component_fns`].
 #[derive(Clone, Copy, Deserialize, Eq, Hash, PartialEq, Serialize)]
-pub(crate) struct CommandFnsId(usize);
+struct CommandFnsId(usize);
 
 /// Represents ID of [`ComponentFns`].
 ///
