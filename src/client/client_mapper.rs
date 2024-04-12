@@ -54,18 +54,17 @@ impl ServerEntityMap {
         self.client_to_server.insert(client_entity, server_entity);
     }
 
-    pub(super) fn get_by_server_or_spawn<'a>(
+    pub(super) fn get_by_server_or_insert<'a>(
         &mut self,
-        world: &'a mut World,
         server_entity: Entity,
-    ) -> EntityWorldMut<'a> {
+        f: impl FnOnce() -> Entity,
+    ) -> Entity {
         match self.server_to_client.entry(server_entity) {
-            Entry::Occupied(entry) => world.entity_mut(*entry.get()),
+            Entry::Occupied(entry) => *entry.get(),
             Entry::Vacant(entry) => {
-                let client_entity = world.spawn(Replication);
-                entry.insert(client_entity.id());
-                self.client_to_server
-                    .insert(client_entity.id(), server_entity);
+                let client_entity = (f)();
+                entry.insert(client_entity);
+                self.client_to_server.insert(client_entity, server_entity);
                 client_entity
             }
         }
