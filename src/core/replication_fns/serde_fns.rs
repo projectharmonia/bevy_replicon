@@ -53,8 +53,10 @@ impl SerdeFns {
         cursor: &mut Cursor<&[u8]>,
         mapper: &mut ClientMapper,
     ) -> bincode::Result<()> {
-        let deserialize: DeserializeInPlaceFn<C> = mem::transmute(self.deserialize_in_place);
-        (deserialize)(component, cursor, mapper)
+        let deserialize_in_place: DeserializeInPlaceFn<C> =
+            mem::transmute(self.deserialize_in_place);
+        let deserialize: DeserializeFn<C> = mem::transmute(self.deserialize);
+        (deserialize_in_place)(deserialize, component, cursor, mapper)
     }
 
     pub(crate) fn commands_id(&self) -> CommandFnsId {
@@ -70,7 +72,7 @@ pub type DeserializeFn<C> = fn(&mut Cursor<&[u8]>, &mut ClientMapper) -> bincode
 
 /// Signature of component deserialization functions.
 pub type DeserializeInPlaceFn<C> =
-    fn(&mut C, &mut Cursor<&[u8]>, &mut ClientMapper) -> bincode::Result<()>;
+    fn(DeserializeFn<C>, &mut C, &mut Cursor<&[u8]>, &mut ClientMapper) -> bincode::Result<()>;
 
 /// Default component serialization function.
 pub fn serialize<C: Component + Serialize>(
@@ -99,10 +101,11 @@ pub fn deserialize_mapped<C: Component + DeserializeOwned + MapEntities>(
 }
 
 pub fn deserialize_in_place<C: Component + DeserializeOwned>(
+    deserialize: DeserializeFn<C>,
     component: &mut C,
     cursor: &mut Cursor<&[u8]>,
-    _mapper: &mut ClientMapper,
+    mapper: &mut ClientMapper,
 ) -> bincode::Result<()> {
-    *component = DefaultOptions::new().deserialize_from(cursor)?;
+    *component = (deserialize)(cursor, mapper)?;
     Ok(())
 }
