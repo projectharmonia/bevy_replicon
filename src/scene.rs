@@ -74,7 +74,11 @@ pub fn replicate_into(scene: &mut DynamicScene, world: &World) {
         }
 
         for rule in rules.iter().filter(|rule| rule.matches(archetype)) {
-            for &(component_id, _) in rule.components() {
+            for component_id in rule
+                .components()
+                .iter()
+                .map(|serde_info| serde_info.component_id())
+            {
                 // SAFETY: replication rules can be registered only with valid component IDs.
                 let replicated_component =
                     unsafe { world.components().get_info_unchecked(component_id) };

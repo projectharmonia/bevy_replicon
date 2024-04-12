@@ -345,7 +345,8 @@ fn collect_changes(
                     )
                 };
 
-                let fns = replication_fns.component_fns(replicated_component.fns_id);
+                let serde_fns = replication_fns.serde_fns(replicated_component.fns_id);
+                let command_fns = replication_fns.command_fns(serde_fns.commands_id());
                 let mut shared_bytes = None;
                 for (init_message, update_message, client) in messages.iter_mut_with_clients() {
                     let visibility = client.visibility().cached_visibility();
@@ -358,7 +359,8 @@ fn collect_changes(
                     {
                         init_message.write_component(
                             &mut shared_bytes,
-                            fns,
+                            serde_fns,
+                            command_fns,
                             replicated_component.fns_id,
                             component,
                         )?;
@@ -369,7 +371,8 @@ fn collect_changes(
                         if ticks.is_changed(tick, change_tick.this_run()) {
                             update_message.write_component(
                                 &mut shared_bytes,
-                                fns,
+                                serde_fns,
+                                command_fns,
                                 replicated_component.fns_id,
                                 component,
                             )?;
@@ -477,9 +480,9 @@ fn collect_removals(
     for (entity, remove_ids) in removal_buffer.iter() {
         for (message, _, client) in messages.iter_mut_with_clients() {
             message.start_entity_data(entity);
-            for &(_, fns_id) in remove_ids {
+            for serde_info in remove_ids {
                 client.set_change_limit(entity, tick);
-                message.write_fns_id(fns_id)?;
+                message.write_fns_id(serde_info.serde_id())?;
             }
             message.end_entity_data(false)?;
         }

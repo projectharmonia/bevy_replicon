@@ -1,15 +1,12 @@
-use std::{io::Cursor, mem::MaybeUninit};
+pub mod command_fns;
+pub mod serde_fns;
 
-use bevy::{
-    ecs::{entity::MapEntities, system::EntityCommands},
-    prelude::*,
-    ptr::{Ptr, PtrMut},
-};
-use bincode::{DefaultOptions, Options};
+use bevy::{ecs::component::ComponentId, prelude::*};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use super::replicon_tick::RepliconTick;
-use crate::client::client_mapper::{ClientMapper, ServerEntityMap};
+use command_fns::CommandFns;
+use serde_fns::{DeserializeFn, SerdeFns, SerializeFn};
 
 /// Stores configurable replication functions.
 #[derive(Resource)]
@@ -21,31 +18,60 @@ pub struct ReplicationFns {
     pub despawn: DespawnFn,
 
     /// Registered functions for replicated components.
-    components: Vec<ComponentFns>,
+    commands: Vec<CommandFns>,
+
+    serde: Vec<SerdeFns>,
 }
 
 impl ReplicationFns {
-    /// Registers [`ComponentFns`] for a component and returns its ID.
-    ///
-    /// Returned ID can be assigned to a component inside
-    /// [`ReplicationRule`](super::replication_rules::ReplicationRule).
-    ///
-    /// Could be called multiple times for the same component with different functions.
-    pub fn register_component_fns(&mut self, fns: ComponentFns) -> ComponentFnsId {
-        self.components.push(fns);
-
-        ComponentFnsId(self.components.len() - 1)
+    pub fn register_default_serde_fns<C: Component + Serialize + DeserializeOwned>(
+        &mut self,
+        world: &mut World,
+    ) -> SerdeInfo {
+        self.register_serde_fns(
+            world,
+            serde_fns::serialize::<C>,
+            serde_fns::deserialize::<C>,
+        )
     }
 
-    /// Returns a reference to registered component functions.
-    ///
-    /// # Panics
-    ///
-    /// If functions ID points to an invalid item.
-    pub(crate) fn component_fns(&self, fns_id: ComponentFnsId) -> &ComponentFns {
-        self.components
-            .get(fns_id.0)
-            .expect("function IDs should should always be valid if obtained from the same instance")
+    pub fn register_serde_fns<C: Component>(
+        &mut self,
+        world: &mut World,
+        serialize: SerializeFn<C>,
+        deserialize: DeserializeFn<C>,
+    ) -> SerdeInfo {
+        let component_id = world.init_component::<C>();
+
+        let index = self
+            .commands
+            .iter()
+            .position(|fns| fns.component_id() == component_id)
+            .unwrap_or_else(|| {
+                self.commands.push(CommandFns::new::<C>(component_id));
+                self.commands.len() - 1
+            });
+
+        let serde_fns = SerdeFns::new(CommandFnsId(index), serialize, deserialize);
+
+        self.serde.push(serde_fns);
+
+        SerdeInfo {
+            component_id,
+            serde_id: SerdeFnsId(self.serde.len() - 1),
+        }
+    }
+
+    pub(crate) fn serde_fns(&self, serde_id: SerdeFnsId) -> &SerdeFns {
+        self.serde
+            .get(serde_id.0)
+            .expect("serde function IDs should be obtained from the same instance")
+    }
+
+    pub(crate) fn command_fns(&self, commands_id: CommandFnsId) -> &CommandFns {
+        self.commands
+            .get(commands_id.0)
+            .expect("command function IDs should be obtained from the same instance")
     }
 }
 
@@ -53,79 +79,25 @@ impl Default for ReplicationFns {
     fn default() -> Self {
         Self {
             despawn: despawn_recursive,
-            components: Default::default(),
+            commands: Default::default(),
+            serde: Default::default(),
         }
     }
 }
 
-/// Signature of component serialization functions.
-pub type SerializeFn = unsafe fn(Ptr, &mut Cursor<Vec<u8>>) -> bincode::Result<()>;
-
-/// Signature of component deserialization functions.
-pub type DeserializeFn =
-    unsafe fn(PtrMut, &mut Cursor<&[u8]>, &mut ClientMapper) -> bincode::Result<()>;
-
-/// Signature of component writing functions.
-pub type WriteFn = unsafe fn(
-    &mut Commands,
-    &mut EntityMut,
-    &mut Cursor<&[u8]>,
-    &mut ServerEntityMap,
-    RepliconTick,
-    DeserializeFn,
-) -> bincode::Result<()>;
-
-/// Signature of component removal functions.
-pub type RemoveFn = fn(EntityCommands, RepliconTick);
-
-/// Signature of the entity despawn function.
-pub type DespawnFn = fn(EntityWorldMut, RepliconTick);
-
-/// Functions for a replicated component.
-#[derive(Clone)]
-pub struct ComponentFns {
-    /// Function that serializes a component into bytes.
-    pub serialize: SerializeFn,
-
-    /// Function that deserializes a component from bytes.
-    pub deserialize: DeserializeFn,
-
-    /// Function that calls [Self::deserialize] and inserts a component to [`EntityWorldMut`].
-    pub write: WriteFn,
-
-    /// Function that removes a component from [`EntityWorldMut`].
-    pub remove: RemoveFn,
+#[derive(Clone, Copy)]
+pub struct SerdeInfo {
+    component_id: ComponentId,
+    serde_id: SerdeFnsId,
 }
 
-impl ComponentFns {
-    /// Creates a new instance with [`serialize`], [`deserialize`] and [`remove`] functions.
-    ///
-    /// If your component contains any [`Entity`] inside, use [`Self::default_mapped_fns`].
-    pub fn default_fns<C>() -> Self
-    where
-        C: Component + Serialize + DeserializeOwned,
-    {
-        Self {
-            serialize: serialize::<C>,
-            deserialize: deserialize::<C>,
-            write: write::<C>,
-            remove: remove::<C>,
-        }
+impl SerdeInfo {
+    pub(crate) fn component_id(&self) -> ComponentId {
+        self.component_id
     }
 
-    /// Creates a new instance with [`serialize`], [`deserialize_mapped`] and [`remove`] functions.
-    ///
-    /// Always use it for components that contain entities.
-    pub fn default_mapped_fns<C>() -> Self
-    where
-        C: Component + Serialize + DeserializeOwned + MapEntities,
-    {
-        Self {
-            serialize: serialize::<C>,
-            deserialize: deserialize_mapped::<C>,
-            write: write::<C>,
-            remove: remove::<C>,
-        }
+    pub(crate) fn serde_id(&self) -> SerdeFnsId {
+        self.serde_id
     }
 }
 
@@ -133,90 +105,16 @@ impl ComponentFns {
 ///
 /// Can be obtained from [`ReplicationFns::register_component_fns`].
 #[derive(Clone, Copy, Deserialize, Eq, Hash, PartialEq, Serialize)]
-pub struct ComponentFnsId(usize);
+pub(crate) struct CommandFnsId(usize);
 
-/// Default component serialization function.
+/// Represents ID of [`ComponentFns`].
 ///
-/// # Safety
-///
-/// `C` must be the erased pointee type for this [`Ptr`].
-pub unsafe fn serialize<C: Component + Serialize>(
-    ptr: Ptr,
-    cursor: &mut Cursor<Vec<u8>>,
-) -> bincode::Result<()> {
-    let component: &C = ptr.deref();
-    DefaultOptions::new().serialize_into(cursor, component)
-}
+/// Can be obtained from [`ReplicationFns::register_component_fns`].
+#[derive(Clone, Copy, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub struct SerdeFnsId(usize);
 
-/// Default component deserialization function.
-///
-/// # Safety
-///
-/// [`MaybeUninit<C>`] must be the erased pointee type for this [`Ptr`].
-pub unsafe fn deserialize<C: Component + DeserializeOwned>(
-    ptr: PtrMut,
-    cursor: &mut Cursor<&[u8]>,
-    _mapper: &mut ClientMapper,
-) -> bincode::Result<()> {
-    let component: C = DefaultOptions::new().deserialize_from(cursor)?;
-    *ptr.deref_mut() = MaybeUninit::new(component);
-
-    Ok(())
-}
-
-/// Like [`deserialize`], but also maps entities before insertion.
-///
-/// # Safety
-///
-/// [`MaybeUninit<C>`] must be the erased pointee type for this [`Ptr`].
-pub unsafe fn deserialize_mapped<C: Component + DeserializeOwned + MapEntities>(
-    ptr: PtrMut,
-    cursor: &mut Cursor<&[u8]>,
-    mapper: &mut ClientMapper,
-) -> bincode::Result<()> {
-    let mut component: C = DefaultOptions::new().deserialize_from(cursor)?;
-
-    component.map_entities(mapper);
-
-    *ptr.deref_mut() = MaybeUninit::new(component);
-
-    Ok(())
-}
-
-/// Default component writing function.
-///
-/// # Safety
-///
-/// `deserialize` must be safely callable with [`MaybeUninit<C>`] as [`Ptr`]
-/// and should initialize passed component.
-pub unsafe fn write<C: Component + DeserializeOwned>(
-    commands: &mut Commands,
-    entity: &mut EntityMut,
-    cursor: &mut Cursor<&[u8]>,
-    entity_map: &mut ServerEntityMap,
-    _replicon_tick: RepliconTick,
-    deserialize: DeserializeFn,
-) -> bincode::Result<()> {
-    let mut mapper = ClientMapper {
-        commands,
-        entity_map,
-    };
-
-    // if let Some(mut component) = entity.get_mut::<C>() {
-    //     (deserialize)(PtrMut::from(&mut component), cursor, &mut mapper)?;
-    // } else {
-    let mut component = MaybeUninit::<C>::uninit();
-    (deserialize)(PtrMut::from(&mut component), cursor, &mut mapper)?;
-    commands.entity(entity.id()).insert(component.assume_init());
-    // }
-
-    Ok(())
-}
-
-/// Default component removal function.
-pub fn remove<C: Component>(mut entity_commands: EntityCommands, _replicon_tick: RepliconTick) {
-    entity_commands.remove::<C>();
-}
+/// Signature of the entity despawn function.
+pub type DespawnFn = fn(EntityWorldMut, RepliconTick);
 
 /// Default entity despawn function.
 pub fn despawn_recursive(entity: EntityWorldMut, _replicon_tick: RepliconTick) {

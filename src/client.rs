@@ -372,22 +372,23 @@ fn apply_init_components(
         let mut components_len = 0u32;
         while cursor.position() < end_pos {
             let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
-            let fns = replication_fns.component_fns(fns_id);
+            let serde_fns = replication_fns.serde_fns(fns_id);
+            let command_fns = replication_fns.command_fns(serde_fns.commands_id());
             match components_kind {
                 ComponentsKind::Insert => unsafe {
                     // SAFETY: User ensured that the registered write function can
                     // safely call its deserialize function.
-                    (fns.write)(
+                    command_fns.write(
+                        serde_fns,
                         &mut commands,
                         &mut entity,
                         cursor,
                         entity_map,
                         replicon_tick,
-                        fns.deserialize,
                     )?
                 },
                 ComponentsKind::Removal => {
-                    (fns.remove)(commands.entity(entity.id()), replicon_tick)
+                    command_fns.remove(commands.entity(entity.id()), replicon_tick)
                 }
             }
             components_len += 1;
@@ -476,17 +477,16 @@ fn apply_update_components(
         let mut components_count = 0u32;
         while cursor.position() < end_pos {
             let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
-            let fns = replication_fns.component_fns(fns_id);
-            // SAFETY: User ensured that the registered writing function can
-            // safely call its deserialize function.
+            let serde_fns = replication_fns.serde_fns(fns_id);
+            let command_fns = replication_fns.command_fns(serde_fns.commands_id());
             unsafe {
-                (fns.write)(
+                command_fns.write(
+                    serde_fns,
                     &mut commands,
                     &mut entity,
                     cursor,
                     entity_map,
                     message_tick,
-                    fns.deserialize,
                 )?;
             }
             components_count += 1;
