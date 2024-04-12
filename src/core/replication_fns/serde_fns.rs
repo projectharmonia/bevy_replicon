@@ -11,7 +11,7 @@ pub struct SerdeFns {
     commands_id: CommandFnsId,
     serialize: unsafe fn(),
     deserialize: unsafe fn(),
-    deserialize_in_place: unsafe fn(),
+    pub deserialize_in_place: unsafe fn(),
 }
 
 impl SerdeFns {
@@ -45,16 +45,6 @@ impl SerdeFns {
     ) -> bincode::Result<C> {
         let deserialize: DeserializeFn<C> = mem::transmute(self.deserialize);
         (deserialize)(cursor, mapper)
-    }
-
-    pub unsafe fn deserialize_in_place<C>(
-        &self,
-        component: &mut C,
-        cursor: &mut Cursor<&[u8]>,
-        mapper: &mut ClientMapper,
-    ) -> bincode::Result<()> {
-        let deserialize: DeserializeInPlaceFn<C> = mem::transmute(self.deserialize_in_place);
-        (deserialize)(component, cursor, mapper)
     }
 
     pub(crate) fn commands_id(&self) -> CommandFnsId {
