@@ -8,7 +8,7 @@ use bevy::{
 use serde::{de::DeserializeOwned, Serialize};
 
 use super::replication_fns::{
-    serde_fns::{self, DeserializeFn, SerializeFn},
+    serde_fns::{self, DeserializeFn, DeserializeInPlaceFn, SerializeFn},
     ReplicationFns, SerdeInfo,
 };
 
@@ -29,7 +29,11 @@ pub trait AppReplicationExt {
     where
         C: Component + Serialize + DeserializeOwned,
     {
-        self.replicate_with::<C>(serde_fns::serialize::<C>, serde_fns::deserialize::<C>)
+        self.replicate_with::<C>(
+            serde_fns::serialize::<C>,
+            serde_fns::deserialize::<C>,
+            serde_fns::deserialize_in_place::<C>,
+        )
     }
 
     /// Same as [`Self::replicate`], but additionally maps server entities to client inside the component after receiving.
@@ -45,6 +49,7 @@ pub trait AppReplicationExt {
         self.replicate_with::<C>(
             serde_fns::serialize::<C>,
             serde_fns::deserialize_mapped::<C>,
+            serde_fns::deserialize_in_place::<C>,
         )
     }
 
@@ -124,6 +129,7 @@ pub trait AppReplicationExt {
         &mut self,
         serialize: SerializeFn<C>,
         deserialize: DeserializeFn<C>,
+        deserialize_in_place: DeserializeInPlaceFn<C>,
     ) -> &mut Self
     where
         C: Component;
@@ -175,6 +181,7 @@ impl AppReplicationExt for App {
         &mut self,
         serialize: SerializeFn<C>,
         deserialize: DeserializeFn<C>,
+        deserialize_in_place: DeserializeInPlaceFn<C>,
     ) -> &mut Self
     where
         C: Component,
@@ -182,7 +189,12 @@ impl AppReplicationExt for App {
         let rule = self
             .world
             .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| {
-                let serde_info = replication_fns.register_serde_fns(world, serialize, deserialize);
+                let serde_info = replication_fns.register_serde_fns(
+                    world,
+                    serialize,
+                    deserialize,
+                    deserialize_in_place,
+                );
                 ReplicationRule::new(vec![serde_info])
             });
 

@@ -6,7 +6,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use super::replicon_tick::RepliconTick;
 use command_fns::CommandFns;
-use serde_fns::{DeserializeFn, SerdeFns, SerializeFn};
+use serde_fns::{DeserializeFn, DeserializeInPlaceFn, SerdeFns, SerializeFn};
 
 /// Stores configurable replication functions.
 #[derive(Resource)]
@@ -32,6 +32,7 @@ impl ReplicationFns {
             world,
             serde_fns::serialize::<C>,
             serde_fns::deserialize::<C>,
+            serde_fns::deserialize_in_place::<C>,
         )
     }
 
@@ -40,6 +41,7 @@ impl ReplicationFns {
         world: &mut World,
         serialize: SerializeFn<C>,
         deserialize: DeserializeFn<C>,
+        deserialize_in_place: DeserializeInPlaceFn<C>,
     ) -> SerdeInfo {
         let component_id = world.init_component::<C>();
 
@@ -52,7 +54,12 @@ impl ReplicationFns {
                 self.commands.len() - 1
             });
 
-        let serde_fns = SerdeFns::new(CommandFnsId(index), serialize, deserialize);
+        let serde_fns = SerdeFns::new(
+            CommandFnsId(index),
+            serialize,
+            deserialize,
+            deserialize_in_place,
+        );
 
         self.serde.push(serde_fns);
 

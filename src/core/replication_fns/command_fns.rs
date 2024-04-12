@@ -109,12 +109,12 @@ unsafe fn write<C: Component>(
         entity_map,
     };
 
-    // if let Some(mut component) = entity.get_mut::<C>() {
-    //     (deserialize)(PtrMut::from(&mut component), cursor, &mut mapper)?;
-    // } else {
-    let component: C = rule_fns.deserialize(cursor, &mut mapper)?;
-    commands.entity(entity.id()).insert(component);
-    // }
+    if let Some(mut component) = entity.get_mut::<C>() {
+        rule_fns.deserialize_in_place(&mut component, cursor, &mut mapper)?;
+    } else {
+        let component: C = rule_fns.deserialize(cursor, &mut mapper)?;
+        commands.entity(entity.id()).insert(component);
+    }
 
     Ok(())
 }

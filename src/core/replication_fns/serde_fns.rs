@@ -11,6 +11,7 @@ pub struct SerdeFns {
     commands_id: CommandFnsId,
     serialize: unsafe fn(),
     deserialize: unsafe fn(),
+    deserialize_in_place: unsafe fn(),
 }
 
 impl SerdeFns {
@@ -18,11 +19,13 @@ impl SerdeFns {
         commands_id: CommandFnsId,
         serialize: SerializeFn<C>,
         deserialize: DeserializeFn<C>,
+        deserialize_in_place: DeserializeInPlaceFn<C>,
     ) -> Self {
         Self {
             commands_id,
             serialize: unsafe { mem::transmute(serialize) },
             deserialize: unsafe { mem::transmute(deserialize) },
+            deserialize_in_place: unsafe { mem::transmute(deserialize_in_place) },
         }
     }
 
@@ -44,6 +47,16 @@ impl SerdeFns {
         (deserialize)(cursor, mapper)
     }
 
+    pub unsafe fn deserialize_in_place<C>(
+        &self,
+        component: &mut C,
+        cursor: &mut Cursor<&[u8]>,
+        mapper: &mut ClientMapper,
+    ) -> bincode::Result<()> {
+        let deserialize: DeserializeInPlaceFn<C> = mem::transmute(self.deserialize_in_place);
+        (deserialize)(component, cursor, mapper)
+    }
+
     pub(crate) fn commands_id(&self) -> CommandFnsId {
         self.commands_id
     }
@@ -54,6 +67,10 @@ pub type SerializeFn<C> = fn(&C, &mut Cursor<Vec<u8>>) -> bincode::Result<()>;
 
 /// Signature of component deserialization functions.
 pub type DeserializeFn<C> = fn(&mut Cursor<&[u8]>, &mut ClientMapper) -> bincode::Result<C>;
+
+/// Signature of component deserialization functions.
+pub type DeserializeInPlaceFn<C> =
+    fn(&mut C, &mut Cursor<&[u8]>, &mut ClientMapper) -> bincode::Result<()>;
 
 /// Default component serialization function.
 pub fn serialize<C: Component + Serialize>(
@@ -79,4 +96,13 @@ pub fn deserialize_mapped<C: Component + DeserializeOwned + MapEntities>(
     let mut component: C = DefaultOptions::new().deserialize_from(cursor)?;
     component.map_entities(mapper);
     Ok(component)
+}
+
+pub fn deserialize_in_place<C: Component + DeserializeOwned>(
+    component: &mut C,
+    cursor: &mut Cursor<&[u8]>,
+    _mapper: &mut ClientMapper,
+) -> bincode::Result<()> {
+    *component = DefaultOptions::new().deserialize_from(cursor)?;
+    Ok(())
 }
