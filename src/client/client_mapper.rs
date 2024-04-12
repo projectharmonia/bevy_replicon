@@ -54,7 +54,7 @@ impl ServerEntityMap {
         self.client_to_server.insert(client_entity, server_entity);
     }
 
-    pub(super) fn get_by_server_or_insert<'a>(
+    pub(super) fn get_by_server_or_insert(
         &mut self,
         server_entity: Entity,
         f: impl FnOnce() -> Entity,

@@ -291,7 +291,7 @@ impl InitMessage {
         shared_bytes: &mut Option<&'a [u8]>,
         serde_fns: &SerdeFns,
         command_fns: &CommandFns,
-        fns_id: SerdeFnsId,
+        serde_id: SerdeFnsId,
         ptr: Ptr,
     ) -> bincode::Result<()> {
         if self.entity_data_size == 0 {
@@ -299,7 +299,7 @@ impl InitMessage {
         }
 
         let size = write_with(shared_bytes, &mut self.cursor, |cursor| {
-            DefaultOptions::new().serialize_into(&mut *cursor, &fns_id)?;
+            DefaultOptions::new().serialize_into(&mut *cursor, &serde_id)?;
             unsafe { command_fns.read(serde_fns, ptr, cursor) }
         })?;
 
@@ -315,7 +315,7 @@ impl InitMessage {
     ///
     /// Should be called only inside an entity data and increases its size.
     /// See also [`Self::start_entity_data`].
-    pub(super) fn write_fns_id(&mut self, serde_id: SerdeFnsId) -> bincode::Result<()> {
+    pub(super) fn write_serde_id(&mut self, serde_id: SerdeFnsId) -> bincode::Result<()> {
         if self.entity_data_size == 0 {
             self.write_data_entity()?;
         }
@@ -518,7 +518,7 @@ impl UpdateMessage {
         shared_bytes: &mut Option<&'a [u8]>,
         serde_fns: &SerdeFns,
         command_fns: &CommandFns,
-        fns_id: SerdeFnsId,
+        serde_id: SerdeFnsId,
         ptr: Ptr,
     ) -> bincode::Result<()> {
         if self.entity_data_size == 0 {
@@ -526,7 +526,7 @@ impl UpdateMessage {
         }
 
         let size = write_with(shared_bytes, &mut self.cursor, |cursor| {
-            DefaultOptions::new().serialize_into(&mut *cursor, &fns_id)?;
+            DefaultOptions::new().serialize_into(&mut *cursor, &serde_id)?;
             unsafe { command_fns.read(serde_fns, ptr, cursor) }
         })?;
 

@@ -34,7 +34,7 @@ impl CommandFns {
 
     pub(crate) unsafe fn write(
         &self,
-        rule_fns: &SerdeFns,
+        serde_fns: &SerdeFns,
         commands: &mut Commands,
         entity: &mut EntityMut,
         cursor: &mut Cursor<&[u8]>,
@@ -42,7 +42,7 @@ impl CommandFns {
         replicon_tick: RepliconTick,
     ) -> bincode::Result<()> {
         (self.write)(
-            rule_fns,
+            serde_fns,
             commands,
             entity,
             cursor,
@@ -78,16 +78,16 @@ pub type RemoveFn = fn(EntityCommands, RepliconTick);
 ///
 /// `C` must be the erased pointee type for this [`Ptr`].
 unsafe fn read<C: Component>(
-    rule_fns: &SerdeFns,
+    serde_fns: &SerdeFns,
     ptr: Ptr,
     cursor: &mut Cursor<Vec<u8>>,
 ) -> bincode::Result<()> {
-    rule_fns.serialize(ptr.deref::<C>(), cursor)
+    serde_fns.serialize(ptr.deref::<C>(), cursor)
 }
 
 /// Default component writing function.
 unsafe fn write<C: Component>(
-    rule_fns: &SerdeFns,
+    serde_fns: &SerdeFns,
     commands: &mut Commands,
     entity: &mut EntityMut,
     cursor: &mut Cursor<&[u8]>,
@@ -100,9 +100,9 @@ unsafe fn write<C: Component>(
     };
 
     if let Some(mut component) = entity.get_mut::<C>() {
-        rule_fns.deserialize_in_place(&mut *component, cursor, &mut mapper)?;
+        serde_fns.deserialize_in_place(&mut *component, cursor, &mut mapper)?;
     } else {
-        let component: C = rule_fns.deserialize(cursor, &mut mapper)?;
+        let component: C = serde_fns.deserialize(cursor, &mut mapper)?;
         commands.entity(entity.id()).insert(component);
     }
 

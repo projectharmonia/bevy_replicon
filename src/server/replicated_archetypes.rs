@@ -83,7 +83,7 @@ impl ReplicatedArchetypes {
                     replicated_archetype.components.push(ReplicatedComponent {
                         component_id: serde_info.component_id(),
                         storage_type,
-                        fns_id: serde_info.serde_id(),
+                        serde_id: serde_info.serde_id(),
                     });
                 }
             }
@@ -124,7 +124,7 @@ impl ReplicatedArchetype {
 pub(super) struct ReplicatedComponent {
     pub(super) component_id: ComponentId,
     pub(super) storage_type: StorageType,
-    pub(super) fns_id: SerdeFnsId,
+    pub(super) serde_id: SerdeFnsId,
 }
 
 #[cfg(test)]

@@ -360,7 +360,7 @@ fn collect_changes(
                             &mut shared_bytes,
                             serde_fns,
                             command_fns,
-                            replicated_component.fns_id,
+                            replicated_component.serde_id,
                             component,
                         )?;
                     } else {
@@ -372,7 +372,7 @@ fn collect_changes(
                                 &mut shared_bytes,
                                 serde_fns,
                                 command_fns,
-                                replicated_component.fns_id,
+                                replicated_component.serde_id,
                                 component,
                             )?;
                         }
@@ -481,7 +481,7 @@ fn collect_removals(
             message.start_entity_data(entity);
             for serde_info in remove_ids {
                 client.set_change_limit(entity, tick);
-                message.write_fns_id(serde_info.serde_id())?;
+                message.write_serde_id(serde_info.serde_id())?;
             }
             message.end_entity_data(false)?;
         }
