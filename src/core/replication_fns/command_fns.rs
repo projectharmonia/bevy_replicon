@@ -110,7 +110,7 @@ unsafe fn write<C: Component>(
     };
 
     if let Some(mut component) = entity.get_mut::<C>() {
-        rule_fns.deserialize_in_place(&mut component, cursor, &mut mapper)?;
+        rule_fns.deserialize_in_place(&mut *component, cursor, &mut mapper)?;
     } else {
         let component: C = rule_fns.deserialize(cursor, &mut mapper)?;
         commands.entity(entity.id()).insert(component);
