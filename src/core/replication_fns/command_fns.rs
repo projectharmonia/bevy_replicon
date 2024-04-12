@@ -87,7 +87,7 @@ pub type RemoveFn = fn(EntityCommands, RepliconTick);
 /// # Safety
 ///
 /// `C` must be the erased pointee type for this [`Ptr`].
-unsafe fn read<C>(
+unsafe fn read<C: Component>(
     rule_fns: &SerdeFns,
     ptr: Ptr,
     cursor: &mut Cursor<Vec<u8>>,

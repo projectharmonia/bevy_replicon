@@ -15,7 +15,7 @@ pub struct SerdeFns {
 }
 
 impl SerdeFns {
-    pub(super) fn new<C>(
+    pub(super) fn new<C: Component>(
         commands_id: CommandFnsId,
         serialize: SerializeFn<C>,
         deserialize: DeserializeFn<C>,
@@ -29,7 +29,7 @@ impl SerdeFns {
         }
     }
 
-    pub unsafe fn serialize<C>(
+    pub unsafe fn serialize<C: Component>(
         &self,
         component: &C,
         cursor: &mut Cursor<Vec<u8>>,
@@ -38,7 +38,7 @@ impl SerdeFns {
         (serialize)(component, cursor)
     }
 
-    pub unsafe fn deserialize<C>(
+    pub unsafe fn deserialize<C: Component>(
         &self,
         cursor: &mut Cursor<&[u8]>,
         mapper: &mut ClientMapper,
@@ -47,7 +47,7 @@ impl SerdeFns {
         (deserialize)(cursor, mapper)
     }
 
-    pub unsafe fn deserialize_in_place<C>(
+    pub unsafe fn deserialize_in_place<C: Component>(
         &self,
         component: &mut C,
         cursor: &mut Cursor<&[u8]>,
