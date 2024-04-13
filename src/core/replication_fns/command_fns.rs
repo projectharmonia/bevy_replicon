@@ -16,12 +16,13 @@ pub(crate) struct CommandFns {
 }
 
 impl CommandFns {
-    pub(super) fn new<C: Component>() -> Self {
+    /// Creates a new instance with default functions and the specified number of empty marker function slots.
+    pub(super) fn new<C: Component>(marker_slots: usize) -> Self {
         Self {
             read: read::<C>,
             write: write::<C>,
             remove: remove::<C>,
-            markers: Default::default(),
+            markers: vec![None; marker_slots],
         }
     }
 

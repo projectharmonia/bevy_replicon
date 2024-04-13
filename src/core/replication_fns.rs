@@ -24,10 +24,16 @@ pub struct ReplicationFns {
     commands: Vec<(ComponentId, CommandFns)>,
 
     serde: Vec<(CommandFnsId, SerdeFns)>,
+
+    /// Number of registered markers.
+    ///
+    /// Used to initialize new [`CommandFns`] with the registered number of slots.
+    marker_slots: usize,
 }
 
 impl ReplicationFns {
     pub(super) fn add_marker_slots(&mut self, marker_id: CommandMarkerId) {
+        self.marker_slots += 1;
         for (_, command_fns) in &mut self.commands {
             command_fns.add_marker_slot(marker_id);
         }
@@ -93,7 +99,8 @@ impl ReplicationFns {
             .iter()
             .position(|&(id, _)| id == component_id)
             .unwrap_or_else(|| {
-                self.commands.push((component_id, CommandFns::new::<C>()));
+                self.commands
+                    .push((component_id, CommandFns::new::<C>(self.marker_slots)));
                 self.commands.len() - 1
             });
 
@@ -116,6 +123,7 @@ impl Default for ReplicationFns {
             despawn: despawn_recursive,
             commands: Default::default(),
             serde: Default::default(),
+            marker_slots: 0,
         }
     }
 }
