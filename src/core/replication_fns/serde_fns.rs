@@ -10,7 +10,10 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use crate::client::client_mapper::ClientMapper;
 
-/// Serialization and deserialization functions.
+/// Erased serialization and deserialization function pointers for a component.
+///
+/// Unlike [`CommandFns`](super::command_fns::CommandFns), registered for each
+/// [`ReplicationRule`](crate::core::replication_rules::ReplicationRule).
 pub struct SerdeFns {
     type_id: TypeId,
     type_name: &'static str,
@@ -21,6 +24,9 @@ pub struct SerdeFns {
 }
 
 impl SerdeFns {
+    /// Creates a new instance by erasing the passed function pointers.
+    ///
+    /// All other functions should be called with the same `C`.
     pub(super) fn new<C: Component>(
         serialize: SerializeFn<C>,
         deserialize: DeserializeFn<C>,
@@ -35,6 +41,11 @@ impl SerdeFns {
         }
     }
 
+    /// Serializes a component into a cursor.
+    ///
+    /// # Safety
+    ///
+    /// Should be called only with the same `C` as [`Self::new`]. Panics if `debug_assertions` enabled.
     pub unsafe fn serialize<C: Component>(
         &self,
         component: &C,
@@ -46,6 +57,11 @@ impl SerdeFns {
         (serialize)(component, cursor)
     }
 
+    /// Deserializes a component from a cursor.
+    ///
+    /// # Safety
+    ///
+    /// Should be called only with the same `C` as [`Self::new`]. Panics if `debug_assertions` enabled.
     pub unsafe fn deserialize<C: Component>(
         &self,
         cursor: &mut Cursor<&[u8]>,
@@ -57,6 +73,11 @@ impl SerdeFns {
         (deserialize)(cursor, mapper)
     }
 
+    /// Same as [`Self::deserialize`], but instead of returning a component, it updates the passed reference.
+    ///
+    /// # Safety
+    ///
+    /// Should be called only with the same `C` as [`Self::new`]. Panics if `debug_assertions` enabled.
     pub unsafe fn deserialize_in_place<C: Component>(
         &self,
         component: &mut C,
@@ -71,6 +92,7 @@ impl SerdeFns {
         (deserialize_in_place)(deserialize, component, cursor, mapper)
     }
 
+    /// Panics if a component differs from [`Self::new`].
     fn debug_type_check<C: Component>(&self) {
         debug_assert_eq!(
             self.type_id,
@@ -82,13 +104,13 @@ impl SerdeFns {
     }
 }
 
-/// Signature of component serialization functions.
+/// Signature of component serialization function.
 pub type SerializeFn<C> = fn(&C, &mut Cursor<Vec<u8>>) -> bincode::Result<()>;
 
-/// Signature of component deserialization functions.
+/// Signature of component deserialization function.
 pub type DeserializeFn<C> = fn(&mut Cursor<&[u8]>, &mut ClientMapper) -> bincode::Result<C>;
 
-/// Signature of component deserialization functions.
+/// Signature of component deserialization function.
 pub type DeserializeInPlaceFn<C> =
     fn(DeserializeFn<C>, &mut C, &mut Cursor<&[u8]>, &mut ClientMapper) -> bincode::Result<()>;
 
@@ -118,6 +140,9 @@ pub fn deserialize_mapped<C: Component + DeserializeOwned + MapEntities>(
     Ok(component)
 }
 
+/// Default component in-place deserialization function.
+///
+/// This implementation just calls default [`deserialize`].
 pub fn deserialize_in_place<C: Component + DeserializeOwned>(
     deserialize: DeserializeFn<C>,
     component: &mut C,
