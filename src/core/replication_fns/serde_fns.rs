@@ -1,4 +1,8 @@
-use std::{io::Cursor, mem};
+use std::{
+    any::{self, TypeId},
+    io::Cursor,
+    mem,
+};
 
 use bevy::{ecs::entity::MapEntities, prelude::*};
 use bincode::{DefaultOptions, Options};
@@ -6,7 +10,11 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use crate::client::client_mapper::ClientMapper;
 
+/// Serialization and deserialization functions.
 pub struct SerdeFns {
+    type_id: TypeId,
+    type_name: &'static str,
+
     serialize: unsafe fn(),
     deserialize: unsafe fn(),
     deserialize_in_place: unsafe fn(),
@@ -19,6 +27,8 @@ impl SerdeFns {
         deserialize_in_place: DeserializeInPlaceFn<C>,
     ) -> Self {
         Self {
+            type_id: TypeId::of::<C>(),
+            type_name: any::type_name::<C>(),
             serialize: unsafe { mem::transmute(serialize) },
             deserialize: unsafe { mem::transmute(deserialize) },
             deserialize_in_place: unsafe { mem::transmute(deserialize_in_place) },
@@ -30,6 +40,8 @@ impl SerdeFns {
         component: &C,
         cursor: &mut Cursor<Vec<u8>>,
     ) -> bincode::Result<()> {
+        self.debug_type_check::<C>();
+
         let serialize: SerializeFn<C> = mem::transmute(self.serialize);
         (serialize)(component, cursor)
     }
@@ -39,6 +51,8 @@ impl SerdeFns {
         cursor: &mut Cursor<&[u8]>,
         mapper: &mut ClientMapper,
     ) -> bincode::Result<C> {
+        self.debug_type_check::<C>();
+
         let deserialize: DeserializeFn<C> = mem::transmute(self.deserialize);
         (deserialize)(cursor, mapper)
     }
@@ -49,10 +63,22 @@ impl SerdeFns {
         cursor: &mut Cursor<&[u8]>,
         mapper: &mut ClientMapper,
     ) -> bincode::Result<()> {
+        self.debug_type_check::<C>();
+
         let deserialize_in_place: DeserializeInPlaceFn<C> =
             mem::transmute(self.deserialize_in_place);
         let deserialize: DeserializeFn<C> = mem::transmute(self.deserialize);
         (deserialize_in_place)(deserialize, component, cursor, mapper)
+    }
+
+    fn debug_type_check<C: Component>(&self) {
+        debug_assert_eq!(
+            self.type_id,
+            TypeId::of::<C>(),
+            "trying to call serde functions with {}, but they was created with {}",
+            any::type_name::<C>(),
+            self.type_name,
+        );
     }
 }
 
