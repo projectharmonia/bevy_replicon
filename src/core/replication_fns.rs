@@ -38,7 +38,7 @@ pub struct ReplicationFns {
 }
 
 impl ReplicationFns {
-    /// Registers marker for command functions.
+    /// Registers marker slot for command functions.
     ///
     /// Should be used after calling
     /// [`CommandMarkers::insert`](super::command_markers::CommandMarkers::insert)
