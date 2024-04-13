@@ -172,7 +172,7 @@ unsafe fn read<C: Component>(
 /// # Safety
 ///
 /// `serde_fns` should have been created for the same `C`.
-unsafe fn write<C: Component>(
+pub unsafe fn write<C: Component>(
     serde_fns: &SerdeFns,
     commands: &mut Commands,
     entity: &mut EntityMut,
@@ -196,6 +196,6 @@ unsafe fn write<C: Component>(
 }
 
 /// Default component removal function.
-fn remove<C: Component>(mut entity_commands: EntityCommands, _replicon_tick: RepliconTick) {
+pub fn remove<C: Component>(mut entity_commands: EntityCommands, _replicon_tick: RepliconTick) {
     entity_commands.remove::<C>();
 }

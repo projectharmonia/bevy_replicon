@@ -67,7 +67,7 @@ impl ReplicatedArchetypes {
                                 })
                                 .collect();
 
-                            debug!("ignoring component `{component_name}` with priority {} for archetype with `{component_names:?}`", rule.priority);
+                            debug!("ignoring component `{component_name}` with priority {} for archetype with `{component_names:?}`", rule.priority());
                         }
 
                         continue;

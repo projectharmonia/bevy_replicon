@@ -16,15 +16,24 @@ pub trait AppMarkerExt {
     ///
     /// Can be used to override how component will be written or removed based on marker presence.
     /// For details see [`Self::register_marker_fns`].
-    fn register_marker<M: Component>(&mut self, priority: usize) -> &mut Self;
+    ///
+    /// This function registers marker with priority equal to 0.
+    /// Use [`Self::register_marker_with_priority`] to if you have multiple
+    /// markers affecting the same component.
+    fn register_marker<M: Component>(&mut self) -> &mut Self;
+
+    /// Same as [`Self::register_marker`], but allows to set a priority.
+    ///
+    /// By
+    fn register_marker_with_priority<M: Component>(&mut self, priority: usize) -> &mut Self;
 
     /**
     Associates command functions with a marker.
 
     If this component is present on an entity and its priority is the highest,
     then these functions will be called for this component during replication
-    instead of default [`write`](super::replicaton_fns::write) and
-    [`remove`](super::replicaton_fns::remove).
+    instead of default [`write`](super::replication_fns::command_fns::write) and
+    [`remove`](super::replication_fns::command_fns::remove).
 
     # Examples
 
@@ -32,19 +41,24 @@ pub trait AppMarkerExt {
     `ComponentHistory<Transform>` if it present.
 
     ```
+    use std::io::Cursor;
+
     use bevy::prelude::*;
     use bevy_replicon::{
-        client::client_mapper::ServerEntityMap,
-        core::replication_fns::{self, ComponentFns, command_fns},
+        client::client_mapper::{ClientMapper, ServerEntityMap},
+        core::{
+            replication_fns::{command_fns, serde_fns::SerdeFns},
+            replicon_tick::RepliconTick,
+        },
         prelude::*,
     };
 
     # let mut app = App::new();
     # app.add_plugins(RepliconPlugins);
-    app.register_marker::<ComponentMarker>();
+    app.register_marker::<ComponentHistory<Transform>>();
     app.register_marker_fns::<Transform, ComponentHistory<Transform>>(
-        write_history,
-        command_fns::remove,
+        write_history::<Transform>,
+        command_fns::remove::<Transform>,
     );
 
     /// Instead of writing into a component directly, it writes data into [`ComponentHistory<C>`].
@@ -65,7 +79,9 @@ pub trait AppMarkerExt {
         if let Some(mut history) = entity.get_mut::<ComponentHistory<C>>() {
             history.push(component);
         } else {
-            commands.entity(entity.id()).insert(ComponentHistory(vec![component]));
+            commands
+                .entity(entity.id())
+                .insert(ComponentHistory(vec![component]));
         }
 
         Ok(())
@@ -86,7 +102,11 @@ pub trait AppMarkerExt {
 }
 
 impl AppMarkerExt for App {
-    fn register_marker<M: Component>(&mut self, priority: usize) -> &mut Self {
+    fn register_marker<M: Component>(&mut self) -> &mut Self {
+        self.register_marker_with_priority::<M>(0)
+    }
+
+    fn register_marker_with_priority<M: Component>(&mut self, priority: usize) -> &mut Self {
         let component_id = self.world.init_component::<M>();
         let mut command_markers = self.world.resource_mut::<CommandMarkers>();
         let marker_id = command_markers.insert(CommandMarker {

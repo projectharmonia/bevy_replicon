@@ -11,9 +11,6 @@ use serde::{de::DeserializeOwned, Serialize};
 use crate::client::client_mapper::ClientMapper;
 
 /// Erased serialization and deserialization function pointers for a component.
-///
-/// Unlike [`CommandFns`](super::command_fns::CommandFns), registered for each
-/// [`ReplicationRule`](crate::core::replication_rules::ReplicationRule).
 pub struct SerdeFns {
     type_id: TypeId,
     type_name: &'static str,
@@ -45,7 +42,7 @@ impl SerdeFns {
     ///
     /// # Safety
     ///
-    /// Should be called only with the same `C` as [`Self::new`]. Panics if `debug_assertions` enabled.
+    /// Must only be called with the same `C` with which it was created.
     pub unsafe fn serialize<C: Component>(
         &self,
         component: &C,
@@ -61,7 +58,7 @@ impl SerdeFns {
     ///
     /// # Safety
     ///
-    /// Should be called only with the same `C` as [`Self::new`]. Panics if `debug_assertions` enabled.
+    /// Must only be called with the same `C` with which it was created.
     pub unsafe fn deserialize<C: Component>(
         &self,
         cursor: &mut Cursor<&[u8]>,
@@ -77,7 +74,7 @@ impl SerdeFns {
     ///
     /// # Safety
     ///
-    /// Should be called only with the same `C` as [`Self::new`]. Panics if `debug_assertions` enabled.
+    /// Must only be called with the same `C` with which it was created.
     pub unsafe fn deserialize_in_place<C: Component>(
         &self,
         component: &mut C,

@@ -24,7 +24,7 @@ pub trait AppRuleExt {
     ///
     /// If your component contains any [`Entity`] inside, use [`Self::replicate_mapped`].
     ///
-    /// See also [`ComponentFns::default_fns`].
+    /// See also [`Self::replicate_with`].
     fn replicate<C>(&mut self) -> &mut Self
     where
         C: Component + Serialize + DeserializeOwned,
@@ -40,7 +40,7 @@ pub trait AppRuleExt {
     ///
     /// Always use it for components that contain entities.
     ///
-    /// See also [`ComponentFns::default_mapped_fns`].
+    /// See also [`Self::replicate`].
     fn replicate_mapped<C>(&mut self) -> &mut Self
     where
         C: Component + Serialize + DeserializeOwned + MapEntities,
@@ -54,76 +54,53 @@ pub trait AppRuleExt {
     }
 
     /**
-    Same as [`Self::replicate`], but uses the specified functions for serialization, deserialization, and removal.
+    Same as [`Self::replicate`], but uses the specified functions for serialization and deserialization.
 
-    Can be used to customize how the component will be replicated or
+    Can be used to customize how the component will be passed over the network or
     for components that don't implement [`Serialize`] or [`DeserializeOwned`].
 
-    # Safety
+    `deserialize_in_place` will be called on receive if a component is already present.
+    By default it just calls the registered `deserialize` function.
+    But it could be used to optimize deserialization of components that require allocations.
 
-    Caller must ensure the following:
-    - Component `C` can be safely passed as [`Ptr`](bevy::ptr::Ptr) to [`ComponentFns::serialize`].
-    - [`ComponentFns::write`] can be safely called with [`ComponentFns::deserialize`].
+    You can also override how the component will be written,
+    see [`AppMarkerExt`](super::command_markers::AppMarkerExt).
 
     # Examples
 
     ```
-    use std::{io::Cursor, mem::MaybeUninit};
+    use std::io::Cursor;
 
-    use bevy::{
-        prelude::*,
-        ptr::{PtrMut, Ptr},
-    };
+    use bevy::prelude::*;
     use bevy_replicon::{
-        client::client_mapper::ServerEntityMap,
-        core::replication_fns::{self, ComponentFns},
-        prelude::*,
+        client::client_mapper::ClientMapper, core::replication_fns::serde_fns, prelude::*,
     };
 
     # let mut app = App::new();
     # app.add_plugins(RepliconPlugins);
-    // SAFETY: `serialize_translation` can be safely called with `Transform` as `Ptr`
-    // and `deserialize_translation` can be used with the default write function.
-    unsafe {
-        app.replicate_with::<Transform>(ComponentFns {
-            serialize: serialize_translation,
-            deserialize: deserialize_translation,
-            write: replication_fns::write::<Transform>,
-            remove: replication_fns::remove::<Transform>,
-        });
-    }
+    app.replicate_with::<Transform>(
+        serialize_translation,
+        deserialize_translation,
+        serde_fns::deserialize_in_place, // Use default function which just calls `deserialize_translation`.
+    );
 
     /// Serializes only `translation` from [`Transform`].
-    ///
-    /// # Safety
-    ///
-    /// [`Transform`] must be the erased pointee type for this [`Ptr`].
-    unsafe fn serialize_translation(ptr: Ptr, cursor: &mut Cursor<Vec<u8>>) -> bincode::Result<()> {
-        let transform: &Transform = ptr.deref();
+    fn serialize_translation(
+        transform: &Transform,
+        cursor: &mut Cursor<Vec<u8>>,
+    ) -> bincode::Result<()> {
         bincode::serialize_into(cursor, &transform.translation)
     }
 
     /// Deserializes `translation` and creates [`Transform`] from it.
-    ///
-    /// # Safety
-    ///
-    /// [`MaybeUninit<Transform>`] must be the erased pointee type for this [`Ptr`].
-    unsafe fn deserialize_translation(
-        _entity: &mut EntityWorldMut,
-        ptr: PtrMut,
+    fn deserialize_translation(
         cursor: &mut Cursor<&[u8]>,
-        _entity_map: &mut ServerEntityMap,
-    ) -> bincode::Result<()> {
+        _mapper: &mut ClientMapper,
+    ) -> bincode::Result<Transform> {
         let translation: Vec3 = bincode::deserialize_from(cursor)?;
-        *ptr.deref_mut() = MaybeUninit::new(translation);
-
-        Ok(())
+        Ok(Transform::from_translation(translation))
     }
     ```
-
-    The [`write`](super::replication_fns::write) and [`remove`](super::replication_fns::remove) functions
-    used in this example are the default component writing and removal functions,
-    but you can replace them with your own as well.
     */
     fn replicate_with<C>(
         &mut self,
@@ -141,7 +118,7 @@ pub trait AppRuleExt {
 
     If a group contains a single component, it will work the same as [`Self::replicate`].
 
-    If an entity matches multiple groups, functions from a group with higher [priority](ReplicationRule::priority)
+    If an entity matches multiple groups, functions from a group with higher priority
     will take precedence for overlapping components. For example, a rule with [`Transform`]
     and a `Player` marker will take precedence over a single [`Transform`] rule.
 
@@ -234,23 +211,22 @@ pub struct ReplicationRule {
     ///
     /// Usually equal to the number of serialized components,
     /// but can be adjusted by the user.
-    pub priority: usize,
+    priority: usize,
 
     /// Rule components and their serialization/deserialization/removal functions.
     components: Vec<FnsInfo>,
 }
 
 impl ReplicationRule {
-    /// Creates a new rule with priority equal to the number of serialized components.
-    ///
-    /// # Safety
-    ///
-    /// Caller must ensure the following for each pair:
-    /// - Associated component can be safely passed as [`Ptr`](bevy::ptr::Ptr) to [`ComponentFns::serialize`].
-    /// - In associated functions [`ComponentFns::write`] can be safely called with [`ComponentFns::deserialize`].
+    /// Creates a new rule with priority equal to the number of serializable components.
     pub fn new(components: Vec<FnsInfo>) -> Self {
+        Self::with_priority(components.len(), components)
+    }
+
+    /// Like [`Self::new`], but allows to set a priority different from the number of serializable components.
+    pub fn with_priority(priority: usize, components: Vec<FnsInfo>) -> Self {
         Self {
-            priority: components.len(),
+            priority,
             components,
         }
     }
@@ -258,6 +234,11 @@ impl ReplicationRule {
     /// Returns associated components and functions IDs.
     pub(crate) fn components(&self) -> &[FnsInfo] {
         &self.components
+    }
+
+    /// Returns associated priority.
+    pub(crate) fn priority(&self) -> usize {
+        self.priority
     }
 
     /// Determines whether an archetype contains all components required by the rule.
@@ -301,15 +282,12 @@ Can be implemented on any struct to create a custom replication group.
 ```
 use std::io::Cursor;
 
-use bevy::{
-    prelude::*,
-    ptr::{PtrMut, Ptr},
-};
+use bevy::prelude::*;
 use bevy_replicon::{
-    client::client_mapper::ServerEntityMap,
+    client::client_mapper::ClientMapper,
     core::{
-        replication_rules::{self, GroupReplication, ReplicationRule},
-        replication_fns::{self, ReplicationFns, ComponentFns},
+        replication_fns::{serde_fns, ReplicationFns},
+        replication_rules::{GroupReplication, ReplicationRule},
     },
     prelude::*,
 };
@@ -332,37 +310,26 @@ struct Player;
 impl GroupReplication for PlayerBundle {
     fn register(world: &mut World, replication_fns: &mut ReplicationFns) -> ReplicationRule {
         // Customize serlialization to serialize only `translation`.
-        let transform_id = world.init_component::<Transform>();
-        let transform_fns_id = replication_fns.register_component_fns(ComponentFns {
-            // For function definitions see the example from `AppRuleExt::replicate_with`.
-            serialize: serialize_translation,
-            deserialize: deserialize_translation,
-            // Use default write and removal functions.
-            write: replication_fns::write::<Transform>,
-            remove: replication_fns::remove::<Transform>,
-        });
+        let transform_info = replication_fns.register_serde_fns(
+            world,
+            serialize_translation,
+            deserialize_translation,
+            serde_fns::deserialize_in_place,
+        );
 
         // Serialize `player` as usual.
-        let visibility_id = world.init_component::<Player>();
-        let visibility_fns_id =
-            replication_fns.register_component_fns(ComponentFns::default_fns::<Player>());
+        let player_info = replication_fns.register_default_serde_fns::<Player>(world);
 
         // We skip `replication` registration since it's a special component.
         // It's automatically inserted on clients after replication and
         // deserialization from scenes.
 
-        let components = vec![
-            (transform_id, transform_fns_id),
-            (visibility_id, visibility_fns_id),
-        ];
-
-        // SAFETY: all pairs consists of default functions for the same component.
-        unsafe { ReplicationRule::new(components) }
+        ReplicationRule::new(vec![transform_info, player_info])
     }
 }
 
-# fn serialize_translation(_: Ptr, _: &mut Cursor<Vec<u8>>) -> bincode::Result<()> { unimplemented!() }
-# fn deserialize_translation(_: &mut EntityWorldMut, _: PtrMut, _: &mut Cursor<&[u8]>, _: &mut ServerEntityMap) -> bincode::Result<()> { unimplemented!() }
+# fn serialize_translation(_: &Transform, _: &mut Cursor<Vec<u8>>) -> bincode::Result<()> { unimplemented!() }
+# fn deserialize_translation(_: &mut Cursor<&[u8]>, _: &mut ClientMapper) -> bincode::Result<Transform> { unimplemented!() }
 ```
 **/
 pub trait GroupReplication {
