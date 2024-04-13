@@ -462,6 +462,7 @@ pub mod prelude {
             ClientPlugin, ClientSet,
         },
         core::{
+            command_markers::AppMarkerExt,
             common_conditions::*,
             replication_rules::AppReplicationExt,
             replicon_channels::{ChannelKind, RepliconChannel, RepliconChannels},

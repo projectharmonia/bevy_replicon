@@ -4,8 +4,8 @@ pub mod serde_fns;
 use bevy::{ecs::component::ComponentId, prelude::*};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use super::replicon_tick::RepliconTick;
-use command_fns::CommandFns;
+use super::{command_markers::CommandMarkerId, replicon_tick::RepliconTick};
+use command_fns::{CommandFns, RemoveFn, WriteFn};
 use serde_fns::{DeserializeFn, DeserializeInPlaceFn, SerdeFns, SerializeFn};
 
 /// Stores configurable replication functions.
@@ -24,6 +24,24 @@ pub struct ReplicationFns {
 }
 
 impl ReplicationFns {
+    pub(super) fn add_marker_slot(&mut self, marker_id: CommandMarkerId) {
+        for (_, command_fns) in &mut self.commands {
+            command_fns.add_marker_slot(marker_id);
+        }
+    }
+
+    pub(super) fn register_marker_fns<C: Component>(
+        &mut self,
+        world: &mut World,
+        marker_id: CommandMarkerId,
+        write: WriteFn,
+        remove: RemoveFn,
+    ) {
+        let (_, commands_id) = self.init_command_fns::<C>(world);
+        let (_, command_fns) = unsafe { self.commands.get_unchecked_mut(commands_id.0) };
+        command_fns.set_marker_fns(marker_id, write, remove);
+    }
+
     pub fn register_default_serde_fns<C: Component + Serialize + DeserializeOwned>(
         &mut self,
         world: &mut World,
@@ -43,8 +61,18 @@ impl ReplicationFns {
         deserialize: DeserializeFn<C>,
         deserialize_in_place: DeserializeInPlaceFn<C>,
     ) -> SerdeInfo {
-        let component_id = world.init_component::<C>();
+        let (component_id, commands_id) = self.init_command_fns::<C>(world);
+        let serde_fns = SerdeFns::new(serialize, deserialize, deserialize_in_place);
+        self.serde.push((commands_id, serde_fns));
 
+        SerdeInfo {
+            component_id,
+            serde_id: SerdeFnsId(self.serde.len() - 1),
+        }
+    }
+
+    fn init_command_fns<C: Component>(&mut self, world: &mut World) -> (ComponentId, CommandFnsId) {
+        let component_id = world.init_component::<C>();
         let index = self
             .commands
             .iter()
@@ -54,14 +82,7 @@ impl ReplicationFns {
                 self.commands.len() - 1
             });
 
-        let serde_fns = SerdeFns::new(serialize, deserialize, deserialize_in_place);
-
-        self.serde.push((CommandFnsId(index), serde_fns));
-
-        SerdeInfo {
-            component_id,
-            serde_id: SerdeFnsId(self.serde.len() - 1),
-        }
+        (component_id, CommandFnsId(index))
     }
 
     pub(crate) fn fns(&self, serde_id: SerdeFnsId) -> (&SerdeFns, &CommandFns) {

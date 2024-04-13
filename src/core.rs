@@ -1,3 +1,4 @@
+pub mod command_markers;
 pub mod common_conditions;
 pub mod replication_fns;
 pub mod replication_rules;

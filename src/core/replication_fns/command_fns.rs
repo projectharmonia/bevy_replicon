@@ -5,13 +5,14 @@ use bevy::{ecs::system::EntityCommands, prelude::*, ptr::Ptr};
 use super::serde_fns::SerdeFns;
 use crate::{
     client::client_mapper::{ClientMapper, ServerEntityMap},
-    core::replicon_tick::RepliconTick,
+    core::{command_markers::CommandMarkerId, replicon_tick::RepliconTick},
 };
 
 pub(crate) struct CommandFns {
     read: ReadFn,
     write: WriteFn,
     remove: RemoveFn,
+    markers: Vec<Option<(WriteFn, RemoveFn)>>,
 }
 
 impl CommandFns {
@@ -20,7 +21,25 @@ impl CommandFns {
             read: read::<C>,
             write: write::<C>,
             remove: remove::<C>,
+            markers: Default::default(),
         }
+    }
+
+    pub(super) fn add_marker_slot(&mut self, marker_id: CommandMarkerId) {
+        self.markers.insert(*marker_id, None);
+    }
+
+    pub(super) fn set_marker_fns(
+        &mut self,
+        marker_id: CommandMarkerId,
+        write: WriteFn,
+        remove: RemoveFn,
+    ) {
+        let fns = self
+            .markers
+            .get_mut(*marker_id)
+            .unwrap_or_else(|| panic!("command fns should have a slot for {marker_id:?}"));
+        *fns = Some((write, remove));
     }
 
     pub(crate) unsafe fn read(
@@ -35,13 +54,19 @@ impl CommandFns {
     pub(crate) unsafe fn write(
         &self,
         serde_fns: &SerdeFns,
+        entity_markers: &[bool],
         commands: &mut Commands,
         entity: &mut EntityMut,
         cursor: &mut Cursor<&[u8]>,
         entity_map: &mut ServerEntityMap,
         replicon_tick: RepliconTick,
     ) -> bincode::Result<()> {
-        (self.write)(
+        let write = self
+            .marker_fns(entity_markers)
+            .map(|(write, _)| write)
+            .unwrap_or(self.write);
+
+        (write)(
             serde_fns,
             commands,
             entity,
@@ -51,8 +76,25 @@ impl CommandFns {
         )
     }
 
-    pub(crate) fn remove(&self, entity_commands: EntityCommands, replicon_tick: RepliconTick) {
-        (self.remove)(entity_commands, replicon_tick)
+    pub(crate) fn remove(
+        &self,
+        entity_markers: &[bool],
+        entity_commands: EntityCommands,
+        replicon_tick: RepliconTick,
+    ) {
+        let remove = self
+            .marker_fns(entity_markers)
+            .map(|(_, remove)| remove)
+            .unwrap_or(self.remove);
+
+        (remove)(entity_commands, replicon_tick)
+    }
+
+    fn marker_fns(&self, entity_markers: &[bool]) -> Option<(WriteFn, RemoveFn)> {
+        self.markers
+            .iter()
+            .zip(entity_markers)
+            .find_map(|(fns, &enabled)| fns.filter(|_| enabled))
     }
 }
 
