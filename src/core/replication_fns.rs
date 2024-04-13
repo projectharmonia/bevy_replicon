@@ -21,9 +21,9 @@ pub struct ReplicationFns {
     pub despawn: DespawnFn,
 
     /// Registered functions for replicated components.
-    commands: Vec<(ComponentId, CommandFns)>,
+    commands: Vec<(CommandFns, ComponentId)>,
 
-    serde: Vec<(usize, SerdeFns)>,
+    serde: Vec<(SerdeFns, usize)>,
 
     /// Number of registered markers.
     ///
@@ -34,7 +34,7 @@ pub struct ReplicationFns {
 impl ReplicationFns {
     pub(super) fn add_marker_slots(&mut self, marker_id: CommandMarkerId) {
         self.marker_slots += 1;
-        for (_, command_fns) in &mut self.commands {
+        for (command_fns, _) in &mut self.commands {
             command_fns.add_marker_slot(marker_id);
         }
     }
@@ -47,7 +47,7 @@ impl ReplicationFns {
         remove: RemoveFn,
     ) {
         let (index, _) = self.init_command_fns::<C>(world);
-        let (_, command_fns) = unsafe { self.commands.get_unchecked_mut(index) };
+        let (command_fns, _) = unsafe { self.commands.get_unchecked_mut(index) };
         command_fns.set_marker_fns(marker_id, write, remove);
     }
 
@@ -84,7 +84,7 @@ impl ReplicationFns {
     ) -> SerdeInfo {
         let (index, component_id) = self.init_command_fns::<C>(world);
         let serde_fns = SerdeFns::new(serialize, deserialize, deserialize_in_place);
-        self.serde.push((index, serde_fns));
+        self.serde.push((serde_fns, index));
 
         SerdeInfo {
             component_id,
@@ -97,10 +97,10 @@ impl ReplicationFns {
         let index = self
             .commands
             .iter()
-            .position(|&(id, _)| id == component_id)
+            .position(|&(_, id)| id == component_id)
             .unwrap_or_else(|| {
                 self.commands
-                    .push((component_id, CommandFns::new::<C>(self.marker_slots)));
+                    .push((CommandFns::new::<C>(self.marker_slots), component_id));
                 self.commands.len() - 1
             });
 
@@ -108,11 +108,11 @@ impl ReplicationFns {
     }
 
     pub(crate) fn get(&self, serde_id: SerdeFnsId) -> (&SerdeFns, &CommandFns) {
-        let (index, serde_fns) = self
+        let (serde_fns, index) = self
             .serde
             .get(serde_id.0)
             .expect("serde function IDs should be obtained from the same instance");
-        let (_, command_fns) = unsafe { self.commands.get_unchecked(*index) };
+        let (command_fns, _) = unsafe { self.commands.get_unchecked(*index) };
         (serde_fns, command_fns)
     }
 }
