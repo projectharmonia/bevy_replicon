@@ -23,7 +23,7 @@ pub struct ReplicationFns {
     /// Registered functions for replicated components.
     commands: Vec<(ComponentId, CommandFns)>,
 
-    serde: Vec<(CommandFnsId, SerdeFns)>,
+    serde: Vec<(usize, SerdeFns)>,
 
     /// Number of registered markers.
     ///
@@ -46,8 +46,8 @@ impl ReplicationFns {
         write: WriteFn,
         remove: RemoveFn,
     ) {
-        let (_, commands_id) = self.init_command_fns::<C>(world);
-        let (_, command_fns) = unsafe { self.commands.get_unchecked_mut(commands_id.0) };
+        let (index, _) = self.init_command_fns::<C>(world);
+        let (_, command_fns) = unsafe { self.commands.get_unchecked_mut(index) };
         command_fns.set_marker_fns(marker_id, write, remove);
     }
 
@@ -82,9 +82,9 @@ impl ReplicationFns {
         deserialize: DeserializeFn<C>,
         deserialize_in_place: DeserializeInPlaceFn<C>,
     ) -> SerdeInfo {
-        let (component_id, commands_id) = self.init_command_fns::<C>(world);
+        let (index, component_id) = self.init_command_fns::<C>(world);
         let serde_fns = SerdeFns::new(serialize, deserialize, deserialize_in_place);
-        self.serde.push((commands_id, serde_fns));
+        self.serde.push((index, serde_fns));
 
         SerdeInfo {
             component_id,
@@ -92,7 +92,7 @@ impl ReplicationFns {
         }
     }
 
-    fn init_command_fns<C: Component>(&mut self, world: &mut World) -> (ComponentId, CommandFnsId) {
+    fn init_command_fns<C: Component>(&mut self, world: &mut World) -> (usize, ComponentId) {
         let component_id = world.init_component::<C>();
         let index = self
             .commands
@@ -104,15 +104,15 @@ impl ReplicationFns {
                 self.commands.len() - 1
             });
 
-        (component_id, CommandFnsId(index))
+        (index, component_id)
     }
 
     pub(crate) fn get(&self, serde_id: SerdeFnsId) -> (&SerdeFns, &CommandFns) {
-        let (commands_id, serde_fns) = self
+        let (index, serde_fns) = self
             .serde
             .get(serde_id.0)
             .expect("serde function IDs should be obtained from the same instance");
-        let (_, command_fns) = unsafe { self.commands.get_unchecked(commands_id.0) };
+        let (_, command_fns) = unsafe { self.commands.get_unchecked(*index) };
         (serde_fns, command_fns)
     }
 }
@@ -143,12 +143,6 @@ impl SerdeInfo {
         self.serde_id
     }
 }
-
-/// Represents ID of [`ComponentFns`].
-///
-/// Can be obtained from [`ReplicationFns::register_component_fns`].
-#[derive(Clone, Copy, Deserialize, Eq, Hash, PartialEq, Serialize)]
-struct CommandFnsId(usize);
 
 /// Represents ID of [`ComponentFns`].
 ///
