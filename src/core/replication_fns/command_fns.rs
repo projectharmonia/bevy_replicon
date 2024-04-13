@@ -8,6 +8,13 @@ use crate::{
     core::{command_markers::CommandMarkerId, replicon_tick::RepliconTick},
 };
 
+/// Functions that operate on components like [`Commands`].
+///
+/// Unlike [`SerdeFns`], registered for each component type instead of
+/// [`ReplicationRule`](crate::core::replication_rules::ReplicationRule).
+///
+/// User can override default functions per-entity by providing a marker,
+/// see [`CommandMarkers`](crate::core::command_markers::CommandMarkers)
 pub(crate) struct CommandFns {
     read: ReadFn,
     write: WriteFn,
@@ -26,10 +33,18 @@ impl CommandFns {
         }
     }
 
+    /// Adds new empty slot for a marker.
+    ///
+    /// Use [`Self::set_marker_fns`] to assign functions to it.
     pub(super) fn add_marker_slot(&mut self, marker_id: CommandMarkerId) {
         self.markers.insert(*marker_id, None);
     }
 
+    /// Assigns functions to a marker slots.
+    ///
+    /// # Panics
+    ///
+    /// Panics if there is no such slot for the marker. Use [`Self::add_marker_slot`] to assign.
     pub(super) fn set_marker_fns(
         &mut self,
         marker_id: CommandMarkerId,
@@ -43,6 +58,14 @@ impl CommandFns {
         *fns = Some((write, remove));
     }
 
+    /// Calls [`read`] for component that was used with [`Self::new`].
+    ///
+    /// It's a non-overridable function that used to just restore the erased type from [`Ptr`].
+    /// To customize serialization behavior, [`SerdeFns`] should be used instead.
+    ///
+    /// # Safety
+    ///
+    /// `ptr` and `serde_fns` should have been created for the same `C`.
     pub(crate) unsafe fn read(
         &self,
         serde_fns: &SerdeFns,
@@ -52,6 +75,17 @@ impl CommandFns {
         (self.read)(serde_fns, ptr, cursor)
     }
 
+    /// Calls assigned writing function based on entity markers.
+    ///
+    /// Entity markers stores information about which marker is present on an entity.
+    /// The function will pick first assigned write function whose marker is present on the entity.
+    /// If there is no such function, it will use the default [`write`].
+    ///
+    /// See also [`Self::set_marker_fns`].
+    ///
+    /// # Safety
+    ///
+    /// `serde_fns` should have been created for the same `C`.
     pub(crate) unsafe fn write(
         &self,
         serde_fns: &SerdeFns,
@@ -77,6 +111,7 @@ impl CommandFns {
         )
     }
 
+    /// Same as [`Self::write`], but calls assigned remove function.
     pub(crate) fn remove(
         &self,
         entity_markers: &[bool],
@@ -91,6 +126,7 @@ impl CommandFns {
         (remove)(entity_commands, replicon_tick)
     }
 
+    /// Picks assigned functions based on markers present on an entity.
     fn marker_fns(&self, entity_markers: &[bool]) -> Option<(WriteFn, RemoveFn)> {
         self.markers
             .iter()
@@ -115,7 +151,7 @@ pub type WriteFn = unsafe fn(
 /// Signature of component removal functions.
 pub type RemoveFn = fn(EntityCommands, RepliconTick);
 
-/// Default component serialization function.
+/// Dereferences a component from a pointer and calls passed serialization function.
 ///
 /// # Safety
 ///
@@ -129,6 +165,13 @@ unsafe fn read<C: Component>(
 }
 
 /// Default component writing function.
+///
+/// If such a component did not exist, it will be deserialized with [`SerdeFns::deserialize`] and added as a command.
+/// If such a component exists, [`SerdeFns::deserialize_in_place`] will be used directly on entity's component.
+///
+/// # Safety
+///
+/// `serde_fns` should have been created for the same `C`.
 unsafe fn write<C: Component>(
     serde_fns: &SerdeFns,
     commands: &mut Commands,
