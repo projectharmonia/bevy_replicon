@@ -1,7 +1,10 @@
 pub mod command_fns;
 pub mod serde_fns;
 
-use bevy::{ecs::component::ComponentId, prelude::*};
+use bevy::{
+    ecs::{component::ComponentId, entity::MapEntities},
+    prelude::*,
+};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use super::{command_markers::CommandMarkerId, replicon_tick::RepliconTick};
@@ -42,14 +45,26 @@ impl ReplicationFns {
         command_fns.set_marker_fns(marker_id, write, remove);
     }
 
-    pub fn register_default_serde<C: Component + Serialize + DeserializeOwned>(
-        &mut self,
-        world: &mut World,
-    ) -> SerdeInfo {
+    pub fn register_default_serde<C>(&mut self, world: &mut World) -> SerdeInfo
+    where
+        C: Component + Serialize + DeserializeOwned,
+    {
         self.register_serde(
             world,
             serde_fns::serialize::<C>,
             serde_fns::deserialize::<C>,
+            serde_fns::deserialize_in_place::<C>,
+        )
+    }
+
+    pub fn register_default_mapped_serde<C>(&mut self, world: &mut World) -> SerdeInfo
+    where
+        C: Component + Serialize + DeserializeOwned + MapEntities,
+    {
+        self.register_serde(
+            world,
+            serde_fns::serialize::<C>,
+            serde_fns::deserialize_mapped::<C>,
             serde_fns::deserialize_in_place::<C>,
         )
     }

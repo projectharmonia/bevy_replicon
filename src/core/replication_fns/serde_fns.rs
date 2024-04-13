@@ -142,7 +142,7 @@ pub fn deserialize_mapped<C: Component + DeserializeOwned + MapEntities>(
 
 /// Default component in-place deserialization function.
 ///
-/// This implementation just calls default [`deserialize`].
+/// This implementation just assigns value from the passed deserialization function.
 pub fn deserialize_in_place<C: Component + DeserializeOwned>(
     deserialize: DeserializeFn<C>,
     component: &mut C,
