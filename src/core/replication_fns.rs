@@ -24,13 +24,13 @@ pub struct ReplicationFns {
 }
 
 impl ReplicationFns {
-    pub(super) fn add_marker_slot(&mut self, marker_id: CommandMarkerId) {
+    pub(super) fn add_marker_slots(&mut self, marker_id: CommandMarkerId) {
         for (_, command_fns) in &mut self.commands {
             command_fns.add_marker_slot(marker_id);
         }
     }
 
-    pub(super) fn register_marker_fns<C: Component>(
+    pub(super) fn register_marker<C: Component>(
         &mut self,
         world: &mut World,
         marker_id: CommandMarkerId,
@@ -42,11 +42,11 @@ impl ReplicationFns {
         command_fns.set_marker_fns(marker_id, write, remove);
     }
 
-    pub fn register_default_serde_fns<C: Component + Serialize + DeserializeOwned>(
+    pub fn register_default_serde<C: Component + Serialize + DeserializeOwned>(
         &mut self,
         world: &mut World,
     ) -> SerdeInfo {
-        self.register_serde_fns(
+        self.register_serde(
             world,
             serde_fns::serialize::<C>,
             serde_fns::deserialize::<C>,
@@ -54,7 +54,7 @@ impl ReplicationFns {
         )
     }
 
-    pub fn register_serde_fns<C: Component>(
+    pub fn register_serde<C: Component>(
         &mut self,
         world: &mut World,
         serialize: SerializeFn<C>,
@@ -85,7 +85,7 @@ impl ReplicationFns {
         (component_id, CommandFnsId(index))
     }
 
-    pub(crate) fn fns(&self, serde_id: SerdeFnsId) -> (&SerdeFns, &CommandFns) {
+    pub(crate) fn get(&self, serde_id: SerdeFnsId) -> (&SerdeFns, &CommandFns) {
         let (commands_id, serde_fns) = self
             .serde
             .get(serde_id.0)

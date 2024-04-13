@@ -189,7 +189,7 @@ impl AppReplicationExt for App {
         let rule = self
             .world
             .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| {
-                let serde_info = replication_fns.register_serde_fns(
+                let serde_info = replication_fns.register_serde(
                     world,
                     serialize,
                     deserialize,

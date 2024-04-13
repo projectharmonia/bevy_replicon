@@ -26,7 +26,7 @@ impl AppMarkerExt for App {
         });
 
         let mut replicaton_fns = self.world.resource_mut::<ReplicationFns>();
-        replicaton_fns.add_marker_slot(marker_id);
+        replicaton_fns.add_marker_slots(marker_id);
 
         self
     }
@@ -41,7 +41,7 @@ impl AppMarkerExt for App {
         let marker_id = command_markers.marker_id(component_id);
         self.world
             .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| {
-                replication_fns.register_marker_fns::<C>(world, marker_id, write, remove);
+                replication_fns.register_marker::<C>(world, marker_id, write, remove);
             });
 
         self
