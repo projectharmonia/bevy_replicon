@@ -48,7 +48,7 @@ impl AppMarkerExt for App {
     }
 }
 
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub(crate) struct CommandMarkers(Vec<CommandMarker>);
 
 impl CommandMarkers {

@@ -89,24 +89,27 @@ impl ClientPlugin {
             world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
                 world.resource_scope(|world, mut entity_ticks: Mut<ServerEntityTicks>| {
                     world.resource_scope(|world, mut buffered_updates: Mut<BufferedUpdates>| {
-                        world.resource_scope(|world, replication_fns: Mut<ReplicationFns>| {
-                            let mut stats = world.remove_resource::<ClientStats>();
-                            apply_replication(
-                                world,
-                                state,
-                                &mut client,
-                                &mut entity_map,
-                                &mut entity_ticks,
-                                &mut buffered_updates,
-                                stats.as_mut(),
-                                &replication_fns,
-                            )?;
+                        world.resource_scope(|world, command_markers: Mut<CommandMarkers>| {
+                            world.resource_scope(|world, replication_fns: Mut<ReplicationFns>| {
+                                let mut stats = world.remove_resource::<ClientStats>();
+                                apply_replication(
+                                    world,
+                                    state,
+                                    &mut client,
+                                    &mut entity_map,
+                                    &mut entity_ticks,
+                                    &mut buffered_updates,
+                                    stats.as_mut(),
+                                    &command_markers,
+                                    &replication_fns,
+                                )?;
 
-                            if let Some(stats) = stats {
-                                world.insert_resource(stats);
-                            }
+                                if let Some(stats) = stats {
+                                    world.insert_resource(stats);
+                                }
 
-                            Ok(())
+                                Ok(())
+                            })
                         })
                     })
                 })
@@ -138,6 +141,7 @@ fn apply_replication(
     entity_ticks: &mut ServerEntityTicks,
     buffered_updates: &mut BufferedUpdates,
     mut stats: Option<&mut ClientStats>,
+    command_markers: &CommandMarkers,
     replication_fns: &ReplicationFns,
 ) -> Result<(), Box<bincode::ErrorKind>> {
     while let Some(message) = client.receive(ReplicationChannel::Init) {
@@ -148,6 +152,7 @@ fn apply_replication(
             entity_map,
             entity_ticks,
             stats.as_deref_mut(),
+            command_markers,
             replication_fns,
         )?;
     }
@@ -162,6 +167,7 @@ fn apply_replication(
             entity_ticks,
             buffered_updates,
             stats.as_deref_mut(),
+            command_markers,
             replication_fns,
             replicon_tick,
         )?;
@@ -183,6 +189,7 @@ fn apply_replication(
             entity_map,
             entity_ticks,
             stats.as_deref_mut(),
+            command_markers,
             replication_fns,
             update.message_tick,
         ) {
@@ -204,6 +211,7 @@ fn apply_init_message(
     entity_map: &mut ServerEntityMap,
     entity_ticks: &mut ServerEntityTicks,
     mut stats: Option<&mut ClientStats>,
+    command_markers: &CommandMarkers,
     replication_fns: &ReplicationFns,
 ) -> bincode::Result<()> {
     let end_pos: u64 = message.len().try_into().unwrap();
@@ -244,6 +252,7 @@ fn apply_init_message(
         entity_ticks,
         stats.as_deref_mut(),
         ComponentsKind::Removal,
+        command_markers,
         replication_fns,
         replicon_tick,
     )?;
@@ -259,6 +268,7 @@ fn apply_init_message(
         entity_ticks,
         stats,
         ComponentsKind::Insert,
+        command_markers,
         replication_fns,
         replicon_tick,
     )?;
@@ -280,6 +290,7 @@ fn apply_update_message(
     entity_ticks: &mut ServerEntityTicks,
     buffered_updates: &mut BufferedUpdates,
     mut stats: Option<&mut ClientStats>,
+    command_markers: &CommandMarkers,
     replication_fns: &ReplicationFns,
     replicon_tick: RepliconTick,
 ) -> bincode::Result<u16> {
@@ -309,6 +320,7 @@ fn apply_update_message(
         entity_map,
         entity_ticks,
         stats,
+        command_markers,
         replication_fns,
         message_tick,
     )?;
@@ -352,20 +364,22 @@ fn apply_init_components(
     entity_ticks: &mut ServerEntityTicks,
     mut stats: Option<&mut ClientStats>,
     components_kind: ComponentsKind,
+    command_markers: &CommandMarkers,
     replication_fns: &ReplicationFns,
     replicon_tick: RepliconTick,
 ) -> bincode::Result<()> {
     let entities_len: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..entities_len {
-        let entity = deserialize_entity(cursor)?;
+        let server_entity = deserialize_entity(cursor)?;
         let data_size: u16 = bincode::deserialize_from(&mut *cursor)?;
 
-        let entity = entity_map.get_by_server_or_insert(entity, || world.spawn(Replication).id());
-        entity_ticks.insert(entity, replicon_tick);
+        let client_entity =
+            entity_map.get_by_server_or_insert(server_entity, || world.spawn(Replication).id());
+        entity_ticks.insert(client_entity, replicon_tick);
 
-        let (mut entity_markers, mut commands, command_markers, mut query) = state.get_mut(world);
-        let mut entity = query.get_mut(entity).unwrap();
-        entity_markers.extend(command_markers.iter_contains(&entity));
+        let (mut entity_markers, mut commands, mut query) = state.get_mut(world);
+        let mut server_entity = query.get_mut(client_entity).unwrap();
+        entity_markers.extend(command_markers.iter_contains(&server_entity));
 
         let end_pos = cursor.position() + data_size as u64;
         let mut components_len = 0u32;
@@ -380,22 +394,26 @@ fn apply_init_components(
                         serde_fns,
                         &entity_markers,
                         &mut commands,
-                        &mut entity,
+                        &mut server_entity,
                         cursor,
                         entity_map,
                         replicon_tick,
                     )?
                 },
-                ComponentsKind::Removal => {
-                    command_fns.remove(&entity_markers, commands.entity(entity.id()), replicon_tick)
-                }
+                ComponentsKind::Removal => command_fns.remove(
+                    &entity_markers,
+                    commands.entity(server_entity.id()),
+                    replicon_tick,
+                ),
             }
             components_len += 1;
         }
+
         if let Some(stats) = &mut stats {
             stats.entities_changed += 1;
             stats.components_changed += components_len;
         }
+
         entity_markers.clear();
         state.apply(world);
     }
@@ -444,34 +462,34 @@ fn apply_update_components(
     entity_map: &mut ServerEntityMap,
     entity_ticks: &mut ServerEntityTicks,
     mut stats: Option<&mut ClientStats>,
+    command_markers: &CommandMarkers,
     replication_fns: &ReplicationFns,
     message_tick: RepliconTick,
 ) -> bincode::Result<()> {
     let message_end = cursor.get_ref().len() as u64;
     while cursor.position() < message_end {
-        let entity = deserialize_entity(cursor)?;
+        let server_entity = deserialize_entity(cursor)?;
         let data_size: u16 = bincode::deserialize_from(&mut *cursor)?;
 
-        let Some(entity) = entity_map.get_by_server(entity) else {
+        let Some(client_entity) = entity_map.get_by_server(server_entity) else {
             // Update could arrive after a despawn from init message.
-            debug!("ignoring update received for unknown server's {entity:?}");
+            debug!("ignoring update received for unknown server's {server_entity:?}");
             cursor.set_position(cursor.position() + data_size as u64);
             continue;
         };
         let entity_tick = entity_ticks
-            .get_mut(&entity)
+            .get_mut(&client_entity)
             .expect("all entities from update should have assigned ticks");
         if message_tick <= *entity_tick {
-            trace!("ignoring outdated update for client's {entity:?}");
+            trace!("ignoring outdated update for client's {client_entity:?}");
             cursor.set_position(cursor.position() + data_size as u64);
             continue;
         }
         *entity_tick = message_tick;
 
-        let entity = entity_map.get_by_server_or_insert(entity, || world.spawn(Replication).id());
-        let (mut entity_markers, mut commands, command_markers, mut query) = state.get_mut(world);
-        let mut entity = query.get_mut(entity).unwrap();
-        entity_markers.extend(command_markers.iter_contains(&entity));
+        let (mut entity_markers, mut commands, mut query) = state.get_mut(world);
+        let mut client_entity = query.get_mut(client_entity).unwrap();
+        entity_markers.extend(command_markers.iter_contains(&client_entity));
 
         let end_pos = cursor.position() + data_size as u64;
         let mut components_count = 0u32;
@@ -483,7 +501,7 @@ fn apply_update_components(
                     serde_fns,
                     &entity_markers,
                     &mut commands,
-                    &mut entity,
+                    &mut client_entity,
                     cursor,
                     entity_map,
                     message_tick,
@@ -491,10 +509,12 @@ fn apply_update_components(
             }
             components_count += 1;
         }
+
         if let Some(stats) = &mut stats {
             stats.entities_changed += 1;
             stats.components_changed += components_count;
         }
+
         entity_markers.clear();
         state.apply(world);
     }
@@ -523,7 +543,6 @@ fn deserialize_entity(cursor: &mut Cursor<&[u8]>) -> bincode::Result<Entity> {
 type ReceiveState<'w, 's> = SystemState<(
     Local<'s, Vec<bool>>,
     Commands<'w, 's>,
-    Res<'w, CommandMarkers>,
     Query<'w, 's, EntityMut<'w>>,
 )>;
 

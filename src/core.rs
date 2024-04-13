@@ -6,12 +6,13 @@ pub mod replicon_channels;
 pub mod replicon_tick;
 
 use bevy::prelude::*;
+use serde::{Deserialize, Serialize};
 
+use command_markers::CommandMarkers;
 use replication_fns::ReplicationFns;
 use replication_rules::ReplicationRules;
 use replicon_channels::RepliconChannels;
 use replicon_tick::RepliconTick;
-use serde::{Deserialize, Serialize};
 
 pub struct RepliconCorePlugin;
 
@@ -21,7 +22,8 @@ impl Plugin for RepliconCorePlugin {
             .init_resource::<RepliconTick>()
             .init_resource::<RepliconChannels>()
             .init_resource::<ReplicationFns>()
-            .init_resource::<ReplicationRules>();
+            .init_resource::<ReplicationRules>()
+            .init_resource::<CommandMarkers>();
     }
 }
 
