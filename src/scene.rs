@@ -77,7 +77,7 @@ pub fn replicate_into(scene: &mut DynamicScene, world: &World) {
             for component_id in rule
                 .components()
                 .iter()
-                .map(|serde_info| serde_info.component_id())
+                .map(|fns_info| fns_info.component_id())
             {
                 // SAFETY: replication rules can be registered only with valid component IDs.
                 let replicated_component =

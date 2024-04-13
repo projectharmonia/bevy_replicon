@@ -384,8 +384,8 @@ fn apply_init_components(
         let end_pos = cursor.position() + data_size as u64;
         let mut components_len = 0u32;
         while cursor.position() < end_pos {
-            let serde_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
-            let (serde_fns, command_fns) = replication_fns.get(serde_id);
+            let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
+            let (serde_fns, command_fns) = replication_fns.get(fns_id);
             match components_kind {
                 ComponentsKind::Insert => unsafe {
                     // SAFETY: User ensured that the registered write function can
@@ -494,8 +494,8 @@ fn apply_update_components(
         let end_pos = cursor.position() + data_size as u64;
         let mut components_count = 0u32;
         while cursor.position() < end_pos {
-            let serde_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
-            let (serde_fns, command_fns) = replication_fns.get(serde_id);
+            let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
+            let (serde_fns, command_fns) = replication_fns.get(fns_id);
             unsafe {
                 command_fns.write(
                     serde_fns,

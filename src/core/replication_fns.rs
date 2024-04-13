@@ -20,9 +20,15 @@ pub struct ReplicationFns {
     /// Useful if you need to intercept despawns and handle them in a special way.
     pub despawn: DespawnFn,
 
-    /// Registered functions for replicated components.
+    /// Read/write/remove functions for replicated components.
+    ///
+    /// Unique for each component.
     commands: Vec<(CommandFns, ComponentId)>,
 
+    /// Serialization/deserialization functions for a component and
+    /// index of its [`CommandFns`].
+    ///
+    /// Can be registered multiple times for the same component.
     serde: Vec<(SerdeFns, usize)>,
 
     /// Number of registered markers.
@@ -32,14 +38,23 @@ pub struct ReplicationFns {
 }
 
 impl ReplicationFns {
-    pub(super) fn add_marker_slots(&mut self, marker_id: CommandMarkerId) {
+    /// Registers marker for command functions.
+    ///
+    /// Should be used after calling
+    /// [`CommandMarkers::insert`](super::command_markers::CommandMarkers::insert)
+    pub(super) fn register_marker(&mut self, marker_id: CommandMarkerId) {
         self.marker_slots += 1;
         for (command_fns, _) in &mut self.commands {
             command_fns.add_marker_slot(marker_id);
         }
     }
 
-    pub(super) fn register_marker<C: Component>(
+    /// Associates command functions with a marker.
+    ///
+    /// # Panics
+    ///
+    /// Panics if marker wasn't registered. Use [`Self::register_marker`] first.
+    pub(super) fn register_marker_fns<C: Component>(
         &mut self,
         world: &mut World,
         marker_id: CommandMarkerId,
@@ -47,15 +62,21 @@ impl ReplicationFns {
         remove: RemoveFn,
     ) {
         let (index, _) = self.init_command_fns::<C>(world);
+
+        // SAFETY: index obtained from `Self::init_command_fns` is always valid.
         let (command_fns, _) = unsafe { self.commands.get_unchecked_mut(index) };
+
         command_fns.set_marker_fns(marker_id, write, remove);
     }
 
-    pub fn register_default_serde<C>(&mut self, world: &mut World) -> SerdeInfo
+    /// Same as [`Self::register_serde_fns`], but uses default functions for a component.
+    ///
+    /// If your component contains any [`Entity`] inside, use [`Self::register_default_serde_fns`].
+    pub fn register_default_serde_fns<C>(&mut self, world: &mut World) -> FnsInfo
     where
         C: Component + Serialize + DeserializeOwned,
     {
-        self.register_serde(
+        self.register_serde_fns(
             world,
             serde_fns::serialize::<C>,
             serde_fns::deserialize::<C>,
@@ -63,11 +84,16 @@ impl ReplicationFns {
         )
     }
 
-    pub fn register_default_mapped_serde<C>(&mut self, world: &mut World) -> SerdeInfo
+    /// Same as [`Self::register_serde_fns`], but uses default functions for a mapped component.
+    ///
+    /// Always use it for components that contain entities.
+    ///
+    /// See also [`Self::register_default_serde_fns`].
+    pub fn register_mapped_serde_fns<C>(&mut self, world: &mut World) -> FnsInfo
     where
         C: Component + Serialize + DeserializeOwned + MapEntities,
     {
-        self.register_serde(
+        self.register_serde_fns(
             world,
             serde_fns::serialize::<C>,
             serde_fns::deserialize_mapped::<C>,
@@ -75,23 +101,31 @@ impl ReplicationFns {
         )
     }
 
-    pub fn register_serde<C: Component>(
+    /// Registers serialization/deserialization functions for a component.
+    ///
+    /// Returned data can be assigned to a
+    /// [`ReplicationRule`](super::replication_rules::ReplicationRule)
+    pub fn register_serde_fns<C: Component>(
         &mut self,
         world: &mut World,
         serialize: SerializeFn<C>,
         deserialize: DeserializeFn<C>,
         deserialize_in_place: DeserializeInPlaceFn<C>,
-    ) -> SerdeInfo {
+    ) -> FnsInfo {
         let (index, component_id) = self.init_command_fns::<C>(world);
         let serde_fns = SerdeFns::new(serialize, deserialize, deserialize_in_place);
         self.serde.push((serde_fns, index));
 
-        SerdeInfo {
+        FnsInfo {
             component_id,
-            serde_id: SerdeFnsId(self.serde.len() - 1),
+            fns_id: FnsId(self.serde.len() - 1),
         }
     }
 
+    /// Initializes [`CommandFns`] for a component and returns its index and ID.
+    ///
+    /// If a [`CommandFns`] has already been created for this component,
+    /// then it returns its index instead of creating a new one.
     fn init_command_fns<C: Component>(&mut self, world: &mut World) -> (usize, ComponentId) {
         let component_id = world.init_component::<C>();
         let index = self
@@ -107,12 +141,16 @@ impl ReplicationFns {
         (index, component_id)
     }
 
-    pub(crate) fn get(&self, serde_id: SerdeFnsId) -> (&SerdeFns, &CommandFns) {
+    /// Returns associates functions.
+    pub(crate) fn get(&self, fns_id: FnsId) -> (&SerdeFns, &CommandFns) {
         let (serde_fns, index) = self
             .serde
-            .get(serde_id.0)
+            .get(fns_id.0)
             .expect("serde function IDs should be obtained from the same instance");
+
+        // SAFETY: index obtained from `serde` is always valid.
         let (command_fns, _) = unsafe { self.commands.get_unchecked(*index) };
+
         (serde_fns, command_fns)
     }
 }
@@ -128,29 +166,32 @@ impl Default for ReplicationFns {
     }
 }
 
+/// IDs of registered replication function and its component.
+///
+/// Can be obtained from [`ReplicationFns::register_serde_fns`].
 #[derive(Clone, Copy)]
-pub struct SerdeInfo {
+pub struct FnsInfo {
     component_id: ComponentId,
-    serde_id: SerdeFnsId,
+    fns_id: FnsId,
 }
 
-impl SerdeInfo {
+impl FnsInfo {
     pub(crate) fn component_id(&self) -> ComponentId {
         self.component_id
     }
 
-    pub(crate) fn serde_id(&self) -> SerdeFnsId {
-        self.serde_id
+    pub(crate) fn fns_id(&self) -> FnsId {
+        self.fns_id
     }
 }
 
-/// Represents ID of [`ComponentFns`].
+/// ID of replicaton functions for a component.
 ///
-/// Can be obtained from [`ReplicationFns::register_component_fns`].
+/// Can be obtained from [`ReplicationFns::register_serde_fns`].
 #[derive(Clone, Copy, Deserialize, Eq, Hash, PartialEq, Serialize)]
-pub struct SerdeFnsId(usize);
+pub struct FnsId(usize);
 
-/// Signature of the entity despawn function.
+/// Signature of entity despawn function.
 pub type DespawnFn = fn(EntityWorldMut, RepliconTick);
 
 /// Default entity despawn function.

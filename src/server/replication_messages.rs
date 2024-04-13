@@ -15,7 +15,7 @@ use super::{
     ClientMapping, ConnectedClient,
 };
 use crate::core::{
-    replication_fns::{command_fns::CommandFns, serde_fns::SerdeFns, SerdeFnsId},
+    replication_fns::{command_fns::CommandFns, serde_fns::SerdeFns, FnsId},
     replicon_channels::ReplicationChannel,
     replicon_tick::RepliconTick,
 };
@@ -291,7 +291,7 @@ impl InitMessage {
         shared_bytes: &mut Option<&'a [u8]>,
         serde_fns: &SerdeFns,
         command_fns: &CommandFns,
-        serde_id: SerdeFnsId,
+        fns_id: FnsId,
         ptr: Ptr,
     ) -> bincode::Result<()> {
         if self.entity_data_size == 0 {
@@ -299,7 +299,7 @@ impl InitMessage {
         }
 
         let size = write_with(shared_bytes, &mut self.cursor, |cursor| {
-            DefaultOptions::new().serialize_into(&mut *cursor, &serde_id)?;
+            DefaultOptions::new().serialize_into(&mut *cursor, &fns_id)?;
             unsafe { command_fns.read(serde_fns, ptr, cursor) }
         })?;
 
@@ -315,13 +315,13 @@ impl InitMessage {
     ///
     /// Should be called only inside an entity data and increases its size.
     /// See also [`Self::start_entity_data`].
-    pub(super) fn write_serde_id(&mut self, serde_id: SerdeFnsId) -> bincode::Result<()> {
+    pub(super) fn write_fns_id(&mut self, fns_id: FnsId) -> bincode::Result<()> {
         if self.entity_data_size == 0 {
             self.write_data_entity()?;
         }
 
         let previous_pos = self.cursor.position();
-        DefaultOptions::new().serialize_into(&mut self.cursor, &serde_id)?;
+        DefaultOptions::new().serialize_into(&mut self.cursor, &fns_id)?;
 
         let id_size = self.cursor.position() - previous_pos;
         self.entity_data_size = self
@@ -518,7 +518,7 @@ impl UpdateMessage {
         shared_bytes: &mut Option<&'a [u8]>,
         serde_fns: &SerdeFns,
         command_fns: &CommandFns,
-        serde_id: SerdeFnsId,
+        fns_id: FnsId,
         ptr: Ptr,
     ) -> bincode::Result<()> {
         if self.entity_data_size == 0 {
@@ -526,7 +526,7 @@ impl UpdateMessage {
         }
 
         let size = write_with(shared_bytes, &mut self.cursor, |cursor| {
-            DefaultOptions::new().serialize_into(&mut *cursor, &serde_id)?;
+            DefaultOptions::new().serialize_into(&mut *cursor, &fns_id)?;
             unsafe { command_fns.read(serde_fns, ptr, cursor) }
         })?;
 

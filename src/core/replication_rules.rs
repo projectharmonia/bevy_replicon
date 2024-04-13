@@ -9,7 +9,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use super::replication_fns::{
     serde_fns::{self, DeserializeFn, DeserializeInPlaceFn, SerializeFn},
-    ReplicationFns, SerdeInfo,
+    FnsInfo, ReplicationFns,
 };
 
 /// Replication functions for [`App`].
@@ -189,13 +189,13 @@ impl AppReplicationExt for App {
         let rule = self
             .world
             .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| {
-                let serde_info = replication_fns.register_serde(
+                let fns_info = replication_fns.register_serde_fns(
                     world,
                     serialize,
                     deserialize,
                     deserialize_in_place,
                 );
-                ReplicationRule::new(vec![serde_info])
+                ReplicationRule::new(vec![fns_info])
             });
 
         self.world.resource_mut::<ReplicationRules>().insert(rule);
@@ -237,7 +237,7 @@ pub struct ReplicationRule {
     pub priority: usize,
 
     /// Rule components and their serialization/deserialization/removal functions.
-    components: Vec<SerdeInfo>,
+    components: Vec<FnsInfo>,
 }
 
 impl ReplicationRule {
@@ -248,7 +248,7 @@ impl ReplicationRule {
     /// Caller must ensure the following for each pair:
     /// - Associated component can be safely passed as [`Ptr`](bevy::ptr::Ptr) to [`ComponentFns::serialize`].
     /// - In associated functions [`ComponentFns::write`] can be safely called with [`ComponentFns::deserialize`].
-    pub fn new(components: Vec<SerdeInfo>) -> Self {
+    pub fn new(components: Vec<FnsInfo>) -> Self {
         Self {
             priority: components.len(),
             components,
@@ -256,7 +256,7 @@ impl ReplicationRule {
     }
 
     /// Returns associated components and functions IDs.
-    pub(crate) fn components(&self) -> &[SerdeInfo] {
+    pub(crate) fn components(&self) -> &[FnsInfo] {
         &self.components
     }
 
@@ -264,7 +264,7 @@ impl ReplicationRule {
     pub(crate) fn matches(&self, archetype: &Archetype) -> bool {
         self.components
             .iter()
-            .all(|serde_info| archetype.contains(serde_info.component_id()))
+            .all(|fns_info| archetype.contains(fns_info.component_id()))
     }
 
     /// Determines whether the rule is applicable to an archetype with removals included and contains at least one removal.
@@ -279,10 +279,10 @@ impl ReplicationRule {
         removed_components: &HashSet<ComponentId>,
     ) -> bool {
         let mut matches = false;
-        for serde_info in &self.components {
-            if removed_components.contains(&serde_info.component_id()) {
+        for fns_info in &self.components {
+            if removed_components.contains(&fns_info.component_id()) {
                 matches = true;
-            } else if !post_removal_archetype.contains(serde_info.component_id()) {
+            } else if !post_removal_archetype.contains(fns_info.component_id()) {
                 return false;
             }
         }
@@ -377,8 +377,8 @@ macro_rules! impl_registrations {
                 // TODO: initialize with capacity after stabilization: https://github.com/rust-lang/rust/pull/122808
                 let mut components = Vec::new();
                 $(
-                    let serde_info = replication_fns.register_default_serde_fns::<$type>(world);
-                    components.push(serde_info);
+                    let fns_info = replication_fns.register_default_serde_fns::<$type>(world);
+                    components.push(fns_info);
                 )*
 
                 ReplicationRule::new(components)
