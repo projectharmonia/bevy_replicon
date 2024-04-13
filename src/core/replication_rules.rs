@@ -13,7 +13,7 @@ use super::replication_fns::{
 };
 
 /// Replication functions for [`App`].
-pub trait AppReplicationExt {
+pub trait AppRuleExt {
     /// Creates a replication rule for a single component.
     ///
     /// The component will be replicated if its entity contains the [`Replication`](super::Replication)
@@ -176,7 +176,7 @@ pub trait AppReplicationExt {
     fn replicate_group<C: GroupReplication>(&mut self) -> &mut Self;
 }
 
-impl AppReplicationExt for App {
+impl AppRuleExt for App {
     fn replicate_with<C>(
         &mut self,
         serialize: SerializeFn<C>,
@@ -334,7 +334,7 @@ impl GroupReplication for PlayerBundle {
         // Customize serlialization to serialize only `translation`.
         let transform_id = world.init_component::<Transform>();
         let transform_fns_id = replication_fns.register_component_fns(ComponentFns {
-            // For function definitions see the example from `AppReplicationExt::replicate_with`.
+            // For function definitions see the example from `AppRuleExt::replicate_with`.
             serialize: serialize_translation,
             deserialize: deserialize_translation,
             // Use default write and removal functions.
@@ -394,7 +394,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::{core::replication_fns::ReplicationFns, AppReplicationExt};
+    use crate::{core::replication_fns::ReplicationFns, AppRuleExt};
 
     #[test]
     fn sorting() {

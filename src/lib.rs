@@ -93,7 +93,7 @@ If you remove the [`Replication`] component from an entity on the server, it wil
 Components will be replicated only on entities marked for replication.
 By default no components are replicated.
 
-Use [`AppReplicationExt::replicate()`] to enable replication for a component:
+Use [`AppRuleExt::replicate()`] to enable replication for a component:
 
 ```
 # use bevy::prelude::*;
@@ -111,7 +111,7 @@ If your component contains an entity then it cannot be deserialized as is
 because entity IDs are different on server and client. The client should do the
 mapping. Therefore, to replicate such components properly, they need to implement
 the [`MapEntities`](bevy::ecs::entity::MapEntities) trait and register
-using [`AppReplicationExt::replicate_mapped()`]:
+using [`AppRuleExt::replicate_mapped()`]:
 
 ```
 # use bevy::{prelude::*, ecs::entity::{EntityMapper, MapEntities}};
@@ -130,10 +130,10 @@ impl MapEntities for MappedComponent {
 By default all components are serialized with [`bincode`] using [`DefaultOptions`](bincode::DefaultOptions).
 If your component doesn't implement serde traits or you want to serialize it partially
 (for example, only replicate the `translation` field from [`Transform`]),
-you can use [`AppReplicationExt::replicate_with`].
+you can use [`AppRuleExt::replicate_with`].
 
 If you want a group of components to be replicated only if all of them are present on an entity,
-you can use [`AppReplicationExt::replicate_group`].
+you can use [`AppRuleExt::replicate_group`].
 
 In order to serialize Bevy components you need to enable the `serialize` feature on Bevy.
 
@@ -464,7 +464,7 @@ pub mod prelude {
         core::{
             command_markers::AppMarkerExt,
             common_conditions::*,
-            replication_rules::AppReplicationExt,
+            replication_rules::AppRuleExt,
             replicon_channels::{ChannelKind, RepliconChannel, RepliconChannels},
             ClientId, Replication, RepliconCorePlugin,
         },

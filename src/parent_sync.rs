@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     client::ClientSet,
-    core::{common_conditions::has_authority, replication_rules::AppReplicationExt},
+    core::{common_conditions::has_authority, replication_rules::AppRuleExt},
     server::ServerSet,
 };
 

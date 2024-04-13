@@ -9,13 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `AppReplicationExt::replicate_group` and `GroupRegistration` trait to register and customize component groups.
+- `AppRuleExt::replicate_group` and `GroupRegistration` trait to register and customize component groups.
 - `ServerSet::StoreHierarchy` for systems that store hierarchy changes in `ParentSync`.
 - `ReplicationRule` that describes how a component or a group of components will be serialized, deserialized, written and removed.
 
 ### Changed
 
-- `AppReplicationExt::replicate_with` now accepts newly added `ReplicationFns` and the function is now `unsafe` (it was never "safe" before, caller had to make sure that used `C` can be passed to the serialization function).
+- Rename `AppReplicationExt` into `AppRuleExt`.
+- `AppRuleExt::replicate_with` now accepts newly added `ReplicationFns` and the function is now `unsafe` (it was never "safe" before, caller had to make sure that used `C` can be passed to the serialization function).
 - Move `Replication` to `core` module.
 - Move all functions-related logic from `ReplicationRules` into a new `ReplicationFns`.
 - Rename `serialize_component` into `serialize` and move into `replication_fns` module.
@@ -26,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- `dont_replicate` module. Use the newly added `AppReplicationExt::replicate_group` or newtypes.
+- `dont_replicate` module. Use the newly added `AppRuleExt::replicate_group` or newtypes.
 
 ## [0.24.1] - 2024-03-07
 

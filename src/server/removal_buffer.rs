@@ -205,9 +205,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        core::{
-            replication_fns::ReplicationFns, replication_rules::AppReplicationExt, Replication,
-        },
+        core::{replication_fns::ReplicationFns, replication_rules::AppRuleExt, Replication},
         server::replicon_server::RepliconServer,
     };
 
