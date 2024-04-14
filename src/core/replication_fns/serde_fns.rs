@@ -149,3 +149,33 @@ pub fn deserialize_in_place<C: Component + DeserializeOwned>(
     *component = (deserialize)(cursor, mapper)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use serde::Deserialize;
+
+    use super::*;
+
+    #[test]
+    #[should_panic]
+    fn packing() {
+        let serde_fns = SerdeFns::new(
+            serialize::<ComponentA>,
+            deserialize::<ComponentA>,
+            deserialize_in_place::<ComponentA>,
+        );
+
+        // SAFETY: Called with a different type, but should panic in debug mode.
+        unsafe {
+            serde_fns
+                .serialize(&ComponentB, &mut Cursor::default())
+                .ok();
+        }
+    }
+
+    #[derive(Component, Serialize, Deserialize)]
+    struct ComponentA;
+
+    #[derive(Component)]
+    struct ComponentB;
+}
