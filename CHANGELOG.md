@@ -9,21 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `AppRuleExt::replicate_group` and `GroupRegistration` trait to register and customize component groups.
+- `AppMarkerExt` to customize how components will be written based on markers present without overriding deserialization functions. Now third-party prediction crates could be integrated much easier.
+- `AppRuleExt::replicate_group` and `GroupRegistration` trait to register and customize component groups. A group will be replicated only if all its components present on an entity.
 - `ServerSet::StoreHierarchy` for systems that store hierarchy changes in `ParentSync`.
-- `ReplicationRule` that describes how a component or a group of components will be serialized, deserialized, written and removed.
 
 ### Changed
 
+- `SerializeFn` now accepts regular `C` instead of `Ptr`.
+- `DeserializeFn` now does only deserialization and returns `C`. Use the newly added marker-based API if you want to customize how component will be written. See docs for `AppMarkerExt` for details.
 - Rename `AppReplicationExt` into `AppRuleExt`.
-- `AppRuleExt::replicate_with` now accepts newly added `ReplicationFns` and the function is now `unsafe` (it was never "safe" before, caller had to make sure that used `C` can be passed to the serialization function).
+- `AppRuleExt::replicate_with` now no longer accepts `RemoveComponentFn`. Use the mentioned marker-based API to customize it instead.
+- `AppRuleExt::replicate_with` now additionally accepts `deserialize_in_place`. You can use it to customize deserialization if a component is already present or just pass `command_fns::deserialize_in_place` to make it fallback to the passed `deserialize`.
+- Writing to entities on client now done via `EntityMut` and `Commands` instead of `EntityWorldMut`. It was needed to support the mentioned in-place deserialization and will possibly allow batching insertions in the future (for details see https://github.com/bevyengine/bevy/issues/10154).
 - Move `Replication` to `core` module.
-- Move all functions-related logic from `ReplicationRules` into a new `ReplicationFns`.
-- Rename `serialize_component` into `serialize` and move into `replication_fns` module.
-- Rename `deserialize_component` into `deserialize` and move into `replication_fns` module.
-- Rename `remove_component` into `remove` and move into `replication_fns` module.
+- Move all functions-related logic from `ReplicationRules` into a new `ReplicationFns` and hide `ReplicationRules` from public API.
+- Rename `serialize_component` into `serialize` and move into `serde_fns` module.
+- Rename `deserialize_component` into `deserialize` and move into `serde_fns` module.
+- Rename `deserialize_mapped_component` into `deserialize_mapped` and move into `serde_fns` module.
+- Rename `remove_component` into `remove` and move into `command_fns` module.
 - Move `despawn_recursive` into `replication_fns` module.
-- Split writing logic from `deserialize` into separate `write` function to customize it independently and `write` calls `deserialize` inside it. Also `ServerEntityMap` and `Cursor<&[u8]>` arguments now swapped.
 
 ### Removed
 
