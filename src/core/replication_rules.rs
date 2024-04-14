@@ -371,8 +371,8 @@ mod tests {
             .replicate::<ComponentD>();
 
         let replication_rules = app.world.resource::<ReplicationRules>();
-        let lens: Vec<_> = replication_rules.iter().map(|rule| rule.priority).collect();
-        assert_eq!(lens, [2, 2, 1, 1, 1, 1]);
+        let priorities: Vec<_> = replication_rules.iter().map(|rule| rule.priority).collect();
+        assert_eq!(priorities, [2, 2, 1, 1, 1, 1]);
     }
 
     #[derive(Serialize, Deserialize, Component)]
