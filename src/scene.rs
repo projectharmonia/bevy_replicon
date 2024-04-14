@@ -17,16 +17,15 @@ or `#[reflect(Component)]` is missing.
 
 ```
 use bevy::{prelude::*, asset::ron, scene::serde::SceneDeserializer};
-use bevy_replicon::{core::replication_rules::ReplicationRules, prelude::*, scene};
+use bevy_replicon::{prelude::*, scene};
 use serde::de::DeserializeSeed;
-# let mut world = World::new();
-# world.init_resource::<AppTypeRegistry>();
-# world.init_resource::<ReplicationRules>();
+# let mut app = App::new();
+# app.add_plugins(RepliconPlugins);
 
 // Serialization
-let registry = world.resource::<AppTypeRegistry>();
+let registry = app.world.resource::<AppTypeRegistry>();
 let mut scene = DynamicScene::default();
-scene::replicate_into(&mut scene, &world);
+scene::replicate_into(&mut scene, &app.world);
 let scene = scene
     .serialize_ron(&registry)
     .expect("scene should be serialized");
@@ -41,7 +40,7 @@ let mut scene = scene_deserializer
     .deserialize(&mut deserializer)
     .expect("ron should be convertible to scene");
 
-// All saved entities should have `Replication` component.
+// Re-insert `Replication` component.
 for entity in &mut scene.entities {
     entity.components.push(Replication.clone_value());
 }
