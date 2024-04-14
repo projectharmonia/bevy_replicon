@@ -71,6 +71,10 @@ impl CommandFns {
     /// # Safety
     ///
     /// The caller must ensure that `ptr` and `serde_fns` was created for the same type as this instance.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `debug_assertions` enabled and `entity_markers` have different length then the number of marker slots.
     pub(crate) unsafe fn read(
         &self,
         serde_fns: &SerdeFns,
@@ -91,6 +95,10 @@ impl CommandFns {
     /// # Safety
     ///
     /// The caller must ensure that `serde_fns` was created for the same type as this instance.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `debug_assertions` enabled and `entity_markers` have different length then the number of marker slots.
     pub(crate) unsafe fn write(
         &self,
         serde_fns: &SerdeFns,
@@ -133,6 +141,12 @@ impl CommandFns {
 
     /// Picks assigned functions based on markers present on an entity.
     fn marker_fns(&self, entity_markers: &[bool]) -> Option<(WriteFn, RemoveFn)> {
+        debug_assert_eq!(
+            entity_markers.len(),
+            self.markers.len(),
+            "entity markers lenght and marker functions slots should match"
+        );
+
         self.markers
             .iter()
             .zip(entity_markers)
