@@ -200,3 +200,36 @@ struct CommandMarker {
 /// Can be obtained from [`CommandMarkers::insert`].
 #[derive(Clone, Copy, Deref, Debug)]
 pub(super) struct CommandMarkerId(usize);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::replication_fns::ReplicationFns;
+
+    #[test]
+    fn sorting() {
+        let mut app = App::new();
+        app.init_resource::<CommandMarkers>()
+            .init_resource::<ReplicationFns>()
+            .register_marker::<DummyMarkerA>()
+            .register_marker_with_priority::<DummyMarkerB>(2)
+            .register_marker_with_priority::<DummyMarkerC>(1)
+            .register_marker::<DummyMarkerD>();
+
+        let markers = app.world.resource::<CommandMarkers>();
+        let priorities: Vec<_> = markers.0.iter().map(|marker| marker.priority).collect();
+        assert_eq!(priorities, [2, 1, 0, 0]);
+    }
+
+    #[derive(Component)]
+    struct DummyMarkerA;
+
+    #[derive(Component)]
+    struct DummyMarkerB;
+
+    #[derive(Component)]
+    struct DummyMarkerC;
+
+    #[derive(Component)]
+    struct DummyMarkerD;
+}
