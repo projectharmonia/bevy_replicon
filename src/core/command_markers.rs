@@ -215,6 +215,7 @@ mod tests {
         app.init_resource::<CommandMarkers>()
             .init_resource::<ReplicationFns>();
 
+        // SAFETY: `write` can be safely called with a `SerdeFns` created for `DummyComponent`.
         unsafe {
             app.register_marker_fns::<DummyComponent, DummyMarkerA>(
                 command_fns::write::<DummyComponent>,
