@@ -10,6 +10,9 @@ use super::replication_fns::command_fns::{RemoveFn, WriteFn};
 ///
 /// Allows to customize behavior on client when receiving an update for server.
 ///
+/// We check markers on receive instead of archetypes because on client we don't
+/// know entity's archetype in advance.
+///
 /// Mostly needed for third-party crates then for end-users.
 pub trait AppMarkerExt {
     /// Registers component as a marker.
