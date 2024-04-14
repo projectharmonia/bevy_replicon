@@ -63,7 +63,7 @@ impl CommandFns {
         *fns = Some((write, remove));
     }
 
-    /// Calls [`read`] for component that was used with [`Self::new`].
+    /// Calls [`read`] on the type for which this instance was created.
     ///
     /// It's a non-overridable function that used to just restore the erased type from [`Ptr`].
     /// To customize serialization behavior, [`SerdeFns`] should be used instead.
