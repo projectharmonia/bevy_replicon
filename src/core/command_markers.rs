@@ -203,8 +203,25 @@ pub(super) struct CommandMarkerId(usize);
 
 #[cfg(test)]
 mod tests {
+    use serde::{Deserialize, Serialize};
+
     use super::*;
-    use crate::core::replication_fns::ReplicationFns;
+    use crate::core::replication_fns::{command_fns, ReplicationFns};
+
+    #[test]
+    #[should_panic]
+    fn non_registered_marker() {
+        let mut app = App::new();
+        app.init_resource::<CommandMarkers>()
+            .init_resource::<ReplicationFns>();
+
+        unsafe {
+            app.register_marker_fns::<DummyComponent, DummyMarkerA>(
+                command_fns::write::<DummyComponent>,
+                command_fns::remove::<DummyComponent>,
+            );
+        }
+    }
 
     #[test]
     fn sorting() {
@@ -232,4 +249,7 @@ mod tests {
 
     #[derive(Component)]
     struct DummyMarkerD;
+
+    #[derive(Component, Serialize, Deserialize)]
+    struct DummyComponent;
 }
