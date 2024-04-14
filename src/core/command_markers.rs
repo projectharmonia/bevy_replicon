@@ -74,7 +74,7 @@ pub trait AppMarkerExt {
     ///
     /// # Safety
     ///
-    /// The caller must ensure that passed [`SerdeFn`] was created for [`Transform`].
+    /// The caller must ensure that `serde_fns` was created for [`Transform`].
     unsafe fn write_history<C: Component>(
         serde_fns: &SerdeFns,
         commands: &mut Commands,
