@@ -23,8 +23,6 @@ pub trait AppMarkerExt {
     fn register_marker<M: Component>(&mut self) -> &mut Self;
 
     /// Same as [`Self::register_marker`], but allows to set a priority.
-    ///
-    /// By
     fn register_marker_with_priority<M: Component>(&mut self, priority: usize) -> &mut Self;
 
     /**
@@ -34,6 +32,11 @@ pub trait AppMarkerExt {
     then these functions will be called for this component during replication
     instead of default [`write`](super::replication_fns::command_fns::write) and
     [`remove`](super::replication_fns::command_fns::remove).
+
+    # Safety
+
+    The caller must ensure that passed `write` can be safely called with a
+    [`SerdeFns`](super::replication_fns::serde_fns::SerdeFns) created for `C`.
 
     # Examples
 
@@ -56,12 +59,19 @@ pub trait AppMarkerExt {
     # let mut app = App::new();
     # app.add_plugins(RepliconPlugins);
     app.register_marker::<ComponentHistory<Transform>>();
-    app.register_marker_fns::<Transform, ComponentHistory<Transform>>(
-        write_history::<Transform>,
-        command_fns::remove::<Transform>,
-    );
+    // SAFETY: `write_history` can be safely called with a `SerdeFns` created for `Transform`.
+    unsafe {
+        app.register_marker_fns::<Transform, ComponentHistory<Transform>>(
+            write_history::<Transform>,
+            command_fns::remove::<Transform>,
+        );
+    }
 
     /// Instead of writing into a component directly, it writes data into [`ComponentHistory<C>`].
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that passed [`SerdeFn`] was created for [`Transform`].
     unsafe fn write_history<C: Component>(
         serde_fns: &SerdeFns,
         commands: &mut Commands,
@@ -94,7 +104,7 @@ pub trait AppMarkerExt {
     struct ComponentHistory<C>(Vec<C>);
     ```
     **/
-    fn register_marker_fns<C: Component, M: Component>(
+    unsafe fn register_marker_fns<C: Component, M: Component>(
         &mut self,
         write: WriteFn,
         remove: RemoveFn,
@@ -120,7 +130,7 @@ impl AppMarkerExt for App {
         self
     }
 
-    fn register_marker_fns<C: Component, M: Component>(
+    unsafe fn register_marker_fns<C: Component, M: Component>(
         &mut self,
         write: WriteFn,
         remove: RemoveFn,
@@ -129,7 +139,8 @@ impl AppMarkerExt for App {
         let command_markers = self.world.resource::<CommandMarkers>();
         let marker_id = command_markers.marker_id(component_id);
         self.world
-            .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| {
+            .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| unsafe {
+                // SAFETY: The caller ensured that `write` can be safely called with a `SerdeFns` created for `C`.
                 replication_fns.register_marker_fns::<C>(world, marker_id, write, remove);
             });
 

@@ -388,8 +388,7 @@ fn apply_init_components(
             let (serde_fns, command_fns) = replication_fns.get(fns_id);
             match components_kind {
                 ComponentsKind::Insert => unsafe {
-                    // SAFETY: User ensured that the registered write function can
-                    // safely call its deserialize function.
+                    // SAFETY: `serde_fns` and `command_fns` was created for the same type.
                     command_fns.write(
                         serde_fns,
                         &entity_markers,
@@ -496,6 +495,7 @@ fn apply_update_components(
         while cursor.position() < end_pos {
             let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
             let (serde_fns, command_fns) = replication_fns.get(fns_id);
+            // SAFETY: `serde_fns` and `command_fns` was created for the same type.
             unsafe {
                 command_fns.write(
                     serde_fns,

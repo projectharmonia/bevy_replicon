@@ -21,7 +21,7 @@ pub struct SerdeFns {
 }
 
 impl SerdeFns {
-    /// Creates a new instance by erasing the passed function pointers.
+    /// Creates a new instance for `C` by erasing the passed function pointers.
     ///
     /// All other functions should be called with the same `C`.
     pub(super) fn new<C: Component>(
@@ -42,7 +42,7 @@ impl SerdeFns {
     ///
     /// # Safety
     ///
-    /// Must only be called with the same `C` with which it was created.
+    /// The caller must ensure that the function is called with the same `C` with which it was created.
     pub unsafe fn serialize<C: Component>(
         &self,
         component: &C,
@@ -58,7 +58,7 @@ impl SerdeFns {
     ///
     /// # Safety
     ///
-    /// Must only be called with the same `C` with which it was created.
+    /// The caller must ensure that the function is called with the same `C` with which it was created.
     pub unsafe fn deserialize<C: Component>(
         &self,
         cursor: &mut Cursor<&[u8]>,
@@ -74,7 +74,7 @@ impl SerdeFns {
     ///
     /// # Safety
     ///
-    /// Must only be called with the same `C` with which it was created.
+    /// The caller must ensure that the function is called with the same `C` with which it was created.
     pub unsafe fn deserialize_in_place<C: Component>(
         &self,
         component: &mut C,

@@ -45,7 +45,6 @@ pub trait AppRuleExt {
     where
         C: Component + Serialize + DeserializeOwned + MapEntities,
     {
-        // SAFETY: default functions for the same component.
         self.replicate_with::<C>(
             serde_fns::serialize::<C>,
             serde_fns::deserialize_mapped::<C>,

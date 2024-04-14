@@ -300,6 +300,7 @@ impl InitMessage {
 
         let size = write_with(shared_bytes, &mut self.cursor, |cursor| {
             DefaultOptions::new().serialize_into(&mut *cursor, &fns_id)?;
+            // SAFETY: `command_fns`, `ptr` and `serde_fns` was created for the same component type.
             unsafe { command_fns.read(serde_fns, ptr, cursor) }
         })?;
 
@@ -527,6 +528,7 @@ impl UpdateMessage {
 
         let size = write_with(shared_bytes, &mut self.cursor, |cursor| {
             DefaultOptions::new().serialize_into(&mut *cursor, &fns_id)?;
+            // SAFETY: `command_fns`, `ptr` and `serde_fns` was created for the same component type.
             unsafe { command_fns.read(serde_fns, ptr, cursor) }
         })?;
 

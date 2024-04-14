@@ -23,7 +23,7 @@ pub(crate) struct CommandFns {
 }
 
 impl CommandFns {
-    /// Creates a new instance with default functions and the specified number of empty marker function slots.
+    /// Creates a new instance for `C` with default functions and the specified number of empty marker function slots.
     pub(super) fn new<C: Component>(marker_slots: usize) -> Self {
         Self {
             read: read::<C>,
@@ -42,10 +42,15 @@ impl CommandFns {
 
     /// Assigns functions to a marker slots.
     ///
+    /// # Safety
+    ///
+    /// The caller must ensure that passed `write` can be safely called with a
+    /// [`SerdeFns`] created for the same type as this instance.
+    ///
     /// # Panics
     ///
     /// Panics if there is no such slot for the marker. Use [`Self::add_marker_slot`] to assign.
-    pub(super) fn set_marker_fns(
+    pub(super) unsafe fn set_marker_fns(
         &mut self,
         marker_id: CommandMarkerId,
         write: WriteFn,
@@ -65,7 +70,7 @@ impl CommandFns {
     ///
     /// # Safety
     ///
-    /// `ptr` and `serde_fns` should have been created for the same `C`.
+    /// The caller must ensure that `ptr` and `serde_fns` was created for the same type as this instance.
     pub(crate) unsafe fn read(
         &self,
         serde_fns: &SerdeFns,
@@ -85,7 +90,7 @@ impl CommandFns {
     ///
     /// # Safety
     ///
-    /// `serde_fns` should have been created for the same `C`.
+    /// The caller must ensure that `serde_fns` was created for the same type as this instance.
     pub(crate) unsafe fn write(
         &self,
         serde_fns: &SerdeFns,
@@ -155,7 +160,7 @@ pub type RemoveFn = fn(EntityCommands, RepliconTick);
 ///
 /// # Safety
 ///
-/// `C` must be the erased pointee type for this [`Ptr`].
+/// The caller must ensure that `ptr` and `serde_fns` was created for `C`.
 unsafe fn read<C: Component>(
     serde_fns: &SerdeFns,
     ptr: Ptr,
@@ -171,7 +176,7 @@ unsafe fn read<C: Component>(
 ///
 /// # Safety
 ///
-/// `serde_fns` should have been created for the same `C`.
+/// The caller must ensure that `serde_fns` was created for `C`.
 pub unsafe fn write<C: Component>(
     serde_fns: &SerdeFns,
     commands: &mut Commands,

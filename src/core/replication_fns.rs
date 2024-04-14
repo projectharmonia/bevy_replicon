@@ -51,10 +51,15 @@ impl ReplicationFns {
 
     /// Associates command functions with a marker.
     ///
+    /// # Safety
+    ///
+    /// The caller must ensure that passed `write` can be safely called with a
+    /// [`SerdeFns`] created for `C`.
+    ///
     /// # Panics
     ///
     /// Panics if marker wasn't registered. Use [`Self::register_marker`] first.
-    pub(super) fn register_marker_fns<C: Component>(
+    pub(super) unsafe fn register_marker_fns<C: Component>(
         &mut self,
         world: &mut World,
         marker_id: CommandMarkerId,
@@ -64,8 +69,10 @@ impl ReplicationFns {
         let (index, _) = self.init_command_fns::<C>(world);
 
         // SAFETY: index obtained from `Self::init_command_fns` is always valid.
-        let (command_fns, _) = unsafe { self.commands.get_unchecked_mut(index) };
+        let (command_fns, _) = self.commands.get_unchecked_mut(index);
 
+        // SAFETY: `command_fns` was created for `C` and the caller ensured
+        // that `write` can be safely called with a `SerdeFns` created for `C`.
         command_fns.set_marker_fns(marker_id, write, remove);
     }
 
