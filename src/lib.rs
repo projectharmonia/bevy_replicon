@@ -135,6 +135,9 @@ you can use [`AppRuleExt::replicate_with`].
 If you want a group of components to be replicated only if all of them are present on an entity,
 you can use [`AppRuleExt::replicate_group`].
 
+If you want to customize how the received component will be written or removed on clinet based
+on some marker component (for example, write a into a different component), see [`AppMarkerExt`].
+
 In order to serialize Bevy components you need to enable the `serialize` feature on Bevy.
 
 ### Tick and fixed timestep games
