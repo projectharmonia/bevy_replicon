@@ -205,3 +205,30 @@ pub type DespawnFn = fn(EntityWorldMut, RepliconTick);
 pub fn despawn_recursive(entity: EntityWorldMut, _replicon_tick: RepliconTick) {
     entity.despawn_recursive();
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn multiple_serde_fns() {
+        let mut world = World::new();
+        let mut replication_fns = ReplicationFns::default();
+        replication_fns.register_default_serde_fns::<DummyComponent>(&mut world);
+        replication_fns.register_mapped_serde_fns::<DummyComponent>(&mut world);
+
+        assert_eq!(replication_fns.serde.len(), 2);
+        assert_eq!(
+            replication_fns.commands.len(),
+            1,
+            "different serde registrations for the same component should result only in a single command functions instance"
+        );
+    }
+
+    #[derive(Component, Serialize, Deserialize)]
+    struct DummyComponent;
+
+    impl MapEntities for DummyComponent {
+        fn map_entities<M: EntityMapper>(&mut self, _entity_mapper: &mut M) {}
+    }
+}
