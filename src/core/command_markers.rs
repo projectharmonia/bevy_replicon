@@ -64,7 +64,7 @@ pub trait AppMarkerExt {
     app.register_marker::<ComponentHistory<Transform>>();
     // SAFETY: `write_history` can be safely called with a `SerdeFns` created for `Transform`.
     unsafe {
-        app.register_marker_fns::<Transform, ComponentHistory<Transform>>(
+        app.register_marker_fns::<ComponentHistory<Transform>, Transform>(
             write_history::<Transform>,
             command_fns::remove::<Transform>,
         );
@@ -107,7 +107,7 @@ pub trait AppMarkerExt {
     struct ComponentHistory<C>(Vec<C>);
     ```
     **/
-    unsafe fn register_marker_fns<C: Component, M: Component>(
+    unsafe fn register_marker_fns<M: Component, C: Component>(
         &mut self,
         write: WriteFn,
         remove: RemoveFn,
@@ -133,7 +133,7 @@ impl AppMarkerExt for App {
         self
     }
 
-    unsafe fn register_marker_fns<C: Component, M: Component>(
+    unsafe fn register_marker_fns<M: Component, C: Component>(
         &mut self,
         write: WriteFn,
         remove: RemoveFn,
@@ -220,7 +220,7 @@ mod tests {
 
         // SAFETY: `write` can be safely called with a `SerdeFns` created for `DummyComponent`.
         unsafe {
-            app.register_marker_fns::<DummyComponent, DummyMarkerA>(
+            app.register_marker_fns::<DummyMarkerA, DummyComponent>(
                 command_fns::write::<DummyComponent>,
                 command_fns::remove::<DummyComponent>,
             );
