@@ -1,6 +1,14 @@
+use std::io::Cursor;
+
 use bevy::{ecs::entity::MapEntities, prelude::*};
 use bevy_replicon::{
-    client::client_mapper::ServerEntityMap, prelude::*, test_app::ServerTestAppExt,
+    client::client_mapper::{ClientMapper, ServerEntityMap},
+    core::{
+        replication_fns::{command_fns, serde_fns::SerdeFns},
+        replicon_tick::RepliconTick,
+    },
+    prelude::*,
+    test_app::ServerTestAppExt,
 };
 use serde::{Deserialize, Serialize};
 
@@ -178,6 +186,64 @@ fn mapped_new_entity() {
 }
 
 #[test]
+fn marker() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .register_marker::<ReplaceMarker>()
+        .replicate::<OriginalComponent>();
+
+        // SAFETY: `write_history` can be safely called with a `SerdeFns` created for `OriginalComponent`.
+        unsafe {
+            app.register_marker_fns::<ReplaceMarker, OriginalComponent>(
+                replace,
+                command_fns::remove::<ReplacedComponent>,
+            );
+        }
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    let server_entity = server_app.world.spawn(Replication).id();
+    let client_entity = client_app.world.spawn(Replication).id();
+
+    client_app
+        .world
+        .resource_mut::<ServerEntityMap>()
+        .insert(server_entity, client_entity);
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    server_app
+        .world
+        .entity_mut(server_entity)
+        .insert(OriginalComponent);
+
+    client_app
+        .world
+        .entity_mut(server_entity)
+        .insert(ReplaceMarker);
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    let client_entity = client_app.world.entity(client_entity);
+    assert!(!client_entity.contains::<OriginalComponent>());
+    assert!(client_entity.contains::<ReplacedComponent>());
+}
+
+#[test]
 fn group() {
     let mut server_app = App::new();
     let mut client_app = App::new();
@@ -321,3 +387,36 @@ struct GroupComponentB;
 
 #[derive(Component, Deserialize, Serialize)]
 struct NotReplicatedComponent;
+
+#[derive(Component)]
+struct ReplaceMarker;
+
+#[derive(Component, Deserialize, Serialize)]
+struct OriginalComponent;
+
+#[derive(Component, Deserialize, Serialize)]
+struct ReplacedComponent;
+
+/// Deserializes [`OriginalComponent`], but ignores it and inserts [`ReplacedComponent`].
+///
+/// # Safety
+///
+/// The caller must ensure that `serde_fns` was created for [`OriginalComponent`].
+unsafe fn replace(
+    serde_fns: &SerdeFns,
+    commands: &mut Commands,
+    entity: &mut EntityMut,
+    cursor: &mut Cursor<&[u8]>,
+    entity_map: &mut ServerEntityMap,
+    _replicon_tick: RepliconTick,
+) -> bincode::Result<()> {
+    let mut mapper = ClientMapper {
+        commands,
+        entity_map,
+    };
+
+    serde_fns.deserialize::<OriginalComponent>(cursor, &mut mapper)?;
+    commands.entity(entity.id()).insert(ReplacedComponent);
+
+    Ok(())
+}
