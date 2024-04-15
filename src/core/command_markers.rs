@@ -160,7 +160,7 @@ impl CommandMarkers {
     /// Inserts a new marker, maintaining sorting by their priority in descending order.
     ///
     /// Use [`ReplicationFns::register_marker`] to register a slot for command functions for this marker.
-    fn insert(&mut self, marker: CommandMarker) -> CommandMarkerId {
+    pub(super) fn insert(&mut self, marker: CommandMarker) -> CommandMarkerId {
         let index = self
             .0
             .binary_search_by_key(&Reverse(marker.priority), |marker| Reverse(marker.priority))
@@ -193,9 +193,9 @@ impl CommandMarkers {
     }
 }
 
-struct CommandMarker {
-    component_id: ComponentId,
-    priority: usize,
+pub(super) struct CommandMarker {
+    pub(super) component_id: ComponentId,
+    pub(super) priority: usize,
 }
 
 /// Unique marker ID.

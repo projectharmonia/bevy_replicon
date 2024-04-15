@@ -209,26 +209,140 @@ pub fn despawn_recursive(entity: EntityWorldMut, _replicon_tick: RepliconTick) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::command_markers::{CommandMarker, CommandMarkers};
 
     #[test]
-    fn multiple_serde_fns() {
+    fn marker() {
         let mut world = World::new();
         let mut replication_fns = ReplicationFns::default();
-        replication_fns.register_default_serde_fns::<DummyComponent>(&mut world);
-        replication_fns.register_mapped_serde_fns::<DummyComponent>(&mut world);
+        let mut command_markers = CommandMarkers::default();
+
+        let marker_a = command_markers.insert(CommandMarker {
+            component_id: world.init_component::<MarkerA>(),
+            priority: 0,
+        });
+        replication_fns.register_marker(marker_a);
+
+        // SAFETY: `write` can be safely called with a `SerdeFns` created for `ComponentA`.
+        unsafe {
+            replication_fns.register_marker_fns::<ComponentA>(
+                &mut world,
+                marker_a,
+                command_fns::write::<ComponentA>,
+                command_fns::remove::<ComponentA>,
+            );
+        }
+
+        let (command_fns_a, _) = &replication_fns.commands[0];
+        assert!(command_fns_a.marker_fns(&[false]).is_none());
+        assert!(command_fns_a.marker_fns(&[true]).is_some());
+    }
+
+    #[test]
+    fn two_markers() {
+        let mut world = World::new();
+        let mut replication_fns = ReplicationFns::default();
+        let mut command_markers = CommandMarkers::default();
+
+        let marker_a = command_markers.insert(CommandMarker {
+            component_id: world.init_component::<MarkerA>(),
+            priority: 1,
+        });
+        replication_fns.register_marker(marker_a);
+
+        let marker_b = command_markers.insert(CommandMarker {
+            component_id: world.init_component::<MarkerB>(),
+            priority: 0,
+        });
+        replication_fns.register_marker(marker_b);
+
+        // SAFETY: `write` can be safely called with `SerdeFns` for
+        // `ComponentA` and `ComponentA` for each call respectively.
+        unsafe {
+            replication_fns.register_marker_fns::<ComponentA>(
+                &mut world,
+                marker_a,
+                command_fns::write::<ComponentA>,
+                command_fns::remove::<ComponentA>,
+            );
+            replication_fns.register_marker_fns::<ComponentB>(
+                &mut world,
+                marker_b,
+                command_fns::write::<ComponentB>,
+                command_fns::remove::<ComponentB>,
+            );
+        }
+
+        let (command_fns_a, _) = &replication_fns.commands[0];
+        assert!(command_fns_a.marker_fns(&[false, false]).is_none());
+        assert!(command_fns_a.marker_fns(&[true, false]).is_some());
+        assert!(command_fns_a.marker_fns(&[false, true]).is_none());
+        assert!(command_fns_a.marker_fns(&[true, true]).is_some());
+
+        let (command_fns_b, _) = &replication_fns.commands[1];
+        assert!(command_fns_b.marker_fns(&[false, false]).is_none());
+        assert!(command_fns_b.marker_fns(&[true, false]).is_none());
+        assert!(command_fns_b.marker_fns(&[false, true]).is_some());
+        assert!(command_fns_b.marker_fns(&[true, true]).is_some());
+    }
+
+    #[test]
+    fn default_serde_fns() {
+        let mut world = World::new();
+        let mut replication_fns = ReplicationFns::default();
+        replication_fns.register_default_serde_fns::<ComponentA>(&mut world);
+        assert_eq!(replication_fns.serde.len(), 1);
+        assert_eq!(replication_fns.commands.len(), 1);
+    }
+
+    #[test]
+    fn mapped_serde_fns() {
+        let mut world = World::new();
+        let mut replication_fns = ReplicationFns::default();
+        replication_fns.register_mapped_serde_fns::<ComponentB>(&mut world);
+        assert_eq!(replication_fns.serde.len(), 1);
+        assert_eq!(replication_fns.commands.len(), 1);
+    }
+
+    #[test]
+    fn duplicate_serde_fns() {
+        let mut world = World::new();
+        let mut replication_fns = ReplicationFns::default();
+        replication_fns.register_default_serde_fns::<ComponentA>(&mut world);
+        replication_fns.register_default_serde_fns::<ComponentA>(&mut world);
 
         assert_eq!(replication_fns.serde.len(), 2);
         assert_eq!(
             replication_fns.commands.len(),
             1,
-            "different serde registrations for the same component should result only in a single command functions instance"
+            "multiple serde registrations for the same component should result only in a single command functions instance"
         );
     }
 
-    #[derive(Component, Serialize, Deserialize)]
-    struct DummyComponent;
+    #[test]
+    fn different_serde_fns() {
+        let mut world = World::new();
+        let mut replication_fns = ReplicationFns::default();
+        replication_fns.register_default_serde_fns::<ComponentA>(&mut world);
+        replication_fns.register_mapped_serde_fns::<ComponentB>(&mut world);
 
-    impl MapEntities for DummyComponent {
+        assert_eq!(replication_fns.serde.len(), 2);
+        assert_eq!(replication_fns.commands.len(), 2);
+    }
+
+    #[derive(Component, Serialize, Deserialize)]
+    struct ComponentA;
+
+    #[derive(Component, Deserialize, Serialize)]
+    struct ComponentB;
+
+    impl MapEntities for ComponentB {
         fn map_entities<M: EntityMapper>(&mut self, _entity_mapper: &mut M) {}
     }
+
+    #[derive(Component)]
+    struct MarkerA;
+
+    #[derive(Component)]
+    struct MarkerB;
 }

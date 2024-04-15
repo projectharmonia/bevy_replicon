@@ -140,7 +140,7 @@ impl CommandFns {
     }
 
     /// Picks assigned functions based on markers present on an entity.
-    fn marker_fns(&self, entity_markers: &[bool]) -> Option<(WriteFn, RemoveFn)> {
+    pub(super) fn marker_fns(&self, entity_markers: &[bool]) -> Option<(WriteFn, RemoveFn)> {
         debug_assert_eq!(
             entity_markers.len(),
             self.markers.len(),
