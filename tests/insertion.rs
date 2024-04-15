@@ -31,7 +31,7 @@ fn table_storage() {
     server_app
         .world
         .entity_mut(server_entity)
-        .insert((Replication, TableComponent));
+        .insert(TableComponent);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -70,7 +70,7 @@ fn sparse_set_storage() {
     server_app
         .world
         .entity_mut(server_entity)
-        .insert((Replication, SparseSetComponent));
+        .insert(SparseSetComponent);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -119,7 +119,7 @@ fn mapped_existing_entity() {
     server_app
         .world
         .entity_mut(server_entity)
-        .insert((Replication, MappedComponent(server_map_entity)));
+        .insert(MappedComponent(server_map_entity));
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -163,7 +163,7 @@ fn mapped_new_entity() {
     server_app
         .world
         .entity_mut(server_entity)
-        .insert((Replication, MappedComponent(server_map_entity)));
+        .insert(MappedComponent(server_map_entity));
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -204,7 +204,7 @@ fn group() {
     server_app
         .world
         .entity_mut(server_entity)
-        .insert((Replication, (GroupComponentA, GroupComponentB)));
+        .insert((GroupComponentA, GroupComponentB));
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -242,18 +242,18 @@ fn not_replicated() {
     server_app
         .world
         .entity_mut(server_entity)
-        .insert((Replication, NotReplicatedComponent));
+        .insert(NotReplicatedComponent);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let non_replicated_components = client_app
+    let not_replicated_components = client_app
         .world
         .query_filtered::<(), With<NotReplicatedComponent>>()
         .iter(&client_app.world)
         .count();
-    assert_eq!(non_replicated_components, 0);
+    assert_eq!(not_replicated_components, 0);
 }
 
 #[test]
