@@ -162,7 +162,7 @@ fn with_insertion() {
             }),
         ))
         .replicate::<BoolComponent>()
-        .replicate::<TableComponent>();
+        .replicate::<DummyComponent>();
     }
 
     server_app.connect_client(&mut client_app);
@@ -179,7 +179,7 @@ fn with_insertion() {
 
     let mut server_entity = server_app.world.entity_mut(server_entity);
     server_entity.get_mut::<BoolComponent>().unwrap().0 = true;
-    server_entity.insert(TableComponent);
+    server_entity.insert(DummyComponent);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -187,7 +187,7 @@ fn with_insertion() {
 
     let component = client_app
         .world
-        .query_filtered::<&BoolComponent, With<TableComponent>>()
+        .query_filtered::<&BoolComponent, With<DummyComponent>>()
         .single(&client_app.world);
     assert!(component.0);
 }
@@ -204,8 +204,7 @@ fn with_despawn() {
                 ..Default::default()
             }),
         ))
-        .replicate::<BoolComponent>()
-        .replicate::<TableComponent>();
+        .replicate::<BoolComponent>();
     }
 
     server_app.connect_client(&mut client_app);
@@ -384,7 +383,7 @@ fn acknowledgment() {
 }
 
 #[derive(Component, Deserialize, Serialize)]
-struct TableComponent;
+struct DummyComponent;
 
 #[derive(Clone, Component, Copy, Deserialize, Serialize)]
 struct BoolComponent(bool);
