@@ -248,12 +248,12 @@ fn not_replicated() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let non_replicated_components = client_app
+    let not_replicated_components = client_app
         .world
         .query_filtered::<(), With<NotReplicatedComponent>>()
         .iter(&client_app.world)
         .count();
-    assert_eq!(non_replicated_components, 0);
+    assert_eq!(not_replicated_components, 0);
 }
 
 #[test]
