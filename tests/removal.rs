@@ -63,7 +63,7 @@ fn marker() {
         .register_marker::<RemoveMarker>()
         .replicate::<DummyComponent>();
 
-        // SAFETY: `write_history` can be safely called with a `SerdeFns` created for `DummyComponent`.
+        // SAFETY: `replace` can be safely called with a `SerdeFns` created for `DummyComponent`.
         unsafe {
             app.register_marker_fns::<RemoveMarker, DummyComponent>(
                 command_fns::write::<DummyComponent>,

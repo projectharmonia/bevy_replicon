@@ -200,7 +200,7 @@ fn marker() {
         .register_marker::<ReplaceMarker>()
         .replicate::<OriginalComponent>();
 
-        // SAFETY: `write_history` can be safely called with a `SerdeFns` created for `OriginalComponent`.
+        // SAFETY: `replace` can be safely called with a `SerdeFns` created for `OriginalComponent`.
         unsafe {
             app.register_marker_fns::<ReplaceMarker, OriginalComponent>(
                 replace,
