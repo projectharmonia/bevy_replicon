@@ -75,6 +75,10 @@ pub trait AppMarkerExt {
     /// # Safety
     ///
     /// The caller must ensure that `serde_fns` was created for [`Transform`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if entity doesn't have [`ComponentHistory<C>`].
     unsafe fn write_history<C: Component>(
         serde_fns: &SerdeFns,
         commands: &mut Commands,
@@ -89,13 +93,11 @@ pub trait AppMarkerExt {
         };
 
         let component: C = serde_fns.deserialize(cursor, &mut mapper)?;
-        if let Some(mut history) = entity.get_mut::<ComponentHistory<C>>() {
-            history.push(component);
-        } else {
-            commands
-                .entity(entity.id())
-                .insert(ComponentHistory(vec![component]));
-        }
+        let mut history = entity
+            .get_mut::<ComponentHistory<C>>()
+            .expect("entity should have the history since it's as a marker");
+
+        history.push(component);
 
         Ok(())
     }
