@@ -36,6 +36,7 @@ pub trait AppMarkerExt {
     then these functions will be called for this component during replication
     instead of default [`write`](super::replication_fns::command_fns::write) and
     [`remove`](super::replication_fns::command_fns::remove).
+    See also [`Self::set_command_fns`].
 
     # Safety
 
@@ -122,6 +123,24 @@ pub trait AppMarkerExt {
         write: WriteFn,
         remove: RemoveFn,
     ) -> &mut Self;
+
+    /// Sets default functions for a component when there are no markers.
+    ///
+    /// If there are no markers are present on an entity, then these functions will
+    /// be called for this component during replication instead of default
+    /// [`write`](super::replication_fns::command_fns::write) and
+    /// [`remove`](super::replication_fns::command_fns::remove).
+    /// See also [`Self::set_marker_fns`].
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that passed `write` can be safely called with a
+    /// [`SerdeFns`](super::replication_fns::serde_fns::SerdeFns) created for `C`.
+    unsafe fn set_command_fns<C: Component>(
+        &mut self,
+        write: WriteFn,
+        remove: RemoveFn,
+    ) -> &mut Self;
 }
 
 impl AppMarkerExt for App {
@@ -155,6 +174,20 @@ impl AppMarkerExt for App {
             .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| unsafe {
                 // SAFETY: The caller ensured that `write` can be safely called with a `SerdeFns` created for `C`.
                 replication_fns.set_marker_fns::<C>(world, marker_id, write, remove);
+            });
+
+        self
+    }
+
+    unsafe fn set_command_fns<C: Component>(
+        &mut self,
+        write: WriteFn,
+        remove: RemoveFn,
+    ) -> &mut Self {
+        self.world
+            .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| unsafe {
+                // SAFETY: The caller ensured that `write` can be safely called with a `SerdeFns` created for `C`.
+                replication_fns.set_command_fns::<C>(world, write, remove);
             });
 
         self

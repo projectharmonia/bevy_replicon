@@ -186,6 +186,53 @@ fn mapped_new_entity() {
 }
 
 #[test]
+fn command_fns() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<OriginalComponent>();
+
+        // SAFETY: `replace` can be safely called with a `SerdeFns` created for `OriginalComponent`.
+        unsafe {
+            app.set_command_fns::<OriginalComponent>(
+                replace,
+                command_fns::remove::<ReplacedComponent>,
+            );
+        }
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    let server_entity = server_app.world.spawn(Replication).id();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    server_app
+        .world
+        .entity_mut(server_entity)
+        .insert(OriginalComponent);
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    client_app
+        .world
+        .query_filtered::<(), (With<ReplacedComponent>, Without<OriginalComponent>)>()
+        .single(&client_app.world);
+}
+
+#[test]
 fn marker() {
     let mut server_app = App::new();
     let mut client_app = App::new();

@@ -109,6 +109,69 @@ fn package_size_component() {
 }
 
 #[test]
+fn command_fns() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<OriginalComponent>();
+
+        // SAFETY: `replace` can be safely called with a `SerdeFns` created for `OriginalComponent`.
+        unsafe {
+            app.set_command_fns::<OriginalComponent>(
+                replace,
+                command_fns::remove::<ReplacedComponent>,
+            );
+        }
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    let server_entity = server_app
+        .world
+        .spawn((Replication, OriginalComponent(false)))
+        .id();
+
+    let client_entity = client_app
+        .world
+        .spawn((Replication, ReplacedComponent(false)))
+        .id();
+
+    client_app
+        .world
+        .resource_mut::<ServerEntityMap>()
+        .insert(server_entity, client_entity);
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    // Change value.
+    let mut component = server_app
+        .world
+        .get_mut::<OriginalComponent>(server_entity)
+        .unwrap();
+    component.0 = true;
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    let client_entity = client_app.world.entity(client_entity);
+    assert!(!client_entity.contains::<OriginalComponent>());
+
+    let component = client_entity.get::<ReplacedComponent>().unwrap();
+    assert!(component.0);
+}
+
+#[test]
 fn marker() {
     let mut server_app = App::new();
     let mut client_app = App::new();

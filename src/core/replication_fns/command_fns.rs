@@ -71,6 +71,17 @@ impl CommandFns {
         *fns = Some((write, remove));
     }
 
+    /// Sets default functions when there are no markers.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that passed `write` can be safely called with all
+    /// [`SerdeFns`] created for the same type as this instance.
+    pub(super) unsafe fn set_fns(&mut self, write: WriteFn, remove: RemoveFn) {
+        self.write = write;
+        self.remove = remove;
+    }
+
     /// Calls [`read`] on the type for which this instance was created.
     ///
     /// It's a non-overridable function that is used to restore the erased type from [`Ptr`].

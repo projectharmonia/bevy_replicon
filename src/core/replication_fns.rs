@@ -77,6 +77,26 @@ impl ReplicationFns {
         command_fns.set_marker_fns(marker_id, write, remove);
     }
 
+    /// Sets default functions for a component when there are no markers.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that passed `write` can be safely called with all
+    /// [`SerdeFns`] registered for `C` with other methods on this struct.
+    pub(super) unsafe fn set_command_fns<C: Component>(
+        &mut self,
+        world: &mut World,
+        write: WriteFn,
+        remove: RemoveFn,
+    ) {
+        let (index, _) = self.init_command_fns::<C>(world);
+        let (command_fns, _) = &mut self.commands[index];
+
+        // SAFETY: `command_fns` was created for `C` and the caller ensured
+        // that `write` can be safely called with a `SerdeFns` created for `C`.
+        command_fns.set_fns(write, remove);
+    }
+
     /// Same as [`Self::register_serde_fns`], but uses default functions for a component.
     ///
     /// If your component contains any [`Entity`] inside, use [`Self::register_mapped_serde_fns`].
