@@ -43,7 +43,7 @@ impl ReplicationFns {
     ///
     /// Should be used after calling
     /// [`CommandMarkers::insert`](super::command_markers::CommandMarkers::insert)
-    pub(super) fn register_marker(&mut self, marker_id: CommandMarkerId) {
+    pub fn register_marker(&mut self, marker_id: CommandMarkerId) {
         self.marker_slots += 1;
         for (command_fns, _) in &mut self.commands {
             command_fns.add_marker_slot(marker_id);
@@ -54,6 +54,8 @@ impl ReplicationFns {
     ///
     /// **Must** be called **after** calling [`Self::register_marker`] with `marker_id`.
     ///
+    /// See also [`Self::set_command_fns`].
+    ///
     /// # Safety
     ///
     /// The caller must ensure that passed `write` can be safely called with all
@@ -62,7 +64,7 @@ impl ReplicationFns {
     /// # Panics
     ///
     /// Panics if the marker wasn't registered. Use [`Self::register_marker`] first.
-    pub(super) unsafe fn set_marker_fns<C: Component>(
+    pub unsafe fn set_marker_fns<C: Component>(
         &mut self,
         world: &mut World,
         marker_id: CommandMarkerId,
@@ -79,11 +81,13 @@ impl ReplicationFns {
 
     /// Sets default functions for a component when there are no markers.
     ///
+    /// See also [`Self::set_marker_fns`].
+    ///
     /// # Safety
     ///
     /// The caller must ensure that passed `write` can be safely called with all
     /// [`SerdeFns`] registered for `C` with other methods on this struct.
-    pub(super) unsafe fn set_command_fns<C: Component>(
+    pub unsafe fn set_command_fns<C: Component>(
         &mut self,
         world: &mut World,
         write: WriteFn,
@@ -170,7 +174,9 @@ impl ReplicationFns {
     }
 
     /// Returns associates functions.
-    pub(crate) fn get(&self, fns_id: FnsId) -> (&CommandFns, &SerdeFns) {
+    ///
+    /// See also [`Self::register_serde_fns`].
+    pub fn get(&self, fns_id: FnsId) -> (&CommandFns, &SerdeFns) {
         let (serde_fns, index) = self
             .serde
             .get(fns_id.0)

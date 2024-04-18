@@ -74,7 +74,7 @@ pub fn replicate_into(scene: &mut DynamicScene, world: &World) {
 
         for rule in rules.iter().filter(|rule| rule.matches(archetype)) {
             for component_id in rule
-                .components()
+                .components
                 .iter()
                 .map(|fns_info| fns_info.component_id())
             {

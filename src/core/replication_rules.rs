@@ -197,11 +197,11 @@ impl AppRuleExt for App {
 
 /// All registered rules for components replication.
 #[derive(Default, Deref, Resource)]
-pub(crate) struct ReplicationRules(Vec<ReplicationRule>);
+pub struct ReplicationRules(Vec<ReplicationRule>);
 
 impl ReplicationRules {
     /// Inserts a new rule, maintaining sorting by their priority in descending order.
-    fn insert(&mut self, rule: ReplicationRule) {
+    pub fn insert(&mut self, rule: ReplicationRule) {
         let index = self
             .binary_search_by_key(&Reverse(rule.priority), |rule| Reverse(rule.priority))
             .unwrap_or_else(|index| index);
@@ -216,34 +216,19 @@ pub struct ReplicationRule {
     ///
     /// Usually equal to the number of serialized components,
     /// but can be adjusted by the user.
-    priority: usize,
+    pub priority: usize,
 
     /// Rule components and their serialization/deserialization/removal functions.
-    components: Vec<FnsInfo>,
+    pub components: Vec<FnsInfo>,
 }
 
 impl ReplicationRule {
     /// Creates a new rule with priority equal to the number of serializable components.
     pub fn new(components: Vec<FnsInfo>) -> Self {
-        Self::with_priority(components.len(), components)
-    }
-
-    /// Like [`Self::new`], but allows to set a priority different from the number of serializable components.
-    pub fn with_priority(priority: usize, components: Vec<FnsInfo>) -> Self {
         Self {
-            priority,
+            priority: components.len(),
             components,
         }
-    }
-
-    /// Returns associated components and functions IDs.
-    pub(crate) fn components(&self) -> &[FnsInfo] {
-        &self.components
-    }
-
-    /// Returns associated priority.
-    pub(crate) fn priority(&self) -> usize {
-        self.priority
     }
 
     /// Determines whether an archetype contains all components required by the rule.

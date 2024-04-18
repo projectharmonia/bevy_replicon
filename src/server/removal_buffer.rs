@@ -130,7 +130,7 @@ impl FromWorld for ReplicatedComponents {
         let rules = world.resource::<ReplicationRules>();
         let component_ids = rules
             .iter()
-            .flat_map(|rule| rule.components())
+            .flat_map(|rule| &rule.components)
             .map(|fns_info| fns_info.component_id())
             .collect();
 
@@ -172,7 +172,7 @@ impl RemovalBuffer {
             .iter()
             .filter(|rule| rule.matches_removals(archetype, components))
         {
-            for &fns_info in rule.components() {
+            for &fns_info in &rule.components {
                 // Since rules are sorted by priority,
                 // we are inserting only new components that aren't present.
                 if removed_ids

@@ -45,7 +45,7 @@ impl ReplicatedArchetypes {
         {
             let mut replicated_archetype = ReplicatedArchetype::new(archetype.id());
             for rule in rules.iter().filter(|rule| rule.matches(archetype)) {
-                for fns_info in rule.components() {
+                for fns_info in &rule.components {
                     // Since rules are sorted by priority,
                     // we are inserting only new components that aren't present.
                     if replicated_archetype
@@ -67,7 +67,7 @@ impl ReplicatedArchetypes {
                                 })
                                 .collect();
 
-                            debug!("ignoring component `{component_name}` with priority {} for archetype with `{component_names:?}`", rule.priority());
+                            debug!("ignoring component `{component_name}` with priority {} for archetype with `{component_names:?}`", rule.priority);
                         }
 
                         continue;

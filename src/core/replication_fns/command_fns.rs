@@ -17,7 +17,7 @@ use crate::{
 ///
 /// The user can override default functions per-entity by providing a marker,
 /// see [`CommandMarkers`](crate::core::command_markers::CommandMarkers)
-pub(crate) struct CommandFns {
+pub struct CommandFns {
     read: ReadFn,
     write: WriteFn,
     remove: RemoveFn,
@@ -90,7 +90,7 @@ impl CommandFns {
     /// # Safety
     ///
     /// The caller must ensure that `ptr` and `serde_fns` were created for the same type as this instance.
-    pub(crate) unsafe fn read(
+    pub unsafe fn read(
         &self,
         serde_fns: &SerdeFns,
         ptr: Ptr,
@@ -104,9 +104,7 @@ impl CommandFns {
     /// Entity markers store information about which markers are present on an entity.
     /// The first-found write function whose marker is present on the entity will be selected
     /// (the functions are sorted by priority).
-    /// If there is no such function, it will use the default [`write`].
-    ///
-    /// See also [`Self::set_marker_fns`].
+    /// If there is no such function, it will use the default [`write()`].
     ///
     /// # Safety
     ///
@@ -115,7 +113,7 @@ impl CommandFns {
     /// # Panics
     ///
     /// Panics if `debug_assertions` is enabled and `entity_markers` has a different length than the number of marker slots.
-    pub(crate) unsafe fn write(
+    pub unsafe fn write(
         &self,
         serde_fns: &SerdeFns,
         entity_markers: &[bool],
@@ -141,7 +139,7 @@ impl CommandFns {
     }
 
     /// Same as [`Self::write`], but calls the assigned remove function.
-    pub(crate) fn remove(
+    pub fn remove(
         &self,
         entity_markers: &[bool],
         entity_commands: EntityCommands,
@@ -191,7 +189,7 @@ pub type RemoveFn = fn(EntityCommands, RepliconTick);
 /// # Safety
 ///
 /// The caller must ensure that `ptr` and `serde_fns` were created for `C`.
-unsafe fn read<C: Component>(
+pub unsafe fn read<C: Component>(
     serde_fns: &SerdeFns,
     ptr: Ptr,
     cursor: &mut Cursor<Vec<u8>>,
