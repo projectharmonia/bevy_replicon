@@ -378,8 +378,8 @@ fn apply_init_components(
         entity_ticks.insert(client_entity, replicon_tick);
 
         let (mut entity_markers, mut commands, mut query) = state.get_mut(world);
-        let mut server_entity = query.get_mut(client_entity).unwrap();
-        entity_markers.extend(command_markers.iter_contains(&server_entity));
+        let mut client_entity = query.get_mut(client_entity).unwrap();
+        entity_markers.extend(command_markers.iter_contains(&client_entity));
 
         let end_pos = cursor.position() + data_size as u64;
         let mut components_len = 0u32;
@@ -393,7 +393,7 @@ fn apply_init_components(
                         serde_fns,
                         &entity_markers,
                         &mut commands,
-                        &mut server_entity,
+                        &mut client_entity,
                         cursor,
                         entity_map,
                         replicon_tick,
@@ -401,7 +401,7 @@ fn apply_init_components(
                 },
                 ComponentsKind::Removal => command_fns.remove(
                     &entity_markers,
-                    commands.entity(server_entity.id()),
+                    commands.entity(client_entity.id()),
                     replicon_tick,
                 ),
             }
