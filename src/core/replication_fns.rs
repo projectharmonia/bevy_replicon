@@ -152,7 +152,7 @@ impl ReplicationFns {
     }
 
     /// Returns associates functions.
-    pub(crate) fn get(&self, fns_id: FnsId) -> (&SerdeFns, &CommandFns) {
+    pub(crate) fn get(&self, fns_id: FnsId) -> (&CommandFns, &SerdeFns) {
         let (serde_fns, index) = self
             .serde
             .get(fns_id.0)
@@ -161,7 +161,7 @@ impl ReplicationFns {
         // SAFETY: index obtained from `serde` is always valid.
         let (command_fns, _) = unsafe { self.commands.get_unchecked(*index) };
 
-        (serde_fns, command_fns)
+        (command_fns, serde_fns)
     }
 }
 

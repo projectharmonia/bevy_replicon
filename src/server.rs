@@ -345,7 +345,7 @@ fn collect_changes(
                     )
                 };
 
-                let (serde_fns, command_fns) = replication_fns.get(replicated_component.fns_id);
+                let (command_fns, serde_fns) = replication_fns.get(replicated_component.fns_id);
                 let mut shared_bytes = None;
                 for (init_message, update_message, client) in messages.iter_mut_with_clients() {
                     let visibility = client.visibility().cached_visibility();

@@ -385,7 +385,7 @@ fn apply_init_components(
         let mut components_len = 0u32;
         while cursor.position() < end_pos {
             let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
-            let (serde_fns, command_fns) = replication_fns.get(fns_id);
+            let (command_fns, serde_fns) = replication_fns.get(fns_id);
             match components_kind {
                 ComponentsKind::Insert => unsafe {
                     // SAFETY: `serde_fns` and `command_fns` were created for the same type.
@@ -494,7 +494,7 @@ fn apply_update_components(
         let mut components_count = 0u32;
         while cursor.position() < end_pos {
             let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
-            let (serde_fns, command_fns) = replication_fns.get(fns_id);
+            let (command_fns, serde_fns) = replication_fns.get(fns_id);
             // SAFETY: `serde_fns` and `command_fns` were created for the same type.
             unsafe {
                 command_fns.write(
