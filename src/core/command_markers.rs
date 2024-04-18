@@ -45,7 +45,10 @@ pub trait AppMarkerExt {
     # Examples
 
     In this example we write all received updates for [`Transform`] into user's
-    `ComponentHistory<Transform>` if it present.
+    `History<Transform>` if `ComponentsHistory` marker is present on the client entity. In this
+    scenario, you'd insert `ComponentsHistory` the first time the entity
+    is replicated (e.g. by detecting a `Player` marker component using the blueprint pattern).
+    Then [`Transform`] updates after that will be inserted to the history.
 
     ```
     use std::io::Cursor;
@@ -62,10 +65,10 @@ pub trait AppMarkerExt {
 
     # let mut app = App::new();
     # app.add_plugins(RepliconPlugins);
-    app.register_marker::<ComponentHistory<Transform>>();
+    app.register_marker::<ComponentsHistory>();
     // SAFETY: `write_history` can be safely called with a `SerdeFns` created for `Transform`.
     unsafe {
-        app.register_marker_fns::<ComponentHistory<Transform>, Transform>(
+        app.register_marker_fns::<ComponentsHistory, Transform>(
             write_history::<Transform>,
             command_fns::remove::<Transform>,
         );
@@ -76,10 +79,6 @@ pub trait AppMarkerExt {
     /// # Safety
     ///
     /// The caller must ensure that `serde_fns` was created for [`Transform`].
-    ///
-    /// # Panics
-    ///
-    /// Panics if entity doesn't have [`ComponentHistory<C>`].
     unsafe fn write_history<C: Component>(
         serde_fns: &SerdeFns,
         commands: &mut Commands,
@@ -94,20 +93,28 @@ pub trait AppMarkerExt {
         };
 
         let component: C = serde_fns.deserialize(cursor, &mut mapper)?;
-        let mut history = entity
-            .get_mut::<ComponentHistory<C>>()
-            .expect("entity should have the history since it's as a marker");
-
-        history.push(component);
+        if let Some(mut history) = entity.get_mut::<History<C>>() {
+            history.push(component);
+        } else {
+            commands
+                .entity(entity.id())
+                .insert(History(vec![component]));
+        }
 
         Ok(())
     }
 
+    /// If this marker is present on an entity, registered components will be stored in [`History<T>`].
+    ///
+    ///Present only on client.
+    #[derive(Component)]
+    struct ComponentsHistory;
+
     /// Stores history of values of `C` received from server. Present only on client.
     ///
-    /// In this example, we use it as both a marker and storage.
+    ///Present only on client.
     #[derive(Component, Deref, DerefMut)]
-    struct ComponentHistory<C>(Vec<C>);
+    struct History<C>(Vec<C>);
     ```
     **/
     unsafe fn register_marker_fns<M: Component, C: Component>(
