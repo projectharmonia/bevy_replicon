@@ -70,9 +70,7 @@ impl ReplicationFns {
         remove: RemoveFn,
     ) {
         let (index, _) = self.init_command_fns::<C>(world);
-
-        // SAFETY: index obtained from `Self::init_command_fns` is always valid.
-        let (command_fns, _) = self.commands.get_unchecked_mut(index);
+        let (command_fns, _) = &mut self.commands[index];
 
         // SAFETY: `command_fns` was created for `C` and the caller ensured
         // that `write` can be safely called with a `SerdeFns` created for `C`.
