@@ -19,7 +19,7 @@ pub trait AppMarkerExt {
     ///
     /// Can be used to override how this component or other components will be written or removed
     /// based on marker-component presence.
-    /// For details see [`Self::register_marker_fns`].
+    /// For details see [`Self::set_marker_fns`].
     ///
     /// This function registers markers with priority equal to 0.
     /// Use [`Self::register_marker_with_priority`] if you have multiple
@@ -30,9 +30,9 @@ pub trait AppMarkerExt {
     fn register_marker_with_priority<M: Component>(&mut self, priority: usize) -> &mut Self;
 
     /**
-    Associates command functions with a marker.
+    Associates command functions with a marker for a component.
 
-    If this component is present on an entity and its priority is the highest,
+    If this marker is present on an entity and its priority is the highest,
     then these functions will be called for this component during replication
     instead of default [`write`](super::replication_fns::command_fns::write) and
     [`remove`](super::replication_fns::command_fns::remove).
@@ -68,7 +68,7 @@ pub trait AppMarkerExt {
     app.register_marker::<ComponentsHistory>();
     // SAFETY: `write_history` can be safely called with a `SerdeFns` created for `Transform`.
     unsafe {
-        app.register_marker_fns::<ComponentsHistory, Transform>(
+        app.set_marker_fns::<ComponentsHistory, Transform>(
             write_history::<Transform>,
             command_fns::remove::<Transform>,
         );
@@ -117,7 +117,7 @@ pub trait AppMarkerExt {
     struct History<C>(Vec<C>);
     ```
     **/
-    unsafe fn register_marker_fns<M: Component, C: Component>(
+    unsafe fn set_marker_fns<M: Component, C: Component>(
         &mut self,
         write: WriteFn,
         remove: RemoveFn,
@@ -143,7 +143,7 @@ impl AppMarkerExt for App {
         self
     }
 
-    unsafe fn register_marker_fns<M: Component, C: Component>(
+    unsafe fn set_marker_fns<M: Component, C: Component>(
         &mut self,
         write: WriteFn,
         remove: RemoveFn,
@@ -154,7 +154,7 @@ impl AppMarkerExt for App {
         self.world
             .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| unsafe {
                 // SAFETY: The caller ensured that `write` can be safely called with a `SerdeFns` created for `C`.
-                replication_fns.register_marker_fns::<C>(world, marker_id, write, remove);
+                replication_fns.set_marker_fns::<C>(world, marker_id, write, remove);
             });
 
         self
@@ -230,7 +230,7 @@ mod tests {
 
         // SAFETY: `write` can be safely called with a `SerdeFns` created for `DummyComponent`.
         unsafe {
-            app.register_marker_fns::<DummyMarkerA, DummyComponent>(
+            app.set_marker_fns::<DummyMarkerA, DummyComponent>(
                 command_fns::write::<DummyComponent>,
                 command_fns::remove::<DummyComponent>,
             );

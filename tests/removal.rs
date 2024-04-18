@@ -65,7 +65,7 @@ fn marker() {
 
         // SAFETY: `replace` can be safely called with a `SerdeFns` created for `DummyComponent`.
         unsafe {
-            app.register_marker_fns::<RemoveMarker, DummyComponent>(
+            app.set_marker_fns::<RemoveMarker, DummyComponent>(
                 command_fns::write::<DummyComponent>,
                 command_fns::remove::<RemovingComponent>,
             );

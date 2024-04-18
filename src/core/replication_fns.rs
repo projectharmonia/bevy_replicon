@@ -50,7 +50,7 @@ impl ReplicationFns {
         }
     }
 
-    /// Associates command functions with a marker.
+    /// Associates command functions with a marker for a component.
     ///
     /// **Must** be called **after** calling [`Self::register_marker`] with `marker_id`.
     ///
@@ -62,7 +62,7 @@ impl ReplicationFns {
     /// # Panics
     ///
     /// Panics if the marker wasn't registered. Use [`Self::register_marker`] first.
-    pub(super) unsafe fn register_marker_fns<C: Component>(
+    pub(super) unsafe fn set_marker_fns<C: Component>(
         &mut self,
         world: &mut World,
         marker_id: CommandMarkerId,
@@ -226,7 +226,7 @@ mod tests {
 
         // SAFETY: `write` can be safely called with a `SerdeFns` created for `ComponentA`.
         unsafe {
-            replication_fns.register_marker_fns::<ComponentA>(
+            replication_fns.set_marker_fns::<ComponentA>(
                 &mut world,
                 marker_a,
                 command_fns::write::<ComponentA>,
@@ -260,13 +260,13 @@ mod tests {
         // SAFETY: `write` can be safely called with `SerdeFns` for
         // `ComponentA` and `ComponentA` for each call respectively.
         unsafe {
-            replication_fns.register_marker_fns::<ComponentA>(
+            replication_fns.set_marker_fns::<ComponentA>(
                 &mut world,
                 marker_a,
                 command_fns::write::<ComponentA>,
                 command_fns::remove::<ComponentA>,
             );
-            replication_fns.register_marker_fns::<ComponentB>(
+            replication_fns.set_marker_fns::<ComponentB>(
                 &mut world,
                 marker_b,
                 command_fns::write::<ComponentB>,
