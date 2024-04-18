@@ -62,6 +62,12 @@ impl CommandFns {
             .markers
             .get_mut(*marker_id)
             .unwrap_or_else(|| panic!("command fns should have a slot for {marker_id:?}"));
+
+        debug_assert!(
+            fns.is_none(),
+            "function for {marker_id:?} can't be set twice"
+        );
+
         *fns = Some((write, remove));
     }
 
