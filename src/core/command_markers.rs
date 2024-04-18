@@ -8,24 +8,25 @@ use super::replication_fns::command_fns::{RemoveFn, WriteFn};
 
 /// Marker-based functions for [`App`].
 ///
-/// Allows to customize behavior on client when receiving an update for server.
+/// Allows customizing behavior on clients when receiving updates from the server.
 ///
 /// We check markers on receive instead of archetypes because on client we don't
-/// know entity's archetype in advance.
+/// know an incoming entity's archetype in advance.
 ///
-/// Mostly needed for third-party crates then for end-users.
+/// This is mostly needed for third-party crates, most end-users should not need to use it directly.
 pub trait AppMarkerExt {
-    /// Registers component as a marker.
+    /// Registers a component as a marker.
     ///
-    /// Can be used to override how component will be written or removed based on marker presence.
+    /// Can be used to override how this component or other components will be written or removed
+    /// based on marker-component presence.
     /// For details see [`Self::register_marker_fns`].
     ///
-    /// This function registers marker with priority equal to 0.
-    /// Use [`Self::register_marker_with_priority`] to if you have multiple
+    /// This function registers markers with priority equal to 0.
+    /// Use [`Self::register_marker_with_priority`] if you have multiple
     /// markers affecting the same component.
     fn register_marker<M: Component>(&mut self) -> &mut Self;
 
-    /// Same as [`Self::register_marker`], but allows to set a priority.
+    /// Same as [`Self::register_marker`], but allows setting a priority.
     fn register_marker_with_priority<M: Component>(&mut self, priority: usize) -> &mut Self;
 
     /**

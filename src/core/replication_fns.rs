@@ -26,9 +26,10 @@ pub struct ReplicationFns {
     commands: Vec<(CommandFns, ComponentId)>,
 
     /// Serialization/deserialization functions for a component and
-    /// index of its [`CommandFns`].
+    /// the component's index in [`Self::commands`].
     ///
-    /// Can be registered multiple times for the same component.
+    /// Can be registered multiple times for the same component for a different
+    /// [`ReplicationRule`].
     serde: Vec<(SerdeFns, usize)>,
 
     /// Number of registered markers.
@@ -51,14 +52,16 @@ impl ReplicationFns {
 
     /// Associates command functions with a marker.
     ///
+    /// **Must** be called **after** calling [`Self::register_marker`] with `marker_id`.
+    ///
     /// # Safety
     ///
-    /// The caller must ensure that passed `write` can be safely called with a
-    /// [`SerdeFns`] created for `C`.
+    /// The caller must ensure that passed `write` can be safely called with all
+    /// [`SerdeFns`] registered for `C` with other methods on this struct.
     ///
     /// # Panics
     ///
-    /// Panics if marker wasn't registered. Use [`Self::register_marker`] first.
+    /// Panics if the marker wasn't registered. Use [`Self::register_marker`] first.
     pub(super) unsafe fn register_marker_fns<C: Component>(
         &mut self,
         world: &mut World,
@@ -78,7 +81,7 @@ impl ReplicationFns {
 
     /// Same as [`Self::register_serde_fns`], but uses default functions for a component.
     ///
-    /// If your component contains any [`Entity`] inside, use [`Self::register_default_serde_fns`].
+    /// If your component contains any [`Entity`] inside, use [`Self::register_mapped_serde_fns`].
     pub fn register_default_serde_fns<C>(&mut self, world: &mut World) -> FnsInfo
     where
         C: Component + Serialize + DeserializeOwned,
@@ -173,7 +176,7 @@ impl Default for ReplicationFns {
     }
 }
 
-/// IDs of registered replication function and its component.
+/// IDs of a registered replication function and its component.
 ///
 /// Can be obtained from [`ReplicationFns::register_serde_fns`].
 #[derive(Clone, Copy)]
@@ -198,7 +201,7 @@ impl FnsInfo {
 #[derive(Clone, Copy, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub struct FnsId(usize);
 
-/// Signature of entity despawn function.
+/// Signature of the entity despawn function.
 pub type DespawnFn = fn(EntityWorldMut, RepliconTick);
 
 /// Default entity despawn function.

@@ -10,10 +10,12 @@ use crate::{
 
 /// Functions that operate on components like [`Commands`].
 ///
-/// Unlike [`SerdeFns`], registered for each component type instead of
-/// [`ReplicationRule`](crate::core::replication_rules::ReplicationRule).
+/// Unlike [`SerdeFns`] which are selected on the server via
+/// [`ReplicationRules`](crate::core::replication_rules::ReplicationRule), the remove/remove
+/// functions in `markers` here are selected on the client via
+/// [`CommandMarkers`](crate::core::command_markers::CommandMarkers).
 ///
-/// User can override default functions per-entity by providing a marker,
+/// The user can override default functions per-entity by providing a marker,
 /// see [`CommandMarkers`](crate::core::command_markers::CommandMarkers)
 pub(crate) struct CommandFns {
     read: ReadFn,
@@ -40,11 +42,11 @@ impl CommandFns {
         self.markers.insert(*marker_id, None);
     }
 
-    /// Assigns functions to a marker slots.
+    /// Assigns functions to a marker slot.
     ///
     /// # Safety
     ///
-    /// The caller must ensure that passed `write` can be safely called with a
+    /// The caller must ensure that passed `write` can be safely called with all
     /// [`SerdeFns`] created for the same type as this instance.
     ///
     /// # Panics
@@ -65,16 +67,12 @@ impl CommandFns {
 
     /// Calls [`read`] on the type for which this instance was created.
     ///
-    /// It's a non-overridable function that used to just restore the erased type from [`Ptr`].
+    /// It's a non-overridable function that is used to restore the erased type from [`Ptr`].
     /// To customize serialization behavior, [`SerdeFns`] should be used instead.
     ///
     /// # Safety
     ///
-    /// The caller must ensure that `ptr` and `serde_fns` was created for the same type as this instance.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `debug_assertions` enabled and `entity_markers` have different length then the number of marker slots.
+    /// The caller must ensure that `ptr` and `serde_fns` were created for the same type as this instance.
     pub(crate) unsafe fn read(
         &self,
         serde_fns: &SerdeFns,
@@ -84,10 +82,11 @@ impl CommandFns {
         (self.read)(serde_fns, ptr, cursor)
     }
 
-    /// Calls assigned writing function based on entity markers.
+    /// Calls the assigned writing function based on entity markers.
     ///
-    /// Entity markers stores information about which marker is present on an entity.
-    /// The function will pick first assigned write function whose marker is present on the entity.
+    /// Entity markers store information about which markers are present on an entity.
+    /// The first-found write function whose marker is present on the entity will be selected
+    /// (the functions are sorted by priority).
     /// If there is no such function, it will use the default [`write`].
     ///
     /// See also [`Self::set_marker_fns`].
@@ -98,7 +97,7 @@ impl CommandFns {
     ///
     /// # Panics
     ///
-    /// Panics if `debug_assertions` enabled and `entity_markers` have different length then the number of marker slots.
+    /// Panics if `debug_assertions` is enabled and `entity_markers` has a different length than the number of marker slots.
     pub(crate) unsafe fn write(
         &self,
         serde_fns: &SerdeFns,
@@ -124,7 +123,7 @@ impl CommandFns {
         )
     }
 
-    /// Same as [`Self::write`], but calls assigned remove function.
+    /// Same as [`Self::write`], but calls the assigned remove function.
     pub(crate) fn remove(
         &self,
         entity_markers: &[bool],
@@ -144,7 +143,7 @@ impl CommandFns {
         debug_assert_eq!(
             entity_markers.len(),
             self.markers.len(),
-            "entity markers lenght and marker functions slots should match"
+            "entity markers length and marker functions slots should match"
         );
 
         self.markers
@@ -170,11 +169,11 @@ pub type WriteFn = unsafe fn(
 /// Signature of component removal functions.
 pub type RemoveFn = fn(EntityCommands, RepliconTick);
 
-/// Dereferences a component from a pointer and calls passed serialization function.
+/// Dereferences a component from a pointer and calls the passed serialization function.
 ///
 /// # Safety
 ///
-/// The caller must ensure that `ptr` and `serde_fns` was created for `C`.
+/// The caller must ensure that `ptr` and `serde_fns` were created for `C`.
 unsafe fn read<C: Component>(
     serde_fns: &SerdeFns,
     ptr: Ptr,
@@ -185,8 +184,8 @@ unsafe fn read<C: Component>(
 
 /// Default component writing function.
 ///
-/// If such a component did not exist, it will be deserialized with [`SerdeFns::deserialize`] and added as a command.
-/// If such a component exists, [`SerdeFns::deserialize_in_place`] will be used directly on entity's component.
+/// If the component does not exist on the entity, it will be deserialized with [`SerdeFns::deserialize`] and inserted via [`Commands`].
+/// If the component exists on the entity, [`SerdeFns::deserialize_in_place`] will be used directly on the entity's component.
 ///
 /// # Safety
 ///

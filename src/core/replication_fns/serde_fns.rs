@@ -94,20 +94,20 @@ impl SerdeFns {
         debug_assert_eq!(
             self.type_id,
             TypeId::of::<C>(),
-            "trying to call serde functions with {}, but they was created with {}",
+            "trying to call serde functions with {}, but they were created with {}",
             any::type_name::<C>(),
             self.type_name,
         );
     }
 }
 
-/// Signature of component serialization function.
+/// Signature of component serialization functions.
 pub type SerializeFn<C> = fn(&C, &mut Cursor<Vec<u8>>) -> bincode::Result<()>;
 
-/// Signature of component deserialization function.
+/// Signature of component deserialization functions.
 pub type DeserializeFn<C> = fn(&mut Cursor<&[u8]>, &mut ClientMapper) -> bincode::Result<C>;
 
-/// Signature of component deserialization function.
+/// Signature of component deserialization functions.
 pub type DeserializeInPlaceFn<C> =
     fn(DeserializeFn<C>, &mut C, &mut Cursor<&[u8]>, &mut ClientMapper) -> bincode::Result<()>;
 
@@ -139,7 +139,7 @@ pub fn deserialize_mapped<C: Component + DeserializeOwned + MapEntities>(
 
 /// Default component in-place deserialization function.
 ///
-/// This implementation just assigns value from the passed deserialization function.
+/// This implementation just assigns the value from the passed deserialization function.
 pub fn deserialize_in_place<C: Component + DeserializeOwned>(
     deserialize: DeserializeFn<C>,
     component: &mut C,

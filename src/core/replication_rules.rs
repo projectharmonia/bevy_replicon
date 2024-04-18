@@ -62,7 +62,7 @@ pub trait AppRuleExt {
     On receive, `deserialize` will be called to insert new components and `deserialize_in_place`
     to change existing ones.
 
-    Registered `deserialize` function will be passed into `deserialize_in_place` for possible
+    The registered `deserialize` function will be passed into `deserialize_in_place` for possible
     fallback. This is what the default [`deserialize_in_place`](serde_fns::deserialize_in_place) does,
     use it if you don't need to have different deserialization logic for components that are already present.
     But `deserialize_in_place` could be used to optimize deserialization of components that require allocations.
