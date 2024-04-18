@@ -131,7 +131,7 @@ pub trait AppRuleExt {
     Replication for them will be stopped, unless they match other rules.
 
     We provide blanket impls for tuples to replicate them as-is, but a user could manually implement the trait
-    to customize how components will be serialized, deserialized, written and removed. For details see [`GroupReplication`].
+    to customize how components will be serialized and deserialized. For details see [`GroupReplication`].
 
     # Panics
 
