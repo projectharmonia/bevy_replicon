@@ -378,7 +378,9 @@ fn apply_init_components(
         entity_ticks.insert(client_entity, replicon_tick);
 
         let (mut entity_markers, mut commands, mut query) = state.get_mut(world);
-        let mut client_entity = query.get_mut(client_entity).unwrap();
+        let mut client_entity = query
+            .get_mut(client_entity)
+            .expect("replicated entities can be despawned only by server");
         entity_markers.extend(command_markers.iter_contains(&client_entity));
 
         let end_pos = cursor.position() + data_size as u64;
@@ -487,7 +489,9 @@ fn apply_update_components(
         *entity_tick = message_tick;
 
         let (mut entity_markers, mut commands, mut query) = state.get_mut(world);
-        let mut client_entity = query.get_mut(client_entity).unwrap();
+        let mut client_entity = query
+            .get_mut(client_entity)
+            .expect("replicated entities can be despawned only by server");
         entity_markers.extend(command_markers.iter_contains(&client_entity));
 
         let end_pos = cursor.position() + data_size as u64;
