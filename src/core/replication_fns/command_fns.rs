@@ -12,11 +12,8 @@ use crate::{
 ///
 /// Unlike [`SerdeFns`] which are selected on the server via
 /// [`ReplicationRules`](crate::core::replication_rules::ReplicationRule), the remove/remove
-/// functions in `markers` here are selected on the client via
-/// [`CommandMarkers`](crate::core::command_markers::CommandMarkers).
-///
-/// The user can override default functions per-entity by providing a marker,
-/// see [`CommandMarkers`](crate::core::command_markers::CommandMarkers)
+/// functions in `markers` here are selected on the client via marker components.
+/// For details see [`AppMarkerExt`](crate::core::command_markers::AppMarkerExt).
 pub struct CommandFns {
     read: ReadFn,
     write: WriteFn,
