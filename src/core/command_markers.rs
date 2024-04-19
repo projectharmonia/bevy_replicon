@@ -202,8 +202,10 @@ pub(crate) struct CommandMarkers(Vec<CommandMarker>);
 impl CommandMarkers {
     /// Inserts a new marker, maintaining sorting by their priority in descending order.
     ///
+    /// May invalidate previously returned [`CommandMarkerIndex`] due to sorting.
+    ///
     /// Use [`ReplicationFns::register_marker`] to register a slot for command functions for this marker.
-    pub(super) fn insert(&mut self, marker: CommandMarker) -> CommandMarkerId {
+    pub(super) fn insert(&mut self, marker: CommandMarker) -> CommandMarkerIndex {
         let index = self
             .0
             .binary_search_by_key(&Reverse(marker.priority), |marker| Reverse(marker.priority))
@@ -211,18 +213,18 @@ impl CommandMarkers {
 
         self.0.insert(index, marker);
 
-        CommandMarkerId(index)
+        CommandMarkerIndex(index)
     }
 
     /// Returns marker ID from its component ID.
-    fn marker_id(&self, component_id: ComponentId) -> CommandMarkerId {
+    fn marker_id(&self, component_id: ComponentId) -> CommandMarkerIndex {
         let index = self
             .0
             .iter()
             .position(|marker| marker.component_id == component_id)
             .unwrap_or_else(|| panic!("marker {component_id:?} wasn't registered"));
 
-        CommandMarkerId(index)
+        CommandMarkerIndex(index)
     }
 
     /// Returns an iterator over markers presence for an entity.
@@ -249,11 +251,11 @@ pub(super) struct CommandMarker {
     pub(super) priority: usize,
 }
 
-/// Unique marker ID.
-///
 /// Can be obtained from [`CommandMarkers::insert`].
+///
+/// Shouldn't be stored anywhere since insertion may invalidate old indices.
 #[derive(Clone, Copy, Deref, Debug)]
-pub(super) struct CommandMarkerId(usize);
+pub(super) struct CommandMarkerIndex(usize);
 
 #[cfg(test)]
 mod tests {

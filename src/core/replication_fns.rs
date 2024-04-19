@@ -7,7 +7,7 @@ use bevy::{
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use super::{command_markers::CommandMarkerId, replicon_tick::RepliconTick};
+use super::{command_markers::CommandMarkerIndex, replicon_tick::RepliconTick};
 use command_fns::{CommandFns, RemoveFn, WriteFn};
 use serde_fns::{DeserializeFn, DeserializeInPlaceFn, SerdeFns, SerializeFn};
 
@@ -43,7 +43,7 @@ impl ReplicationFns {
     ///
     /// Should be used after calling
     /// [`CommandMarkers::insert`](super::command_markers::CommandMarkers::insert)
-    pub(super) fn register_marker(&mut self, marker_id: CommandMarkerId) {
+    pub(super) fn register_marker(&mut self, marker_id: CommandMarkerIndex) {
         self.marker_slots += 1;
         for (command_fns, _) in &mut self.commands {
             command_fns.add_marker_slot(marker_id);
@@ -67,7 +67,7 @@ impl ReplicationFns {
     pub(super) unsafe fn set_marker_fns<C: Component>(
         &mut self,
         world: &mut World,
-        marker_id: CommandMarkerId,
+        marker_id: CommandMarkerIndex,
         write: WriteFn,
         remove: RemoveFn,
     ) {

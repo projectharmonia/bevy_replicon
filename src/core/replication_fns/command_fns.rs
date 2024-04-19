@@ -5,7 +5,7 @@ use bevy::{ecs::system::EntityCommands, prelude::*, ptr::Ptr};
 use super::serde_fns::SerdeFns;
 use crate::{
     client::client_mapper::{ClientMapper, ServerEntityMap},
-    core::{command_markers::CommandMarkerId, replicon_tick::RepliconTick},
+    core::{command_markers::CommandMarkerIndex, replicon_tick::RepliconTick},
 };
 
 /// Functions that operate on components like [`Commands`].
@@ -35,7 +35,7 @@ impl CommandFns {
     /// Adds new empty slot for a marker.
     ///
     /// Use [`Self::set_marker_fns`] to assign functions to it.
-    pub(super) fn add_marker_slot(&mut self, marker_id: CommandMarkerId) {
+    pub(super) fn add_marker_slot(&mut self, marker_id: CommandMarkerIndex) {
         self.markers.insert(*marker_id, None);
     }
 
@@ -51,7 +51,7 @@ impl CommandFns {
     /// Panics if there is no such slot for the marker. Use [`Self::add_marker_slot`] to assign.
     pub(super) unsafe fn set_marker_fns(
         &mut self,
-        marker_id: CommandMarkerId,
+        marker_id: CommandMarkerIndex,
         write: WriteFn,
         remove: RemoveFn,
     ) {
