@@ -196,15 +196,16 @@ impl AppMarkerExt for App {
 
 /// Registered markers that override functions if present for
 /// [`CommandFns`](super::replication_fns::command_fns::CommandFns).
-#[derive(Resource, Default, Deref)]
-pub struct CommandMarkers(Vec<CommandMarker>);
+#[derive(Resource, Default)]
+pub(crate) struct CommandMarkers(Vec<CommandMarker>);
 
 impl CommandMarkers {
     /// Inserts a new marker, maintaining sorting by their priority in descending order.
     ///
     /// Use [`ReplicationFns::register_marker`] to register a slot for command functions for this marker.
-    pub fn insert(&mut self, marker: CommandMarker) -> CommandMarkerId {
+    pub(super) fn insert(&mut self, marker: CommandMarker) -> CommandMarkerId {
         let index = self
+            .0
             .binary_search_by_key(&Reverse(marker.priority), |marker| Reverse(marker.priority))
             .unwrap_or_else(|index| index);
 
@@ -216,6 +217,7 @@ impl CommandMarkers {
     /// Returns marker ID from its component ID.
     fn marker_id(&self, component_id: ComponentId) -> CommandMarkerId {
         let index = self
+            .0
             .iter()
             .position(|marker| marker.component_id == component_id)
             .unwrap_or_else(|| panic!("marker {component_id:?} wasn't registered"));
@@ -228,7 +230,8 @@ impl CommandMarkers {
         &'a self,
         entity: &'a EntityMut,
     ) -> impl Iterator<Item = bool> + 'a {
-        self.iter()
+        self.0
+            .iter()
             .map(move |marker| entity.contains_id(marker.component_id))
     }
 }
@@ -236,21 +239,21 @@ impl CommandMarkers {
 /// Component marker information.
 ///
 /// See also [`CommandMarkers`].
-pub struct CommandMarker {
+pub(super) struct CommandMarker {
     /// Marker ID.
-    pub component_id: ComponentId,
+    pub(super) component_id: ComponentId,
 
     /// Priority of this marker.
     ///
     /// Will affect the order in [`CommandMarkers::insert`].
-    pub priority: usize,
+    pub(super) priority: usize,
 }
 
 /// Unique marker ID.
 ///
 /// Can be obtained from [`CommandMarkers::insert`].
 #[derive(Clone, Copy, Deref, Debug)]
-pub struct CommandMarkerId(usize);
+pub(super) struct CommandMarkerId(usize);
 
 #[cfg(test)]
 mod tests {

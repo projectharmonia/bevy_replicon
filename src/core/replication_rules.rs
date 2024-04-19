@@ -197,11 +197,11 @@ impl AppRuleExt for App {
 
 /// All registered rules for components replication.
 #[derive(Default, Deref, Resource)]
-pub struct ReplicationRules(Vec<ReplicationRule>);
+pub(crate) struct ReplicationRules(Vec<ReplicationRule>);
 
 impl ReplicationRules {
     /// Inserts a new rule, maintaining sorting by their priority in descending order.
-    pub fn insert(&mut self, rule: ReplicationRule) {
+    fn insert(&mut self, rule: ReplicationRule) {
         let index = self
             .binary_search_by_key(&Reverse(rule.priority), |rule| Reverse(rule.priority))
             .unwrap_or_else(|index| index);
