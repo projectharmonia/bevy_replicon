@@ -28,9 +28,9 @@ impl CommandFns {
     /// Creates a new instance for `C` with default functions and the specified number of empty marker function slots.
     pub(super) fn new<C: Component>(marker_slots: usize) -> Self {
         Self {
-            read: read::<C>,
-            write: write::<C>,
-            remove: remove::<C>,
+            read: default_read::<C>,
+            write: default_write::<C>,
+            remove: default_remove::<C>,
             markers: vec![None; marker_slots],
         }
     }
@@ -82,7 +82,7 @@ impl CommandFns {
         self.remove = remove;
     }
 
-    /// Calls [`read`] on the type for which this instance was created.
+    /// Calls [`default_read`] on the type for which this instance was created.
     ///
     /// It's a non-overridable function that is used to restore the erased type from [`Ptr`].
     /// To customize serialization behavior, [`SerdeFns`] should be used instead.
@@ -104,7 +104,7 @@ impl CommandFns {
     /// Entity markers store information about which markers are present on an entity.
     /// The first-found write function whose marker is present on the entity will be selected
     /// (the functions are sorted by priority).
-    /// If there is no such function, it will use the default [`write()`].
+    /// If there is no such function, it will use the [`default_write`].
     ///
     /// # Safety
     ///
@@ -189,7 +189,7 @@ pub type RemoveFn = fn(EntityCommands, RepliconTick);
 /// # Safety
 ///
 /// The caller must ensure that `ptr` and `serde_fns` were created for `C`.
-pub unsafe fn read<C: Component>(
+pub unsafe fn default_read<C: Component>(
     serde_fns: &SerdeFns,
     ptr: Ptr,
     cursor: &mut Cursor<Vec<u8>>,
@@ -205,7 +205,7 @@ pub unsafe fn read<C: Component>(
 /// # Safety
 ///
 /// The caller must ensure that `serde_fns` was created for `C`.
-pub unsafe fn write<C: Component>(
+pub unsafe fn default_write<C: Component>(
     serde_fns: &SerdeFns,
     commands: &mut Commands,
     entity: &mut EntityMut,
@@ -229,6 +229,9 @@ pub unsafe fn write<C: Component>(
 }
 
 /// Default component removal function.
-pub fn remove<C: Component>(mut entity_commands: EntityCommands, _replicon_tick: RepliconTick) {
+pub fn default_remove<C: Component>(
+    mut entity_commands: EntityCommands,
+    _replicon_tick: RepliconTick,
+) {
     entity_commands.remove::<C>();
 }

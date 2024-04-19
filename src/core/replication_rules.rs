@@ -30,8 +30,8 @@ pub trait AppRuleExt {
         C: Component + Serialize + DeserializeOwned,
     {
         self.replicate_with::<C>(
-            serde_fns::serialize::<C>,
-            serde_fns::deserialize::<C>,
+            serde_fns::default_serialize::<C>,
+            serde_fns::default_deserialize::<C>,
             serde_fns::in_place_as_deserialize::<C>,
         )
     }
@@ -46,8 +46,8 @@ pub trait AppRuleExt {
         C: Component + Serialize + DeserializeOwned + MapEntities,
     {
         self.replicate_with::<C>(
-            serde_fns::serialize::<C>,
-            serde_fns::deserialize_mapped::<C>,
+            serde_fns::default_serialize::<C>,
+            serde_fns::default_deserialize_mapped::<C>,
             serde_fns::in_place_as_deserialize::<C>,
         )
     }

@@ -110,8 +110,8 @@ impl ReplicationFns {
     {
         self.register_serde_fns(
             world,
-            serde_fns::serialize::<C>,
-            serde_fns::deserialize::<C>,
+            serde_fns::default_serialize::<C>,
+            serde_fns::default_deserialize::<C>,
             serde_fns::in_place_as_deserialize::<C>,
         )
     }
@@ -127,8 +127,8 @@ impl ReplicationFns {
     {
         self.register_serde_fns(
             world,
-            serde_fns::serialize::<C>,
-            serde_fns::deserialize_mapped::<C>,
+            serde_fns::default_serialize::<C>,
+            serde_fns::default_deserialize_mapped::<C>,
             serde_fns::in_place_as_deserialize::<C>,
         )
     }
@@ -255,8 +255,8 @@ mod tests {
             replication_fns.set_marker_fns::<ComponentA>(
                 &mut world,
                 marker_a,
-                command_fns::write::<ComponentA>,
-                command_fns::remove::<ComponentA>,
+                command_fns::default_write::<ComponentA>,
+                command_fns::default_remove::<ComponentA>,
             );
         }
 
@@ -289,14 +289,14 @@ mod tests {
             replication_fns.set_marker_fns::<ComponentA>(
                 &mut world,
                 marker_a,
-                command_fns::write::<ComponentA>,
-                command_fns::remove::<ComponentA>,
+                command_fns::default_write::<ComponentA>,
+                command_fns::default_remove::<ComponentA>,
             );
             replication_fns.set_marker_fns::<ComponentB>(
                 &mut world,
                 marker_b,
-                command_fns::write::<ComponentB>,
-                command_fns::remove::<ComponentB>,
+                command_fns::default_write::<ComponentB>,
+                command_fns::default_remove::<ComponentB>,
             );
         }
 

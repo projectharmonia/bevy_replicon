@@ -65,8 +65,8 @@ fn command_fns() {
         // SAFETY: `replace` can be safely called with a `SerdeFns` created for `DummyComponent`.
         unsafe {
             app.set_command_fns::<DummyComponent>(
-                command_fns::write::<DummyComponent>,
-                command_fns::remove::<RemovingComponent>,
+                command_fns::default_write::<DummyComponent>,
+                command_fns::default_remove::<RemovingComponent>,
             );
         }
     }
@@ -120,8 +120,8 @@ fn marker() {
         // SAFETY: `replace` can be safely called with a `SerdeFns` created for `DummyComponent`.
         unsafe {
             app.set_marker_fns::<RemoveMarker, DummyComponent>(
-                command_fns::write::<DummyComponent>,
-                command_fns::remove::<RemovingComponent>,
+                command_fns::default_write::<DummyComponent>,
+                command_fns::default_remove::<RemovingComponent>,
             );
         }
     }

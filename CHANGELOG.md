@@ -23,10 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Writing to entities on client now done via `EntityMut` and `Commands` instead of `EntityWorldMut`. It was needed to support the mentioned in-place deserialization and will possibly allow batching insertions in the future (for details see https://github.com/bevyengine/bevy/issues/10154).
 - Move `Replication` to `core` module.
 - Move all functions-related logic from `ReplicationRules` into a new `ReplicationFns`.
-- Rename `serialize_component` into `serialize` and move into `serde_fns` module.
-- Rename `deserialize_component` into `deserialize` and move into `serde_fns` module.
-- Rename `deserialize_mapped_component` into `deserialize_mapped` and move into `serde_fns` module.
-- Rename `remove_component` into `remove` and move into `command_fns` module.
+- Rename `serialize_component` into `default_serialize` and move into `serde_fns` module.
+- Rename `deserialize_component` into `default_deserialize` and move into `serde_fns` module.
+- Rename `deserialize_mapped_component` into `default_deserialize_mapped` and move into `serde_fns` module.
+- Rename `remove_component` into `default_remove` and move into `command_fns` module.
 - Move `despawn_recursive` into `replication_fns` module.
 
 ### Removed

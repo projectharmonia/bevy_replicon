@@ -126,7 +126,7 @@ fn command_fns() {
         unsafe {
             app.set_command_fns::<OriginalComponent>(
                 replace,
-                command_fns::remove::<ReplacedComponent>,
+                command_fns::default_remove::<ReplacedComponent>,
             );
         }
     }
@@ -190,7 +190,7 @@ fn marker() {
         unsafe {
             app.set_marker_fns::<ReplaceMarker, OriginalComponent>(
                 replace,
-                command_fns::remove::<ReplacedComponent>,
+                command_fns::default_remove::<ReplacedComponent>,
             );
         }
     }

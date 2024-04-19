@@ -34,8 +34,8 @@ pub trait AppMarkerExt {
 
     If this marker is present on an entity and its priority is the highest,
     then these functions will be called for this component during replication
-    instead of default [`write`](super::replication_fns::command_fns::write) and
-    [`remove`](super::replication_fns::command_fns::remove).
+    instead of [`default_write`](super::replication_fns::command_fns::default_write) and
+    [`default_remove`](super::replication_fns::command_fns::default_remove).
     See also [`Self::set_command_fns`].
 
     # Safety
@@ -71,7 +71,7 @@ pub trait AppMarkerExt {
     unsafe {
         app.set_marker_fns::<ComponentsHistory, Transform>(
             write_history::<Transform>,
-            command_fns::remove::<Transform>,
+            command_fns::default_remove::<Transform>,
         );
     }
 
@@ -127,9 +127,9 @@ pub trait AppMarkerExt {
     /// Sets default functions for a component when there are no markers.
     ///
     /// If there are no markers are present on an entity, then these functions will
-    /// be called for this component during replication instead of default
-    /// [`write`](super::replication_fns::command_fns::write) and
-    /// [`remove`](super::replication_fns::command_fns::remove).
+    /// be called for this component during replication instead of
+    /// [`default_write`](super::replication_fns::command_fns::default_write) and
+    /// [`default_remove`](super::replication_fns::command_fns::default_remove).
     /// See also [`Self::set_marker_fns`].
     ///
     /// # Safety
@@ -269,8 +269,8 @@ mod tests {
         // SAFETY: `write` can be safely called with a `SerdeFns` created for `DummyComponent`.
         unsafe {
             app.set_marker_fns::<DummyMarkerA, DummyComponent>(
-                command_fns::write::<DummyComponent>,
-                command_fns::remove::<DummyComponent>,
+                command_fns::default_write::<DummyComponent>,
+                command_fns::default_remove::<DummyComponent>,
             );
         }
     }

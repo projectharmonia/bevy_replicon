@@ -112,7 +112,7 @@ pub type DeserializeInPlaceFn<C> =
     fn(DeserializeFn<C>, &mut C, &mut Cursor<&[u8]>, &mut ClientMapper) -> bincode::Result<()>;
 
 /// Default component serialization function.
-pub fn serialize<C: Component + Serialize>(
+pub fn default_serialize<C: Component + Serialize>(
     component: &C,
     cursor: &mut Cursor<Vec<u8>>,
 ) -> bincode::Result<()> {
@@ -120,15 +120,15 @@ pub fn serialize<C: Component + Serialize>(
 }
 
 /// Default component deserialization function.
-pub fn deserialize<C: Component + DeserializeOwned>(
+pub fn default_deserialize<C: Component + DeserializeOwned>(
     cursor: &mut Cursor<&[u8]>,
     _mapper: &mut ClientMapper,
 ) -> bincode::Result<C> {
     DefaultOptions::new().deserialize_from(cursor)
 }
 
-/// Like [`deserialize`], but also maps entities before insertion.
-pub fn deserialize_mapped<C: Component + DeserializeOwned + MapEntities>(
+/// Like [`default_deserialize`], but also maps entities before insertion.
+pub fn default_deserialize_mapped<C: Component + DeserializeOwned + MapEntities>(
     cursor: &mut Cursor<&[u8]>,
     mapper: &mut ClientMapper,
 ) -> bincode::Result<C> {
@@ -160,8 +160,8 @@ mod tests {
     #[should_panic]
     fn packing() {
         let serde_fns = SerdeFns::new(
-            serialize::<ComponentA>,
-            deserialize::<ComponentA>,
+            default_serialize::<ComponentA>,
+            default_deserialize::<ComponentA>,
             in_place_as_deserialize::<ComponentA>,
         );
 
