@@ -140,7 +140,7 @@ pub fn deserialize_mapped<C: Component + DeserializeOwned + MapEntities>(
 /// Default component in-place deserialization function.
 ///
 /// This implementation just assigns the value from the passed deserialization function.
-pub fn deserialize_in_place<C: Component + DeserializeOwned>(
+pub fn in_place_as_deserialize<C: Component + DeserializeOwned>(
     deserialize: DeserializeFn<C>,
     component: &mut C,
     cursor: &mut Cursor<&[u8]>,
@@ -162,7 +162,7 @@ mod tests {
         let serde_fns = SerdeFns::new(
             serialize::<ComponentA>,
             deserialize::<ComponentA>,
-            deserialize_in_place::<ComponentA>,
+            in_place_as_deserialize::<ComponentA>,
         );
 
         // SAFETY: Called with a different type, but should panic in debug mode.

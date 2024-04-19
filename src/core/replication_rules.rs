@@ -32,7 +32,7 @@ pub trait AppRuleExt {
         self.replicate_with::<C>(
             serde_fns::serialize::<C>,
             serde_fns::deserialize::<C>,
-            serde_fns::deserialize_in_place::<C>,
+            serde_fns::in_place_as_deserialize::<C>,
         )
     }
 
@@ -48,7 +48,7 @@ pub trait AppRuleExt {
         self.replicate_with::<C>(
             serde_fns::serialize::<C>,
             serde_fns::deserialize_mapped::<C>,
-            serde_fns::deserialize_in_place::<C>,
+            serde_fns::in_place_as_deserialize::<C>,
         )
     }
 
@@ -63,7 +63,7 @@ pub trait AppRuleExt {
     to change existing ones.
 
     The registered `deserialize` function will be passed into `deserialize_in_place` for possible
-    fallback. This is what the default [`deserialize_in_place`](serde_fns::deserialize_in_place) does,
+    fallback. This is what the default [`in_place_as_deserialize`](serde_fns::in_place_as_deserialize) does,
     use it if you don't need to have different deserialization logic for components that are already present.
     But `deserialize_in_place` could be used to optimize deserialization of components that require allocations.
 
@@ -85,7 +85,7 @@ pub trait AppRuleExt {
     app.replicate_with::<Transform>(
         serialize_translation,
         deserialize_translation,
-        serde_fns::deserialize_in_place, // Use default function which just calls `deserialize_translation`.
+        serde_fns::in_place_as_deserialize,
     );
 
     /// Serializes only `translation` from [`Transform`].
@@ -304,7 +304,7 @@ impl GroupReplication for PlayerBundle {
             world,
             serialize_translation,
             deserialize_translation,
-            serde_fns::deserialize_in_place,
+            serde_fns::in_place_as_deserialize,
         );
 
         // Serialize `player` as usual.

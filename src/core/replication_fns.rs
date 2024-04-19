@@ -112,7 +112,7 @@ impl ReplicationFns {
             world,
             serde_fns::serialize::<C>,
             serde_fns::deserialize::<C>,
-            serde_fns::deserialize_in_place::<C>,
+            serde_fns::in_place_as_deserialize::<C>,
         )
     }
 
@@ -129,7 +129,7 @@ impl ReplicationFns {
             world,
             serde_fns::serialize::<C>,
             serde_fns::deserialize_mapped::<C>,
-            serde_fns::deserialize_in_place::<C>,
+            serde_fns::in_place_as_deserialize::<C>,
         )
     }
 
