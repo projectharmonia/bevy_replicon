@@ -10,9 +10,7 @@ use bevy::{
     utils::tracing::enabled,
 };
 
-use crate::core::{
-    replication_fns::ComponentFnsId, replication_rules::ReplicationRules, Replication,
-};
+use crate::core::{replication_fns::FnsId, replication_rules::ReplicationRules, Replication};
 
 /// Cached information about all replicated archetypes.
 #[derive(Deref)]
@@ -47,18 +45,18 @@ impl ReplicatedArchetypes {
         {
             let mut replicated_archetype = ReplicatedArchetype::new(archetype.id());
             for rule in rules.iter().filter(|rule| rule.matches(archetype)) {
-                for &(component_id, fns_id) in rule.components() {
+                for fns_info in &rule.components {
                     // Since rules are sorted by priority,
                     // we are inserting only new components that aren't present.
                     if replicated_archetype
                         .components
                         .iter()
-                        .any(|component| component.component_id == component_id)
+                        .any(|component| component.component_id == fns_info.component_id())
                     {
                         if enabled!(Level::DEBUG) {
                             let component_name = world
                                 .components()
-                                .get_name(component_id)
+                                .get_name(fns_info.component_id())
                                 .expect("rules should be registered with valid component");
 
                             let component_names: Vec<_> = replicated_archetype
@@ -76,13 +74,16 @@ impl ReplicatedArchetypes {
                     }
 
                     // SAFETY: component ID obtained from this archetype.
-                    let storage_type =
-                        unsafe { archetype.get_storage_type(component_id).unwrap_unchecked() };
+                    let storage_type = unsafe {
+                        archetype
+                            .get_storage_type(fns_info.component_id())
+                            .unwrap_unchecked()
+                    };
 
                     replicated_archetype.components.push(ReplicatedComponent {
-                        component_id,
+                        component_id: fns_info.component_id(),
                         storage_type,
-                        fns_id,
+                        fns_id: fns_info.fns_id(),
                     });
                 }
             }
@@ -123,7 +124,7 @@ impl ReplicatedArchetype {
 pub(super) struct ReplicatedComponent {
     pub(super) component_id: ComponentId,
     pub(super) storage_type: StorageType,
-    pub(super) fns_id: ComponentFnsId,
+    pub(super) fns_id: FnsId,
 }
 
 #[cfg(test)]
@@ -131,7 +132,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::{core::replication_fns::ReplicationFns, AppReplicationExt};
+    use crate::{core::replication_fns::ReplicationFns, AppRuleExt};
 
     #[test]
     fn empty() {

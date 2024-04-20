@@ -13,7 +13,7 @@ use bevy::{
 
 use super::{ServerPlugin, ServerSet};
 use crate::core::{
-    common_conditions::server_running, replication_fns::ComponentFnsId,
+    common_conditions::server_running, replication_fns::FnsInfo,
     replication_rules::ReplicationRules, Replication,
 };
 
@@ -130,8 +130,8 @@ impl FromWorld for ReplicatedComponents {
         let rules = world.resource::<ReplicationRules>();
         let component_ids = rules
             .iter()
-            .flat_map(|rule| rule.components())
-            .map(|&(component_id, _)| component_id)
+            .flat_map(|rule| &rule.components)
+            .map(|fns_info| fns_info.component_id())
             .collect();
 
         Self(component_ids)
@@ -142,18 +142,18 @@ impl FromWorld for ReplicatedComponents {
 #[derive(Default, Resource)]
 pub(crate) struct RemovalBuffer {
     /// Component removals grouped by entity.
-    removals: Vec<(Entity, Vec<(ComponentId, ComponentFnsId)>)>,
+    removals: Vec<(Entity, Vec<FnsInfo>)>,
 
     /// [`Vec`]s from removals.
     ///
     /// All data is cleared before the insertion.
     /// Stored to reuse allocated capacity.
-    ids_buffer: Vec<Vec<(ComponentId, ComponentFnsId)>>,
+    ids_buffer: Vec<Vec<FnsInfo>>,
 }
 
 impl RemovalBuffer {
     /// Returns an iterator over entities and their removed components.
-    pub(super) fn iter(&self) -> impl Iterator<Item = (Entity, &[(ComponentId, ComponentFnsId)])> {
+    pub(super) fn iter(&self) -> impl Iterator<Item = (Entity, &[FnsInfo])> {
         self.removals
             .iter()
             .map(|(entity, remove_ids)| (*entity, &**remove_ids))
@@ -172,15 +172,15 @@ impl RemovalBuffer {
             .iter()
             .filter(|rule| rule.matches_removals(archetype, components))
         {
-            for &(component_id, fns_id) in rule.components() {
+            for &fns_info in &rule.components {
                 // Since rules are sorted by priority,
                 // we are inserting only new components that aren't present.
                 if removed_ids
                     .iter()
-                    .all(|&(removed_id, _)| removed_id != component_id)
-                    && !archetype.contains(component_id)
+                    .all(|removed_info| removed_info.component_id() != fns_info.component_id())
+                    && !archetype.contains(fns_info.component_id())
                 {
-                    removed_ids.push((component_id, fns_id));
+                    removed_ids.push(fns_info);
                 }
             }
         }
@@ -205,9 +205,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        core::{
-            replication_fns::ReplicationFns, replication_rules::AppReplicationExt, Replication,
-        },
+        core::{replication_fns::ReplicationFns, replication_rules::AppRuleExt, Replication},
         server::replicon_server::RepliconServer,
     };
 

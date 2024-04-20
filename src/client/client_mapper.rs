@@ -5,30 +5,24 @@ use crate::core::Replication;
 /// Maps server entities into client entities inside components.
 ///
 /// Spawns new client entity if a mapping doesn't exists.
-pub struct ClientMapper<'a> {
-    world: &'a mut World,
-    server_to_client: &'a mut EntityHashMap<Entity>,
-    client_to_server: &'a mut EntityHashMap<Entity>,
+pub struct ClientMapper<'a, 'w, 's> {
+    pub commands: &'a mut Commands<'w, 's>,
+    pub entity_map: &'a mut ServerEntityMap,
 }
 
-impl<'a> ClientMapper<'a> {
-    #[inline]
-    pub fn new(world: &'a mut World, entity_map: &'a mut ServerEntityMap) -> Self {
-        Self {
-            world,
-            server_to_client: &mut entity_map.server_to_client,
-            client_to_server: &mut entity_map.client_to_server,
-        }
-    }
-}
-
-impl EntityMapper for ClientMapper<'_> {
+impl EntityMapper for ClientMapper<'_, '_, '_> {
     fn map_entity(&mut self, entity: Entity) -> Entity {
-        *self.server_to_client.entry(entity).or_insert_with(|| {
-            let client_entity = self.world.spawn(Replication).id();
-            self.client_to_server.insert(client_entity, entity);
-            client_entity
-        })
+        *self
+            .entity_map
+            .server_to_client
+            .entry(entity)
+            .or_insert_with(|| {
+                let client_entity = self.commands.spawn(Replication).id();
+                self.entity_map
+                    .client_to_server
+                    .insert(client_entity, entity);
+                client_entity
+            })
     }
 }
 
@@ -60,31 +54,24 @@ impl ServerEntityMap {
         self.client_to_server.insert(client_entity, server_entity);
     }
 
-    pub(super) fn get_by_server_or_spawn<'a>(
+    pub(super) fn get_by_server_or_insert(
         &mut self,
-        world: &'a mut World,
         server_entity: Entity,
-    ) -> EntityWorldMut<'a> {
+        f: impl FnOnce() -> Entity,
+    ) -> Entity {
         match self.server_to_client.entry(server_entity) {
-            Entry::Occupied(entry) => world.entity_mut(*entry.get()),
+            Entry::Occupied(entry) => *entry.get(),
             Entry::Vacant(entry) => {
-                let client_entity = world.spawn(Replication);
-                entry.insert(client_entity.id());
-                self.client_to_server
-                    .insert(client_entity.id(), server_entity);
+                let client_entity = (f)();
+                entry.insert(client_entity);
+                self.client_to_server.insert(client_entity, server_entity);
                 client_entity
             }
         }
     }
 
-    pub(super) fn get_by_server<'a>(
-        &mut self,
-        world: &'a mut World,
-        server_entity: Entity,
-    ) -> Option<EntityWorldMut<'a>> {
-        self.server_to_client
-            .get(&server_entity)
-            .map(|&entity| world.entity_mut(entity))
+    pub(super) fn get_by_server(&mut self, server_entity: Entity) -> Option<Entity> {
+        self.server_to_client.get(&server_entity).copied()
     }
 
     pub(super) fn remove_by_server(&mut self, server_entity: Entity) -> Option<Entity> {

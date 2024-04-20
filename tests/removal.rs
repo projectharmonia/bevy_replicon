@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use bevy_replicon::{
-    client::client_mapper::ServerEntityMap, prelude::*, test_app::ServerTestAppExt,
+    client::client_mapper::ServerEntityMap, core::replication_fns::command_fns, prelude::*,
+    test_app::ServerTestAppExt,
 };
 use serde::{Deserialize, Serialize};
 
@@ -45,6 +46,115 @@ fn single() {
 
     let client_entity = client_app.world.entity(client_entity);
     assert!(!client_entity.contains::<DummyComponent>());
+}
+
+#[test]
+fn command_fns() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<DummyComponent>();
+
+        // SAFETY: `replace` can be safely called with a `SerdeFns` created for `DummyComponent`.
+        unsafe {
+            app.set_command_fns::<DummyComponent>(
+                command_fns::default_write::<DummyComponent>,
+                command_fns::default_remove::<RemovingComponent>,
+            );
+        }
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    let server_entity = server_app.world.spawn((Replication, DummyComponent)).id();
+    let client_entity = client_app
+        .world
+        .spawn((Replication, RemovingComponent))
+        .id();
+
+    client_app
+        .world
+        .resource_mut::<ServerEntityMap>()
+        .insert(server_entity, client_entity);
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    server_app
+        .world
+        .entity_mut(server_entity)
+        .remove::<DummyComponent>();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    let client_entity = client_app.world.entity(client_entity);
+    assert!(!client_entity.contains::<RemovingComponent>());
+}
+
+#[test]
+fn marker() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .register_marker::<RemoveMarker>()
+        .replicate::<DummyComponent>();
+
+        // SAFETY: `replace` can be safely called with a `SerdeFns` created for `DummyComponent`.
+        unsafe {
+            app.set_marker_fns::<RemoveMarker, DummyComponent>(
+                command_fns::default_write::<DummyComponent>,
+                command_fns::default_remove::<RemovingComponent>,
+            );
+        }
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    let server_entity = server_app.world.spawn((Replication, DummyComponent)).id();
+    let client_entity = client_app
+        .world
+        .spawn((Replication, RemoveMarker, RemovingComponent))
+        .id();
+
+    client_app
+        .world
+        .resource_mut::<ServerEntityMap>()
+        .insert(server_entity, client_entity);
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    server_app
+        .world
+        .entity_mut(server_entity)
+        .remove::<DummyComponent>();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    let client_entity = client_app.world.entity(client_entity);
+    assert!(!client_entity.contains::<RemovingComponent>());
 }
 
 #[test]
@@ -247,3 +357,9 @@ struct GroupComponentB;
 
 #[derive(Component, Deserialize, Serialize)]
 struct NotReplicatedComponent;
+
+#[derive(Component)]
+struct RemoveMarker;
+
+#[derive(Component, Deserialize, Serialize)]
+struct RemovingComponent;

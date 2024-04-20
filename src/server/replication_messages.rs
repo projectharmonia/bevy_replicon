@@ -15,7 +15,7 @@ use super::{
     ClientMapping, ConnectedClient,
 };
 use crate::core::{
-    replication_fns::{ComponentFns, ComponentFnsId},
+    replication_fns::{command_fns::CommandFns, serde_fns::SerdeFns, FnsId},
     replicon_channels::ReplicationChannel,
     replicon_tick::RepliconTick,
 };
@@ -289,8 +289,9 @@ impl InitMessage {
     pub(super) fn write_component<'a>(
         &'a mut self,
         shared_bytes: &mut Option<&'a [u8]>,
-        fns: &ComponentFns,
-        fns_id: ComponentFnsId,
+        serde_fns: &SerdeFns,
+        command_fns: &CommandFns,
+        fns_id: FnsId,
         ptr: Ptr,
     ) -> bincode::Result<()> {
         if self.entity_data_size == 0 {
@@ -299,9 +300,8 @@ impl InitMessage {
 
         let size = write_with(shared_bytes, &mut self.cursor, |cursor| {
             DefaultOptions::new().serialize_into(&mut *cursor, &fns_id)?;
-            // SAFETY: User ensured that the registered component can be
-            // safely passed to its serialization function.
-            unsafe { (fns.serialize)(ptr, cursor) }
+            // SAFETY: `command_fns`, `ptr` and `serde_fns` were created for the same component type.
+            unsafe { command_fns.read(serde_fns, ptr, cursor) }
         })?;
 
         self.entity_data_size = self
@@ -316,7 +316,7 @@ impl InitMessage {
     ///
     /// Should be called only inside an entity data and increases its size.
     /// See also [`Self::start_entity_data`].
-    pub(super) fn write_fns_id(&mut self, fns_id: ComponentFnsId) -> bincode::Result<()> {
+    pub(super) fn write_fns_id(&mut self, fns_id: FnsId) -> bincode::Result<()> {
         if self.entity_data_size == 0 {
             self.write_data_entity()?;
         }
@@ -517,8 +517,9 @@ impl UpdateMessage {
     pub(super) fn write_component<'a>(
         &'a mut self,
         shared_bytes: &mut Option<&'a [u8]>,
-        fns: &ComponentFns,
-        fns_id: ComponentFnsId,
+        serde_fns: &SerdeFns,
+        command_fns: &CommandFns,
+        fns_id: FnsId,
         ptr: Ptr,
     ) -> bincode::Result<()> {
         if self.entity_data_size == 0 {
@@ -527,9 +528,8 @@ impl UpdateMessage {
 
         let size = write_with(shared_bytes, &mut self.cursor, |cursor| {
             DefaultOptions::new().serialize_into(&mut *cursor, &fns_id)?;
-            // SAFETY: User ensured that the registered component can be
-            // safely passed to its serialization function.
-            unsafe { (fns.serialize)(ptr, cursor) }
+            // SAFETY: `command_fns`, `ptr` and `serde_fns` were created for the same component type.
+            unsafe { command_fns.read(serde_fns, ptr, cursor) }
         })?;
 
         self.entity_data_size = self

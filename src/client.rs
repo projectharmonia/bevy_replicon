@@ -4,12 +4,16 @@ pub mod replicon_client;
 
 use std::io::Cursor;
 
-use bevy::{ecs::entity::EntityHashMap, prelude::*};
+use bevy::{
+    ecs::{entity::EntityHashMap, system::SystemState},
+    prelude::*,
+};
 use bincode::{DefaultOptions, Options};
 use bytes::Bytes;
 use varint_rs::VarintReader;
 
 use crate::core::{
+    command_markers::CommandMarkers,
     common_conditions::{client_connected, client_just_connected, client_just_disconnected},
     replication_fns::ReplicationFns,
     replicon_channels::{ReplicationChannel, RepliconChannels},
@@ -77,28 +81,35 @@ impl ClientPlugin {
     /// Acknowledgments for received entity update messages are sent back to the server.
     ///
     /// See also [`ReplicationMessages`](crate::server::replication_messages::ReplicationMessages).
-    pub(super) fn receive_replication(world: &mut World) -> bincode::Result<()> {
+    pub(super) fn receive_replication(
+        world: &mut World,
+        state: &mut ReceiveState,
+    ) -> bincode::Result<()> {
         world.resource_scope(|world, mut client: Mut<RepliconClient>| {
             world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
                 world.resource_scope(|world, mut entity_ticks: Mut<ServerEntityTicks>| {
                     world.resource_scope(|world, mut buffered_updates: Mut<BufferedUpdates>| {
-                        world.resource_scope(|world, replication_fns: Mut<ReplicationFns>| {
-                            let mut stats = world.remove_resource::<ClientStats>();
-                            apply_replication(
-                                world,
-                                &mut client,
-                                &mut entity_map,
-                                &mut entity_ticks,
-                                &mut buffered_updates,
-                                stats.as_mut(),
-                                &replication_fns,
-                            )?;
+                        world.resource_scope(|world, command_markers: Mut<CommandMarkers>| {
+                            world.resource_scope(|world, replication_fns: Mut<ReplicationFns>| {
+                                let mut stats = world.remove_resource::<ClientStats>();
+                                apply_replication(
+                                    world,
+                                    state,
+                                    &mut client,
+                                    &mut entity_map,
+                                    &mut entity_ticks,
+                                    &mut buffered_updates,
+                                    stats.as_mut(),
+                                    &command_markers,
+                                    &replication_fns,
+                                )?;
 
-                            if let Some(stats) = stats {
-                                world.insert_resource(stats);
-                            }
+                                if let Some(stats) = stats {
+                                    world.insert_resource(stats);
+                                }
 
-                            Ok(())
+                                Ok(())
+                            })
                         })
                     })
                 })
@@ -124,20 +135,24 @@ impl ClientPlugin {
 /// Sends acknowledgments for update messages back.
 fn apply_replication(
     world: &mut World,
+    state: &mut ReceiveState,
     client: &mut RepliconClient,
     entity_map: &mut ServerEntityMap,
     entity_ticks: &mut ServerEntityTicks,
     buffered_updates: &mut BufferedUpdates,
     mut stats: Option<&mut ClientStats>,
+    command_markers: &CommandMarkers,
     replication_fns: &ReplicationFns,
 ) -> Result<(), Box<bincode::ErrorKind>> {
     while let Some(message) = client.receive(ReplicationChannel::Init) {
         apply_init_message(
             &message,
             world,
+            state,
             entity_map,
             entity_ticks,
             stats.as_deref_mut(),
+            command_markers,
             replication_fns,
         )?;
     }
@@ -147,10 +162,12 @@ fn apply_replication(
         let index = apply_update_message(
             message,
             world,
+            state,
             entity_map,
             entity_ticks,
             buffered_updates,
             stats.as_deref_mut(),
+            command_markers,
             replication_fns,
             replicon_tick,
         )?;
@@ -168,9 +185,11 @@ fn apply_replication(
         if let Err(e) = apply_update_components(
             &mut Cursor::new(&*update.message),
             world,
+            state,
             entity_map,
             entity_ticks,
             stats.as_deref_mut(),
+            command_markers,
             replication_fns,
             update.message_tick,
         ) {
@@ -188,9 +207,11 @@ fn apply_replication(
 fn apply_init_message(
     message: &[u8],
     world: &mut World,
+    state: &mut ReceiveState,
     entity_map: &mut ServerEntityMap,
     entity_ticks: &mut ServerEntityTicks,
     mut stats: Option<&mut ClientStats>,
+    command_markers: &CommandMarkers,
     replication_fns: &ReplicationFns,
 ) -> bincode::Result<()> {
     let end_pos: u64 = message.len().try_into().unwrap();
@@ -226,10 +247,12 @@ fn apply_init_message(
     apply_init_components(
         &mut cursor,
         world,
+        state,
         entity_map,
         entity_ticks,
         stats.as_deref_mut(),
         ComponentsKind::Removal,
+        command_markers,
         replication_fns,
         replicon_tick,
     )?;
@@ -240,10 +263,12 @@ fn apply_init_message(
     apply_init_components(
         &mut cursor,
         world,
+        state,
         entity_map,
         entity_ticks,
         stats,
         ComponentsKind::Insert,
+        command_markers,
         replication_fns,
         replicon_tick,
     )?;
@@ -260,10 +285,12 @@ fn apply_init_message(
 fn apply_update_message(
     message: Bytes,
     world: &mut World,
+    state: &mut ReceiveState,
     entity_map: &mut ServerEntityMap,
     entity_ticks: &mut ServerEntityTicks,
     buffered_updates: &mut BufferedUpdates,
     mut stats: Option<&mut ClientStats>,
+    command_markers: &CommandMarkers,
     replication_fns: &ReplicationFns,
     replicon_tick: RepliconTick,
 ) -> bincode::Result<u16> {
@@ -289,9 +316,11 @@ fn apply_update_message(
     apply_update_components(
         &mut cursor,
         world,
+        state,
         entity_map,
         entity_ticks,
         stats,
+        command_markers,
         replication_fns,
         message_tick,
     )?;
@@ -330,37 +359,64 @@ fn apply_entity_mappings(
 fn apply_init_components(
     cursor: &mut Cursor<&[u8]>,
     world: &mut World,
+    state: &mut ReceiveState,
     entity_map: &mut ServerEntityMap,
     entity_ticks: &mut ServerEntityTicks,
     mut stats: Option<&mut ClientStats>,
     components_kind: ComponentsKind,
+    command_markers: &CommandMarkers,
     replication_fns: &ReplicationFns,
     replicon_tick: RepliconTick,
 ) -> bincode::Result<()> {
     let entities_len: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..entities_len {
-        let entity = deserialize_entity(cursor)?;
+        let server_entity = deserialize_entity(cursor)?;
         let data_size: u16 = bincode::deserialize_from(&mut *cursor)?;
-        let mut entity = entity_map.get_by_server_or_spawn(world, entity);
-        entity_ticks.insert(entity.id(), replicon_tick);
+
+        let client_entity =
+            entity_map.get_by_server_or_insert(server_entity, || world.spawn(Replication).id());
+        entity_ticks.insert(client_entity, replicon_tick);
+
+        let (mut entity_markers, mut commands, mut query) = state.get_mut(world);
+        let mut client_entity = query
+            .get_mut(client_entity)
+            .expect("replicated entities can be despawned only by server");
+        entity_markers.extend(command_markers.iter_contains(&client_entity));
 
         let end_pos = cursor.position() + data_size as u64;
         let mut components_len = 0u32;
         while cursor.position() < end_pos {
             let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
-            let fns = replication_fns.component_fns(fns_id);
+            let (command_fns, serde_fns) = replication_fns.get(fns_id);
             match components_kind {
-                ComponentsKind::Insert => {
-                    (fns.deserialize)(&mut entity, entity_map, cursor, replicon_tick)?
-                }
-                ComponentsKind::Removal => (fns.remove)(&mut entity, replicon_tick),
+                ComponentsKind::Insert => unsafe {
+                    // SAFETY: `serde_fns` and `command_fns` were created for the same type.
+                    command_fns.write(
+                        serde_fns,
+                        &entity_markers,
+                        &mut commands,
+                        &mut client_entity,
+                        cursor,
+                        entity_map,
+                        replicon_tick,
+                    )?
+                },
+                ComponentsKind::Removal => command_fns.remove(
+                    &entity_markers,
+                    commands.entity(client_entity.id()),
+                    replicon_tick,
+                ),
             }
             components_len += 1;
         }
+
         if let Some(stats) = &mut stats {
             stats.entities_changed += 1;
             stats.components_changed += components_len;
         }
+
+        entity_markers.clear();
+        state.apply(world);
     }
 
     Ok(())
@@ -403,44 +459,68 @@ fn apply_despawns(
 fn apply_update_components(
     cursor: &mut Cursor<&[u8]>,
     world: &mut World,
+    state: &mut ReceiveState,
     entity_map: &mut ServerEntityMap,
     entity_ticks: &mut ServerEntityTicks,
     mut stats: Option<&mut ClientStats>,
+    command_markers: &CommandMarkers,
     replication_fns: &ReplicationFns,
     message_tick: RepliconTick,
 ) -> bincode::Result<()> {
     let message_end = cursor.get_ref().len() as u64;
     while cursor.position() < message_end {
-        let entity = deserialize_entity(cursor)?;
+        let server_entity = deserialize_entity(cursor)?;
         let data_size: u16 = bincode::deserialize_from(&mut *cursor)?;
-        let Some(mut entity) = entity_map.get_by_server(world, entity) else {
+
+        let Some(client_entity) = entity_map.get_by_server(server_entity) else {
             // Update could arrive after a despawn from init message.
-            debug!("ignoring update received for unknown server's {entity:?}");
+            debug!("ignoring update received for unknown server's {server_entity:?}");
             cursor.set_position(cursor.position() + data_size as u64);
             continue;
         };
         let entity_tick = entity_ticks
-            .get_mut(&entity.id())
+            .get_mut(&client_entity)
             .expect("all entities from update should have assigned ticks");
         if message_tick <= *entity_tick {
-            trace!("ignoring outdated update for client's {:?}", entity.id());
+            trace!("ignoring outdated update for client's {client_entity:?}");
             cursor.set_position(cursor.position() + data_size as u64);
             continue;
         }
         *entity_tick = message_tick;
 
+        let (mut entity_markers, mut commands, mut query) = state.get_mut(world);
+        let mut client_entity = query
+            .get_mut(client_entity)
+            .expect("replicated entities can be despawned only by server");
+        entity_markers.extend(command_markers.iter_contains(&client_entity));
+
         let end_pos = cursor.position() + data_size as u64;
         let mut components_count = 0u32;
         while cursor.position() < end_pos {
             let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
-            let fns = replication_fns.component_fns(fns_id);
-            (fns.deserialize)(&mut entity, entity_map, cursor, message_tick)?;
+            let (command_fns, serde_fns) = replication_fns.get(fns_id);
+            // SAFETY: `serde_fns` and `command_fns` were created for the same type.
+            unsafe {
+                command_fns.write(
+                    serde_fns,
+                    &entity_markers,
+                    &mut commands,
+                    &mut client_entity,
+                    cursor,
+                    entity_map,
+                    message_tick,
+                )?;
+            }
             components_count += 1;
         }
+
         if let Some(stats) = &mut stats {
             stats.entities_changed += 1;
             stats.components_changed += components_count;
         }
+
+        entity_markers.clear();
+        state.apply(world);
     }
 
     Ok(())
@@ -463,6 +543,12 @@ fn deserialize_entity(cursor: &mut Cursor<&[u8]>) -> bincode::Result<Entity> {
 
     Ok(Entity::from_bits(bits))
 }
+
+type ReceiveState<'w, 's> = SystemState<(
+    Local<'s, Vec<bool>>,
+    Commands<'w, 's>,
+    Query<'w, 's, EntityMut<'w>>,
+)>;
 
 /// Type of components replication.
 ///

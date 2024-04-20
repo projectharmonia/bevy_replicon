@@ -1,5 +1,15 @@
+use std::io::Cursor;
+
 use bevy::{prelude::*, utils::Duration};
-use bevy_replicon::{core::replicon_tick::RepliconTick, prelude::*, test_app::ServerTestAppExt};
+use bevy_replicon::{
+    client::client_mapper::{ClientMapper, ServerEntityMap},
+    core::{
+        replication_fns::{command_fns, serde_fns::SerdeFns},
+        replicon_tick::RepliconTick,
+    },
+    prelude::*,
+    test_app::ServerTestAppExt,
+};
 use serde::{Deserialize, Serialize};
 
 #[test]
@@ -96,6 +106,133 @@ fn package_size_component() {
         .query::<&VecComponent>()
         .single(&client_app.world);
     assert_eq!(component.0, BIG_DATA);
+}
+
+#[test]
+fn command_fns() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<OriginalComponent>();
+
+        // SAFETY: `replace` can be safely called with a `SerdeFns` created for `OriginalComponent`.
+        unsafe {
+            app.set_command_fns::<OriginalComponent>(
+                replace,
+                command_fns::default_remove::<ReplacedComponent>,
+            );
+        }
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    let server_entity = server_app
+        .world
+        .spawn((Replication, OriginalComponent(false)))
+        .id();
+
+    let client_entity = client_app
+        .world
+        .spawn((Replication, ReplacedComponent(false)))
+        .id();
+
+    client_app
+        .world
+        .resource_mut::<ServerEntityMap>()
+        .insert(server_entity, client_entity);
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    // Change value.
+    let mut component = server_app
+        .world
+        .get_mut::<OriginalComponent>(server_entity)
+        .unwrap();
+    component.0 = true;
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    let client_entity = client_app.world.entity(client_entity);
+    assert!(!client_entity.contains::<OriginalComponent>());
+
+    let component = client_entity.get::<ReplacedComponent>().unwrap();
+    assert!(component.0);
+}
+
+#[test]
+fn marker() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .register_marker::<ReplaceMarker>()
+        .replicate::<OriginalComponent>();
+
+        // SAFETY: `replace` can be safely called with a `SerdeFns` created for `OriginalComponent`.
+        unsafe {
+            app.set_marker_fns::<ReplaceMarker, OriginalComponent>(
+                replace,
+                command_fns::default_remove::<ReplacedComponent>,
+            );
+        }
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    let server_entity = server_app
+        .world
+        .spawn((Replication, OriginalComponent(false)))
+        .id();
+
+    let client_entity = client_app
+        .world
+        .spawn((Replication, ReplaceMarker, ReplacedComponent(false)))
+        .id();
+
+    client_app
+        .world
+        .resource_mut::<ServerEntityMap>()
+        .insert(server_entity, client_entity);
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    // Change value.
+    let mut component = server_app
+        .world
+        .get_mut::<OriginalComponent>(server_entity)
+        .unwrap();
+    component.0 = true;
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    let client_entity = client_app.world.entity(client_entity);
+    assert!(!client_entity.contains::<OriginalComponent>());
+
+    let component = client_entity.get::<ReplacedComponent>().unwrap();
+    assert!(component.0);
 }
 
 #[test]
@@ -390,3 +527,38 @@ struct BoolComponent(bool);
 
 #[derive(Component, Default, Deserialize, Serialize)]
 struct VecComponent(Vec<u8>);
+
+#[derive(Component)]
+struct ReplaceMarker;
+
+#[derive(Component, Deserialize, Serialize)]
+struct OriginalComponent(bool);
+
+#[derive(Component, Deserialize, Serialize)]
+struct ReplacedComponent(bool);
+
+/// Deserializes [`OriginalComponent`], but inserts it as [`ReplacedComponent`].
+///
+/// # Safety
+///
+/// The caller must ensure that `serde_fns` was created for [`OriginalComponent`].
+unsafe fn replace(
+    serde_fns: &SerdeFns,
+    commands: &mut Commands,
+    entity: &mut EntityMut,
+    cursor: &mut Cursor<&[u8]>,
+    entity_map: &mut ServerEntityMap,
+    _replicon_tick: RepliconTick,
+) -> bincode::Result<()> {
+    let mut mapper = ClientMapper {
+        commands,
+        entity_map,
+    };
+
+    let component = serde_fns.deserialize::<OriginalComponent>(cursor, &mut mapper)?;
+    commands
+        .entity(entity.id())
+        .insert(ReplacedComponent(component.0));
+
+    Ok(())
+}
