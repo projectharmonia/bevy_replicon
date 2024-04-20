@@ -113,7 +113,7 @@ pub trait AppMarkerExt {
 
     /// Stores history of values of `C` received from server. Present only on client.
     ///
-    ///Present only on client.
+    /// Present only on client.
     #[derive(Component, Deref, DerefMut)]
     struct History<C>(Vec<C>);
     ```
@@ -126,7 +126,7 @@ pub trait AppMarkerExt {
 
     /// Sets default functions for a component when there are no markers.
     ///
-    /// If there are no markers are present on an entity, then these functions will
+    /// If there are no markers present on an entity, then these functions will
     /// be called for this component during replication instead of
     /// [`default_write`](super::replication_fns::command_fns::default_write) and
     /// [`default_remove`](super::replication_fns::command_fns::default_remove).
@@ -134,7 +134,7 @@ pub trait AppMarkerExt {
     ///
     /// # Safety
     ///
-    /// The caller must ensure that passed `write` can be safely called with a
+    /// The caller must ensure that passed `write` can be safely called with all
     /// [`SerdeFns`](super::replication_fns::serde_fns::SerdeFns) created for `C`.
     unsafe fn set_command_fns<C: Component>(
         &mut self,
