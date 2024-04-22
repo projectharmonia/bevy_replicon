@@ -157,7 +157,6 @@ impl AppMarkerExt for App {
         let marker_id = command_markers.marker_id(component_id);
         self.world
             .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| {
-                // SAFETY: The caller ensured that `write` can be safely called with a `SerdeFns` created for `C`.
                 replication_fns.set_marker_fns::<C>(world, marker_id, command_fns);
             });
 
@@ -167,7 +166,6 @@ impl AppMarkerExt for App {
     fn set_command_fns<C: Component>(&mut self, command_fns: CommandFns<C>) -> &mut Self {
         self.world
             .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| {
-                // SAFETY: The caller ensured that `write` can be safely called with a `SerdeFns` created for `C`.
                 replication_fns.set_command_fns::<C>(world, command_fns);
             });
 
