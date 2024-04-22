@@ -1,4 +1,4 @@
-use std::{io::Cursor, marker::PhantomData};
+use std::{any, io::Cursor, marker::PhantomData};
 
 use bevy::{
     ecs::{entity::MapEntities, event::Event},
@@ -195,7 +195,11 @@ fn pop_from_queue<T: Event>(
     mut server_events: EventWriter<T>,
     mut event_queue: ResMut<ServerEventQueue<T>>,
 ) {
-    while let Some(event) = event_queue.try_pop(*replicon_tick) {
+    while let Some((tick, event)) = event_queue.try_pop(*replicon_tick) {
+        trace!(
+            "applying event `{}` from queue with `{tick:?}`",
+            any::type_name::<T>()
+        );
         server_events.send(event);
     }
 }
@@ -214,8 +218,10 @@ fn receive<T: Event + DeserializeOwned>(
         .expect("server should send valid events");
 
         if tick <= *replicon_tick {
+            trace!("applying event `{}` with `{tick:?}`", any::type_name::<T>());
             server_events.send(event);
         } else {
+            trace!("queuing event `{}` with `{tick:?}`", any::type_name::<T>());
             event_queue.insert(tick, event);
         }
     }
@@ -237,8 +243,10 @@ fn receive_and_map<T: Event + MapEntities + DeserializeOwned>(
 
         event.map_entities(&mut EventMapper(entity_map.to_client()));
         if tick <= *replicon_tick {
+            trace!("applying event `{}` for `{tick:?}`", any::type_name::<T>());
             server_events.send(event);
         } else {
+            trace!("queuing event `{}` for `{tick:?}`", any::type_name::<T>());
             event_queue.insert(tick, event);
         }
     }
@@ -251,6 +259,7 @@ fn send<T: Event + Serialize>(
     channel: Res<ServerEventChannel<T>>,
 ) {
     for ToClients { event, mode } in server_events.read() {
+        trace!("sending event `{}` with `{mode:?}`", any::type_name::<T>());
         send_with(&mut server, &connected_clients, *channel, *mode, |cursor| {
             DefaultOptions::new().serialize_into(cursor, &event)
         })
@@ -466,12 +475,14 @@ impl<T> ServerEventQueue<T> {
     }
 
     /// Pops the next event that is at least as old as the specified replicon tick.
-    fn try_pop(&mut self, replicon_tick: RepliconTick) -> Option<T> {
+    fn try_pop(&mut self, replicon_tick: RepliconTick) -> Option<(RepliconTick, T)> {
         let (tick, _) = self.0.front()?;
         if *tick > replicon_tick {
             return None;
         }
-        self.0.pop_front().map(|(_, event)| event)
+        self.0
+            .pop_front()
+            .map(|(tick, event)| (tick.into_owned(), event))
     }
 }
 

@@ -84,6 +84,8 @@ impl RepliconServer {
     ///
     /// Should be called only from the messaging backend when the server changes its state.
     pub fn set_running(&mut self, running: bool) {
+        debug!("changing `RepliconServer` running status to `{running}`");
+
         if !running {
             for receive_channel in &mut self.received_messages {
                 receive_channel.clear();
