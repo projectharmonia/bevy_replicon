@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{any, marker::PhantomData};
 
 use bevy::{
     ecs::{entity::MapEntities, event::Event},
@@ -174,6 +174,10 @@ fn receive<T: Event + DeserializeOwned>(
     for (client_id, message) in server.receive(*channel) {
         match DefaultOptions::new().deserialize(&message) {
             Ok(event) => {
+                trace!(
+                    "applying event `{}` from `{client_id:?}`",
+                    any::type_name::<T>()
+                );
                 client_events.send(FromClient { client_id, event });
             }
             Err(e) => debug!("unable to deserialize event from {client_id:?}: {e}"),
@@ -191,6 +195,7 @@ fn send<T: Event + Serialize>(
             .serialize(&event)
             .expect("client event should be serializable");
 
+        trace!("sending event `{}`", any::type_name::<T>());
         client.send(*channel, message);
     }
 }
@@ -207,6 +212,7 @@ fn map_and_send<T: Event + MapEntities + Serialize + Clone>(
             .serialize(&event)
             .expect("mapped client event should be serializable");
 
+        trace!("sending event `{}`", any::type_name::<T>());
         client.send(*channel, message);
     }
 }

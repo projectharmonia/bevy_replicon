@@ -107,6 +107,8 @@ impl ConnectedClients {
     ///
     /// Reuses the memory from the buffers if available.
     pub(super) fn add(&mut self, client_buffers: &mut ClientBuffers, client_id: ClientId) {
+        debug!("adding connected `{client_id:?}`");
+
         let client = if let Some(mut client) = client_buffers.clients.pop() {
             client.reset(client_id);
             client
@@ -121,6 +123,8 @@ impl ConnectedClients {
     ///
     /// Keeps allocated memory in the buffers for reuse.
     pub(super) fn remove(&mut self, client_buffers: &mut ClientBuffers, client_id: ClientId) {
+        debug!("removing disconnected `{client_id:?}`");
+
         let index = self
             .clients
             .iter()

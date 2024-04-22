@@ -67,6 +67,8 @@ impl RepliconClient {
     /// Discards all messages if the state changes from [`RepliconClientStatus::Connected`].
     /// See also [`Self::status`].
     pub fn set_status(&mut self, status: RepliconClientStatus) {
+        debug!("changing `RepliconClient` status to `{status:?}`");
+
         if self.is_connected() && !matches!(status, RepliconClientStatus::Connected { .. }) {
             for channel_messages in &mut self.received_messages {
                 channel_messages.clear();
@@ -149,7 +151,7 @@ impl RepliconClient {
 }
 
 /// Connection status of the [`RepliconClient`].
-#[derive(Clone, Copy, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum RepliconClientStatus {
     /// Not connected or trying to connect.
     #[default]
