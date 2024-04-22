@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `AppMarkerExt` to customize how components will be written based on markers present without overriding deserialization functions. Now third-party prediction crates could be integrated much easier.
 - `AppRuleExt::replicate_group` and `GroupRegistration` trait to register and customize component groups. A group will be replicated only if all its components present on an entity.
 - `ServerSet::StoreHierarchy` for systems that store hierarchy changes in `ParentSync`.
+- More tracing.
+- `Debug` impl for `RepliconClientStatus`.
 
 ### Changed
 
