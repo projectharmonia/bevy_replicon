@@ -178,10 +178,7 @@ unsafe fn type_serialize<C: Component>(
     rule_fns.serialize(ptr.deref::<C>(), cursor)
 }
 
-/// Default component writing function.
-///
-/// If the component does not exist on the entity, it will be deserialized with [`SerdeFns::deserialize`] and inserted via [`Commands`].
-/// If the component exists on the entity, [`SerdeFns::deserialize_in_place`] will be used directly on the entity's component.
+/// Resolves `rule_fns` to `C` and calls [`CommandFns::write`] for `C`.
 ///
 /// # Safety
 ///

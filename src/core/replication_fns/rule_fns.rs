@@ -144,7 +144,7 @@ pub type SerializeFn<C> = fn(&C, &mut Cursor<Vec<u8>>) -> bincode::Result<()>;
 /// Signature of component deserialization functions.
 pub type DeserializeFn<C> = fn(&mut Cursor<&[u8]>, &mut ClientMapper) -> bincode::Result<C>;
 
-/// Signature of component deserialization functions.
+/// Signature of in-place component deserialization functions.
 pub type DeserializeInPlaceFn<C> =
     fn(DeserializeFn<C>, &mut C, &mut Cursor<&[u8]>, &mut ClientMapper) -> bincode::Result<()>;
 
