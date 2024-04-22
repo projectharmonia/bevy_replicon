@@ -195,7 +195,7 @@ fn pop_from_queue<T: Event>(
     mut server_events: EventWriter<T>,
     mut event_queue: ResMut<ServerEventQueue<T>>,
 ) {
-    while let Some((tick, event)) = event_queue.try_pop(*replicon_tick) {
+    while let Some((tick, event)) = event_queue.pop_if_le(*replicon_tick) {
         trace!(
             "applying event `{}` from queue with `{tick:?}`",
             any::type_name::<T>()
@@ -475,7 +475,7 @@ impl<T> ServerEventQueue<T> {
     }
 
     /// Pops the next event that is at least as old as the specified replicon tick.
-    fn try_pop(&mut self, replicon_tick: RepliconTick) -> Option<(RepliconTick, T)> {
+    fn pop_if_le(&mut self, replicon_tick: RepliconTick) -> Option<(RepliconTick, T)> {
         let (tick, _) = self.0.front()?;
         if *tick > replicon_tick {
             return None;
