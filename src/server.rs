@@ -345,7 +345,7 @@ fn collect_changes(
                     )
                 };
 
-                let (command_fns, serde_fns) = replication_fns.get(replicated_component.fns_id);
+                let (component_fns, rule_fns) = replication_fns.get(replicated_component.fns_id);
                 let mut shared_bytes = None;
                 for (init_message, update_message, client) in messages.iter_mut_with_clients() {
                     let visibility = client.visibility().cached_visibility();
@@ -358,8 +358,8 @@ fn collect_changes(
                     {
                         init_message.write_component(
                             &mut shared_bytes,
-                            serde_fns,
-                            command_fns,
+                            rule_fns,
+                            component_fns,
                             replicated_component.fns_id,
                             component,
                         )?;
@@ -370,8 +370,8 @@ fn collect_changes(
                         if ticks.is_changed(tick, change_tick.this_run()) {
                             update_message.write_component(
                                 &mut shared_bytes,
-                                serde_fns,
-                                command_fns,
+                                rule_fns,
+                                component_fns,
                                 replicated_component.fns_id,
                                 component,
                             )?;

@@ -4,7 +4,10 @@ use bevy::{ecs::entity::MapEntities, prelude::*};
 use bevy_replicon::{
     client::client_mapper::{ClientMapper, ServerEntityMap},
     core::{
-        replication_fns::{command_fns, serde_fns::SerdeFns},
+        replication_fns::{
+            command_fns::{self, CommandFns},
+            rule_fns::RuleFns,
+        },
         replicon_tick::RepliconTick,
     },
     prelude::*,
@@ -197,15 +200,11 @@ fn command_fns() {
                 ..Default::default()
             }),
         ))
-        .replicate::<OriginalComponent>();
-
-        // SAFETY: `replace` can be safely called with a `SerdeFns` created for `OriginalComponent`.
-        unsafe {
-            app.set_command_fns::<OriginalComponent>(
-                replace,
-                command_fns::default_remove::<ReplacedComponent>,
-            );
-        }
+        .replicate::<OriginalComponent>()
+        .set_command_fns(CommandFns::new(
+            replace,
+            command_fns::default_remove::<ReplacedComponent>,
+        ));
     }
 
     server_app.connect_client(&mut client_app);
@@ -245,15 +244,11 @@ fn marker() {
             }),
         ))
         .register_marker::<ReplaceMarker>()
-        .replicate::<OriginalComponent>();
-
-        // SAFETY: `replace` can be safely called with a `SerdeFns` created for `OriginalComponent`.
-        unsafe {
-            app.set_marker_fns::<ReplaceMarker, OriginalComponent>(
-                replace,
-                command_fns::default_remove::<ReplacedComponent>,
-            );
-        }
+        .replicate::<OriginalComponent>()
+        .set_marker_fns::<ReplaceMarker, _>(CommandFns::new(
+            replace,
+            command_fns::default_remove::<ReplacedComponent>,
+        ));
     }
 
     server_app.connect_client(&mut client_app);
@@ -445,12 +440,8 @@ struct OriginalComponent;
 struct ReplacedComponent;
 
 /// Deserializes [`OriginalComponent`], but ignores it and inserts [`ReplacedComponent`].
-///
-/// # Safety
-///
-/// The caller must ensure that `serde_fns` was created for [`OriginalComponent`].
-unsafe fn replace(
-    serde_fns: &SerdeFns,
+fn replace(
+    rule_fns: &RuleFns<OriginalComponent>,
     commands: &mut Commands,
     entity: &mut EntityMut,
     cursor: &mut Cursor<&[u8]>,
@@ -462,7 +453,7 @@ unsafe fn replace(
         entity_map,
     };
 
-    serde_fns.deserialize::<OriginalComponent>(cursor, &mut mapper)?;
+    rule_fns.deserialize(cursor, &mut mapper)?;
     commands.entity(entity.id()).insert(ReplacedComponent);
 
     Ok(())
