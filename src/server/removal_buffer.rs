@@ -14,7 +14,7 @@ use bevy::{
 use super::{ServerPlugin, ServerSet};
 use crate::core::{
     common_conditions::server_running, replication_fns::FnsInfo,
-    replication_rules::ReplicationRules, Replication,
+    replication_rules::ReplicationRules, Replicated,
 };
 
 /// Buffers all replicated component removals in [`RemovalBuffer`] resource.
@@ -77,7 +77,7 @@ struct RemovalReader<'w, 's> {
     remove_events: &'w RemovedComponentEvents,
 
     /// Filter for replicated and valid entities.
-    replicated: Query<'w, 's, (), With<Replication>>,
+    replicated: Query<'w, 's, (), With<Replicated>>,
 }
 
 impl RemovalReader<'_, '_> {
@@ -205,7 +205,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        core::{replication_fns::ReplicationFns, replication_rules::AppRuleExt, Replication},
+        core::{replication_fns::ReplicationFns, replication_rules::AppRuleExt, Replicated},
         server::replicon_server::RepliconServer,
     };
 
@@ -222,7 +222,7 @@ mod tests {
         app.update();
 
         app.world
-            .spawn((Replication, ComponentA))
+            .spawn((Replicated, ComponentA))
             .remove::<ComponentA>();
 
         app.update();
@@ -245,7 +245,7 @@ mod tests {
         app.update();
 
         app.world
-            .spawn((Replication, ComponentA))
+            .spawn((Replicated, ComponentA))
             .remove::<ComponentA>();
 
         app.update();
@@ -271,7 +271,7 @@ mod tests {
         app.update();
 
         app.world
-            .spawn((Replication, ComponentA, ComponentB))
+            .spawn((Replicated, ComponentA, ComponentB))
             .remove::<(ComponentA, ComponentB)>();
 
         app.update();
@@ -297,7 +297,7 @@ mod tests {
         app.update();
 
         app.world
-            .spawn((Replication, ComponentA, ComponentB))
+            .spawn((Replicated, ComponentA, ComponentB))
             .remove::<ComponentA>();
 
         app.update();
@@ -324,7 +324,7 @@ mod tests {
         app.update();
 
         app.world
-            .spawn((Replication, ComponentA, ComponentB))
+            .spawn((Replicated, ComponentA, ComponentB))
             .remove::<(ComponentA, ComponentB)>();
 
         app.update();
@@ -351,7 +351,7 @@ mod tests {
         app.update();
 
         app.world
-            .spawn((Replication, ComponentA, ComponentB))
+            .spawn((Replicated, ComponentA, ComponentB))
             .remove::<ComponentA>();
 
         app.update();
@@ -376,7 +376,7 @@ mod tests {
 
         app.update();
 
-        app.world.spawn((ComponentA, Replication)).despawn();
+        app.world.spawn((ComponentA, Replicated)).despawn();
 
         app.update();
 

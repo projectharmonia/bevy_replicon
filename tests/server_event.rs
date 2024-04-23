@@ -177,7 +177,7 @@ fn event_queue() {
     server_app.connect_client(&mut client_app);
 
     // Spawn entity to trigger world change.
-    server_app.world.spawn((Replication, DummyComponent));
+    server_app.world.spawn((Replicated, DummyComponent));
     let previous_tick = *server_app.world.resource::<RepliconTick>();
 
     server_app.update();
@@ -226,7 +226,7 @@ fn different_ticks() {
     server_app.connect_client(&mut client_app1);
 
     // Spawn entity to trigger world change.
-    server_app.world.spawn((Replication, DummyComponent));
+    server_app.world.spawn((Replicated, DummyComponent));
 
     // Update client 1 to initialize their replicon tick.
     server_app.update();

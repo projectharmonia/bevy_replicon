@@ -18,7 +18,7 @@ pub struct RepliconCorePlugin;
 
 impl Plugin for RepliconCorePlugin {
     fn build(&self, app: &mut App) {
-        app.register_type::<Replication>()
+        app.register_type::<Replicated>()
             .init_resource::<RepliconTick>()
             .init_resource::<RepliconChannels>()
             .init_resource::<ReplicationFns>()
@@ -27,10 +27,13 @@ impl Plugin for RepliconCorePlugin {
     }
 }
 
+#[deprecated(note = "use `Replicated` instead")]
+pub type Replication = Replicated;
+
 /// Marks entity for replication.
 #[derive(Component, Clone, Copy, Default, Reflect, Debug)]
 #[reflect(Component)]
-pub struct Replication;
+pub struct Replicated;
 
 /// Unique client ID.
 ///

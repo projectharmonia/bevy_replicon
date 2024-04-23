@@ -34,7 +34,7 @@ fn small_component() {
 
     let server_entity = server_app
         .world
-        .spawn((Replication, BoolComponent(false)))
+        .spawn((Replicated, BoolComponent(false)))
         .id();
 
     server_app.update();
@@ -84,7 +84,7 @@ fn package_size_component() {
 
     let server_entity = server_app
         .world
-        .spawn((Replication, VecComponent::default()))
+        .spawn((Replicated, VecComponent::default()))
         .id();
 
     server_app.update();
@@ -134,12 +134,12 @@ fn command_fns() {
 
     let server_entity = server_app
         .world
-        .spawn((Replication, OriginalComponent(false)))
+        .spawn((Replicated, OriginalComponent(false)))
         .id();
 
     let client_entity = client_app
         .world
-        .spawn((Replication, ReplacedComponent(false)))
+        .spawn((Replicated, ReplacedComponent(false)))
         .id();
 
     client_app
@@ -194,12 +194,12 @@ fn marker() {
 
     let server_entity = server_app
         .world
-        .spawn((Replication, OriginalComponent(false)))
+        .spawn((Replicated, OriginalComponent(false)))
         .id();
 
     let client_entity = client_app
         .world
-        .spawn((Replication, ReplaceMarker, ReplacedComponent(false)))
+        .spawn((Replicated, ReplaceMarker, ReplacedComponent(false)))
         .id();
 
     client_app
@@ -251,7 +251,7 @@ fn many_entities() {
     const ENTITIES_COUNT: u32 = 300;
     server_app
         .world
-        .spawn_batch([(Replication, BoolComponent(false)); ENTITIES_COUNT as usize]);
+        .spawn_batch([(Replicated, BoolComponent(false)); ENTITIES_COUNT as usize]);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -301,7 +301,7 @@ fn with_insertion() {
 
     let server_entity = server_app
         .world
-        .spawn((Replication, BoolComponent(false)))
+        .spawn((Replicated, BoolComponent(false)))
         .id();
 
     server_app.update();
@@ -343,7 +343,7 @@ fn with_despawn() {
 
     let server_entity = server_app
         .world
-        .spawn((Replication, BoolComponent(false)))
+        .spawn((Replicated, BoolComponent(false)))
         .id();
 
     server_app.update();
@@ -390,7 +390,7 @@ fn buffering() {
 
     let server_entity = server_app
         .world
-        .spawn((Replication, BoolComponent(false)))
+        .spawn((Replicated, BoolComponent(false)))
         .id();
 
     let previous_tick = *server_app.world.resource::<RepliconTick>();
@@ -453,7 +453,7 @@ fn acknowledgment() {
 
     let server_entity = server_app
         .world
-        .spawn((Replication, BoolComponent(false)))
+        .spawn((Replicated, BoolComponent(false)))
         .id();
 
     server_app.update();

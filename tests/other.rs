@@ -163,7 +163,7 @@ fn diagnostics() {
     server_app.connect_client(&mut client_app);
 
     let client_entity = client_app.world.spawn_empty().id();
-    let server_entity = server_app.world.spawn((Replication, DummyComponent)).id();
+    let server_entity = server_app.world.spawn((Replicated, DummyComponent)).id();
 
     let client = client_app.world.resource::<RepliconClient>();
     let client_id = client.id().unwrap();
@@ -177,7 +177,7 @@ fn diagnostics() {
         },
     );
 
-    server_app.world.spawn(Replication).despawn();
+    server_app.world.spawn(Replicated).despawn();
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);

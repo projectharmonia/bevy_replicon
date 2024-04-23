@@ -634,7 +634,7 @@ struct GridNode;
 struct SymbolBundle {
     symbol: Symbol,
     cell_index: CellIndex,
-    replication: Replication,
+    replicated: Replicated,
 }
 
 impl SymbolBundle {
@@ -642,7 +642,7 @@ impl SymbolBundle {
         Self {
             cell_index: CellIndex(index),
             symbol,
-            replication: Replication,
+            replicated: Replicated,
         }
     }
 }
@@ -656,7 +656,7 @@ struct CellIndex(usize);
 struct PlayerBundle {
     player: Player,
     symbol: Symbol,
-    replication: Replication,
+    replicated: Replicated,
 }
 
 impl PlayerBundle {
@@ -664,7 +664,7 @@ impl PlayerBundle {
         Self {
             player: Player(client_id),
             symbol,
-            replication: Replication,
+            replicated: Replicated,
         }
     }
 

@@ -66,7 +66,7 @@ fn replication() {
 
     setup(&mut server_app, &mut client_app);
 
-    server_app.world.spawn(Replication);
+    server_app.world.spawn(Replicated);
 
     server_app.update();
     client_app.update();

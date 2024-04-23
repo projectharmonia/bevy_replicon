@@ -1,6 +1,6 @@
 use bevy::{ecs::entity::EntityHashMap, prelude::*, utils::hashbrown::hash_map::Entry};
 
-use crate::core::Replication;
+use crate::core::Replicated;
 
 /// Maps server entities into client entities inside components.
 ///
@@ -17,7 +17,7 @@ impl EntityMapper for ClientMapper<'_, '_, '_> {
             .server_to_client
             .entry(entity)
             .or_insert_with(|| {
-                let client_entity = self.commands.spawn(Replication).id();
+                let client_entity = self.commands.spawn(Replicated).id();
                 self.entity_map
                     .client_to_server
                     .insert(client_entity, entity);

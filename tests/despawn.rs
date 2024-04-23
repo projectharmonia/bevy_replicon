@@ -20,8 +20,8 @@ fn single() {
 
     server_app.connect_client(&mut client_app);
 
-    let server_entity = server_app.world.spawn(Replication).id();
-    let client_entity = client_app.world.spawn(Replication).id();
+    let server_entity = server_app.world.spawn(Replicated).id();
+    let client_entity = client_app.world.spawn(Replicated).id();
 
     client_app
         .world
@@ -57,17 +57,17 @@ fn with_heirarchy() {
 
     server_app.connect_client(&mut client_app);
 
-    let server_child_entity = server_app.world.spawn(Replication).id();
+    let server_child_entity = server_app.world.spawn(Replicated).id();
     let server_entity = server_app
         .world
-        .spawn(Replication)
+        .spawn(Replicated)
         .push_children(&[server_child_entity])
         .id();
 
-    let client_child_entity = client_app.world.spawn(Replication).id();
+    let client_child_entity = client_app.world.spawn(Replicated).id();
     let client_entity = client_app
         .world
-        .spawn(Replication)
+        .spawn(Replicated)
         .push_children(&[client_child_entity])
         .id();
 
@@ -105,11 +105,11 @@ fn after_spawn() {
 
     server_app.connect_client(&mut client_app);
 
-    // Insert and remove `Replication` to trigger spawn and despawn for client at the same time.
+    // Insert and remove `Replicated` to trigger spawn and despawn for client at the same time.
     server_app
         .world
-        .spawn((Replication, DummyComponent))
-        .remove::<Replication>();
+        .spawn((Replicated, DummyComponent))
+        .remove::<Replicated>();
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);

@@ -18,7 +18,7 @@ use crate::core::{
     replication_fns::ReplicationFns,
     replicon_channels::{ReplicationChannel, RepliconChannels},
     replicon_tick::RepliconTick,
-    Replication,
+    Replicated,
 };
 use client_mapper::ServerEntityMap;
 use diagnostics::ClientStats;
@@ -345,7 +345,7 @@ fn apply_entity_mappings(
 
         if let Some(mut entity) = world.get_entity_mut(client_entity) {
             debug!("received mapping from {server_entity:?} to {client_entity:?}");
-            entity.insert(Replication);
+            entity.insert(Replicated);
             entity_map.insert(server_entity, client_entity);
         } else {
             // Entity could be despawned on client already.
@@ -374,7 +374,7 @@ fn apply_init_components(
         let data_size: u16 = bincode::deserialize_from(&mut *cursor)?;
 
         let client_entity =
-            entity_map.get_by_server_or_insert(server_entity, || world.spawn(Replication).id());
+            entity_map.get_by_server_or_insert(server_entity, || world.spawn(Replicated).id());
         entity_ticks.insert(client_entity, replicon_tick);
 
         let (mut entity_markers, mut commands, mut query) = state.get_mut(world);

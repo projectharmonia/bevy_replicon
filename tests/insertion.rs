@@ -32,7 +32,7 @@ fn table_storage() {
 
     server_app.connect_client(&mut client_app);
 
-    let server_entity = server_app.world.spawn(Replication).id();
+    let server_entity = server_app.world.spawn(Replicated).id();
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -71,7 +71,7 @@ fn sparse_set_storage() {
 
     server_app.connect_client(&mut client_app);
 
-    let server_entity = server_app.world.spawn(Replication).id();
+    let server_entity = server_app.world.spawn(Replicated).id();
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -113,7 +113,7 @@ fn mapped_existing_entity() {
     // Make client and server have different entity IDs.
     server_app.world.spawn_empty();
 
-    let server_entity = server_app.world.spawn(Replication).id();
+    let server_entity = server_app.world.spawn(Replicated).id();
     let server_map_entity = server_app.world.spawn_empty().id();
     let client_map_entity = client_app.world.spawn_empty().id();
 
@@ -163,7 +163,7 @@ fn mapped_new_entity() {
     // Make client and server have different entity IDs.
     server_app.world.spawn_empty();
 
-    let server_entity = server_app.world.spawn(Replication).id();
+    let server_entity = server_app.world.spawn(Replicated).id();
     let server_map_entity = server_app.world.spawn_empty().id();
 
     server_app.update();
@@ -209,7 +209,7 @@ fn command_fns() {
 
     server_app.connect_client(&mut client_app);
 
-    let server_entity = server_app.world.spawn(Replication).id();
+    let server_entity = server_app.world.spawn(Replicated).id();
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -253,8 +253,8 @@ fn marker() {
 
     server_app.connect_client(&mut client_app);
 
-    let server_entity = server_app.world.spawn(Replication).id();
-    let client_entity = client_app.world.spawn(Replication).id();
+    let server_entity = server_app.world.spawn(Replicated).id();
+    let client_entity = client_app.world.spawn(Replicated).id();
 
     client_app
         .world
@@ -302,7 +302,7 @@ fn group() {
 
     server_app.connect_client(&mut client_app);
 
-    let server_entity = server_app.world.spawn(Replication).id();
+    let server_entity = server_app.world.spawn(Replicated).id();
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -340,7 +340,7 @@ fn not_replicated() {
 
     server_app.connect_client(&mut client_app);
 
-    let server_entity = server_app.world.spawn(Replication).id();
+    let server_entity = server_app.world.spawn(Replicated).id();
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -381,7 +381,7 @@ fn after_removal() {
 
     server_app.connect_client(&mut client_app);
 
-    let server_entity = server_app.world.spawn((Replication, TableComponent)).id();
+    let server_entity = server_app.world.spawn((Replicated, TableComponent)).id();
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
