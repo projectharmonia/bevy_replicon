@@ -12,9 +12,7 @@ use crate::{
     core::replicon_tick::RepliconTick,
 };
 
-/// Type-erased version of [`CommandFns`].
-///
-/// Stored inside [`ReplicationFns`](super::ReplicationFns) after registration.
+/// Writing and removal functions for a component, like [`Commands`].
 #[derive(Clone, Copy)]
 pub(super) struct UntypedCommandFns {
     type_id: TypeId,
@@ -25,6 +23,22 @@ pub(super) struct UntypedCommandFns {
 }
 
 impl UntypedCommandFns {
+    /// Creates a new instance with default command functions for `C`.
+    pub(super) fn default_fns<C: Component>() -> Self {
+        Self::new(default_write::<C>, default_remove::<C>)
+    }
+
+    /// Creates a new instance by erasing the function pointer for `write`.
+    pub(super) fn new<C: Component>(write: WriteFn<C>, remove: RemoveFn) -> Self {
+        Self {
+            type_id: TypeId::of::<C>(),
+            type_name: any::type_name::<C>(),
+            // SAFETY: the function won't be called until the type is restored.
+            write: unsafe { mem::transmute(write) },
+            remove,
+        }
+    }
+
     /// Calls the assigned writing function.
     ///
     /// # Safety
@@ -61,38 +75,6 @@ impl UntypedCommandFns {
     /// Calls the assigned removal function.
     pub(super) fn remove(&self, commands: EntityCommands, tick: RepliconTick) {
         (self.remove)(commands, tick);
-    }
-}
-
-impl<C: Component> From<CommandFns<C>> for UntypedCommandFns {
-    fn from(value: CommandFns<C>) -> Self {
-        Self {
-            type_id: TypeId::of::<C>(),
-            type_name: any::type_name::<C>(),
-            write: unsafe { mem::transmute(value.write) },
-            remove: value.remove,
-        }
-    }
-}
-
-/// Writing and removal functions for a component, like [`Commands`].
-///
-/// See also [`AppMarkerExt`](crate::core::command_markers::AppMarkerExt).
-pub struct CommandFns<C> {
-    write: WriteFn<C>,
-    remove: RemoveFn,
-}
-
-impl<C: Component> CommandFns<C> {
-    /// Creates a new instance.
-    pub fn new(write: WriteFn<C>, remove: RemoveFn) -> Self {
-        Self { write, remove }
-    }
-}
-
-impl<C: Component> Default for CommandFns<C> {
-    fn default() -> Self {
-        Self::new(default_write::<C>, default_remove::<C>)
     }
 }
 

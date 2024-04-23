@@ -6,7 +6,7 @@ use bevy::{ecs::component::ComponentId, prelude::*};
 use serde::{Deserialize, Serialize};
 
 use super::{command_markers::CommandMarkerIndex, replicon_tick::RepliconTick};
-use command_fns::CommandFns;
+use command_fns::{RemoveFn, UntypedCommandFns, WriteFn};
 use component_fns::ComponentFns;
 use rule_fns::{RuleFns, UntypedRuleFns};
 
@@ -62,12 +62,14 @@ impl ReplicationFns {
         &mut self,
         world: &mut World,
         marker_id: CommandMarkerIndex,
-        command_fns: CommandFns<C>,
+        write: WriteFn<C>,
+        remove: RemoveFn,
     ) {
         let (index, _) = self.init_component_fns::<C>(world);
         let (component_fns, _) = &mut self.components[index];
+        let command_fns = UntypedCommandFns::new(write, remove);
 
-        // SAFETY: `component_fns` was created for `C`.
+        // SAFETY: `component_fns` and `command_fns` were created for `C`.
         unsafe {
             component_fns.set_marker_fns(marker_id, command_fns);
         }
@@ -79,12 +81,14 @@ impl ReplicationFns {
     pub(super) fn set_command_fns<C: Component>(
         &mut self,
         world: &mut World,
-        command_fns: CommandFns<C>,
+        write: WriteFn<C>,
+        remove: RemoveFn,
     ) {
         let (index, _) = self.init_component_fns::<C>(world);
         let (component_fns, _) = &mut self.components[index];
+        let command_fns = UntypedCommandFns::new(write, remove);
 
-        // SAFETY: `component_fns` was created for `C`.
+        // SAFETY: `component_fns` and `command_fns` were created for `C`.
         unsafe {
             component_fns.set_command_fns(command_fns);
         }
@@ -205,7 +209,12 @@ mod tests {
             priority: 0,
         });
         replication_fns.register_marker(marker_a);
-        replication_fns.set_marker_fns(&mut world, marker_a, CommandFns::<ComponentA>::default());
+        replication_fns.set_marker_fns(
+            &mut world,
+            marker_a,
+            command_fns::default_write::<ComponentA>,
+            command_fns::default_remove::<ComponentA>,
+        );
 
         let (command_fns_a, _) = &replication_fns.components[0];
         assert!(command_fns_a.marker_fns(&[false]).is_none());
@@ -230,8 +239,18 @@ mod tests {
         });
         replication_fns.register_marker(marker_b);
 
-        replication_fns.set_marker_fns(&mut world, marker_a, CommandFns::<ComponentA>::default());
-        replication_fns.set_marker_fns(&mut world, marker_b, CommandFns::<ComponentB>::default());
+        replication_fns.set_marker_fns(
+            &mut world,
+            marker_a,
+            command_fns::default_write::<ComponentA>,
+            command_fns::default_remove::<ComponentA>,
+        );
+        replication_fns.set_marker_fns(
+            &mut world,
+            marker_b,
+            command_fns::default_write::<ComponentB>,
+            command_fns::default_remove::<ComponentB>,
+        );
 
         let (command_fns_a, _) = &replication_fns.components[0];
         assert!(command_fns_a.marker_fns(&[false, false]).is_none());

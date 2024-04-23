@@ -2,8 +2,7 @@ use std::io::Cursor;
 
 use bevy::{ecs::system::EntityCommands, prelude::*, ptr::Ptr};
 
-use super::command_fns::{CommandFns, UntypedCommandFns};
-use super::rule_fns::UntypedRuleFns;
+use super::{command_fns::UntypedCommandFns, rule_fns::UntypedRuleFns};
 use crate::{
     client::client_mapper::ServerEntityMap,
     core::{command_markers::CommandMarkerIndex, replicon_tick::RepliconTick},
@@ -11,7 +10,7 @@ use crate::{
 
 /// Type-erased functions for a component.
 ///
-/// Stores type-erased [`CommandFns`] and functions that will restore original types.
+/// Stores type-erased command functions and functions that will restore original types.
 pub struct ComponentFns {
     serialize: UntypedSerializeFn,
     write: UntypedWriteFn,
@@ -25,7 +24,7 @@ impl ComponentFns {
         Self {
             serialize: type_serialize::<C>,
             write: type_write::<C>,
-            commands: CommandFns::<C>::default().into(),
+            commands: UntypedCommandFns::default_fns::<C>(),
             markers: vec![None; marker_slots],
         }
     }
@@ -41,15 +40,15 @@ impl ComponentFns {
     ///
     /// # Safety
     ///
-    /// The caller must ensure that the function is called with the same `C` with which this instance was created.
+    /// The caller must ensure that `command_fns` was created for the same type as this instance.
     ///
     /// # Panics
     ///
     /// Panics if there is no such slot for the marker. Use [`Self::add_marker_slot`] to assign.
-    pub(super) unsafe fn set_marker_fns<C: Component>(
+    pub(super) unsafe fn set_marker_fns(
         &mut self,
         marker_id: CommandMarkerIndex,
-        command_fns: CommandFns<C>,
+        command_fns: UntypedCommandFns,
     ) {
         let fns = self
             .markers
@@ -61,16 +60,16 @@ impl ComponentFns {
             "function for {marker_id:?} can't be set twice"
         );
 
-        *fns = Some(command_fns.into());
+        *fns = Some(command_fns);
     }
 
     /// Sets default functions that will be called when there are no marker matches.
     ///
     /// # Safety
     ///
-    /// The caller must ensure that the function is called with the same `C` with which this instance was created.
-    pub(super) unsafe fn set_command_fns<C: Component>(&mut self, command_fns: CommandFns<C>) {
-        self.commands = command_fns.into();
+    /// The caller must ensure that `command_fns` was created for the same type as this instance.
+    pub(super) unsafe fn set_command_fns(&mut self, command_fns: UntypedCommandFns) {
+        self.commands = command_fns;
     }
 
     /// Restores erased type from `ptr` and `rule_fns` to the type for which this instance was created.
@@ -178,7 +177,7 @@ unsafe fn type_serialize<C: Component>(
     rule_fns.serialize(ptr.deref::<C>(), cursor)
 }
 
-/// Resolves `rule_fns` to `C` and calls [`CommandFns::write`] for `C`.
+/// Resolves `rule_fns` to `C` and calls [`UntypedCommandFns::write`] for `C`.
 ///
 /// # Safety
 ///

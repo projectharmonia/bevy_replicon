@@ -4,10 +4,7 @@ use bevy::{prelude::*, utils::Duration};
 use bevy_replicon::{
     client::client_mapper::{ClientMapper, ServerEntityMap},
     core::{
-        replication_fns::{
-            command_fns::{self, CommandFns},
-            rule_fns::RuleFns,
-        },
+        replication_fns::{command_fns, rule_fns::RuleFns},
         replicon_tick::RepliconTick,
     },
     prelude::*,
@@ -124,10 +121,7 @@ fn command_fns() {
             }),
         ))
         .replicate::<OriginalComponent>()
-        .set_command_fns(CommandFns::new(
-            replace,
-            command_fns::default_remove::<ReplacedComponent>,
-        ));
+        .set_command_fns(replace, command_fns::default_remove::<ReplacedComponent>);
     }
 
     server_app.connect_client(&mut client_app);
@@ -184,10 +178,10 @@ fn marker() {
         ))
         .register_marker::<ReplaceMarker>()
         .replicate::<OriginalComponent>()
-        .set_marker_fns::<ReplaceMarker, _>(CommandFns::new(
+        .set_marker_fns::<ReplaceMarker, _>(
             replace,
             command_fns::default_remove::<ReplacedComponent>,
-        ));
+        );
     }
 
     server_app.connect_client(&mut client_app);
