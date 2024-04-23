@@ -7,10 +7,7 @@ use bevy::{
 };
 use serde::{de::DeserializeOwned, Serialize};
 
-use super::replication_fns::{
-    serde_fns::{self, DeserializeFn, DeserializeInPlaceFn, SerializeFn},
-    FnsInfo, ReplicationFns,
-};
+use super::replication_fns::{rule_fns::RuleFns, FnsInfo, ReplicationFns};
 
 /// Replication functions for [`App`].
 pub trait AppRuleExt {
@@ -29,11 +26,7 @@ pub trait AppRuleExt {
     where
         C: Component + Serialize + DeserializeOwned,
     {
-        self.replicate_with::<C>(
-            serde_fns::default_serialize::<C>,
-            serde_fns::default_deserialize::<C>,
-            serde_fns::in_place_as_deserialize::<C>,
-        )
+        self.replicate_with::<C>(RuleFns::default())
     }
 
     /// Same as [`Self::replicate`], but additionally maps server entities to client inside the component after receiving.
@@ -45,11 +38,7 @@ pub trait AppRuleExt {
     where
         C: Component + Serialize + DeserializeOwned + MapEntities,
     {
-        self.replicate_with::<C>(
-            serde_fns::default_serialize::<C>,
-            serde_fns::default_deserialize_mapped::<C>,
-            serde_fns::in_place_as_deserialize::<C>,
-        )
+        self.replicate_with::<C>(RuleFns::default_mapped())
     }
 
     /**
@@ -57,15 +46,6 @@ pub trait AppRuleExt {
 
     Can be used to customize how the component will be passed over the network or
     for components that don't implement [`Serialize`] or [`DeserializeOwned`].
-
-    When a component is inserted or changed on the server, `serialize` will be called.
-    On receive, `deserialize` will be called to insert new components and `deserialize_in_place`
-    to change existing ones.
-
-    The registered `deserialize` function will be passed into `deserialize_in_place` for possible
-    fallback. This is what the default [`in_place_as_deserialize`](serde_fns::in_place_as_deserialize) does,
-    use it if you don't need to have different deserialization logic for components that are already present.
-    But `deserialize_in_place` could be used to optimize deserialization of components that require allocations.
 
     You can also override how the component will be written,
     see [`AppMarkerExt`](super::command_markers::AppMarkerExt).
@@ -77,16 +57,15 @@ pub trait AppRuleExt {
 
     use bevy::prelude::*;
     use bevy_replicon::{
-        client::client_mapper::ClientMapper, core::replication_fns::serde_fns, prelude::*,
+        client::client_mapper::ClientMapper, core::replication_fns::rule_fns::RuleFns, prelude::*,
     };
 
     # let mut app = App::new();
     # app.add_plugins(RepliconPlugins);
-    app.replicate_with::<Transform>(
+    app.replicate_with(RuleFns::new(
         serialize_translation,
         deserialize_translation,
-        serde_fns::in_place_as_deserialize,
-    );
+    ));
 
     /// Serializes only `translation` from [`Transform`].
     fn serialize_translation(
@@ -106,12 +85,7 @@ pub trait AppRuleExt {
     }
     ```
     */
-    fn replicate_with<C>(
-        &mut self,
-        serialize: SerializeFn<C>,
-        deserialize: DeserializeFn<C>,
-        deserialize_in_place: DeserializeInPlaceFn<C>,
-    ) -> &mut Self
+    fn replicate_with<C>(&mut self, rule_fns: RuleFns<C>) -> &mut Self
     where
         C: Component;
 
@@ -158,24 +132,14 @@ pub trait AppRuleExt {
 }
 
 impl AppRuleExt for App {
-    fn replicate_with<C>(
-        &mut self,
-        serialize: SerializeFn<C>,
-        deserialize: DeserializeFn<C>,
-        deserialize_in_place: DeserializeInPlaceFn<C>,
-    ) -> &mut Self
+    fn replicate_with<C>(&mut self, rule_fns: RuleFns<C>) -> &mut Self
     where
         C: Component,
     {
         let rule = self
             .world
             .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| {
-                let fns_info = replication_fns.register_serde_fns(
-                    world,
-                    serialize,
-                    deserialize,
-                    deserialize_in_place,
-                );
+                let fns_info = replication_fns.register_rule_fns(world, rule_fns);
                 ReplicationRule::new(vec![fns_info])
             });
 
@@ -276,7 +240,7 @@ use bevy::prelude::*;
 use bevy_replicon::{
     client::client_mapper::ClientMapper,
     core::{
-        replication_fns::{serde_fns, ReplicationFns},
+        replication_fns::{rule_fns::RuleFns, ReplicationFns},
         replication_rules::{GroupReplication, ReplicationRule},
     },
     prelude::*,
@@ -300,15 +264,13 @@ struct Player;
 impl GroupReplication for PlayerBundle {
     fn register(world: &mut World, replication_fns: &mut ReplicationFns) -> ReplicationRule {
         // Customize serlialization to serialize only `translation`.
-        let transform_info = replication_fns.register_serde_fns(
+        let transform_info = replication_fns.register_rule_fns(
             world,
-            serialize_translation,
-            deserialize_translation,
-            serde_fns::in_place_as_deserialize,
+            RuleFns::new(serialize_translation, deserialize_translation),
         );
 
         // Serialize `player` as usual.
-        let player_info = replication_fns.register_default_serde_fns::<Player>(world);
+        let player_info = replication_fns.register_rule_fns(world, RuleFns::<Player>::default());
 
         // We skip `replication` registration since it's a special component.
         // It's automatically inserted on clients after replication and
@@ -334,7 +296,7 @@ macro_rules! impl_registrations {
                 // TODO: initialize with capacity after stabilization: https://github.com/rust-lang/rust/pull/122808
                 let mut components = Vec::new();
                 $(
-                    let fns_info = replication_fns.register_default_serde_fns::<$type>(world);
+                    let fns_info = replication_fns.register_rule_fns(world, RuleFns::<$type>::default());
                     components.push(fns_info);
                 )*
 

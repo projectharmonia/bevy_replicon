@@ -15,7 +15,7 @@ use super::{
     ClientMapping, ConnectedClient,
 };
 use crate::core::{
-    replication_fns::{command_fns::CommandFns, serde_fns::SerdeFns, FnsId},
+    replication_fns::{component_fns::ComponentFns, rule_fns::UntypedRuleFns, FnsId},
     replicon_channels::ReplicationChannel,
     replicon_tick::RepliconTick,
 };
@@ -289,8 +289,8 @@ impl InitMessage {
     pub(super) fn write_component<'a>(
         &'a mut self,
         shared_bytes: &mut Option<&'a [u8]>,
-        serde_fns: &SerdeFns,
-        command_fns: &CommandFns,
+        rule_fns: &UntypedRuleFns,
+        component_fns: &ComponentFns,
         fns_id: FnsId,
         ptr: Ptr,
     ) -> bincode::Result<()> {
@@ -300,8 +300,8 @@ impl InitMessage {
 
         let size = write_with(shared_bytes, &mut self.cursor, |cursor| {
             DefaultOptions::new().serialize_into(&mut *cursor, &fns_id)?;
-            // SAFETY: `command_fns`, `ptr` and `serde_fns` were created for the same component type.
-            unsafe { command_fns.read(serde_fns, ptr, cursor) }
+            // SAFETY: `component_fns`, `ptr` and `rule_fns` were created for the same component type.
+            unsafe { component_fns.serialize(rule_fns, ptr, cursor) }
         })?;
 
         self.entity_data_size = self
@@ -517,8 +517,8 @@ impl UpdateMessage {
     pub(super) fn write_component<'a>(
         &'a mut self,
         shared_bytes: &mut Option<&'a [u8]>,
-        serde_fns: &SerdeFns,
-        command_fns: &CommandFns,
+        rule_fns: &UntypedRuleFns,
+        component_fns: &ComponentFns,
         fns_id: FnsId,
         ptr: Ptr,
     ) -> bincode::Result<()> {
@@ -528,8 +528,8 @@ impl UpdateMessage {
 
         let size = write_with(shared_bytes, &mut self.cursor, |cursor| {
             DefaultOptions::new().serialize_into(&mut *cursor, &fns_id)?;
-            // SAFETY: `command_fns`, `ptr` and `serde_fns` were created for the same component type.
-            unsafe { command_fns.read(serde_fns, ptr, cursor) }
+            // SAFETY: `component_fns`, `ptr` and `rule_fns` were created for the same component type.
+            unsafe { component_fns.serialize(rule_fns, ptr, cursor) }
         })?;
 
         self.entity_data_size = self

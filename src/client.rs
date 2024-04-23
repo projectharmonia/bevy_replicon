@@ -387,12 +387,12 @@ fn apply_init_components(
         let mut components_len = 0u32;
         while cursor.position() < end_pos {
             let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
-            let (command_fns, serde_fns) = replication_fns.get(fns_id);
+            let (component_fns, rule_fns) = replication_fns.get(fns_id);
             match components_kind {
                 ComponentsKind::Insert => unsafe {
-                    // SAFETY: `serde_fns` and `command_fns` were created for the same type.
-                    command_fns.write(
-                        serde_fns,
+                    // SAFETY: `rule_fns` and `component_fns` were created for the same type.
+                    component_fns.write(
+                        rule_fns,
                         &entity_markers,
                         &mut commands,
                         &mut client_entity,
@@ -401,7 +401,7 @@ fn apply_init_components(
                         replicon_tick,
                     )?
                 },
-                ComponentsKind::Removal => command_fns.remove(
+                ComponentsKind::Removal => component_fns.remove(
                     &entity_markers,
                     commands.entity(client_entity.id()),
                     replicon_tick,
@@ -498,11 +498,11 @@ fn apply_update_components(
         let mut components_count = 0u32;
         while cursor.position() < end_pos {
             let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
-            let (command_fns, serde_fns) = replication_fns.get(fns_id);
-            // SAFETY: `serde_fns` and `command_fns` were created for the same type.
+            let (component_fns, rule_fns) = replication_fns.get(fns_id);
+            // SAFETY: `rule_fns` and `component_fns` were created for the same type.
             unsafe {
-                command_fns.write(
-                    serde_fns,
+                component_fns.write(
+                    rule_fns,
                     &entity_markers,
                     &mut commands,
                     &mut client_entity,

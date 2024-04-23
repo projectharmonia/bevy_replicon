@@ -4,7 +4,7 @@ use bevy::{ecs::component::ComponentId, prelude::*};
 
 use crate::core::replication_fns::ReplicationFns;
 
-use super::replication_fns::command_fns::{RemoveFn, WriteFn};
+use super::replication_fns::command_fns::CommandFns;
 
 /// Marker-based functions for [`App`].
 ///
@@ -38,11 +38,6 @@ pub trait AppMarkerExt {
     [`default_remove`](super::replication_fns::command_fns::default_remove).
     See also [`Self::set_command_fns`].
 
-    # Safety
-
-    The caller must ensure that passed `write` can be safely called with a
-    [`SerdeFns`](super::replication_fns::serde_fns::SerdeFns) created for `C`.
-
     # Examples
 
     In this example we write all received updates for [`Transform`] into user's
@@ -54,11 +49,11 @@ pub trait AppMarkerExt {
     ```
     use std::io::Cursor;
 
-    use bevy::prelude::*;
+    use bevy::{ecs::system::EntityCommands, prelude::*};
     use bevy_replicon::{
         client::client_mapper::{ClientMapper, ServerEntityMap},
         core::{
-            replication_fns::{command_fns, serde_fns::SerdeFns},
+            replication_fns::{command_fns, rule_fns::RuleFns, command_fns::CommandFns},
             replicon_tick::RepliconTick,
         },
         prelude::*,
@@ -66,22 +61,15 @@ pub trait AppMarkerExt {
 
     # let mut app = App::new();
     # app.add_plugins(RepliconPlugins);
-    app.register_marker::<ComponentsHistory>();
-    // SAFETY: `write_history` can be safely called with a `SerdeFns` created for `Transform`.
-    unsafe {
-        app.set_marker_fns::<ComponentsHistory, Transform>(
-            write_history::<Transform>,
-            command_fns::default_remove::<Transform>,
-        );
-    }
+    app.register_marker::<ComponentsHistory>()
+        .set_marker_fns::<ComponentsHistory, Transform>(CommandFns::new(
+            write_history,
+            remove_history::<Transform>,
+        ));
 
     /// Instead of writing into a component directly, it writes data into [`ComponentHistory<C>`].
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that `serde_fns` was created for [`Transform`].
-    unsafe fn write_history<C: Component>(
-        serde_fns: &SerdeFns,
+    fn write_history<C: Component>(
+        rule_fns: &RuleFns<C>,
         commands: &mut Commands,
         entity: &mut EntityMut,
         cursor: &mut Cursor<&[u8]>,
@@ -93,7 +81,7 @@ pub trait AppMarkerExt {
             entity_map,
         };
 
-        let component: C = serde_fns.deserialize(cursor, &mut mapper)?;
+        let component: C = rule_fns.deserialize(cursor, &mut mapper)?;
         if let Some(mut history) = entity.get_mut::<History<C>>() {
             history.push(component);
         } else {
@@ -103,6 +91,14 @@ pub trait AppMarkerExt {
         }
 
         Ok(())
+    }
+
+    /// Removes component `C` and its history.
+    fn remove_history<C: Component>(
+        mut entity_commands: EntityCommands,
+        _replicon_tick: RepliconTick,
+    ) {
+        entity_commands.remove::<History<C>>().remove::<C>();
     }
 
     /// If this marker is present on an entity, registered components will be stored in [`History<T>`].
@@ -118,10 +114,9 @@ pub trait AppMarkerExt {
     struct History<C>(Vec<C>);
     ```
     **/
-    unsafe fn set_marker_fns<M: Component, C: Component>(
+    fn set_marker_fns<M: Component, C: Component>(
         &mut self,
-        write: WriteFn,
-        remove: RemoveFn,
+        command_fns: CommandFns<C>,
     ) -> &mut Self;
 
     /// Sets default functions for a component when there are no markers.
@@ -131,16 +126,7 @@ pub trait AppMarkerExt {
     /// [`default_write`](super::replication_fns::command_fns::default_write) and
     /// [`default_remove`](super::replication_fns::command_fns::default_remove).
     /// See also [`Self::set_marker_fns`].
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that passed `write` can be safely called with all
-    /// [`SerdeFns`](super::replication_fns::serde_fns::SerdeFns) created for `C`.
-    unsafe fn set_command_fns<C: Component>(
-        &mut self,
-        write: WriteFn,
-        remove: RemoveFn,
-    ) -> &mut Self;
+    fn set_command_fns<C: Component>(&mut self, command_fns: CommandFns<C>) -> &mut Self;
 }
 
 impl AppMarkerExt for App {
@@ -162,32 +148,25 @@ impl AppMarkerExt for App {
         self
     }
 
-    unsafe fn set_marker_fns<M: Component, C: Component>(
+    fn set_marker_fns<M: Component, C: Component>(
         &mut self,
-        write: WriteFn,
-        remove: RemoveFn,
+        command_fns: CommandFns<C>,
     ) -> &mut Self {
         let component_id = self.world.init_component::<M>();
         let command_markers = self.world.resource::<CommandMarkers>();
         let marker_id = command_markers.marker_id(component_id);
         self.world
-            .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| unsafe {
-                // SAFETY: The caller ensured that `write` can be safely called with a `SerdeFns` created for `C`.
-                replication_fns.set_marker_fns::<C>(world, marker_id, write, remove);
+            .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| {
+                replication_fns.set_marker_fns::<C>(world, marker_id, command_fns);
             });
 
         self
     }
 
-    unsafe fn set_command_fns<C: Component>(
-        &mut self,
-        write: WriteFn,
-        remove: RemoveFn,
-    ) -> &mut Self {
+    fn set_command_fns<C: Component>(&mut self, command_fns: CommandFns<C>) -> &mut Self {
         self.world
-            .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| unsafe {
-                // SAFETY: The caller ensured that `write` can be safely called with a `SerdeFns` created for `C`.
-                replication_fns.set_command_fns::<C>(world, write, remove);
+            .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| {
+                replication_fns.set_command_fns::<C>(world, command_fns);
             });
 
         self
@@ -262,22 +241,15 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::core::replication_fns::{command_fns, ReplicationFns};
+    use crate::core::replication_fns::ReplicationFns;
 
     #[test]
     #[should_panic]
     fn non_registered_marker() {
         let mut app = App::new();
         app.init_resource::<CommandMarkers>()
-            .init_resource::<ReplicationFns>();
-
-        // SAFETY: `write` can be safely called with a `SerdeFns` created for `DummyComponent`.
-        unsafe {
-            app.set_marker_fns::<DummyMarkerA, DummyComponent>(
-                command_fns::default_write::<DummyComponent>,
-                command_fns::default_remove::<DummyComponent>,
-            );
-        }
+            .init_resource::<ReplicationFns>()
+            .set_marker_fns::<DummyMarkerA, DummyComponent>(CommandFns::default());
     }
 
     #[test]

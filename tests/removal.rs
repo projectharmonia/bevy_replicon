@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use bevy_replicon::{
-    client::client_mapper::ServerEntityMap, core::replication_fns::command_fns, prelude::*,
+    client::client_mapper::ServerEntityMap,
+    core::replication_fns::command_fns::{self, CommandFns},
+    prelude::*,
     test_app::ServerTestAppExt,
 };
 use serde::{Deserialize, Serialize};
@@ -60,15 +62,11 @@ fn command_fns() {
                 ..Default::default()
             }),
         ))
-        .replicate::<DummyComponent>();
-
-        // SAFETY: `replace` can be safely called with a `SerdeFns` created for `DummyComponent`.
-        unsafe {
-            app.set_command_fns::<DummyComponent>(
-                command_fns::default_write::<DummyComponent>,
-                command_fns::default_remove::<RemovingComponent>,
-            );
-        }
+        .replicate::<DummyComponent>()
+        .set_command_fns(CommandFns::new(
+            command_fns::default_write::<DummyComponent>,
+            command_fns::default_remove::<RemovingComponent>,
+        ));
     }
 
     server_app.connect_client(&mut client_app);
@@ -115,15 +113,11 @@ fn marker() {
             }),
         ))
         .register_marker::<RemoveMarker>()
-        .replicate::<DummyComponent>();
-
-        // SAFETY: `replace` can be safely called with a `SerdeFns` created for `DummyComponent`.
-        unsafe {
-            app.set_marker_fns::<RemoveMarker, DummyComponent>(
-                command_fns::default_write::<DummyComponent>,
-                command_fns::default_remove::<RemovingComponent>,
-            );
-        }
+        .replicate::<DummyComponent>()
+        .set_marker_fns::<RemoveMarker, DummyComponent>(CommandFns::new(
+            command_fns::default_write,
+            command_fns::default_remove::<RemovingComponent>,
+        ));
     }
 
     server_app.connect_client(&mut client_app);
