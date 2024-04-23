@@ -65,7 +65,7 @@ fn replication<C: Component + Default + Serialize + DeserializeOwned + Clone>(c:
 
                     server_app
                         .world
-                        .spawn_batch(vec![(Replication, C::default()); ENTITIES as usize]);
+                        .spawn_batch(vec![(Replicated, C::default()); ENTITIES as usize]);
 
                     let instant = Instant::now();
                     server_app.update();
@@ -96,7 +96,7 @@ fn replication<C: Component + Default + Serialize + DeserializeOwned + Clone>(c:
 
                 server_app
                     .world
-                    .spawn_batch(vec![(Replication, C::default()); ENTITIES as usize]);
+                    .spawn_batch(vec![(Replicated, C::default()); ENTITIES as usize]);
                 let mut query = server_app.world.query::<&mut C>();
 
                 server_app.update();
@@ -139,7 +139,7 @@ fn replication<C: Component + Default + Serialize + DeserializeOwned + Clone>(c:
 
                 server_app
                     .world
-                    .spawn_batch(vec![(Replication, C::default()); ENTITIES as usize]);
+                    .spawn_batch(vec![(Replicated, C::default()); ENTITIES as usize]);
 
                 server_app.update();
                 server_app.exchange_with_client(&mut client_app);
@@ -163,7 +163,7 @@ fn replication<C: Component + Default + Serialize + DeserializeOwned + Clone>(c:
 
             server_app
                 .world
-                .spawn_batch(vec![(Replication, C::default()); ENTITIES as usize]);
+                .spawn_batch(vec![(Replicated, C::default()); ENTITIES as usize]);
             let mut query = server_app.world.query::<&mut C>();
 
             server_app.update();

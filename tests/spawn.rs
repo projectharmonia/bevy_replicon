@@ -20,7 +20,7 @@ fn empty() {
 
     server_app.connect_client(&mut client_app);
 
-    let server_entity = server_app.world.spawn(Replication).id();
+    let server_entity = server_app.world.spawn(Replicated).id();
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -28,7 +28,7 @@ fn empty() {
 
     let client_entity = client_app
         .world
-        .query_filtered::<Entity, With<Replication>>()
+        .query_filtered::<Entity, With<Replicated>>()
         .single(&client_app.world);
 
     let entity_map = client_app.world.resource::<ServerEntityMap>();
@@ -61,7 +61,7 @@ fn with_component() {
 
     server_app.connect_client(&mut client_app);
 
-    server_app.world.spawn((Replication, DummyComponent));
+    server_app.world.spawn((Replicated, DummyComponent));
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -69,7 +69,7 @@ fn with_component() {
 
     client_app
         .world
-        .query_filtered::<(), (With<Replication>, With<DummyComponent>)>()
+        .query_filtered::<(), (With<Replicated>, With<DummyComponent>)>()
         .single(&client_app.world);
 }
 
@@ -104,7 +104,7 @@ fn with_old_component() {
     server_app
         .world
         .entity_mut(server_entity)
-        .insert(Replication);
+        .insert(Replicated);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -112,7 +112,7 @@ fn with_old_component() {
 
     client_app
         .world
-        .query_filtered::<(), (With<Replication>, With<DummyComponent>)>()
+        .query_filtered::<(), (With<Replicated>, With<DummyComponent>)>()
         .single(&client_app.world);
 }
 
@@ -132,7 +132,7 @@ fn before_connection() {
     }
 
     // Spawn an entity before client connected.
-    server_app.world.spawn((Replication, DummyComponent));
+    server_app.world.spawn((Replicated, DummyComponent));
 
     server_app.connect_client(&mut client_app);
 
@@ -141,7 +141,7 @@ fn before_connection() {
 
     client_app
         .world
-        .query_filtered::<(), (With<Replication>, With<DummyComponent>)>()
+        .query_filtered::<(), (With<Replicated>, With<DummyComponent>)>()
         .single(&client_app.world);
 }
 
@@ -166,7 +166,7 @@ fn pre_spawn() {
     server_app.world.spawn_empty();
 
     let client_entity = client_app.world.spawn_empty().id();
-    let server_entity = server_app.world.spawn((Replication, DummyComponent)).id();
+    let server_entity = server_app.world.spawn((Replicated, DummyComponent)).id();
 
     let client = client_app.world.resource::<RepliconClient>();
     let client_id = client.id().unwrap();
@@ -198,7 +198,7 @@ fn pre_spawn() {
 
     let client_entity = client_app.world.entity(client_entity);
     assert!(
-        client_entity.contains::<Replication>(),
+        client_entity.contains::<Replicated>(),
         "server should confirm replication of client entity"
     );
     assert!(
@@ -230,12 +230,12 @@ fn after_despawn() {
 
     server_app.connect_client(&mut client_app);
 
-    // Remove and insert `Replication` to trigger despawn and spawn for client at the same time.
+    // Remove and insert `Replicated` to trigger despawn and spawn for client at the same time.
     server_app
         .world
-        .spawn((Replication, DummyComponent))
-        .remove::<Replication>()
-        .insert(Replication);
+        .spawn((Replicated, DummyComponent))
+        .remove::<Replicated>()
+        .insert(Replicated);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -243,7 +243,7 @@ fn after_despawn() {
 
     client_app
         .world
-        .query_filtered::<(), (With<Replication>, With<DummyComponent>)>()
+        .query_filtered::<(), (With<Replicated>, With<DummyComponent>)>()
         .single(&client_app.world);
 }
 

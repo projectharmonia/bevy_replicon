@@ -19,7 +19,7 @@ fn all() {
 
     server_app.connect_client(&mut client_app);
 
-    let server_entity = server_app.world.spawn((Replication, DummyComponent)).id();
+    let server_entity = server_app.world.spawn((Replicated, DummyComponent)).id();
 
     let client = client_app.world.resource::<RepliconClient>();
     let client_id = client.id().unwrap();
@@ -34,7 +34,7 @@ fn all() {
 
     client_app
         .world
-        .query_filtered::<(), (With<Replication>, With<DummyComponent>)>()
+        .query_filtered::<(), (With<Replicated>, With<DummyComponent>)>()
         .single(&client_app.world);
 
     // Reverse visibility back.
@@ -48,7 +48,7 @@ fn all() {
 
     client_app
         .world
-        .query_filtered::<(), (With<Replication>, With<DummyComponent>)>()
+        .query_filtered::<(), (With<Replicated>, With<DummyComponent>)>()
         .single(&client_app.world);
 }
 
@@ -70,7 +70,7 @@ fn empty_blacklist() {
 
     server_app.connect_client(&mut client_app);
 
-    server_app.world.spawn((Replication, DummyComponent));
+    server_app.world.spawn((Replicated, DummyComponent));
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -78,7 +78,7 @@ fn empty_blacklist() {
 
     client_app
         .world
-        .query_filtered::<(), (With<Replication>, With<DummyComponent>)>()
+        .query_filtered::<(), (With<Replicated>, With<DummyComponent>)>()
         .single(&client_app.world);
 }
 
@@ -100,7 +100,7 @@ fn blacklist() {
 
     server_app.connect_client(&mut client_app);
 
-    let server_entity = server_app.world.spawn((Replication, DummyComponent)).id();
+    let server_entity = server_app.world.spawn((Replicated, DummyComponent)).id();
 
     let client = client_app.world.resource::<RepliconClient>();
     let client_id = client.id().unwrap();
@@ -126,7 +126,7 @@ fn blacklist() {
 
     client_app
         .world
-        .query_filtered::<(), (With<Replication>, With<DummyComponent>)>()
+        .query_filtered::<(), (With<Replicated>, With<DummyComponent>)>()
         .single(&client_app.world);
 }
 
@@ -148,7 +148,7 @@ fn blacklist_despawn() {
 
     server_app.connect_client(&mut client_app);
 
-    let server_entity = server_app.world.spawn(Replication).id();
+    let server_entity = server_app.world.spawn(Replicated).id();
 
     let client = client_app.world.resource::<RepliconClient>();
     let client_id = client.id().unwrap();
@@ -186,7 +186,7 @@ fn empty_whitelist() {
 
     server_app.connect_client(&mut client_app);
 
-    server_app.world.spawn((Replication, DummyComponent));
+    server_app.world.spawn((Replicated, DummyComponent));
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -216,7 +216,7 @@ fn whitelist() {
 
     server_app.connect_client(&mut client_app);
 
-    let server_entity = server_app.world.spawn((Replication, DummyComponent)).id();
+    let server_entity = server_app.world.spawn((Replicated, DummyComponent)).id();
 
     let client = client_app.world.resource::<RepliconClient>();
     let client_id = client.id().unwrap();
@@ -231,7 +231,7 @@ fn whitelist() {
 
     client_app
         .world
-        .query_filtered::<(), (With<Replication>, With<DummyComponent>)>()
+        .query_filtered::<(), (With<Replicated>, With<DummyComponent>)>()
         .single(&client_app.world);
 
     // Reverse visibility.
@@ -267,7 +267,7 @@ fn whitelist_despawn() {
 
     server_app.connect_client(&mut client_app);
 
-    let server_entity = server_app.world.spawn(Replication).id();
+    let server_entity = server_app.world.spawn(Replicated).id();
 
     let client = client_app.world.resource::<RepliconClient>();
     let client_id = client.id().unwrap();

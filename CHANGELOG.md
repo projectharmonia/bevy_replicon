@@ -182,6 +182,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Rename `Replication` into `Replicated`. Old name is still available via deprecated alias.
 - Send all component mappings, inserts, removals and despawns over reliable channel in form of deltas and component updates over unreliable channel packed by packet size. This significantly reduces the possibility of packet loss.
 - Replace `REPLICATION_CHANNEL_ID` with `ReplicationChannel` enum. The previous constant corresponded to the unreliable channel.
 - Server events use tick with the last change instead of waiting for replication message without changes.

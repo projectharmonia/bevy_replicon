@@ -1,11 +1,11 @@
 use bevy::{ecs::entity::EntityHashMap, prelude::*, scene::DynamicEntity};
 
-use crate::{core::replication_rules::ReplicationRules, Replication};
+use crate::{core::replication_rules::ReplicationRules, Replicated};
 
 /**
 Fills scene with all replicated entities and their components.
 
-Entities won't have the [`Replication`] component.
+Entities won't have the [`Replicated`] component.
 So on deserialization you need to insert it back if you want entities to continue to replicate.
 
 # Panics
@@ -40,14 +40,14 @@ let mut scene = scene_deserializer
     .deserialize(&mut deserializer)
     .expect("ron should be convertible to scene");
 
-// Re-insert `Replication` component.
+// Re-insert `Replicated` component.
 for entity in &mut scene.entities {
-    entity.components.push(Replication.clone_value());
+    entity.components.push(Replicated.clone_value());
 }
 ```
 */
 pub fn replicate_into(scene: &mut DynamicScene, world: &World) {
-    let Some(marker_id) = world.component_id::<Replication>() else {
+    let Some(marker_id) = world.component_id::<Replicated>() else {
         // Components are initialized lazily.
         // If there is no replication marker, then we have nothing to replicate.
         return;

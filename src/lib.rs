@@ -81,12 +81,12 @@ and components need to be replicated.
 
 #### Entities
 
-By default no entities are replicated. Add the [`Replication`] marker
+By default no entities are replicated. Add the [`Replicated`] marker
 component on the server for entities you want to replicate.
 
-On clients [`Replication`] will be automatically inserted to newly-replicated entities.
+On clients [`Replicated`] will be automatically inserted to newly-replicated entities.
 
-If you remove the [`Replication`] component from an entity on the server, it will be despawned on all clients.
+If you remove the [`Replicated`] component from an entity on the server, it will be despawned on all clients.
 
 #### Components
 
@@ -209,7 +209,7 @@ fn init_player(
 struct PlayerBundle {
     player: Player,
     transform: Transform,
-    replication: Replication,
+    replicated: Replicated,
 }
 
 #[derive(Component, Deserialize, Serialize)]
@@ -458,6 +458,9 @@ pub mod server;
 pub mod test_app;
 
 pub mod prelude {
+    #[allow(deprecated)]
+    pub use super::core::Replication;
+
     pub use super::{
         client::{
             diagnostics::{ClientDiagnosticsPlugin, ClientStats},
@@ -469,7 +472,7 @@ pub mod prelude {
             common_conditions::*,
             replication_rules::AppRuleExt,
             replicon_channels::{ChannelKind, RepliconChannel, RepliconChannels},
-            ClientId, Replication, RepliconCorePlugin,
+            ClientId, Replicated, RepliconCorePlugin,
         },
         network_event::{
             client_event::{ClientEventAppExt, FromClient},

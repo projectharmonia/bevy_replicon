@@ -1,9 +1,9 @@
 use bevy::prelude::*;
 
 use super::{ServerPlugin, ServerSet};
-use crate::core::{common_conditions::server_running, Replication};
+use crate::core::{common_conditions::server_running, Replicated};
 
-/// Treats removals of [`Replication`] component as despawns and stores them into [`DespawnBuffer`] resource.
+/// Treats removals of [`Replicated`] component as despawns and stores them into [`DespawnBuffer`] resource.
 ///
 /// Used to avoid missing events in case the server's tick policy is not [`TickPolicy::EveryFrame`].
 pub(super) struct DespawnBufferPlugin;
@@ -22,7 +22,7 @@ impl Plugin for DespawnBufferPlugin {
 
 impl DespawnBufferPlugin {
     fn buffer_despawns(
-        mut removed_replications: RemovedComponents<Replication>,
+        mut removed_replications: RemovedComponents<Replicated>,
         mut despawn_buffer: ResMut<DespawnBuffer>,
     ) {
         for entity in removed_replications.read() {
@@ -52,7 +52,7 @@ mod tests {
 
         app.update();
 
-        app.world.spawn(Replication).despawn();
+        app.world.spawn(Replicated).despawn();
 
         app.update();
 

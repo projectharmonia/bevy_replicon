@@ -637,7 +637,7 @@ fn confirm_bullet(
 
 If the client is connected and receives the replication data for the server entity mapping,
 replicated data will be applied to the client's original entity instead of spawning a new one.
-You can detect when the mapping is replicated by querying for [`Added<Replication>`] on your original
+You can detect when the mapping is replicated by querying for [`Added<Replicated>`] on your original
 client entity.
 
 If client's original entity is not found, a new entity will be spawned on the client,

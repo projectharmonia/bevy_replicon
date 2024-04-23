@@ -10,12 +10,12 @@ use bevy::{
     utils::tracing::enabled,
 };
 
-use crate::core::{replication_fns::FnsId, replication_rules::ReplicationRules, Replication};
+use crate::core::{replication_fns::FnsId, replication_rules::ReplicationRules, Replicated};
 
 /// Cached information about all replicated archetypes.
 #[derive(Deref)]
 pub(crate) struct ReplicatedArchetypes {
-    /// ID of [`Replication`] component.
+    /// ID of [`Replicated`] component.
     marker_id: ComponentId,
 
     /// Highest processed archetype ID.
@@ -27,7 +27,7 @@ pub(crate) struct ReplicatedArchetypes {
 }
 
 impl ReplicatedArchetypes {
-    /// ID of the [`Replication`] component.
+    /// ID of the [`Replicated`] component.
     pub(crate) fn marker_id(&self) -> ComponentId {
         self.marker_id
     }
@@ -95,7 +95,7 @@ impl ReplicatedArchetypes {
 impl FromWorld for ReplicatedArchetypes {
     fn from_world(world: &mut World) -> Self {
         Self {
-            marker_id: world.init_component::<Replication>(),
+            marker_id: world.init_component::<Replicated>(),
             generation: ArchetypeGeneration::initial(),
             archetypes: Default::default(),
         }
@@ -150,7 +150,7 @@ mod tests {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>();
 
-        app.world.spawn(Replication);
+        app.world.spawn(Replicated);
 
         let archetypes = match_archetypes(&mut app.world);
         assert_eq!(archetypes.len(), 1);
@@ -166,7 +166,7 @@ mod tests {
             .init_resource::<ReplicationFns>()
             .replicate::<ComponentA>();
 
-        app.world.spawn((Replication, ComponentB));
+        app.world.spawn((Replicated, ComponentB));
 
         let archetypes = match_archetypes(&mut app.world);
         let archetype = archetypes.first().unwrap();
@@ -180,7 +180,7 @@ mod tests {
             .init_resource::<ReplicationFns>()
             .replicate::<ComponentA>();
 
-        app.world.spawn((Replication, ComponentA));
+        app.world.spawn((Replicated, ComponentA));
 
         let archetypes = match_archetypes(&mut app.world);
         let archetype = archetypes.first().unwrap();
@@ -194,7 +194,7 @@ mod tests {
             .init_resource::<ReplicationFns>()
             .replicate_group::<(ComponentA, ComponentB)>();
 
-        app.world.spawn((Replication, ComponentA, ComponentB));
+        app.world.spawn((Replicated, ComponentA, ComponentB));
 
         let archetypes = match_archetypes(&mut app.world);
         let archetype = archetypes.first().unwrap();
@@ -208,7 +208,7 @@ mod tests {
             .init_resource::<ReplicationFns>()
             .replicate_group::<(ComponentA, ComponentB)>();
 
-        app.world.spawn((Replication, ComponentA));
+        app.world.spawn((Replicated, ComponentA));
 
         let archetypes = match_archetypes(&mut app.world);
         let archetype = archetypes.first().unwrap();
@@ -223,7 +223,7 @@ mod tests {
             .replicate::<ComponentA>()
             .replicate_group::<(ComponentA, ComponentB)>();
 
-        app.world.spawn((Replication, ComponentA, ComponentB));
+        app.world.spawn((Replicated, ComponentA, ComponentB));
 
         let archetypes = match_archetypes(&mut app.world);
         let archetype = archetypes.first().unwrap();
@@ -239,7 +239,7 @@ mod tests {
             .replicate::<ComponentB>()
             .replicate_group::<(ComponentA, ComponentB)>();
 
-        app.world.spawn((Replication, ComponentA, ComponentB));
+        app.world.spawn((Replicated, ComponentA, ComponentB));
 
         let archetypes = match_archetypes(&mut app.world);
         let archetype = archetypes.first().unwrap();
@@ -255,7 +255,7 @@ mod tests {
             .replicate_group::<(ComponentA, ComponentB)>();
 
         app.world
-            .spawn((Replication, ComponentA, ComponentB, ComponentC));
+            .spawn((Replicated, ComponentA, ComponentB, ComponentC));
 
         let archetypes = match_archetypes(&mut app.world);
         let archetype = archetypes.first().unwrap();

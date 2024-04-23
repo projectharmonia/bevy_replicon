@@ -13,7 +13,7 @@ use super::replication_fns::{rule_fns::RuleFns, FnsInfo, ReplicationFns};
 pub trait AppRuleExt {
     /// Creates a replication rule for a single component.
     ///
-    /// The component will be replicated if its entity contains the [`Replication`](super::Replication)
+    /// The component will be replicated if its entity contains the [`Replicated`](super::Replicated)
     /// marker component.
     ///
     /// Component will be serialized and deserialized as-is using bincode.
@@ -255,7 +255,7 @@ app.replicate_group::<PlayerBundle>();
 struct PlayerBundle {
     transform: Transform,
     player: Player,
-    replication: Replication,
+    replicated: Replicated,
 }
 
 #[derive(Component, Deserialize, Serialize)]

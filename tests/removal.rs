@@ -24,8 +24,8 @@ fn single() {
 
     server_app.connect_client(&mut client_app);
 
-    let server_entity = server_app.world.spawn((Replication, DummyComponent)).id();
-    let client_entity = client_app.world.spawn((Replication, DummyComponent)).id();
+    let server_entity = server_app.world.spawn((Replicated, DummyComponent)).id();
+    let client_entity = client_app.world.spawn((Replicated, DummyComponent)).id();
 
     client_app
         .world
@@ -71,11 +71,8 @@ fn command_fns() {
 
     server_app.connect_client(&mut client_app);
 
-    let server_entity = server_app.world.spawn((Replication, DummyComponent)).id();
-    let client_entity = client_app
-        .world
-        .spawn((Replication, RemovingComponent))
-        .id();
+    let server_entity = server_app.world.spawn((Replicated, DummyComponent)).id();
+    let client_entity = client_app.world.spawn((Replicated, RemovingComponent)).id();
 
     client_app
         .world
@@ -122,10 +119,10 @@ fn marker() {
 
     server_app.connect_client(&mut client_app);
 
-    let server_entity = server_app.world.spawn((Replication, DummyComponent)).id();
+    let server_entity = server_app.world.spawn((Replicated, DummyComponent)).id();
     let client_entity = client_app
         .world
-        .spawn((Replication, RemoveMarker, RemovingComponent))
+        .spawn((Replicated, RemoveMarker, RemovingComponent))
         .id();
 
     client_app
@@ -170,12 +167,12 @@ fn group() {
 
     let server_entity = server_app
         .world
-        .spawn((Replication, (GroupComponentA, GroupComponentB)))
+        .spawn((Replicated, (GroupComponentA, GroupComponentB)))
         .id();
 
     let client_entity = client_app
         .world
-        .spawn((Replication, (GroupComponentA, GroupComponentB)))
+        .spawn((Replicated, (GroupComponentA, GroupComponentB)))
         .id();
 
     client_app
@@ -220,12 +217,12 @@ fn not_replicated() {
 
     let server_entity = server_app
         .world
-        .spawn((Replication, NotReplicatedComponent))
+        .spawn((Replicated, NotReplicatedComponent))
         .id();
 
     let client_entity = client_app
         .world
-        .spawn((Replication, NotReplicatedComponent))
+        .spawn((Replicated, NotReplicatedComponent))
         .id();
 
     client_app
@@ -268,8 +265,8 @@ fn after_insertion() {
 
     server_app.connect_client(&mut client_app);
 
-    let server_entity = server_app.world.spawn((Replication, DummyComponent)).id();
-    let client_entity = client_app.world.spawn((Replication, DummyComponent)).id();
+    let server_entity = server_app.world.spawn((Replicated, DummyComponent)).id();
+    let client_entity = client_app.world.spawn((Replicated, DummyComponent)).id();
 
     client_app
         .world
@@ -313,8 +310,8 @@ fn with_despawn() {
 
     server_app.connect_client(&mut client_app);
 
-    let server_entity = server_app.world.spawn((Replication, DummyComponent)).id();
-    let client_entity = client_app.world.spawn((Replication, DummyComponent)).id();
+    let server_entity = server_app.world.spawn((Replicated, DummyComponent)).id();
+    let client_entity = client_app.world.spawn((Replicated, DummyComponent)).id();
 
     client_app
         .world
@@ -331,7 +328,7 @@ fn with_despawn() {
         .world
         .entity_mut(server_entity)
         .remove::<DummyComponent>()
-        .remove::<Replication>();
+        .remove::<Replicated>();
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);

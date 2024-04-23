@@ -33,7 +33,7 @@ for app in [&mut server_app, &mut client_app] {
 // - client app will be in connected state.
 server_app.connect_client(&mut client_app);
 
-server_app.world.spawn(Replication);
+server_app.world.spawn(Replicated);
 
 // Run tick for each app and trigger message exchange.
 server_app.update();
