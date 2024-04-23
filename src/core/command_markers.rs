@@ -2,9 +2,8 @@ use std::cmp::Reverse;
 
 use bevy::{ecs::component::ComponentId, prelude::*};
 
+use super::replication_fns::command_fns::{RemoveFn, WriteFn};
 use crate::core::replication_fns::ReplicationFns;
-
-use super::replication_fns::command_fns::CommandFns;
 
 /// Marker-based functions for [`App`].
 ///
@@ -53,7 +52,7 @@ pub trait AppMarkerExt {
     use bevy_replicon::{
         client::client_mapper::{ClientMapper, ServerEntityMap},
         core::{
-            replication_fns::{command_fns, rule_fns::RuleFns, command_fns::CommandFns},
+            replication_fns::{command_fns, rule_fns::RuleFns},
             replicon_tick::RepliconTick,
         },
         prelude::*,
@@ -62,10 +61,10 @@ pub trait AppMarkerExt {
     # let mut app = App::new();
     # app.add_plugins(RepliconPlugins);
     app.register_marker::<ComponentsHistory>()
-        .set_marker_fns::<ComponentsHistory, Transform>(CommandFns::new(
+        .set_marker_fns::<ComponentsHistory, Transform>(
             write_history,
             remove_history::<Transform>,
-        ));
+        );
 
     /// Instead of writing into a component directly, it writes data into [`ComponentHistory<C>`].
     fn write_history<C: Component>(
@@ -116,7 +115,8 @@ pub trait AppMarkerExt {
     **/
     fn set_marker_fns<M: Component, C: Component>(
         &mut self,
-        command_fns: CommandFns<C>,
+        write: WriteFn<C>,
+        remove: RemoveFn,
     ) -> &mut Self;
 
     /// Sets default functions for a component when there are no markers.
@@ -126,7 +126,7 @@ pub trait AppMarkerExt {
     /// [`default_write`](super::replication_fns::command_fns::default_write) and
     /// [`default_remove`](super::replication_fns::command_fns::default_remove).
     /// See also [`Self::set_marker_fns`].
-    fn set_command_fns<C: Component>(&mut self, command_fns: CommandFns<C>) -> &mut Self;
+    fn set_command_fns<C: Component>(&mut self, write: WriteFn<C>, remove: RemoveFn) -> &mut Self;
 }
 
 impl AppMarkerExt for App {
@@ -150,31 +150,31 @@ impl AppMarkerExt for App {
 
     fn set_marker_fns<M: Component, C: Component>(
         &mut self,
-        command_fns: CommandFns<C>,
+        write: WriteFn<C>,
+        remove: RemoveFn,
     ) -> &mut Self {
         let component_id = self.world.init_component::<M>();
         let command_markers = self.world.resource::<CommandMarkers>();
         let marker_id = command_markers.marker_id(component_id);
         self.world
             .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| {
-                replication_fns.set_marker_fns::<C>(world, marker_id, command_fns);
+                replication_fns.set_marker_fns::<C>(world, marker_id, write, remove);
             });
 
         self
     }
 
-    fn set_command_fns<C: Component>(&mut self, command_fns: CommandFns<C>) -> &mut Self {
+    fn set_command_fns<C: Component>(&mut self, write: WriteFn<C>, remove: RemoveFn) -> &mut Self {
         self.world
             .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| {
-                replication_fns.set_command_fns::<C>(world, command_fns);
+                replication_fns.set_command_fns::<C>(world, write, remove);
             });
 
         self
     }
 }
 
-/// Registered markers that override functions if present for
-/// [`CommandFns`](super::replication_fns::command_fns::CommandFns).
+/// Registered markers that override command functions if present.
 #[derive(Resource, Default)]
 pub(crate) struct CommandMarkers(Vec<CommandMarker>);
 
@@ -241,7 +241,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::core::replication_fns::ReplicationFns;
+    use crate::core::replication_fns::{command_fns, ReplicationFns};
 
     #[test]
     #[should_panic]
@@ -249,7 +249,10 @@ mod tests {
         let mut app = App::new();
         app.init_resource::<CommandMarkers>()
             .init_resource::<ReplicationFns>()
-            .set_marker_fns::<DummyMarkerA, DummyComponent>(CommandFns::default());
+            .set_marker_fns::<DummyMarkerA, DummyComponent>(
+                command_fns::default_write,
+                command_fns::default_remove::<DummyComponent>,
+            );
     }
 
     #[test]
