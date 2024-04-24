@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rename `deserialize_component` into `default_deserialize` and move into `rule_fns` module.
 - Rename `deserialize_mapped_component` into `default_deserialize_mapped` and move into `rule_fns` module.
 - Rename `remove_component` into `default_remove` and move into `command_fns` module.
+- Now serialization/deserialization, removal, despawn and writing functions accept context to access additional information.
 - Move `despawn_recursive` into `replication_fns` module.
 
 ### Removed
