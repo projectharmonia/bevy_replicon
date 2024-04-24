@@ -2,11 +2,12 @@ use std::io::Cursor;
 
 use bevy::{ecs::system::EntityCommands, prelude::*, ptr::Ptr};
 
-use super::{command_fns::UntypedCommandFns, rule_fns::UntypedRuleFns};
-use crate::{
-    client::client_mapper::ServerEntityMap,
-    core::{command_markers::CommandMarkerIndex, replicon_tick::RepliconTick},
+use super::{
+    command_fns::UntypedCommandFns,
+    ctx::{RemoveDespawnCtx, SerializeCtx, WriteDeserializeCtx},
+    rule_fns::UntypedRuleFns,
 };
+use crate::core::command_markers::CommandMarkerIndex;
 
 /// Type-erased functions for a component.
 ///
@@ -22,8 +23,8 @@ impl ComponentFns {
     /// Creates a new instance for `C` with the specified number of empty marker function slots.
     pub(super) fn new<C: Component>(marker_slots: usize) -> Self {
         Self {
-            serialize: type_serialize::<C>,
-            write: type_write::<C>,
+            serialize: untyped_serialize::<C>,
+            write: untyped_write::<C>,
             commands: UntypedCommandFns::default_fns::<C>(),
             markers: vec![None; marker_slots],
         }
@@ -79,11 +80,12 @@ impl ComponentFns {
     /// The caller must ensure that `ptr` and `rule_fns` were created for the same type as this instance.
     pub unsafe fn serialize(
         &self,
+        ctx: &SerializeCtx,
         rule_fns: &UntypedRuleFns,
         ptr: Ptr,
         cursor: &mut Cursor<Vec<u8>>,
     ) -> bincode::Result<()> {
-        (self.serialize)(rule_fns, ptr, cursor)
+        (self.serialize)(ctx, rule_fns, ptr, cursor)
     }
 
     /// Calls the assigned writing function based on entity markers.
@@ -102,35 +104,25 @@ impl ComponentFns {
     /// Panics if `debug_assertions` is enabled and `entity_markers` has a different length than the number of marker slots.
     pub unsafe fn write(
         &self,
+        ctx: &mut WriteDeserializeCtx,
         rule_fns: &UntypedRuleFns,
         entity_markers: &[bool],
-        commands: &mut Commands,
         entity: &mut EntityMut,
         cursor: &mut Cursor<&[u8]>,
-        entity_map: &mut ServerEntityMap,
-        replicon_tick: RepliconTick,
     ) -> bincode::Result<()> {
         let command_fns = self.marker_fns(entity_markers).unwrap_or(self.commands);
-        (self.write)(
-            &command_fns,
-            rule_fns,
-            commands,
-            entity,
-            cursor,
-            entity_map,
-            replicon_tick,
-        )
+        (self.write)(ctx, &command_fns, rule_fns, entity, cursor)
     }
 
     /// Same as [`Self::write`], but calls the assigned remove function.
     pub fn remove(
         &self,
+        ctx: &RemoveDespawnCtx,
         entity_markers: &[bool],
         entity_commands: EntityCommands,
-        replicon_tick: RepliconTick,
     ) {
         let command_fns = self.marker_fns(entity_markers).unwrap_or(self.commands);
-        command_fns.remove(entity_commands, replicon_tick)
+        command_fns.remove(ctx, entity_commands)
     }
 
     /// Picks assigned functions based on markers present on an entity.
@@ -150,17 +142,15 @@ impl ComponentFns {
 
 /// Signature of component serialization functions that restore the original type.
 type UntypedSerializeFn =
-    unsafe fn(&UntypedRuleFns, Ptr, &mut Cursor<Vec<u8>>) -> bincode::Result<()>;
+    unsafe fn(&SerializeCtx, &UntypedRuleFns, Ptr, &mut Cursor<Vec<u8>>) -> bincode::Result<()>;
 
 /// Signature of component writing functions that restore the original type.
 type UntypedWriteFn = unsafe fn(
+    &mut WriteDeserializeCtx,
     &UntypedCommandFns,
     &UntypedRuleFns,
-    &mut Commands,
     &mut EntityMut,
     &mut Cursor<&[u8]>,
-    &mut ServerEntityMap,
-    RepliconTick,
 ) -> bincode::Result<()>;
 
 /// Dereferences a component from a pointer and calls the passed serialization function.
@@ -168,13 +158,14 @@ type UntypedWriteFn = unsafe fn(
 /// # Safety
 ///
 /// The caller must ensure that `ptr` and `rule_fns` were created for `C`.
-unsafe fn type_serialize<C: Component>(
+unsafe fn untyped_serialize<C: Component>(
+    ctx: &SerializeCtx,
     rule_fns: &UntypedRuleFns,
     ptr: Ptr,
     cursor: &mut Cursor<Vec<u8>>,
 ) -> bincode::Result<()> {
     let rule_fns = rule_fns.typed::<C>();
-    rule_fns.serialize(ptr.deref::<C>(), cursor)
+    rule_fns.serialize(ctx, ptr.deref::<C>(), cursor)
 }
 
 /// Resolves `rule_fns` to `C` and calls [`UntypedCommandFns::write`] for `C`.
@@ -182,21 +173,12 @@ unsafe fn type_serialize<C: Component>(
 /// # Safety
 ///
 /// The caller must ensure that `rule_fns` was created for `C`.
-unsafe fn type_write<C: Component>(
+unsafe fn untyped_write<C: Component>(
+    ctx: &mut WriteDeserializeCtx,
     command_fns: &UntypedCommandFns,
     rule_fns: &UntypedRuleFns,
-    commands: &mut Commands,
     entity: &mut EntityMut,
     cursor: &mut Cursor<&[u8]>,
-    entity_map: &mut ServerEntityMap,
-    replicon_tick: RepliconTick,
 ) -> bincode::Result<()> {
-    command_fns.write::<C>(
-        &rule_fns.typed::<C>(),
-        commands,
-        entity,
-        cursor,
-        entity_map,
-        replicon_tick,
-    )
+    command_fns.write::<C>(ctx, &rule_fns.typed::<C>(), entity, cursor)
 }

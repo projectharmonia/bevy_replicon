@@ -8,7 +8,7 @@ use bevy::{ecs::entity::MapEntities, prelude::*};
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Serialize};
 
-use crate::client::client_mapper::ClientMapper;
+use super::ctx::{SerializeCtx, WriteDeserializeCtx};
 
 /// Type-erased version of [`RuleFns`].
 ///
@@ -87,8 +87,13 @@ impl<C: Component> RuleFns<C> {
     }
 
     /// Serializes a component into a cursor.
-    pub fn serialize(&self, component: &C, cursor: &mut Cursor<Vec<u8>>) -> bincode::Result<()> {
-        (self.serialize)(component, cursor)
+    pub fn serialize(
+        &self,
+        ctx: &SerializeCtx,
+        component: &C,
+        cursor: &mut Cursor<Vec<u8>>,
+    ) -> bincode::Result<()> {
+        (self.serialize)(ctx, component, cursor)
     }
 
     /// Deserializes a component from a cursor.
@@ -96,10 +101,10 @@ impl<C: Component> RuleFns<C> {
     /// Use this function when inserting a new component.
     pub fn deserialize(
         &self,
+        ctx: &mut WriteDeserializeCtx,
         cursor: &mut Cursor<&[u8]>,
-        mapper: &mut ClientMapper,
     ) -> bincode::Result<C> {
-        (self.deserialize)(cursor, mapper)
+        (self.deserialize)(ctx, cursor)
     }
 
     /// Same as [`Self::deserialize`], but instead of returning a component, it updates the passed reference.
@@ -107,11 +112,11 @@ impl<C: Component> RuleFns<C> {
     /// Use this function for updating an existing component.
     pub fn deserialize_in_place(
         &self,
+        ctx: &mut WriteDeserializeCtx,
         component: &mut C,
         cursor: &mut Cursor<&[u8]>,
-        mapper: &mut ClientMapper,
     ) -> bincode::Result<()> {
-        (self.deserialize_in_place)(self.deserialize, component, cursor, mapper)
+        (self.deserialize_in_place)(self.deserialize, ctx, component, cursor)
     }
 }
 
@@ -139,17 +144,22 @@ impl<C: Component + Serialize + DeserializeOwned> Default for RuleFns<C> {
 }
 
 /// Signature of component serialization functions.
-pub type SerializeFn<C> = fn(&C, &mut Cursor<Vec<u8>>) -> bincode::Result<()>;
+pub type SerializeFn<C> = fn(&SerializeCtx, &C, &mut Cursor<Vec<u8>>) -> bincode::Result<()>;
 
 /// Signature of component deserialization functions.
-pub type DeserializeFn<C> = fn(&mut Cursor<&[u8]>, &mut ClientMapper) -> bincode::Result<C>;
+pub type DeserializeFn<C> = fn(&mut WriteDeserializeCtx, &mut Cursor<&[u8]>) -> bincode::Result<C>;
 
 /// Signature of in-place component deserialization functions.
-pub type DeserializeInPlaceFn<C> =
-    fn(DeserializeFn<C>, &mut C, &mut Cursor<&[u8]>, &mut ClientMapper) -> bincode::Result<()>;
+pub type DeserializeInPlaceFn<C> = fn(
+    DeserializeFn<C>,
+    &mut WriteDeserializeCtx,
+    &mut C,
+    &mut Cursor<&[u8]>,
+) -> bincode::Result<()>;
 
 /// Default component serialization function.
 pub fn default_serialize<C: Component + Serialize>(
+    _ctx: &SerializeCtx,
     component: &C,
     cursor: &mut Cursor<Vec<u8>>,
 ) -> bincode::Result<()> {
@@ -158,19 +168,19 @@ pub fn default_serialize<C: Component + Serialize>(
 
 /// Default component deserialization function.
 pub fn default_deserialize<C: Component + DeserializeOwned>(
+    _ctx: &mut WriteDeserializeCtx,
     cursor: &mut Cursor<&[u8]>,
-    _mapper: &mut ClientMapper,
 ) -> bincode::Result<C> {
     DefaultOptions::new().deserialize_from(cursor)
 }
 
 /// Like [`default_deserialize`], but also maps entities before insertion.
 pub fn default_deserialize_mapped<C: Component + DeserializeOwned + MapEntities>(
+    ctx: &mut WriteDeserializeCtx,
     cursor: &mut Cursor<&[u8]>,
-    mapper: &mut ClientMapper,
 ) -> bincode::Result<C> {
     let mut component: C = DefaultOptions::new().deserialize_from(cursor)?;
-    component.map_entities(mapper);
+    component.map_entities(ctx);
     Ok(component)
 }
 
@@ -179,10 +189,10 @@ pub fn default_deserialize_mapped<C: Component + DeserializeOwned + MapEntities>
 /// This implementation just assigns the value from the passed deserialization function.
 pub fn in_place_as_deserialize<C: Component>(
     deserialize: DeserializeFn<C>,
+    ctx: &mut WriteDeserializeCtx,
     component: &mut C,
     cursor: &mut Cursor<&[u8]>,
-    mapper: &mut ClientMapper,
 ) -> bincode::Result<()> {
-    *component = (deserialize)(cursor, mapper)?;
+    *component = (deserialize)(ctx, cursor)?;
     Ok(())
 }

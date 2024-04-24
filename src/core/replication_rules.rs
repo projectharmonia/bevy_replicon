@@ -57,7 +57,11 @@ pub trait AppRuleExt {
 
     use bevy::prelude::*;
     use bevy_replicon::{
-        client::client_mapper::ClientMapper, core::replication_fns::rule_fns::RuleFns, prelude::*,
+        core::replication_fns::{
+            ctx::{SerializeCtx, WriteDeserializeCtx},
+            rule_fns::RuleFns,
+        },
+        prelude::*,
     };
 
     # let mut app = App::new();
@@ -69,6 +73,7 @@ pub trait AppRuleExt {
 
     /// Serializes only `translation` from [`Transform`].
     fn serialize_translation(
+        _ctx: &SerializeCtx,
         transform: &Transform,
         cursor: &mut Cursor<Vec<u8>>,
     ) -> bincode::Result<()> {
@@ -77,8 +82,8 @@ pub trait AppRuleExt {
 
     /// Deserializes `translation` and creates [`Transform`] from it.
     fn deserialize_translation(
+        _ctx: &mut WriteDeserializeCtx,
         cursor: &mut Cursor<&[u8]>,
-        _mapper: &mut ClientMapper,
     ) -> bincode::Result<Transform> {
         let translation: Vec3 = bincode::deserialize_from(cursor)?;
         Ok(Transform::from_translation(translation))
@@ -238,9 +243,12 @@ use std::io::Cursor;
 
 use bevy::prelude::*;
 use bevy_replicon::{
-    client::client_mapper::ClientMapper,
     core::{
-        replication_fns::{rule_fns::RuleFns, ReplicationFns},
+        replication_fns::{
+            ctx::{SerializeCtx, WriteDeserializeCtx},
+            rule_fns::RuleFns,
+            ReplicationFns,
+        },
         replication_rules::{GroupReplication, ReplicationRule},
     },
     prelude::*,
@@ -280,8 +288,8 @@ impl GroupReplication for PlayerBundle {
     }
 }
 
-# fn serialize_translation(_: &Transform, _: &mut Cursor<Vec<u8>>) -> bincode::Result<()> { unimplemented!() }
-# fn deserialize_translation(_: &mut Cursor<&[u8]>, _: &mut ClientMapper) -> bincode::Result<Transform> { unimplemented!() }
+# fn serialize_translation(_: &SerializeCtx, _: &Transform, _: &mut Cursor<Vec<u8>>) -> bincode::Result<()> { unimplemented!() }
+# fn deserialize_translation(_: &mut WriteDeserializeCtx, _: &mut Cursor<&[u8]>) -> bincode::Result<Transform> { unimplemented!() }
 ```
 **/
 pub trait GroupReplication {

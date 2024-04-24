@@ -50,10 +50,9 @@ pub trait AppMarkerExt {
 
     use bevy::{ecs::system::EntityCommands, prelude::*};
     use bevy_replicon::{
-        client::client_mapper::{ClientMapper, ServerEntityMap},
-        core::{
-            replication_fns::{command_fns, rule_fns::RuleFns},
-            replicon_tick::RepliconTick,
+        core::replication_fns::{
+            ctx::{RemoveDespawnCtx, WriteDeserializeCtx},
+            rule_fns::RuleFns,
         },
         prelude::*,
     };
@@ -68,23 +67,16 @@ pub trait AppMarkerExt {
 
     /// Instead of writing into a component directly, it writes data into [`ComponentHistory<C>`].
     fn write_history<C: Component>(
+        ctx: &mut WriteDeserializeCtx,
         rule_fns: &RuleFns<C>,
-        commands: &mut Commands,
         entity: &mut EntityMut,
         cursor: &mut Cursor<&[u8]>,
-        entity_map: &mut ServerEntityMap,
-        _replicon_tick: RepliconTick,
     ) -> bincode::Result<()> {
-        let mut mapper = ClientMapper {
-            commands,
-            entity_map,
-        };
-
-        let component: C = rule_fns.deserialize(cursor, &mut mapper)?;
+        let component: C = rule_fns.deserialize(ctx, cursor)?;
         if let Some(mut history) = entity.get_mut::<History<C>>() {
             history.push(component);
         } else {
-            commands
+            ctx.commands
                 .entity(entity.id())
                 .insert(History(vec![component]));
         }
@@ -94,8 +86,8 @@ pub trait AppMarkerExt {
 
     /// Removes component `C` and its history.
     fn remove_history<C: Component>(
+        _ctx: &RemoveDespawnCtx,
         mut entity_commands: EntityCommands,
-        _replicon_tick: RepliconTick,
     ) {
         entity_commands.remove::<History<C>>().remove::<C>();
     }

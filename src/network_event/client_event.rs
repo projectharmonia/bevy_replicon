@@ -9,7 +9,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use super::EventMapper;
 use crate::{
-    client::{client_mapper::ServerEntityMap, replicon_client::RepliconClient, ClientSet},
+    client::{replicon_client::RepliconClient, server_entity_map::ServerEntityMap, ClientSet},
     core::{
         common_conditions::{client_connected, has_authority, server_running},
         replicon_channels::{RepliconChannel, RepliconChannels},

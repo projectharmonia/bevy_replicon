@@ -22,7 +22,7 @@ use bevy::{
 
 use crate::core::{
     common_conditions::{server_just_stopped, server_running},
-    replication_fns::ReplicationFns,
+    replication_fns::{ctx::SerializeCtx, ReplicationFns},
     replication_rules::ReplicationRules,
     replicon_channels::{ReplicationChannel, RepliconChannels},
     replicon_tick::RepliconTick,
@@ -229,6 +229,7 @@ impl ServerPlugin {
             &replication_fns,
             set.p0(),
             &change_tick,
+            *replicon_tick,
         )?;
 
         let mut client_buffers = mem::take(&mut *set.p5());
@@ -288,6 +289,7 @@ fn collect_changes(
     replication_fns: &ReplicationFns,
     world: &World,
     change_tick: &SystemChangeTick,
+    replicon_tick: RepliconTick,
 ) -> bincode::Result<()> {
     for (init_message, _) in messages.iter_mut() {
         init_message.start_array();
@@ -360,6 +362,7 @@ fn collect_changes(
                             &mut shared_bytes,
                             rule_fns,
                             component_fns,
+                            &SerializeCtx { replicon_tick },
                             replicated_component.fns_id,
                             component,
                         )?;
@@ -372,6 +375,7 @@ fn collect_changes(
                                 &mut shared_bytes,
                                 rule_fns,
                                 component_fns,
+                                &SerializeCtx { replicon_tick },
                                 replicated_component.fns_id,
                                 component,
                             )?;

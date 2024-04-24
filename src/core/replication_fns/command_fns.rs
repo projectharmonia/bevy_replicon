@@ -6,10 +6,9 @@ use std::{
 
 use bevy::{ecs::system::EntityCommands, prelude::*};
 
-use super::rule_fns::RuleFns;
-use crate::{
-    client::client_mapper::{ClientMapper, ServerEntityMap},
-    core::replicon_tick::RepliconTick,
+use super::{
+    ctx::{RemoveDespawnCtx, WriteDeserializeCtx},
+    rule_fns::RuleFns,
 };
 
 /// Writing and removal functions for a component, like [`Commands`].
@@ -46,12 +45,10 @@ impl UntypedCommandFns {
     /// The caller must ensure that the function is called with the same `C` with which this instance was created.
     pub(super) unsafe fn write<C: Component>(
         &self,
+        ctx: &mut WriteDeserializeCtx,
         rule_fns: &RuleFns<C>,
-        commands: &mut Commands,
         entity: &mut EntityMut,
         cursor: &mut Cursor<&[u8]>,
-        entity_map: &mut ServerEntityMap,
-        replicon_tick: RepliconTick,
     ) -> bincode::Result<()> {
         debug_assert_eq!(
             self.type_id,
@@ -62,66 +59,47 @@ impl UntypedCommandFns {
         );
 
         let write: WriteFn<C> = unsafe { mem::transmute(self.write) };
-        (write)(
-            rule_fns,
-            commands,
-            entity,
-            cursor,
-            entity_map,
-            replicon_tick,
-        )
+        (write)(ctx, rule_fns, entity, cursor)
     }
 
     /// Calls the assigned removal function.
-    pub(super) fn remove(&self, commands: EntityCommands, tick: RepliconTick) {
-        (self.remove)(commands, tick);
+    pub(super) fn remove(&self, ctx: &RemoveDespawnCtx, commands: EntityCommands) {
+        (self.remove)(ctx, commands);
     }
 }
 
 /// Signature of component writing function.
 pub type WriteFn<C> = fn(
+    &mut WriteDeserializeCtx,
     &RuleFns<C>,
-    &mut Commands,
     &mut EntityMut,
     &mut Cursor<&[u8]>,
-    &mut ServerEntityMap,
-    RepliconTick,
 ) -> bincode::Result<()>;
 
 /// Signature of component removal functions.
-pub type RemoveFn = fn(EntityCommands, RepliconTick);
+pub type RemoveFn = fn(&RemoveDespawnCtx, EntityCommands);
 
 /// Default component writing function.
 ///
 /// If the component does not exist on the entity, it will be deserialized with [`RuleFns::deserialize`] and inserted via [`Commands`].
 /// If the component exists on the entity, [`RuleFns::deserialize_in_place`] will be used directly on the entity's component.
 pub fn default_write<C: Component>(
+    ctx: &mut WriteDeserializeCtx,
     rule_fns: &RuleFns<C>,
-    commands: &mut Commands,
     entity: &mut EntityMut,
     cursor: &mut Cursor<&[u8]>,
-    entity_map: &mut ServerEntityMap,
-    _replicon_tick: RepliconTick,
 ) -> bincode::Result<()> {
-    let mut mapper = ClientMapper {
-        commands,
-        entity_map,
-    };
-
     if let Some(mut component) = entity.get_mut::<C>() {
-        rule_fns.deserialize_in_place(&mut *component, cursor, &mut mapper)?;
+        rule_fns.deserialize_in_place(ctx, &mut *component, cursor)?;
     } else {
-        let component: C = rule_fns.deserialize(cursor, &mut mapper)?;
-        commands.entity(entity.id()).insert(component);
+        let component: C = rule_fns.deserialize(ctx, cursor)?;
+        ctx.commands.entity(entity.id()).insert(component);
     }
 
     Ok(())
 }
 
 /// Default component removal function.
-pub fn default_remove<C: Component>(
-    mut entity_commands: EntityCommands,
-    _replicon_tick: RepliconTick,
-) {
+pub fn default_remove<C: Component>(_ctx: &RemoveDespawnCtx, mut entity_commands: EntityCommands) {
     entity_commands.remove::<C>();
 }

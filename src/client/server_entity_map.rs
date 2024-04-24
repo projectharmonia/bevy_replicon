@@ -1,31 +1,5 @@
 use bevy::{ecs::entity::EntityHashMap, prelude::*, utils::hashbrown::hash_map::Entry};
 
-use crate::core::Replicated;
-
-/// Maps server entities into client entities inside components.
-///
-/// Spawns new client entity if a mapping doesn't exists.
-pub struct ClientMapper<'a, 'w, 's> {
-    pub commands: &'a mut Commands<'w, 's>,
-    pub entity_map: &'a mut ServerEntityMap,
-}
-
-impl EntityMapper for ClientMapper<'_, '_, '_> {
-    fn map_entity(&mut self, entity: Entity) -> Entity {
-        *self
-            .entity_map
-            .server_to_client
-            .entry(entity)
-            .or_insert_with(|| {
-                let client_entity = self.commands.spawn(Replicated).id();
-                self.entity_map
-                    .client_to_server
-                    .insert(client_entity, entity);
-                client_entity
-            })
-    }
-}
-
 /// Maps server entities to client entities and vice versa.
 ///
 /// If [`ClientSet::Reset`](crate::client::ClientSet) is disabled, then this needs to be cleaned up manually
@@ -54,7 +28,21 @@ impl ServerEntityMap {
         self.client_to_server.insert(client_entity, server_entity);
     }
 
-    pub(super) fn get_by_server_or_insert(
+    /// Converts server entity into client entity or inserts a new mapping with `f`
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use bevy::{ecs::system::CommandQueue, prelude::*};
+    /// # use bevy_replicon::{client::server_entity_map::ServerEntityMap, prelude::*};
+    /// # let mut entity_map = ServerEntityMap::default();
+    /// # let mut queue = CommandQueue::default();
+    /// # let world = World::default();
+    /// # let mut commands = Commands::new(&mut queue, &world);
+    /// # let server_entity = Entity::PLACEHOLDER;
+    /// entity_map.get_by_server_or_insert(server_entity, || commands.spawn(Replicated).id());
+    /// ```
+    pub fn get_by_server_or_insert(
         &mut self,
         server_entity: Entity,
         f: impl FnOnce() -> Entity,
