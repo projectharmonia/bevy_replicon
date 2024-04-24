@@ -181,7 +181,10 @@ fn apply_replication(
             return true;
         }
 
-        trace!("applying buffered update message for {replicon_tick:?}");
+        trace!(
+            "applying buffered update message for {:?}",
+            update.message_tick
+        );
         if let Err(e) = apply_update_components(
             &mut Cursor::new(&*update.message),
             world,
