@@ -38,7 +38,9 @@ pub struct Replicated;
 /// Unique client ID.
 ///
 /// Could be a client or a dual server-client.
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Ord, PartialOrd, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, Hash, PartialEq, Eq, Ord, PartialOrd, Serialize, Deserialize, Reflect,
+)]
 pub struct ClientId(u64);
 
 impl ClientId {
