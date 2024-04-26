@@ -201,8 +201,9 @@ impl CommandMarkers {
     /// Returns an iterator over markers presence for an entity.
     pub(crate) fn iter_contains<'a>(
         &'a self,
-        entity: &'a EntityMut,
+        entity: impl Into<EntityRef<'a>>,
     ) -> impl Iterator<Item = bool> + 'a {
+        let entity = entity.into();
         self.0
             .iter()
             .map(move |marker| entity.contains_id(marker.component_id))

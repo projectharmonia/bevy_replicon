@@ -2,6 +2,7 @@ pub mod command_fns;
 pub mod component_fns;
 pub mod ctx;
 pub mod rule_fns;
+pub mod test_fns;
 
 use bevy::{ecs::component::ComponentId, prelude::*};
 use serde::{Deserialize, Serialize};
@@ -137,7 +138,7 @@ impl ReplicationFns {
     /// Returns associates functions.
     ///
     /// See also [`Self::register_rule_fns`].
-    pub fn get(&self, fns_id: FnsId) -> (&ComponentFns, &UntypedRuleFns) {
+    pub(crate) fn get(&self, fns_id: FnsId) -> (&ComponentFns, &UntypedRuleFns) {
         let (rule_fns, index) = self
             .rules
             .get(fns_id.0)
@@ -199,74 +200,6 @@ mod tests {
     use bevy::ecs::entity::MapEntities;
 
     use super::*;
-    use crate::core::command_markers::{CommandMarker, CommandMarkers};
-
-    #[test]
-    fn marker() {
-        let mut world = World::new();
-        let mut replication_fns = ReplicationFns::default();
-        let mut command_markers = CommandMarkers::default();
-
-        let marker_a = command_markers.insert(CommandMarker {
-            component_id: world.init_component::<MarkerA>(),
-            priority: 0,
-        });
-        replication_fns.register_marker(marker_a);
-        replication_fns.set_marker_fns(
-            &mut world,
-            marker_a,
-            command_fns::default_write::<ComponentA>,
-            command_fns::default_remove::<ComponentA>,
-        );
-
-        let (command_fns_a, _) = &replication_fns.components[0];
-        assert!(command_fns_a.marker_fns(&[false]).is_none());
-        assert!(command_fns_a.marker_fns(&[true]).is_some());
-    }
-
-    #[test]
-    fn multiple_markers() {
-        let mut world = World::new();
-        let mut replication_fns = ReplicationFns::default();
-        let mut command_markers = CommandMarkers::default();
-
-        let marker_a = command_markers.insert(CommandMarker {
-            component_id: world.init_component::<MarkerA>(),
-            priority: 1,
-        });
-        replication_fns.register_marker(marker_a);
-
-        let marker_b = command_markers.insert(CommandMarker {
-            component_id: world.init_component::<MarkerB>(),
-            priority: 0,
-        });
-        replication_fns.register_marker(marker_b);
-
-        replication_fns.set_marker_fns(
-            &mut world,
-            marker_a,
-            command_fns::default_write::<ComponentA>,
-            command_fns::default_remove::<ComponentA>,
-        );
-        replication_fns.set_marker_fns(
-            &mut world,
-            marker_b,
-            command_fns::default_write::<ComponentB>,
-            command_fns::default_remove::<ComponentB>,
-        );
-
-        let (command_fns_a, _) = &replication_fns.components[0];
-        assert!(command_fns_a.marker_fns(&[false, false]).is_none());
-        assert!(command_fns_a.marker_fns(&[true, false]).is_some());
-        assert!(command_fns_a.marker_fns(&[false, true]).is_none());
-        assert!(command_fns_a.marker_fns(&[true, true]).is_some());
-
-        let (command_fns_b, _) = &replication_fns.components[1];
-        assert!(command_fns_b.marker_fns(&[false, false]).is_none());
-        assert!(command_fns_b.marker_fns(&[true, false]).is_none());
-        assert!(command_fns_b.marker_fns(&[false, true]).is_some());
-        assert!(command_fns_b.marker_fns(&[true, true]).is_some());
-    }
 
     #[test]
     fn rule_fns() {
@@ -312,10 +245,4 @@ mod tests {
     impl MapEntities for ComponentB {
         fn map_entities<M: EntityMapper>(&mut self, _entity_mapper: &mut M) {}
     }
-
-    #[derive(Component)]
-    struct MarkerA;
-
-    #[derive(Component)]
-    struct MarkerB;
 }

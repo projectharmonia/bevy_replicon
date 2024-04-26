@@ -13,7 +13,7 @@ use super::ctx::{SerializeCtx, WriteDeserializeCtx};
 /// Type-erased version of [`RuleFns`].
 ///
 /// Stored inside [`ReplicationFns`](super::ReplicationFns) after registration.
-pub struct UntypedRuleFns {
+pub(crate) struct UntypedRuleFns {
     type_id: TypeId,
     type_name: &'static str,
 
