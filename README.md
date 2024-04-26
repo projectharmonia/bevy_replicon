@@ -22,7 +22,7 @@ The purpose of the crate is to provide a minimal core that can be extended with 
 - A slow paced centrally hosted game wants ECS-level replication, and maybe some interpolation on top.
 - A slightly faster paced game might care more about order and need a lockstep system.
 - A shooter needs client prediction for the player and interpolation for everything else.
-- A sports game, or an online game featuring mechanics more complex than most shooters, needs ECS-level replication with full rollback on the entire world
+- A sports game, or an online game featuring mechanics more complex than most shooters, needs ECS-level replication with full rollback on the entire world.
 - A fighting game only needs to replicate some input events and needs rollback on top.
 
 All of these examples also have drastically different optimization requirements. This is why modularity is essential. It also allows for more developers to be involved and for each to maintain what they use.
