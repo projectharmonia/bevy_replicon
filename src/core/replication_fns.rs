@@ -7,7 +7,7 @@ pub mod test_fns;
 use bevy::{ecs::component::ComponentId, prelude::*};
 use serde::{Deserialize, Serialize};
 
-use self::ctx::RemoveDespawnCtx;
+use self::ctx::DeleteCtx;
 
 use super::command_markers::CommandMarkerIndex;
 use command_fns::{RemoveFn, UntypedCommandFns, WriteFn};
@@ -188,10 +188,10 @@ impl FnsInfo {
 pub struct FnsId(usize);
 
 /// Signature of the entity despawn function.
-pub type DespawnFn = fn(&RemoveDespawnCtx, EntityWorldMut);
+pub type DespawnFn = fn(&DeleteCtx, EntityWorldMut);
 
 /// Default entity despawn function.
-pub fn despawn_recursive(_ctx: &RemoveDespawnCtx, entity: EntityWorldMut) {
+pub fn despawn_recursive(_ctx: &DeleteCtx, entity: EntityWorldMut) {
     entity.despawn_recursive();
 }
 

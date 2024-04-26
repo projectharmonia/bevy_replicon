@@ -8,7 +8,7 @@ use bevy::{ecs::entity::MapEntities, prelude::*};
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Serialize};
 
-use super::ctx::{SerializeCtx, WriteDeserializeCtx};
+use super::ctx::{SerializeCtx, WriteCtx};
 
 /// Type-erased version of [`RuleFns`].
 ///
@@ -101,7 +101,7 @@ impl<C: Component> RuleFns<C> {
     /// Use this function when inserting a new component.
     pub fn deserialize(
         &self,
-        ctx: &mut WriteDeserializeCtx,
+        ctx: &mut WriteCtx,
         cursor: &mut Cursor<&[u8]>,
     ) -> bincode::Result<C> {
         (self.deserialize)(ctx, cursor)
@@ -112,7 +112,7 @@ impl<C: Component> RuleFns<C> {
     /// Use this function for updating an existing component.
     pub fn deserialize_in_place(
         &self,
-        ctx: &mut WriteDeserializeCtx,
+        ctx: &mut WriteCtx,
         component: &mut C,
         cursor: &mut Cursor<&[u8]>,
     ) -> bincode::Result<()> {
@@ -147,12 +147,12 @@ impl<C: Component + Serialize + DeserializeOwned> Default for RuleFns<C> {
 pub type SerializeFn<C> = fn(&SerializeCtx, &C, &mut Cursor<Vec<u8>>) -> bincode::Result<()>;
 
 /// Signature of component deserialization functions.
-pub type DeserializeFn<C> = fn(&mut WriteDeserializeCtx, &mut Cursor<&[u8]>) -> bincode::Result<C>;
+pub type DeserializeFn<C> = fn(&mut WriteCtx, &mut Cursor<&[u8]>) -> bincode::Result<C>;
 
 /// Signature of in-place component deserialization functions.
 pub type DeserializeInPlaceFn<C> = fn(
     DeserializeFn<C>,
-    &mut WriteDeserializeCtx,
+    &mut WriteCtx,
     &mut C,
     &mut Cursor<&[u8]>,
 ) -> bincode::Result<()>;
@@ -168,7 +168,7 @@ pub fn default_serialize<C: Component + Serialize>(
 
 /// Default component deserialization function.
 pub fn default_deserialize<C: Component + DeserializeOwned>(
-    _ctx: &mut WriteDeserializeCtx,
+    _ctx: &mut WriteCtx,
     cursor: &mut Cursor<&[u8]>,
 ) -> bincode::Result<C> {
     DefaultOptions::new().deserialize_from(cursor)
@@ -176,7 +176,7 @@ pub fn default_deserialize<C: Component + DeserializeOwned>(
 
 /// Like [`default_deserialize`], but also maps entities before insertion.
 pub fn default_deserialize_mapped<C: Component + DeserializeOwned + MapEntities>(
-    ctx: &mut WriteDeserializeCtx,
+    ctx: &mut WriteCtx,
     cursor: &mut Cursor<&[u8]>,
 ) -> bincode::Result<C> {
     let mut component: C = DefaultOptions::new().deserialize_from(cursor)?;
@@ -189,7 +189,7 @@ pub fn default_deserialize_mapped<C: Component + DeserializeOwned + MapEntities>
 /// This implementation just assigns the value from the passed deserialization function.
 pub fn in_place_as_deserialize<C: Component>(
     deserialize: DeserializeFn<C>,
-    ctx: &mut WriteDeserializeCtx,
+    ctx: &mut WriteCtx,
     component: &mut C,
     cursor: &mut Cursor<&[u8]>,
 ) -> bincode::Result<()> {

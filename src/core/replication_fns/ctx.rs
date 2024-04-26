@@ -13,7 +13,7 @@ pub struct SerializeCtx {
 
 /// Replication context for writing and deserialization.
 #[non_exhaustive]
-pub struct WriteDeserializeCtx<'a, 'w, 's> {
+pub struct WriteCtx<'a, 'w, 's> {
     /// A queue to perform structural changes to the [`World`].
     pub commands: &'a mut Commands<'w, 's>,
 
@@ -24,7 +24,7 @@ pub struct WriteDeserializeCtx<'a, 'w, 's> {
     pub message_tick: RepliconTick,
 }
 
-impl EntityMapper for WriteDeserializeCtx<'_, '_, '_> {
+impl EntityMapper for WriteCtx<'_, '_, '_> {
     fn map_entity(&mut self, entity: Entity) -> Entity {
         self.entity_map
             .get_by_server_or_insert(entity, || self.commands.spawn(Replicated).id())
@@ -33,7 +33,7 @@ impl EntityMapper for WriteDeserializeCtx<'_, '_, '_> {
 
 /// Replication context for removal and despawn functions.
 #[non_exhaustive]
-pub struct RemoveDespawnCtx {
+pub struct DeleteCtx {
     /// Tick for the currently processing message.
     pub message_tick: RepliconTick,
 }

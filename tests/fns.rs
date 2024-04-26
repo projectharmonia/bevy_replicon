@@ -5,7 +5,7 @@ use bevy_replicon::{
     core::{
         replication_fns::{
             command_fns,
-            ctx::{RemoveDespawnCtx, WriteDeserializeCtx},
+            ctx::{DeleteCtx, WriteCtx},
             rule_fns::RuleFns,
             test_fns::TestFnsEntityExt,
             ReplicationFns,
@@ -300,7 +300,7 @@ struct DummyMarker;
 
 /// Deserializes [`OriginalComponent`], but ignores it and inserts [`ReplacedComponent`].
 fn replace(
-    ctx: &mut WriteDeserializeCtx,
+    ctx: &mut WriteCtx,
     rule_fns: &RuleFns<OriginalComponent>,
     entity: &mut EntityMut,
     cursor: &mut Cursor<&[u8]>,
@@ -312,6 +312,6 @@ fn replace(
 }
 
 /// Adds special [`Despawned`] marker instead of despawning an entity.
-fn mark_despawned(_ctx: &RemoveDespawnCtx, mut entity: EntityWorldMut) {
+fn mark_despawned(_ctx: &DeleteCtx, mut entity: EntityWorldMut) {
     entity.insert(Despawned);
 }

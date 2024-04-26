@@ -7,7 +7,7 @@ use std::{
 use bevy::{ecs::system::EntityCommands, prelude::*};
 
 use super::{
-    ctx::{RemoveDespawnCtx, WriteDeserializeCtx},
+    ctx::{DeleteCtx, WriteCtx},
     rule_fns::RuleFns,
 };
 
@@ -45,7 +45,7 @@ impl UntypedCommandFns {
     /// The caller must ensure that the function is called with the same `C` with which this instance was created.
     pub(super) unsafe fn write<C: Component>(
         &self,
-        ctx: &mut WriteDeserializeCtx,
+        ctx: &mut WriteCtx,
         rule_fns: &RuleFns<C>,
         entity: &mut EntityMut,
         cursor: &mut Cursor<&[u8]>,
@@ -63,28 +63,28 @@ impl UntypedCommandFns {
     }
 
     /// Calls the assigned removal function.
-    pub(super) fn remove(&self, ctx: &RemoveDespawnCtx, commands: EntityCommands) {
+    pub(super) fn remove(&self, ctx: &DeleteCtx, commands: EntityCommands) {
         (self.remove)(ctx, commands);
     }
 }
 
 /// Signature of component writing function.
 pub type WriteFn<C> = fn(
-    &mut WriteDeserializeCtx,
+    &mut WriteCtx,
     &RuleFns<C>,
     &mut EntityMut,
     &mut Cursor<&[u8]>,
 ) -> bincode::Result<()>;
 
 /// Signature of component removal functions.
-pub type RemoveFn = fn(&RemoveDespawnCtx, EntityCommands);
+pub type RemoveFn = fn(&DeleteCtx, EntityCommands);
 
 /// Default component writing function.
 ///
 /// If the component does not exist on the entity, it will be deserialized with [`RuleFns::deserialize`] and inserted via [`Commands`].
 /// If the component exists on the entity, [`RuleFns::deserialize_in_place`] will be used directly on the entity's component.
 pub fn default_write<C: Component>(
-    ctx: &mut WriteDeserializeCtx,
+    ctx: &mut WriteCtx,
     rule_fns: &RuleFns<C>,
     entity: &mut EntityMut,
     cursor: &mut Cursor<&[u8]>,
@@ -100,6 +100,6 @@ pub fn default_write<C: Component>(
 }
 
 /// Default component removal function.
-pub fn default_remove<C: Component>(_ctx: &RemoveDespawnCtx, mut entity_commands: EntityCommands) {
+pub fn default_remove<C: Component>(_ctx: &DeleteCtx, mut entity_commands: EntityCommands) {
     entity_commands.remove::<C>();
 }

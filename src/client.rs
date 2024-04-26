@@ -16,7 +16,7 @@ use crate::core::{
     command_markers::CommandMarkers,
     common_conditions::{client_connected, client_just_connected, client_just_disconnected},
     replication_fns::{
-        ctx::{RemoveDespawnCtx, WriteDeserializeCtx},
+        ctx::{DeleteCtx, WriteCtx},
         ReplicationFns,
     },
     replicon_channels::{ReplicationChannel, RepliconChannels},
@@ -396,7 +396,7 @@ fn apply_init_components(
             let (component_fns, rule_fns) = replication_fns.get(fns_id);
             match components_kind {
                 ComponentsKind::Insert => {
-                    let mut ctx = WriteDeserializeCtx {
+                    let mut ctx = WriteCtx {
                         commands: &mut commands,
                         entity_map,
                         message_tick,
@@ -414,7 +414,7 @@ fn apply_init_components(
                     }
                 }
                 ComponentsKind::Removal => component_fns.remove(
-                    &RemoveDespawnCtx { message_tick },
+                    &DeleteCtx { message_tick },
                     &entity_markers,
                     commands.entity(client_entity.id()),
                 ),
@@ -458,7 +458,7 @@ fn apply_despawns(
             .and_then(|entity| world.get_entity_mut(entity))
         {
             entity_ticks.remove(&client_entity.id());
-            (replication_fns.despawn)(&RemoveDespawnCtx { message_tick }, client_entity);
+            (replication_fns.despawn)(&DeleteCtx { message_tick }, client_entity);
         }
     }
 
@@ -511,7 +511,7 @@ fn apply_update_components(
         while cursor.position() < end_pos {
             let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
             let (component_fns, rule_fns) = replication_fns.get(fns_id);
-            let mut ctx = WriteDeserializeCtx {
+            let mut ctx = WriteCtx {
                 commands: &mut commands,
                 entity_map,
                 message_tick,

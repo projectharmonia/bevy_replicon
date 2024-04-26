@@ -6,7 +6,7 @@ use bevy::{
 };
 
 use super::{
-    ctx::{RemoveDespawnCtx, WriteDeserializeCtx},
+    ctx::{DeleteCtx, WriteCtx},
     FnsInfo,
 };
 use crate::{
@@ -136,7 +136,7 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
 
                         let (component_fns, rule_fns) = replication_fns.get(fns_info.fns_id());
                         let mut cursor = Cursor::new(data);
-                        let mut ctx = WriteDeserializeCtx {
+                        let mut ctx = WriteCtx {
                             commands: &mut commands,
                             entity_map: &mut entity_map,
                             message_tick,
@@ -173,7 +173,7 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
 
         let replication_fns = self.world().resource::<ReplicationFns>();
         let (component_fns, _) = replication_fns.get(fns_info.fns_id());
-        let ctx = RemoveDespawnCtx { message_tick };
+        let ctx = DeleteCtx { message_tick };
 
         component_fns.remove(&ctx, &entity_markers, entity);
 
@@ -186,7 +186,7 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
 
     fn apply_despawn(self, message_tick: RepliconTick) {
         let replication_fns = self.world().resource::<ReplicationFns>();
-        let ctx = RemoveDespawnCtx { message_tick };
+        let ctx = DeleteCtx { message_tick };
         (replication_fns.despawn)(&ctx, self);
     }
 }

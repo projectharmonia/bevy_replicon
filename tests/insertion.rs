@@ -3,7 +3,7 @@ use std::io::Cursor;
 use bevy::{ecs::entity::MapEntities, prelude::*};
 use bevy_replicon::{
     client::server_entity_map::ServerEntityMap,
-    core::replication_fns::{command_fns, ctx::WriteDeserializeCtx, rule_fns::RuleFns},
+    core::replication_fns::{command_fns, ctx::WriteCtx, rule_fns::RuleFns},
     prelude::*,
     test_app::ServerTestAppExt,
 };
@@ -432,7 +432,7 @@ struct ReplacedComponent;
 
 /// Deserializes [`OriginalComponent`], but ignores it and inserts [`ReplacedComponent`].
 fn replace(
-    ctx: &mut WriteDeserializeCtx,
+    ctx: &mut WriteCtx,
     rule_fns: &RuleFns<OriginalComponent>,
     entity: &mut EntityMut,
     cursor: &mut Cursor<&[u8]>,

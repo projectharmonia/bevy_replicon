@@ -4,7 +4,7 @@ use bevy::{ecs::system::EntityCommands, prelude::*, ptr::Ptr};
 
 use super::{
     command_fns::UntypedCommandFns,
-    ctx::{RemoveDespawnCtx, SerializeCtx, WriteDeserializeCtx},
+    ctx::{DeleteCtx, SerializeCtx, WriteCtx},
     rule_fns::UntypedRuleFns,
 };
 use crate::core::command_markers::CommandMarkerIndex;
@@ -104,7 +104,7 @@ impl ComponentFns {
     /// Panics if `debug_assertions` is enabled and `entity_markers` has a different length than the number of marker slots.
     pub(crate) unsafe fn write(
         &self,
-        ctx: &mut WriteDeserializeCtx,
+        ctx: &mut WriteCtx,
         rule_fns: &UntypedRuleFns,
         entity_markers: &[bool],
         entity: &mut EntityMut,
@@ -117,7 +117,7 @@ impl ComponentFns {
     /// Same as [`Self::write`], but calls the assigned remove function.
     pub(crate) fn remove(
         &self,
-        ctx: &RemoveDespawnCtx,
+        ctx: &DeleteCtx,
         entity_markers: &[bool],
         entity_commands: EntityCommands,
     ) {
@@ -146,7 +146,7 @@ type UntypedSerializeFn =
 
 /// Signature of component writing functions that restore the original type.
 type UntypedWriteFn = unsafe fn(
-    &mut WriteDeserializeCtx,
+    &mut WriteCtx,
     &UntypedCommandFns,
     &UntypedRuleFns,
     &mut EntityMut,
@@ -174,7 +174,7 @@ unsafe fn untyped_serialize<C: Component>(
 ///
 /// The caller must ensure that `rule_fns` was created for `C`.
 unsafe fn untyped_write<C: Component>(
-    ctx: &mut WriteDeserializeCtx,
+    ctx: &mut WriteCtx,
     command_fns: &UntypedCommandFns,
     rule_fns: &UntypedRuleFns,
     entity: &mut EntityMut,

@@ -58,7 +58,7 @@ pub trait AppRuleExt {
     use bevy::prelude::*;
     use bevy_replicon::{
         core::replication_fns::{
-            ctx::{SerializeCtx, WriteDeserializeCtx},
+            ctx::{SerializeCtx, WriteCtx},
             rule_fns::RuleFns,
         },
         prelude::*,
@@ -82,7 +82,7 @@ pub trait AppRuleExt {
 
     /// Deserializes `translation` and creates [`Transform`] from it.
     fn deserialize_translation(
-        _ctx: &mut WriteDeserializeCtx,
+        _ctx: &mut WriteCtx,
         cursor: &mut Cursor<&[u8]>,
     ) -> bincode::Result<Transform> {
         let translation: Vec3 = bincode::deserialize_from(cursor)?;
@@ -245,7 +245,7 @@ use bevy::prelude::*;
 use bevy_replicon::{
     core::{
         replication_fns::{
-            ctx::{SerializeCtx, WriteDeserializeCtx},
+            ctx::{SerializeCtx, WriteCtx},
             rule_fns::RuleFns,
             ReplicationFns,
         },
@@ -289,7 +289,7 @@ impl GroupReplication for PlayerBundle {
 }
 
 # fn serialize_translation(_: &SerializeCtx, _: &Transform, _: &mut Cursor<Vec<u8>>) -> bincode::Result<()> { unimplemented!() }
-# fn deserialize_translation(_: &mut WriteDeserializeCtx, _: &mut Cursor<&[u8]>) -> bincode::Result<Transform> { unimplemented!() }
+# fn deserialize_translation(_: &mut WriteCtx, _: &mut Cursor<&[u8]>) -> bincode::Result<Transform> { unimplemented!() }
 ```
 **/
 pub trait GroupReplication {

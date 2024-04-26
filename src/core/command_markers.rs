@@ -51,7 +51,7 @@ pub trait AppMarkerExt {
     use bevy::{ecs::system::EntityCommands, prelude::*};
     use bevy_replicon::{
         core::replication_fns::{
-            ctx::{RemoveDespawnCtx, WriteDeserializeCtx},
+            ctx::{DeleteCtx, WriteCtx},
             rule_fns::RuleFns,
         },
         prelude::*,
@@ -67,7 +67,7 @@ pub trait AppMarkerExt {
 
     /// Instead of writing into a component directly, it writes data into [`ComponentHistory<C>`].
     fn write_history<C: Component>(
-        ctx: &mut WriteDeserializeCtx,
+        ctx: &mut WriteCtx,
         rule_fns: &RuleFns<C>,
         entity: &mut EntityMut,
         cursor: &mut Cursor<&[u8]>,
@@ -86,7 +86,7 @@ pub trait AppMarkerExt {
 
     /// Removes component `C` and its history.
     fn remove_history<C: Component>(
-        _ctx: &RemoveDespawnCtx,
+        _ctx: &DeleteCtx,
         mut entity_commands: EntityCommands,
     ) {
         entity_commands.remove::<History<C>>().remove::<C>();
