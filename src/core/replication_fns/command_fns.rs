@@ -69,12 +69,8 @@ impl UntypedCommandFns {
 }
 
 /// Signature of component writing function.
-pub type WriteFn<C> = fn(
-    &mut WriteCtx,
-    &RuleFns<C>,
-    &mut EntityMut,
-    &mut Cursor<&[u8]>,
-) -> bincode::Result<()>;
+pub type WriteFn<C> =
+    fn(&mut WriteCtx, &RuleFns<C>, &mut EntityMut, &mut Cursor<&[u8]>) -> bincode::Result<()>;
 
 /// Signature of component removal functions.
 pub type RemoveFn = fn(&DeleteCtx, EntityCommands);

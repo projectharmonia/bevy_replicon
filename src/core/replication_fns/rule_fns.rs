@@ -150,12 +150,8 @@ pub type SerializeFn<C> = fn(&SerializeCtx, &C, &mut Cursor<Vec<u8>>) -> bincode
 pub type DeserializeFn<C> = fn(&mut WriteCtx, &mut Cursor<&[u8]>) -> bincode::Result<C>;
 
 /// Signature of in-place component deserialization functions.
-pub type DeserializeInPlaceFn<C> = fn(
-    DeserializeFn<C>,
-    &mut WriteCtx,
-    &mut C,
-    &mut Cursor<&[u8]>,
-) -> bincode::Result<()>;
+pub type DeserializeInPlaceFn<C> =
+    fn(DeserializeFn<C>, &mut WriteCtx, &mut C, &mut Cursor<&[u8]>) -> bincode::Result<()>;
 
 /// Default component serialization function.
 pub fn default_serialize<C: Component + Serialize>(
