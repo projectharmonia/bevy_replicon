@@ -413,11 +413,14 @@ fn apply_init_components(
                         )?;
                     }
                 }
-                ComponentsKind::Removal => component_fns.remove(
-                    &DeleteCtx { message_tick },
-                    &entity_markers,
-                    commands.entity(client_entity.id()),
-                ),
+                ComponentsKind::Removal => {
+                    let ctx = DeleteCtx { message_tick };
+                    component_fns.remove(
+                        &ctx,
+                        &entity_markers,
+                        commands.entity(client_entity.id()),
+                    );
+                }
             }
             components_len += 1;
         }
@@ -458,7 +461,8 @@ fn apply_despawns(
             .and_then(|entity| world.get_entity_mut(entity))
         {
             entity_ticks.remove(&client_entity.id());
-            (replication_fns.despawn)(&DeleteCtx { message_tick }, client_entity);
+            let ctx = DeleteCtx { message_tick };
+            (replication_fns.despawn)(&ctx, client_entity);
         }
     }
 

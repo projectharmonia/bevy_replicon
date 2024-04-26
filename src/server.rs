@@ -348,6 +348,7 @@ fn collect_changes(
                 };
 
                 let (component_fns, rule_fns) = replication_fns.get(replicated_component.fns_id);
+                let ctx = SerializeCtx { replicon_tick };
                 let mut shared_bytes = None;
                 for (init_message, update_message, client) in messages.iter_mut_with_clients() {
                     let visibility = client.visibility().cached_visibility();
@@ -362,7 +363,7 @@ fn collect_changes(
                             &mut shared_bytes,
                             rule_fns,
                             component_fns,
-                            &SerializeCtx { replicon_tick },
+                            &ctx,
                             replicated_component.fns_id,
                             component,
                         )?;
@@ -375,7 +376,7 @@ fn collect_changes(
                                 &mut shared_bytes,
                                 rule_fns,
                                 component_fns,
-                                &SerializeCtx { replicon_tick },
+                                &ctx,
                                 replicated_component.fns_id,
                                 component,
                             )?;
