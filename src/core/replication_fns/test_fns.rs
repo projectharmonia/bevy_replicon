@@ -71,6 +71,7 @@ pub trait TestFnsEntityExt {
     /// Returns a component serialized using a registered function for it.
     ///
     /// See also [`ReplicationFns::register_rule_fns`].
+    #[must_use]
     fn serialize(&mut self, fns_info: FnsInfo) -> Vec<u8>;
 
     /// Deserializes a component using a registered function for it and
