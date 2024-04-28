@@ -17,7 +17,59 @@ use bevy_replicon::{
 use serde::{Deserialize, Serialize};
 
 #[test]
+#[should_panic]
+fn serialize_missing_component() {
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, RepliconPlugins));
+
+    let fns_info = app
+        .world
+        .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| {
+            replication_fns.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
+        });
+
+    let mut entity = app.world.spawn_empty();
+    let _ = entity.serialize(fns_info);
+}
+
+#[test]
 fn write() {
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, RepliconPlugins));
+
+    let replicon_tick = *app.world.resource::<RepliconTick>();
+    let fns_info = app
+        .world
+        .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| {
+            replication_fns.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
+        });
+
+    let mut entity = app.world.spawn(OriginalComponent);
+    let data = entity.serialize(fns_info);
+    entity.remove::<OriginalComponent>();
+    entity.apply_write(&data, fns_info, replicon_tick);
+    assert!(entity.contains::<OriginalComponent>());
+}
+
+#[test]
+fn remove() {
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, RepliconPlugins));
+
+    let replicon_tick = *app.world.resource::<RepliconTick>();
+    let fns_info = app
+        .world
+        .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| {
+            replication_fns.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
+        });
+
+    let mut entity = app.world.spawn(OriginalComponent);
+    entity.apply_remove(fns_info, replicon_tick);
+    assert!(!entity.contains::<OriginalComponent>());
+}
+
+#[test]
+fn write_with_command() {
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, RepliconPlugins))
         .set_command_fns(replace, command_fns::default_remove::<ReplacedComponent>);
@@ -36,7 +88,7 @@ fn write() {
 }
 
 #[test]
-fn remove() {
+fn remove_with_command() {
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, RepliconPlugins))
         .set_command_fns(replace, command_fns::default_remove::<ReplacedComponent>);
