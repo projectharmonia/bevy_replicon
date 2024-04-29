@@ -17,7 +17,9 @@ ECS-focused high-level networking crate for the [Bevy game engine](https://bevye
 - No builtin I/O. Use it with any messaging library. We provide a first-party integration with [`renet`](https://github.com/lucaspoffo/renet) via `bevy_replicon_renet`.
 - API focused on writing logic once that automatically works for singleplayer, client, server, and listen server (when server is also a player).
 
-The purpose of the crate is to provide a minimal core that can be extended with the necessary features to ensure smooth gameplay. Consider the following examples:
+## Goals
+
+The purpose of the crate is to provide a minimal and fast core that can be extended with the necessary features to ensure smooth gameplay. Consider the following examples:
 
 - A slow paced centrally hosted game wants ECS-level replication, and maybe some interpolation on top.
 - A slightly faster paced game might care more about order and need a lockstep system.
