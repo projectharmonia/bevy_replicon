@@ -105,8 +105,17 @@ impl ServerEntityMap {
 /// Spawns new client entity using [`Commands`] if a mapping doesn't exists.
 /// See also [`ComponentWorldMapper`].
 pub struct ComponentMapper<'a, 'w, 's> {
-    pub commands: &'a mut Commands<'w, 's>,
-    pub entity_map: &'a mut ServerEntityMap,
+    commands: &'a mut Commands<'w, 's>,
+    entity_map: &'a mut ServerEntityMap,
+}
+
+impl<'a, 'w, 's> ComponentMapper<'a, 'w, 's> {
+    pub fn new(commands: &'a mut Commands<'w, 's>, entity_map: &'a mut ServerEntityMap) -> Self {
+        Self {
+            commands,
+            entity_map,
+        }
+    }
 }
 
 impl EntityMapper for ComponentMapper<'_, '_, '_> {
@@ -121,8 +130,14 @@ impl EntityMapper for ComponentMapper<'_, '_, '_> {
 /// Spawns new client entity if a mapping doesn't exists.
 /// See also [`ComponentMapper`].
 pub struct ComponentWorldMapper<'a> {
-    pub world: &'a mut World,
-    pub entity_map: &'a mut ServerEntityMap,
+    world: &'a mut World,
+    entity_map: &'a mut ServerEntityMap,
+}
+
+impl<'a> ComponentWorldMapper<'a> {
+    pub fn new(world: &'a mut World, entity_map: &'a mut ServerEntityMap) -> Self {
+        Self { world, entity_map }
+    }
 }
 
 impl EntityMapper for ComponentWorldMapper<'_> {
@@ -144,10 +159,7 @@ mod tests {
         let mut entity_map = ServerEntityMap::default();
         let mut queue = CommandQueue::default();
         let mut commands = Commands::new(&mut queue, &world);
-        let mut mapper = ComponentMapper {
-            commands: &mut commands,
-            entity_map: &mut entity_map,
-        };
+        let mut mapper = ComponentMapper::new(&mut commands, &mut entity_map);
 
         let client_entity = mapper.map_entity(Entity::PLACEHOLDER);
         queue.apply(&mut world);
@@ -166,10 +178,7 @@ mod tests {
 
         let mut queue = CommandQueue::default();
         let mut commands = Commands::new(&mut queue, &world);
-        let mut mapper = ComponentMapper {
-            commands: &mut commands,
-            entity_map: &mut entity_map,
-        };
+        let mut mapper = ComponentMapper::new(&mut commands, &mut entity_map);
 
         assert_eq!(mapper.map_entity(server_entity), client_entity);
         queue.apply(&mut world);
@@ -183,10 +192,7 @@ mod tests {
     fn component_world_mapper_spawn() {
         let mut world = World::default();
         let mut entity_map = ServerEntityMap::default();
-        let mut mapper = ComponentWorldMapper {
-            world: &mut world,
-            entity_map: &mut entity_map,
-        };
+        let mut mapper = ComponentWorldMapper::new(&mut world, &mut entity_map);
 
         let client_entity = mapper.map_entity(Entity::PLACEHOLDER);
         assert!(world.get_entity(client_entity).is_some());
@@ -200,11 +206,7 @@ mod tests {
         let client_entity = world.spawn_empty().id();
         let mut entity_map = ServerEntityMap::default();
         entity_map.insert(server_entity, client_entity);
-
-        let mut mapper = ComponentWorldMapper {
-            world: &mut world,
-            entity_map: &mut entity_map,
-        };
+        let mut mapper = ComponentWorldMapper::new(&mut world, &mut entity_map);
 
         assert_eq!(mapper.map_entity(server_entity), client_entity);
         assert!(entity_map.to_server().contains_key(&client_entity));
