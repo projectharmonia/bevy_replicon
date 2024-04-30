@@ -7,6 +7,71 @@ use bevy_replicon::{
 use serde::{Deserialize, Serialize};
 
 #[test]
+fn client_to_server() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((MinimalPlugins, RepliconPlugins));
+        app.update();
+    }
+
+    const MESSAGES: &[&[u8]] = &[&[0], &[1]];
+    const CLIENT_ID: ClientId = ClientId::new(0);
+
+    let mut client = client_app.world.resource_mut::<RepliconClient>();
+    client.set_status(RepliconClientStatus::Connected {
+        client_id: Some(CLIENT_ID),
+    });
+    for &message in MESSAGES {
+        client.send(ReplicationChannel::Init, message);
+    }
+
+    let mut server = server_app.world.resource_mut::<RepliconServer>();
+    server.set_running(true);
+
+    for (channel_id, message) in client.drain_sent() {
+        server.insert_received(CLIENT_ID, channel_id, message);
+    }
+
+    let messages: Vec<_> = server
+        .receive(ReplicationChannel::Init)
+        .map(|(_, message)| message)
+        .collect();
+    assert_eq!(messages, MESSAGES);
+}
+
+#[test]
+fn server_to_client() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((MinimalPlugins, RepliconPlugins));
+        app.update();
+    }
+
+    const MESSAGES: &[&[u8]] = &[&[0], &[1]];
+    const CLIENT_ID: ClientId = ClientId::new(0);
+
+    let mut server = server_app.world.resource_mut::<RepliconServer>();
+    server.set_running(true);
+    for &message in MESSAGES {
+        server.send(CLIENT_ID, ReplicationChannel::Init, message);
+    }
+
+    let mut client = client_app.world.resource_mut::<RepliconClient>();
+    client.set_status(RepliconClientStatus::Connected {
+        client_id: Some(CLIENT_ID),
+    });
+
+    for (_, channel_id, message) in server.drain_sent() {
+        client.insert_received(channel_id, message);
+    }
+
+    let messages: Vec<_> = client.receive(ReplicationChannel::Init).collect();
+    assert_eq!(messages, MESSAGES);
+}
+
+#[test]
 fn connect_disconnect() {
     let mut server_app = App::new();
     let mut client_app = App::new();
@@ -53,7 +118,7 @@ fn client_cleanup_on_disconnect() {
     client.set_status(RepliconClientStatus::Disconnected);
 
     assert_eq!(client.drain_sent().count(), 0);
-    assert!(client.receive(ReplicationChannel::Init).is_none());
+    assert_eq!(client.receive(ReplicationChannel::Init).count(), 0);
 
     app.update();
 
@@ -109,7 +174,7 @@ fn client_disconnected() {
     client.insert_received(ReplicationChannel::Init, Vec::new());
 
     assert_eq!(client.drain_sent().count(), 0);
-    assert!(client.receive(ReplicationChannel::Init).is_none());
+    assert_eq!(client.receive(ReplicationChannel::Init).count(), 0);
 
     app.update();
 
