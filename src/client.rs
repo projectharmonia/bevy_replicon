@@ -1,6 +1,6 @@
-pub mod client_mapper;
 pub mod diagnostics;
 pub mod replicon_client;
+pub mod server_entity_map;
 
 use std::io::Cursor;
 
@@ -15,14 +15,17 @@ use varint_rs::VarintReader;
 use crate::core::{
     command_markers::CommandMarkers,
     common_conditions::{client_connected, client_just_connected, client_just_disconnected},
-    replication_fns::ReplicationFns,
+    replication_fns::{
+        ctx::{DeleteCtx, WriteCtx},
+        ReplicationFns,
+    },
     replicon_channels::{ReplicationChannel, RepliconChannels},
     replicon_tick::RepliconTick,
     Replicated,
 };
-use client_mapper::ServerEntityMap;
 use diagnostics::ClientStats;
 use replicon_client::RepliconClient;
+use server_entity_map::ServerEntityMap;
 
 pub struct ClientPlugin;
 
@@ -181,7 +184,10 @@ fn apply_replication(
             return true;
         }
 
-        trace!("applying buffered update message for {replicon_tick:?}");
+        trace!(
+            "applying buffered update message for {:?}",
+            update.message_tick
+        );
         if let Err(e) = apply_update_components(
             &mut Cursor::new(&*update.message),
             world,
@@ -221,9 +227,9 @@ fn apply_init_message(
         stats.bytes += end_pos;
     }
 
-    let replicon_tick = bincode::deserialize_from(&mut cursor)?;
-    trace!("applying init message for {replicon_tick:?}");
-    *world.resource_mut::<RepliconTick>() = replicon_tick;
+    let message_tick = bincode::deserialize_from(&mut cursor)?;
+    trace!("applying init message for {message_tick:?}");
+    *world.resource_mut::<RepliconTick>() = message_tick;
     debug_assert!(cursor.position() < end_pos, "init message can't be empty");
 
     apply_entity_mappings(&mut cursor, world, entity_map, stats.as_deref_mut())?;
@@ -238,7 +244,7 @@ fn apply_init_message(
         entity_ticks,
         stats.as_deref_mut(),
         replication_fns,
-        replicon_tick,
+        message_tick,
     )?;
     if cursor.position() == end_pos {
         return Ok(());
@@ -254,7 +260,7 @@ fn apply_init_message(
         ComponentsKind::Removal,
         command_markers,
         replication_fns,
-        replicon_tick,
+        message_tick,
     )?;
     if cursor.position() == end_pos {
         return Ok(());
@@ -270,7 +276,7 @@ fn apply_init_message(
         ComponentsKind::Insert,
         command_markers,
         replication_fns,
-        replicon_tick,
+        message_tick,
     )?;
 
     Ok(())
@@ -366,7 +372,7 @@ fn apply_init_components(
     components_kind: ComponentsKind,
     command_markers: &CommandMarkers,
     replication_fns: &ReplicationFns,
-    replicon_tick: RepliconTick,
+    message_tick: RepliconTick,
 ) -> bincode::Result<()> {
     let entities_len: u16 = bincode::deserialize_from(&mut *cursor)?;
     for _ in 0..entities_len {
@@ -375,7 +381,7 @@ fn apply_init_components(
 
         let client_entity =
             entity_map.get_by_server_or_insert(server_entity, || world.spawn(Replicated).id());
-        entity_ticks.insert(client_entity, replicon_tick);
+        entity_ticks.insert(client_entity, message_tick);
 
         let (mut entity_markers, mut commands, mut query) = state.get_mut(world);
         let mut client_entity = query
@@ -389,23 +395,32 @@ fn apply_init_components(
             let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
             let (component_fns, rule_fns) = replication_fns.get(fns_id);
             match components_kind {
-                ComponentsKind::Insert => unsafe {
-                    // SAFETY: `rule_fns` and `component_fns` were created for the same type.
-                    component_fns.write(
-                        rule_fns,
-                        &entity_markers,
-                        &mut commands,
-                        &mut client_entity,
-                        cursor,
+                ComponentsKind::Insert => {
+                    let mut ctx = WriteCtx {
+                        commands: &mut commands,
                         entity_map,
-                        replicon_tick,
-                    )?
-                },
-                ComponentsKind::Removal => component_fns.remove(
-                    &entity_markers,
-                    commands.entity(client_entity.id()),
-                    replicon_tick,
-                ),
+                        message_tick,
+                    };
+
+                    // SAFETY: `rule_fns` and `component_fns` were created for the same type.
+                    unsafe {
+                        component_fns.write(
+                            &mut ctx,
+                            rule_fns,
+                            &entity_markers,
+                            &mut client_entity,
+                            cursor,
+                        )?;
+                    }
+                }
+                ComponentsKind::Removal => {
+                    let ctx = DeleteCtx { message_tick };
+                    component_fns.remove(
+                        &ctx,
+                        &entity_markers,
+                        commands.entity(client_entity.id()),
+                    );
+                }
             }
             components_len += 1;
         }
@@ -430,7 +445,7 @@ fn apply_despawns(
     entity_ticks: &mut ServerEntityTicks,
     stats: Option<&mut ClientStats>,
     replication_fns: &ReplicationFns,
-    replicon_tick: RepliconTick,
+    message_tick: RepliconTick,
 ) -> bincode::Result<()> {
     let entities_len: u16 = bincode::deserialize_from(&mut *cursor)?;
     if let Some(stats) = stats {
@@ -446,7 +461,8 @@ fn apply_despawns(
             .and_then(|entity| world.get_entity_mut(entity))
         {
             entity_ticks.remove(&client_entity.id());
-            (replication_fns.despawn)(client_entity, replicon_tick);
+            let ctx = DeleteCtx { message_tick };
+            (replication_fns.despawn)(&ctx, client_entity);
         }
     }
 
@@ -499,18 +515,23 @@ fn apply_update_components(
         while cursor.position() < end_pos {
             let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
             let (component_fns, rule_fns) = replication_fns.get(fns_id);
+            let mut ctx = WriteCtx {
+                commands: &mut commands,
+                entity_map,
+                message_tick,
+            };
+
             // SAFETY: `rule_fns` and `component_fns` were created for the same type.
             unsafe {
                 component_fns.write(
+                    &mut ctx,
                     rule_fns,
                     &entity_markers,
-                    &mut commands,
                     &mut client_entity,
                     cursor,
-                    entity_map,
-                    message_tick,
                 )?;
             }
+
             components_count += 1;
         }
 

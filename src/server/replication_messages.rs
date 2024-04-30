@@ -15,7 +15,9 @@ use super::{
     ClientMapping, ConnectedClient,
 };
 use crate::core::{
-    replication_fns::{component_fns::ComponentFns, rule_fns::UntypedRuleFns, FnsId},
+    replication_fns::{
+        component_fns::ComponentFns, ctx::SerializeCtx, rule_fns::UntypedRuleFns, FnsId,
+    },
     replicon_channels::ReplicationChannel,
     replicon_tick::RepliconTick,
 };
@@ -291,6 +293,7 @@ impl InitMessage {
         shared_bytes: &mut Option<&'a [u8]>,
         rule_fns: &UntypedRuleFns,
         component_fns: &ComponentFns,
+        ctx: &SerializeCtx,
         fns_id: FnsId,
         ptr: Ptr,
     ) -> bincode::Result<()> {
@@ -301,7 +304,7 @@ impl InitMessage {
         let size = write_with(shared_bytes, &mut self.cursor, |cursor| {
             DefaultOptions::new().serialize_into(&mut *cursor, &fns_id)?;
             // SAFETY: `component_fns`, `ptr` and `rule_fns` were created for the same component type.
-            unsafe { component_fns.serialize(rule_fns, ptr, cursor) }
+            unsafe { component_fns.serialize(ctx, rule_fns, ptr, cursor) }
         })?;
 
         self.entity_data_size = self
@@ -519,6 +522,7 @@ impl UpdateMessage {
         shared_bytes: &mut Option<&'a [u8]>,
         rule_fns: &UntypedRuleFns,
         component_fns: &ComponentFns,
+        ctx: &SerializeCtx,
         fns_id: FnsId,
         ptr: Ptr,
     ) -> bincode::Result<()> {
@@ -529,7 +533,7 @@ impl UpdateMessage {
         let size = write_with(shared_bytes, &mut self.cursor, |cursor| {
             DefaultOptions::new().serialize_into(&mut *cursor, &fns_id)?;
             // SAFETY: `component_fns`, `ptr` and `rule_fns` were created for the same component type.
-            unsafe { component_fns.serialize(rule_fns, ptr, cursor) }
+            unsafe { component_fns.serialize(ctx, rule_fns, ptr, cursor) }
         })?;
 
         self.entity_data_size = self

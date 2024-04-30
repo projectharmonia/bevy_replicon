@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy_replicon::{
-    client::client_mapper::ServerEntityMap, core::replication_fns::command_fns, prelude::*,
+    client::server_entity_map::ServerEntityMap, core::replication_fns::command_fns, prelude::*,
     test_app::ServerTestAppExt,
 };
 use serde::{Deserialize, Serialize};

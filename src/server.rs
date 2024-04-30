@@ -22,7 +22,7 @@ use bevy::{
 
 use crate::core::{
     common_conditions::{server_just_stopped, server_running},
-    replication_fns::ReplicationFns,
+    replication_fns::{ctx::SerializeCtx, ReplicationFns},
     replication_rules::ReplicationRules,
     replicon_channels::{ReplicationChannel, RepliconChannels},
     replicon_tick::RepliconTick,
@@ -229,6 +229,7 @@ impl ServerPlugin {
             &replication_fns,
             set.p0(),
             &change_tick,
+            *replicon_tick,
         )?;
 
         let mut client_buffers = mem::take(&mut *set.p5());
@@ -288,6 +289,7 @@ fn collect_changes(
     replication_fns: &ReplicationFns,
     world: &World,
     change_tick: &SystemChangeTick,
+    replicon_tick: RepliconTick,
 ) -> bincode::Result<()> {
     for (init_message, _) in messages.iter_mut() {
         init_message.start_array();
@@ -346,6 +348,7 @@ fn collect_changes(
                 };
 
                 let (component_fns, rule_fns) = replication_fns.get(replicated_component.fns_id);
+                let ctx = SerializeCtx { replicon_tick };
                 let mut shared_bytes = None;
                 for (init_message, update_message, client) in messages.iter_mut_with_clients() {
                     let visibility = client.visibility().cached_visibility();
@@ -360,6 +363,7 @@ fn collect_changes(
                             &mut shared_bytes,
                             rule_fns,
                             component_fns,
+                            &ctx,
                             replicated_component.fns_id,
                             component,
                         )?;
@@ -372,6 +376,7 @@ fn collect_changes(
                                 &mut shared_bytes,
                                 rule_fns,
                                 component_fns,
+                                &ctx,
                                 replicated_component.fns_id,
                                 component,
                             )?;
@@ -579,7 +584,7 @@ pub enum ServerEvent {
 /**
 A resource that exists on the server for mapping server entities to
 entities that clients have already spawned. The mappings are sent to clients as part of replication
-and injected into the client's [`ServerEntityMap`](crate::client::client_mapper::ServerEntityMap).
+and injected into the client's [`ServerEntityMap`](crate::client::server_entity_map::ServerEntityMap).
 
 Sometimes you don't want to wait for the server to spawn something before it appears on the
 client – when a client performs an action, they can immediately simulate it on the client,
@@ -590,9 +595,9 @@ In this situation, the client can send the server its pre-spawned entity id, the
 and inject the [`ClientMapping`] into its [`ClientEntityMap`].
 
 Replication packets will send a list of such mappings to clients, which will
-be inserted into the client's [`ServerEntityMap`](crate::client::client_mapper::ServerEntityMap). Using replication
+be inserted into the client's [`ServerEntityMap`](crate::client::server_entity_map::ServerEntityMap). Using replication
 to propagate the mappings ensures any replication messages related to the pre-mapped
-server entities will synchronize with updating the client's [`ServerEntityMap`](crate::client::client_mapper::ServerEntityMap).
+server entities will synchronize with updating the client's [`ServerEntityMap`](crate::client::server_entity_map::ServerEntityMap).
 
 ### Example:
 
@@ -649,7 +654,8 @@ pub struct ClientEntityMap(HashMap<ClientId, Vec<ClientMapping>>);
 impl ClientEntityMap {
     /// Registers `mapping` for a client entity pre-spawned by the specified client.
     ///
-    /// This will be sent as part of replication data and added to the client's [`ServerEntityMap`](crate::client::client_mapper::ServerEntityMap).
+    /// This will be sent as part of replication data and added to the client's
+    /// [`ServerEntityMap`](crate::client::server_entity_map::ServerEntityMap).
     pub fn insert(&mut self, client_id: ClientId, mapping: ClientMapping) {
         self.0.entry(client_id).or_default().push(mapping);
     }

@@ -2,9 +2,9 @@ use std::io::Cursor;
 
 use bevy::{prelude::*, utils::Duration};
 use bevy_replicon::{
-    client::client_mapper::{ClientMapper, ServerEntityMap},
+    client::server_entity_map::ServerEntityMap,
     core::{
-        replication_fns::{command_fns, rule_fns::RuleFns},
+        replication_fns::{command_fns, ctx::WriteCtx, rule_fns::RuleFns},
         replicon_tick::RepliconTick,
     },
     prelude::*,
@@ -528,20 +528,13 @@ struct ReplacedComponent(bool);
 
 /// Deserializes [`OriginalComponent`], but inserts it as [`ReplacedComponent`].
 fn replace(
+    ctx: &mut WriteCtx,
     rule_fns: &RuleFns<OriginalComponent>,
-    commands: &mut Commands,
     entity: &mut EntityMut,
     cursor: &mut Cursor<&[u8]>,
-    entity_map: &mut ServerEntityMap,
-    _replicon_tick: RepliconTick,
 ) -> bincode::Result<()> {
-    let mut mapper = ClientMapper {
-        commands,
-        entity_map,
-    };
-
-    let component = rule_fns.deserialize(cursor, &mut mapper)?;
-    commands
+    let component = rule_fns.deserialize(ctx, cursor)?;
+    ctx.commands
         .entity(entity.id())
         .insert(ReplacedComponent(component.0));
 
