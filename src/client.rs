@@ -12,16 +12,18 @@ use bincode::{DefaultOptions, Options};
 use bytes::Bytes;
 use varint_rs::VarintReader;
 
-use crate::core::{
-    command_markers::CommandMarkers,
-    common_conditions::{client_connected, client_just_connected, client_just_disconnected},
-    replication_fns::{
-        ctx::{DeleteCtx, WriteCtx},
-        ReplicationFns,
+use crate::{
+    core::{
+        command_markers::CommandMarkers,
+        common_conditions::{client_connected, client_just_connected, client_just_disconnected},
+        replication_fns::{
+            ctx::{DeleteCtx, WriteCtx},
+            ReplicationFns,
+        },
+        replicon_channels::{ReplicationChannel, RepliconChannels},
+        Replicated,
     },
-    replicon_channels::{ReplicationChannel, RepliconChannels},
-    replicon_tick::RepliconTick,
-    Replicated,
+    server::replicon_tick::RepliconTick,
 };
 use diagnostics::ClientStats;
 use replicon_client::RepliconClient;
@@ -33,6 +35,7 @@ impl Plugin for ClientPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<RepliconClient>()
             .init_resource::<ServerEntityMap>()
+            .init_resource::<ServerInitTick>()
             .init_resource::<ServerEntityTicks>()
             .init_resource::<BufferedUpdates>()
             .configure_sets(
@@ -121,12 +124,12 @@ impl ClientPlugin {
     }
 
     fn reset(
-        mut replicon_tick: ResMut<RepliconTick>,
+        mut init_tick: ResMut<ServerInitTick>,
         mut entity_map: ResMut<ServerEntityMap>,
         mut entity_ticks: ResMut<ServerEntityTicks>,
         mut buffered_updates: ResMut<BufferedUpdates>,
     ) {
-        *replicon_tick = Default::default();
+        *init_tick = Default::default();
         entity_map.clear();
         entity_ticks.clear();
         buffered_updates.clear();
@@ -160,7 +163,7 @@ fn apply_replication(
         )?;
     }
 
-    let replicon_tick = *world.resource::<RepliconTick>();
+    let init_tick = *world.resource::<ServerInitTick>();
     let acks_size = mem::size_of::<u16>() * client.received_count(ReplicationChannel::Update);
     let mut acks = Vec::with_capacity(acks_size);
     for message in client.receive(ReplicationChannel::Update) {
@@ -174,7 +177,7 @@ fn apply_replication(
             stats.as_deref_mut(),
             command_markers,
             replication_fns,
-            replicon_tick,
+            init_tick,
         )?;
 
         bincode::serialize_into(&mut acks, &index)?;
@@ -183,7 +186,7 @@ fn apply_replication(
 
     let mut result = Ok(());
     buffered_updates.0.retain(|update| {
-        if update.change_tick > replicon_tick {
+        if update.change_tick > *init_tick {
             return true;
         }
 
@@ -232,7 +235,7 @@ fn apply_init_message(
 
     let message_tick = bincode::deserialize_from(&mut cursor)?;
     trace!("applying init message for {message_tick:?}");
-    *world.resource_mut::<RepliconTick>() = message_tick;
+    world.resource_mut::<ServerInitTick>().0 = message_tick;
     debug_assert!(cursor.position() < end_pos, "init message can't be empty");
 
     apply_entity_mappings(&mut cursor, world, entity_map, stats.as_deref_mut())?;
@@ -301,7 +304,7 @@ fn apply_update_message(
     mut stats: Option<&mut ClientStats>,
     command_markers: &CommandMarkers,
     replication_fns: &ReplicationFns,
-    replicon_tick: RepliconTick,
+    init_tick: ServerInitTick,
 ) -> bincode::Result<u16> {
     let end_pos: u64 = message.len().try_into().unwrap();
     let mut cursor = Cursor::new(&*message);
@@ -311,7 +314,7 @@ fn apply_update_message(
     }
 
     let (change_tick, message_tick, update_index) = bincode::deserialize_from(&mut cursor)?;
-    if change_tick > replicon_tick {
+    if change_tick > *init_tick {
         trace!("buffering update message for {message_tick:?}");
         buffered_updates.0.push(BufferedUpdate {
             change_tick,
@@ -630,6 +633,13 @@ pub enum ClientSet {
     /// the client after a disconnect or when reconnecting.
     Reset,
 }
+
+/// Last received tick for init message from server.
+///
+/// In other words, last [`RepliconTick`] with a removal, insertion, spawn or despawn.
+/// When a component changes, this value is not updated.
+#[derive(Clone, Copy, Debug, Default, Deref, Resource)]
+pub struct ServerInitTick(RepliconTick);
 
 /// Last received tick for each entity.
 ///

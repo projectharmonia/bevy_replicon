@@ -4,6 +4,7 @@ pub(super) mod removal_buffer;
 pub(super) mod replicated_archetypes;
 pub(super) mod replication_messages;
 pub mod replicon_server;
+pub mod replicon_tick;
 
 use std::{io::Cursor, mem, time::Duration};
 
@@ -25,7 +26,6 @@ use crate::core::{
     replication_fns::{ctx::SerializeCtx, ReplicationFns},
     replication_rules::ReplicationRules,
     replicon_channels::{ReplicationChannel, RepliconChannels},
-    replicon_tick::RepliconTick,
     ClientId,
 };
 use connected_clients::{
@@ -36,6 +36,7 @@ use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
 use replicated_archetypes::ReplicatedArchetypes;
 use replication_messages::ReplicationMessages;
 use replicon_server::RepliconServer;
+use replicon_tick::RepliconTick;
 
 pub struct ServerPlugin {
     /// Tick configuration.
@@ -64,6 +65,7 @@ impl Plugin for ServerPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((DespawnBufferPlugin, RemovalBufferPlugin))
             .init_resource::<RepliconServer>()
+            .init_resource::<RepliconTick>()
             .init_resource::<ClientBuffers>()
             .init_resource::<ClientEntityMap>()
             .insert_resource(ConnectedClients::new(self.visibility_policy))

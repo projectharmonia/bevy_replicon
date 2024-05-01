@@ -2,11 +2,8 @@ use std::io::Cursor;
 
 use bevy::{prelude::*, utils::Duration};
 use bevy_replicon::{
-    client::server_entity_map::ServerEntityMap,
-    core::{
-        replication_fns::{command_fns, ctx::WriteCtx, rule_fns::RuleFns},
-        replicon_tick::RepliconTick,
-    },
+    client::{server_entity_map::ServerEntityMap, ServerInitTick},
+    core::replication_fns::{command_fns, ctx::WriteCtx, rule_fns::RuleFns},
     prelude::*,
     test_app::ServerTestAppExt,
 };
@@ -387,15 +384,15 @@ fn buffering() {
         .spawn((Replicated, BoolComponent(false)))
         .id();
 
-    let previous_tick = *server_app.world.resource::<RepliconTick>();
-
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    // Artificially rollback the client by 1 tick to force next received update to be buffered.
-    *client_app.world.resource_mut::<RepliconTick>() = previous_tick;
+    // Artificially reset the init tick to force the next received update to be buffered.
+    let mut init_tick = client_app.world.resource_mut::<ServerInitTick>();
+    let previous_tick = *init_tick;
+    *init_tick = Default::default();
     let mut component = server_app
         .world
         .get_mut::<BoolComponent>(server_entity)
@@ -413,8 +410,8 @@ fn buffering() {
         .single(&client_app.world);
     assert!(!component.0, "client should buffer the update");
 
-    // Move tick forward to let the buffered update apply.
-    client_app.world.resource_mut::<RepliconTick>().increment();
+    // Restore the init tick to let the buffered update apply
+    *client_app.world.resource_mut::<ServerInitTick>() = previous_tick;
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);

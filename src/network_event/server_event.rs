@@ -11,17 +11,20 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use super::EventMapper;
 use crate::{
-    client::{replicon_client::RepliconClient, server_entity_map::ServerEntityMap, ClientSet},
+    client::{
+        replicon_client::RepliconClient, server_entity_map::ServerEntityMap, ClientSet,
+        ServerInitTick,
+    },
     core::{
         common_conditions::{client_connected, has_authority, server_running},
         replicon_channels::{RepliconChannel, RepliconChannels},
-        replicon_tick::RepliconTick,
         ClientId,
     },
     prelude::{ClientPlugin, ServerPlugin},
     server::{
         connected_clients::{ConnectedClient, ConnectedClients},
         replicon_server::RepliconServer,
+        replicon_tick::RepliconTick,
         ServerSet,
     },
 };
@@ -62,7 +65,7 @@ pub trait ServerEventAppExt {
         reflect::serde::{ReflectSerializer, UntypedReflectDeserializer},
     };
     use bevy_replicon::{
-        core::replicon_tick::RepliconTick,
+        client::ServerInitTick,
         network_event::server_event::{self, ServerEventChannel, ServerEventQueue},
         prelude::*,
     };
@@ -98,7 +101,7 @@ pub trait ServerEventAppExt {
         mut reflect_events: EventWriter<ReflectEvent>,
         mut client: ResMut<RepliconClient>,
         mut event_queue: ResMut<ServerEventQueue<ReflectEvent>>,
-        replicon_tick: Res<RepliconTick>,
+        init_tick: Res<ServerInitTick>,
         channel: Res<ServerEventChannel<ReflectEvent>>,
         registry: Res<AppTypeRegistry>,
     ) {
@@ -113,7 +116,7 @@ pub trait ServerEventAppExt {
             .expect("server should send valid events");
 
             // Event should be sent to the queue if replication message with its tick has not yet arrived.
-            if tick <= *replicon_tick {
+            if tick <= **init_tick {
                 reflect_events.send(event);
             } else {
                 event_queue.insert(tick, event);
@@ -191,11 +194,11 @@ impl ServerEventAppExt for App {
 
 /// Applies all queued events if their tick is less or equal to [`RepliconTick`].
 fn pop_from_queue<T: Event>(
-    replicon_tick: Res<RepliconTick>,
+    init_tick: Res<ServerInitTick>,
     mut server_events: EventWriter<T>,
     mut event_queue: ResMut<ServerEventQueue<T>>,
 ) {
-    while let Some((tick, event)) = event_queue.pop_if_le(*replicon_tick) {
+    while let Some((tick, event)) = event_queue.pop_if_le(*init_tick) {
         trace!(
             "applying event `{}` from queue with `{tick:?}`",
             any::type_name::<T>()
@@ -208,7 +211,7 @@ fn receive<T: Event + DeserializeOwned>(
     mut server_events: EventWriter<T>,
     mut client: ResMut<RepliconClient>,
     mut event_queue: ResMut<ServerEventQueue<T>>,
-    replicon_tick: Res<RepliconTick>,
+    init_tick: Res<ServerInitTick>,
     channel: Res<ServerEventChannel<T>>,
 ) {
     for message in client.receive(*channel) {
@@ -217,7 +220,7 @@ fn receive<T: Event + DeserializeOwned>(
         })
         .expect("server should send valid events");
 
-        if tick <= *replicon_tick {
+        if tick <= **init_tick {
             trace!("applying event `{}` with `{tick:?}`", any::type_name::<T>());
             server_events.send(event);
         } else {
@@ -231,7 +234,7 @@ fn receive_and_map<T: Event + MapEntities + DeserializeOwned>(
     mut server_events: EventWriter<T>,
     mut client: ResMut<RepliconClient>,
     mut event_queue: ResMut<ServerEventQueue<T>>,
-    replicon_tick: Res<RepliconTick>,
+    init_tick: Res<ServerInitTick>,
     entity_map: Res<ServerEntityMap>,
     channel: Res<ServerEventChannel<T>>,
 ) {
@@ -242,7 +245,7 @@ fn receive_and_map<T: Event + MapEntities + DeserializeOwned>(
         .expect("server should send valid events");
 
         event.map_entities(&mut EventMapper(entity_map.to_client()));
-        if tick <= *replicon_tick {
+        if tick <= **init_tick {
             trace!("applying event `{}` for `{tick:?}`", any::type_name::<T>());
             server_events.send(event);
         } else {
@@ -475,9 +478,9 @@ impl<T> ServerEventQueue<T> {
     }
 
     /// Pops the next event that is at least as old as the specified replicon tick.
-    fn pop_if_le(&mut self, replicon_tick: RepliconTick) -> Option<(RepliconTick, T)> {
+    fn pop_if_le(&mut self, init_tick: ServerInitTick) -> Option<(RepliconTick, T)> {
         let (tick, _) = self.0.front()?;
-        if *tick > replicon_tick {
+        if *tick > *init_tick {
             return None;
         }
         self.0

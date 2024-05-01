@@ -143,10 +143,10 @@ In order to serialize Bevy components you need to enable the `serialize` feature
 ### Tick and fixed timestep games
 
 The [`ServerPlugin`] sends replication data in [`PostUpdate`] any time the
-[`RepliconTick`](core::replicon_tick::RepliconTick) resource changes.
+[`RepliconTick`](server::replicon_tick::RepliconTick) resource changes.
 By default, its incremented in [`PostUpdate`] per the [`TickPolicy`].
 
-If you set [`TickPolicy::Manual`], you can increment [`RepliconTick`](core::replicon_tick::RepliconTick)
+If you set [`TickPolicy::Manual`], you can increment [`RepliconTick`](server::replicon_tick::RepliconTick)
 at the start of your game loop inside [`FixedMain`](bevy::app::FixedMain).
 This value can represent your simulation step, and is made available to the client in the custom
 deserialization, despawn and component removal functions.
