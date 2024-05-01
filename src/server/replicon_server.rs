@@ -43,7 +43,7 @@ impl RepliconServer {
             .retain(|&(sender_id, ..)| sender_id != client_id);
     }
 
-    /// Receives all available messages from over a channel.
+    /// Receives all available messages from clients over a channel.
     ///
     /// All messages will be drained.
     pub fn receive<I: Into<u8>>(

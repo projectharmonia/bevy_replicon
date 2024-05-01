@@ -103,7 +103,7 @@ pub trait ServerEventAppExt {
         registry: Res<AppTypeRegistry>,
     ) {
         let registry = registry.read();
-        while let Some(message) = client.receive(*channel) {
+        for message in client.receive(*channel) {
             let (tick, event) = server_event::deserialize_with(&message, |cursor| {
                 let mut deserializer =
                     bincode::Deserializer::with_reader(cursor, DefaultOptions::new());
@@ -211,7 +211,7 @@ fn receive<T: Event + DeserializeOwned>(
     replicon_tick: Res<RepliconTick>,
     channel: Res<ServerEventChannel<T>>,
 ) {
-    while let Some(message) = client.receive(*channel) {
+    for message in client.receive(*channel) {
         let (tick, event) = deserialize_with(&message, |cursor| {
             DefaultOptions::new().deserialize_from(cursor)
         })
@@ -235,7 +235,7 @@ fn receive_and_map<T: Event + MapEntities + DeserializeOwned>(
     entity_map: Res<ServerEntityMap>,
     channel: Res<ServerEventChannel<T>>,
 ) {
-    while let Some(message) = client.receive(*channel) {
+    for message in client.receive(*channel) {
         let (tick, mut event): (_, T) = deserialize_with(&message, |cursor| {
             DefaultOptions::new().deserialize_from(cursor)
         })

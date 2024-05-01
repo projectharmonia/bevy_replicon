@@ -147,7 +147,7 @@ fn apply_replication(
     command_markers: &CommandMarkers,
     replication_fns: &ReplicationFns,
 ) -> Result<(), Box<bincode::ErrorKind>> {
-    while let Some(message) = client.receive(ReplicationChannel::Init) {
+    for message in client.receive(ReplicationChannel::Init) {
         apply_init_message(
             &message,
             world,
@@ -161,7 +161,8 @@ fn apply_replication(
     }
 
     let replicon_tick = *world.resource::<RepliconTick>();
-    while let Some(message) = client.receive(ReplicationChannel::Update) {
+    let mut acks = Vec::new();
+    for message in client.receive(ReplicationChannel::Update) {
         let index = apply_update_message(
             message,
             world,
@@ -175,8 +176,9 @@ fn apply_replication(
             replicon_tick,
         )?;
 
-        client.send(ReplicationChannel::Init, bincode::serialize(&index)?)
+        bincode::serialize_into(&mut acks, &index)?;
     }
+    client.send(ReplicationChannel::Init, acks);
 
     let mut result = Ok(());
     buffered_updates.0.retain(|update| {

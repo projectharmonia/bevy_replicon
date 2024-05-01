@@ -35,11 +35,13 @@ impl RepliconClient {
         self.received_messages.resize(channels_count, Vec::new());
     }
 
-    /// Pops the next available message from the server over a channel.
-    pub fn receive<I: Into<u8>>(&mut self, channel_id: I) -> Option<Bytes> {
+    /// Receives all available messages from the server over a channel.
+    ///
+    /// All messages will be drained.
+    pub fn receive<I: Into<u8>>(&mut self, channel_id: I) -> impl Iterator<Item = Bytes> + '_ {
         if !self.is_connected() {
+            // We can't return here because we need to return an empty iterator.
             warn!("trying to receive a message when the client is not connected");
-            return None;
         }
 
         let channel_id = channel_id.into();
@@ -48,7 +50,7 @@ impl RepliconClient {
             .get_mut(channel_id as usize)
             .unwrap_or_else(|| panic!("client should have a receive channel with id {channel_id}"));
 
-        channel_messages.pop()
+        channel_messages.drain(..)
     }
 
     /// Sends a message to the server over a channel.

@@ -5,7 +5,7 @@ pub(super) mod replicated_archetypes;
 pub(super) mod replication_messages;
 pub mod replicon_server;
 
-use std::{mem, time::Duration};
+use std::{io::Cursor, mem, time::Duration};
 
 use bevy::{
     ecs::{
@@ -186,12 +186,20 @@ impl ServerPlugin {
         mut client_buffers: ResMut<ClientBuffers>,
     ) {
         for (client_id, message) in server.receive(ReplicationChannel::Init) {
-            match bincode::deserialize::<u16>(&message) {
-                Ok(update_index) => {
-                    let client = connected_clients.client_mut(client_id);
-                    client.acknowledge(&mut client_buffers, change_tick.this_run(), update_index);
+            let mut cursor = Cursor::new(&*message);
+            let message_end = message.len() as u64;
+            while cursor.position() < message_end {
+                match bincode::deserialize_from(&mut cursor) {
+                    Ok(update_index) => {
+                        let client = connected_clients.client_mut(client_id);
+                        client.acknowledge(
+                            &mut client_buffers,
+                            change_tick.this_run(),
+                            update_index,
+                        );
+                    }
+                    Err(e) => debug!("unable to deserialize update index from {client_id:?}: {e}"),
                 }
-                Err(e) => debug!("unable to deserialize update index from {client_id:?}: {e}"),
             }
         }
     }
