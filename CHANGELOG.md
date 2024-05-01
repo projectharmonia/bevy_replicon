@@ -55,6 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Rename `Replication` into `Replicated`. Old name is still available via deprecated alias.
 - Abstract out all I/O and `renet` dependency. We will continue to provide first-party integration with renet via `bevy_replion_renet`. But users can write their integration with other messaging libraries. So now users need to additionally add messaging-related plugin. In case of `bevy_replion_renet` it's `RepliconRenetPlugins`.
 - Replace usage of `RenetServer` and `RenetClient` with our `RepliconServer` and `RepliconClient` respectively. Use types from `renet` (or other library) only when you need to connect / disconnect or write some library-specific logic. In other cases prefer using the newly provided types to make your code messaging-library independent. Unlike the old types from renet, these resources are always present in the world. So instead of using `resource_(exists/added/removed)` for network-related conditions, use special conditions provided in `common_conditions` module.
 - Move `has_authority` to `common_conditions` module.
@@ -188,7 +189,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Rename `Replication` into `Replicated`. Old name is still available via deprecated alias.
 - Send all component mappings, inserts, removals and despawns over reliable channel in form of deltas and component updates over unreliable channel packed by packet size. This significantly reduces the possibility of packet loss.
 - Replace `REPLICATION_CHANNEL_ID` with `ReplicationChannel` enum. The previous constant corresponded to the unreliable channel.
 - Server events use tick with the last change instead of waiting for replication message without changes.
