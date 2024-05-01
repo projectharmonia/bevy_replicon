@@ -2,17 +2,15 @@ use std::io::Cursor;
 
 use bevy::prelude::*;
 use bevy_replicon::{
-    core::{
-        replication_fns::{
-            command_fns,
-            ctx::{DeleteCtx, WriteCtx},
-            rule_fns::RuleFns,
-            test_fns::TestFnsEntityExt,
-            ReplicationFns,
-        },
-        replicon_tick::RepliconTick,
+    core::replication_fns::{
+        command_fns,
+        ctx::{DeleteCtx, WriteCtx},
+        rule_fns::RuleFns,
+        test_fns::TestFnsEntityExt,
+        ReplicationFns,
     },
     prelude::*,
+    server::replicon_tick::RepliconTick,
 };
 use serde::{Deserialize, Serialize};
 

@@ -3,7 +3,6 @@ pub mod common_conditions;
 pub mod replication_fns;
 pub mod replication_rules;
 pub mod replicon_channels;
-pub mod replicon_tick;
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -12,14 +11,12 @@ use command_markers::CommandMarkers;
 use replication_fns::ReplicationFns;
 use replication_rules::ReplicationRules;
 use replicon_channels::RepliconChannels;
-use replicon_tick::RepliconTick;
 
 pub struct RepliconCorePlugin;
 
 impl Plugin for RepliconCorePlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<Replicated>()
-            .init_resource::<RepliconTick>()
             .init_resource::<RepliconChannels>()
             .init_resource::<ReplicationFns>()
             .init_resource::<ReplicationRules>()

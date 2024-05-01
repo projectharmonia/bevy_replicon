@@ -4,7 +4,8 @@ use bevy::{
     time::TimePlugin,
 };
 use bevy_replicon::{
-    client::server_entity_map::ServerEntityMap, core::replicon_tick::RepliconTick, prelude::*,
+    client::{server_entity_map::ServerEntityMap, ServerInitTick},
+    prelude::*,
     test_app::ServerTestAppExt,
 };
 use serde::{Deserialize, Serialize};
@@ -178,15 +179,16 @@ fn event_queue() {
 
     // Spawn entity to trigger world change.
     server_app.world.spawn((Replicated, DummyComponent));
-    let previous_tick = *server_app.world.resource::<RepliconTick>();
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    // Artificially rollback the client by 1 tick to force next received event to be queued.
-    *client_app.world.resource_mut::<RepliconTick>() = previous_tick;
+    // Artificially reset the init tick to force the next received event to be queued.
+    let mut init_tick = client_app.world.resource_mut::<ServerInitTick>();
+    let previous_tick = *init_tick;
+    *init_tick = Default::default();
     server_app.world.send_event(ToClients {
         mode: SendMode::Broadcast,
         event: DummyEvent,
@@ -198,7 +200,8 @@ fn event_queue() {
 
     assert!(client_app.world.resource::<Events<DummyEvent>>().is_empty());
 
-    client_app.world.resource_mut::<RepliconTick>().increment();
+    // Restore the init tick to receive the event.
+    *client_app.world.resource_mut::<ServerInitTick>() = previous_tick;
 
     client_app.update();
 

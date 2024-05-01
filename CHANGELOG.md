@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `AppRuleExt::replicate_with` now additionally accepts `in_place_as_deserialize`. You can use it to customize deserialization if a component is already present or just pass `command_fns::deserialize_in_place` to make it fallback to the passed `deserialize`.
 - Writing to entities on client now done via `EntityMut` and `Commands` instead of `EntityWorldMut`. It was needed to support the mentioned in-place deserialization and will possibly allow batching insertions in the future (for details see https://github.com/bevyengine/bevy/issues/10154).
 - Return iterator from `RepliconClient::receive` instead of popping the last message. If you used `while` loop for it before, replace it with `for`.
+- Use new `ServerInitTick` resource on client instead of `RepliconTick`. If you used `ServerEventAppExt::add_server_event_with`, use `ServerInitTick` instead of `RepliconTick` in your receive function.
+- Move `replicon_tick` module under `server` module since now it's used only on server.
 - Move `Replication` to `core` module.
 - Move all functions-related logic from `ReplicationRules` into a new `ReplicationFns` and hide `ReplicationRules` from public API.
 - Rename `serialize_component` into `default_serialize` and move into `rule_fns` module.

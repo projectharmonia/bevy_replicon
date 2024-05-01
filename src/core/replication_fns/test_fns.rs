@@ -14,8 +14,8 @@ use crate::{
     core::{
         command_markers::CommandMarkers,
         replication_fns::{ctx::SerializeCtx, ReplicationFns},
-        replicon_tick::RepliconTick,
     },
+    server::replicon_tick::RepliconTick,
 };
 
 /**
@@ -30,11 +30,9 @@ This example shows how to call registered functions on an entity:
 ```
 use bevy::prelude::*;
 use bevy_replicon::{
-    core::{
-        replication_fns::{rule_fns::RuleFns, test_fns::TestFnsEntityExt, ReplicationFns},
-        replicon_tick::RepliconTick,
-    },
+    core::replication_fns::{rule_fns::RuleFns, test_fns::TestFnsEntityExt, ReplicationFns},
     prelude::*,
+    server::replicon_tick::RepliconTick,
 };
 use serde::{Deserialize, Serialize};
 
