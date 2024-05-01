@@ -2,7 +2,7 @@ pub mod diagnostics;
 pub mod replicon_client;
 pub mod server_entity_map;
 
-use std::io::Cursor;
+use std::{io::Cursor, mem};
 
 use bevy::{
     ecs::{entity::EntityHashMap, system::SystemState},
@@ -161,7 +161,8 @@ fn apply_replication(
     }
 
     let replicon_tick = *world.resource::<RepliconTick>();
-    let mut acks = Vec::new();
+    let acks_size = mem::size_of::<u16>() * client.received_count(ReplicationChannel::Update);
+    let mut acks = Vec::with_capacity(acks_size);
     for message in client.receive(ReplicationChannel::Update) {
         let index = apply_update_message(
             message,
