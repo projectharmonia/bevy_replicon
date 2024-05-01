@@ -35,6 +35,19 @@ impl RepliconClient {
         self.received_messages.resize(channels_count, Vec::new());
     }
 
+    /// Returns number of received messages for a channel.
+    ///
+    /// See also [`Self::receive`].
+    pub(crate) fn received_count<I: Into<u8>>(&self, channel_id: I) -> usize {
+        let channel_id = channel_id.into();
+        let channel_messages = self
+            .received_messages
+            .get(channel_id as usize)
+            .unwrap_or_else(|| panic!("client should have a receive channel with id {channel_id}"));
+
+        channel_messages.len()
+    }
+
     /// Receives all available messages from the server over a channel.
     ///
     /// All messages will be drained.
