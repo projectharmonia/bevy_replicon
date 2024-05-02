@@ -176,7 +176,7 @@ impl CommandMarkers {
     /// May invalidate previously returned [`CommandMarkerIndex`] due to sorting.
     ///
     /// Use [`ReplicationFns::register_marker`] to register a slot for command functions for this marker.
-    pub(super) fn insert(&mut self, marker: CommandMarker) -> CommandMarkerIndex {
+    fn insert(&mut self, marker: CommandMarker) -> CommandMarkerIndex {
         let index = self
             .0
             .binary_search_by_key(&Reverse(marker.priority), |marker| Reverse(marker.priority))
@@ -213,14 +213,14 @@ impl CommandMarkers {
 /// Component marker information.
 ///
 /// See also [`CommandMarkers`].
-pub(super) struct CommandMarker {
+struct CommandMarker {
     /// Marker ID.
-    pub(super) component_id: ComponentId,
+    component_id: ComponentId,
 
     /// Priority of this marker.
     ///
     /// Will affect the order in [`CommandMarkers::insert`].
-    pub(super) priority: usize,
+    priority: usize,
 }
 
 /// Can be obtained from [`CommandMarkers::insert`].
