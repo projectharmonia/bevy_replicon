@@ -311,7 +311,7 @@ mod tests {
             .init_resource::<ReplicationFns>()
             .register_marker::<DummyMarkerA>()
             .register_marker_with::<DummyMarkerB>(MarkerConfig {
-                priority: 1,
+                priority: 2,
                 ..Default::default()
             })
             .register_marker_with::<DummyMarkerC>(MarkerConfig {
