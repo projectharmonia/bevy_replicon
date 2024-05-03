@@ -116,7 +116,8 @@ impl ComponentFns {
             .markers
             .iter()
             .zip(entity_markers.markers())
-            .find_map(|(fns, &contains)| fns.filter(|_| contains))
+            .filter(|(_, &contains)| contains)
+            .find_map(|(&fns, _)| fns)
             .unwrap_or(self.commands);
 
         (self.write)(ctx, &command_fns, rule_fns, entity, cursor)
@@ -156,7 +157,8 @@ impl ComponentFns {
             .markers
             .iter()
             .zip(entity_markers.markers())
-            .find_map(|(fns, &contains)| fns.filter(|_| contains))
+            .filter(|(_, &contains)| contains)
+            .find_map(|(&fns, _)| fns)
             .unwrap_or(self.commands);
 
         command_fns.remove(ctx, entity_commands)
