@@ -263,7 +263,7 @@ fn remove_with_mutltiple_markers() {
 fn write_with_priority_marker() {
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, RepliconPlugins))
-        .register_marker_with_priority::<ReplaceMarker>(1)
+        .register_marker_with::<ReplaceMarker>(1, false)
         .register_marker::<DummyMarker>()
         .set_marker_fns::<ReplaceMarker, _>(
             replace,
@@ -293,7 +293,7 @@ fn write_with_priority_marker() {
 fn remove_with_priority_marker() {
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, RepliconPlugins))
-        .register_marker_with_priority::<ReplaceMarker>(1)
+        .register_marker_with::<ReplaceMarker>(1, false)
         .register_marker::<DummyMarker>()
         .set_marker_fns::<ReplaceMarker, _>(
             replace,

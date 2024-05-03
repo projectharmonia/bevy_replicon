@@ -7,7 +7,7 @@ use super::{
     ctx::{DeleteCtx, SerializeCtx, WriteCtx},
     rule_fns::UntypedRuleFns,
 };
-use crate::core::command_markers::CommandMarkerIndex;
+use crate::core::command_markers::{CommandMarkerIndex, CommandMarkers, EntityMarkers};
 
 /// Type-erased functions for a component.
 ///
@@ -15,6 +15,7 @@ use crate::core::command_markers::CommandMarkerIndex;
 pub(crate) struct ComponentFns {
     serialize: UntypedSerializeFn,
     write: UntypedWriteFn,
+    consume: UntypedConsumeFn,
     commands: UntypedCommandFns,
     markers: Vec<Option<UntypedCommandFns>>,
 }
@@ -25,6 +26,7 @@ impl ComponentFns {
         Self {
             serialize: untyped_serialize::<C>,
             write: untyped_write::<C>,
+            consume: untyped_consume::<C>,
             commands: UntypedCommandFns::default_fns::<C>(),
             markers: vec![None; marker_slots],
         }
@@ -106,37 +108,58 @@ impl ComponentFns {
         &self,
         ctx: &mut WriteCtx,
         rule_fns: &UntypedRuleFns,
-        entity_markers: &[bool],
+        entity_markers: &EntityMarkers,
         entity: &mut EntityMut,
         cursor: &mut Cursor<&[u8]>,
     ) -> bincode::Result<()> {
-        let command_fns = self.marker_fns(entity_markers).unwrap_or(self.commands);
+        let command_fns = self
+            .markers
+            .iter()
+            .zip(entity_markers.markers())
+            .find_map(|(fns, &contains)| fns.filter(|_| contains))
+            .unwrap_or(self.commands);
+
         (self.write)(ctx, &command_fns, rule_fns, entity, cursor)
+    }
+
+    pub(crate) unsafe fn consume_or_write(
+        &self,
+        ctx: &mut WriteCtx,
+        rule_fns: &UntypedRuleFns,
+        entity_markers: &EntityMarkers,
+        command_markers: &CommandMarkers,
+        entity: &mut EntityMut,
+        cursor: &mut Cursor<&[u8]>,
+    ) -> bincode::Result<()> {
+        if let Some(command_fns) = self
+            .markers
+            .iter()
+            .zip(entity_markers.markers())
+            .zip(command_markers.iter_require_history())
+            .filter(|&((_, &contains), need_history)| contains && need_history)
+            .find_map(|((&fns, _), _)| fns)
+        {
+            (self.write)(ctx, &command_fns, rule_fns, entity, cursor)
+        } else {
+            (self.consume)(ctx, rule_fns, cursor)
+        }
     }
 
     /// Same as [`Self::write`], but calls the assigned remove function.
     pub(crate) fn remove(
         &self,
         ctx: &DeleteCtx,
-        entity_markers: &[bool],
+        entity_markers: &EntityMarkers,
         entity_commands: EntityCommands,
     ) {
-        let command_fns = self.marker_fns(entity_markers).unwrap_or(self.commands);
-        command_fns.remove(ctx, entity_commands)
-    }
-
-    /// Picks assigned functions based on markers present on an entity.
-    fn marker_fns(&self, entity_markers: &[bool]) -> Option<UntypedCommandFns> {
-        debug_assert_eq!(
-            entity_markers.len(),
-            self.markers.len(),
-            "entity markers length and marker functions slots should match"
-        );
-
-        self.markers
+        let command_fns = self
+            .markers
             .iter()
-            .zip(entity_markers)
-            .find_map(|(fns, &enabled)| fns.filter(|_| enabled))
+            .zip(entity_markers.markers())
+            .find_map(|(fns, &contains)| fns.filter(|_| contains))
+            .unwrap_or(self.commands);
+
+        command_fns.remove(ctx, entity_commands)
     }
 }
 
@@ -152,6 +175,9 @@ type UntypedWriteFn = unsafe fn(
     &mut EntityMut,
     &mut Cursor<&[u8]>,
 ) -> bincode::Result<()>;
+
+type UntypedConsumeFn =
+    unsafe fn(&mut WriteCtx, &UntypedRuleFns, &mut Cursor<&[u8]>) -> bincode::Result<()>;
 
 /// Dereferences a component from a pointer and calls the passed serialization function.
 ///
@@ -181,4 +207,12 @@ unsafe fn untyped_write<C: Component>(
     cursor: &mut Cursor<&[u8]>,
 ) -> bincode::Result<()> {
     command_fns.write::<C>(ctx, &rule_fns.typed::<C>(), entity, cursor)
+}
+
+unsafe fn untyped_consume<C: Component>(
+    ctx: &mut WriteCtx,
+    rule_fns: &UntypedRuleFns,
+    cursor: &mut Cursor<&[u8]>,
+) -> bincode::Result<()> {
+    rule_fns.typed::<C>().consume(ctx, cursor)
 }

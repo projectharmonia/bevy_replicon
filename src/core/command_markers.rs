@@ -26,7 +26,11 @@ pub trait AppMarkerExt {
     fn register_marker<M: Component>(&mut self) -> &mut Self;
 
     /// Same as [`Self::register_marker`], but allows setting a priority.
-    fn register_marker_with_priority<M: Component>(&mut self, priority: usize) -> &mut Self;
+    fn register_marker_with<M: Component>(
+        &mut self,
+        priority: usize,
+        need_history: bool,
+    ) -> &mut Self;
 
     /**
     Associates command functions with a marker for a component.
@@ -123,15 +127,20 @@ pub trait AppMarkerExt {
 
 impl AppMarkerExt for App {
     fn register_marker<M: Component>(&mut self) -> &mut Self {
-        self.register_marker_with_priority::<M>(0)
+        self.register_marker_with::<M>(0, false)
     }
 
-    fn register_marker_with_priority<M: Component>(&mut self, priority: usize) -> &mut Self {
+    fn register_marker_with<M: Component>(
+        &mut self,
+        priority: usize,
+        need_history: bool,
+    ) -> &mut Self {
         let component_id = self.world.init_component::<M>();
         let mut command_markers = self.world.resource_mut::<CommandMarkers>();
         let marker_id = command_markers.insert(CommandMarker {
             component_id,
             priority,
+            need_history,
         });
 
         let mut replicaton_fns = self.world.resource_mut::<ReplicationFns>();
@@ -198,15 +207,8 @@ impl CommandMarkers {
         CommandMarkerIndex(index)
     }
 
-    /// Returns an iterator over markers presence for an entity.
-    pub(crate) fn iter_contains<'a>(
-        &'a self,
-        entity: impl Into<EntityRef<'a>>,
-    ) -> impl Iterator<Item = bool> + 'a {
-        let entity = entity.into();
-        self.0
-            .iter()
-            .map(move |marker| entity.contains_id(marker.component_id))
+    pub(super) fn iter_require_history(&self) -> impl Iterator<Item = bool> + '_ {
+        self.0.iter().map(|marker| marker.need_history)
     }
 }
 
@@ -221,6 +223,51 @@ struct CommandMarker {
     ///
     /// Will affect the order in [`CommandMarkers::insert`].
     priority: usize,
+
+    need_history: bool,
+}
+
+pub(crate) struct EntityMarkers {
+    markers: Vec<bool>,
+    need_history: bool,
+}
+
+impl EntityMarkers {
+    pub(crate) fn read<'a>(
+        &'a mut self,
+        markers: &CommandMarkers,
+        entity: impl Into<EntityRef<'a>>,
+    ) {
+        self.markers.clear();
+        self.need_history = false;
+
+        let entity = entity.into();
+        for marker in &markers.0 {
+            let contains = entity.contains_id(marker.component_id);
+            self.markers.push(contains);
+            if contains && marker.need_history {
+                self.need_history = true;
+            }
+        }
+    }
+
+    pub(super) fn markers(&self) -> &[bool] {
+        &self.markers
+    }
+
+    pub(crate) fn need_history(&self) -> bool {
+        self.need_history
+    }
+}
+
+impl FromWorld for EntityMarkers {
+    fn from_world(world: &mut World) -> Self {
+        let markers = world.resource::<CommandMarkers>();
+        Self {
+            markers: Vec::with_capacity(markers.0.len()),
+            need_history: false,
+        }
+    }
 }
 
 /// Can be obtained from [`CommandMarkers::insert`].
@@ -254,8 +301,8 @@ mod tests {
         app.init_resource::<CommandMarkers>()
             .init_resource::<ReplicationFns>()
             .register_marker::<DummyMarkerA>()
-            .register_marker_with_priority::<DummyMarkerB>(2)
-            .register_marker_with_priority::<DummyMarkerC>(1)
+            .register_marker_with::<DummyMarkerB>(2, false)
+            .register_marker_with::<DummyMarkerC>(1, false)
             .register_marker::<DummyMarkerD>();
 
         let markers = app.world.resource::<CommandMarkers>();

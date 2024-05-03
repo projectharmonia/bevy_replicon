@@ -1,9 +1,6 @@
 use std::io::Cursor;
 
-use bevy::{
-    ecs::system::{CommandQueue, SystemState},
-    prelude::*,
-};
+use bevy::{ecs::system::CommandQueue, prelude::*};
 
 use super::{
     ctx::{DeleteCtx, WriteCtx},
@@ -12,7 +9,7 @@ use super::{
 use crate::{
     client::server_entity_map::ServerEntityMap,
     core::{
-        command_markers::CommandMarkers,
+        command_markers::{CommandMarkers, EntityMarkers},
         replication_fns::{ctx::SerializeCtx, ReplicationFns},
     },
     server::replicon_tick::RepliconTick,
@@ -122,39 +119,39 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
         fns_info: FnsInfo,
         message_tick: RepliconTick,
     ) -> &mut Self {
+        let mut entity_markers = self.world_scope(EntityMarkers::from_world);
+        let command_markers = self.world().resource::<CommandMarkers>();
+        entity_markers.read(command_markers, &*self);
+
         let entity = self.id();
         self.world_scope(|world| {
             world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
-                world.resource_scope(|world, command_markers: Mut<CommandMarkers>| {
-                    world.resource_scope(|world, replication_fns: Mut<ReplicationFns>| {
-                        let mut state = SystemState::<(Commands, Query<EntityMut>)>::new(world);
-                        let (mut commands, mut query) = state.get_mut(world);
-                        let mut entity = query.get_mut(entity).unwrap();
-                        let entity_markers: Vec<_> =
-                            command_markers.iter_contains(&entity).collect();
+                world.resource_scope(|world, replication_fns: Mut<ReplicationFns>| {
+                    let world_cell = world.as_unsafe_world_cell();
+                    // SAFETY: access is unique and used to obtain `EntityMut`, which is just a wrapper over `UnsafeEntityCell`.
+                    let mut entity: EntityMut =
+                        unsafe { world_cell.world_mut().entity_mut(entity).into() };
+                    let mut queue = CommandQueue::default();
+                    let mut commands =
+                        Commands::new_from_entities(&mut queue, world_cell.entities());
 
-                        let (component_fns, rule_fns) = replication_fns.get(fns_info.fns_id());
-                        let mut cursor = Cursor::new(data);
-                        let mut ctx = WriteCtx {
-                            commands: &mut commands,
-                            entity_map: &mut entity_map,
-                            message_tick,
-                        };
+                    let (component_fns, rule_fns) = replication_fns.get(fns_info.fns_id());
+                    let mut cursor = Cursor::new(data);
+                    let mut ctx = WriteCtx::new(&mut commands, &mut entity_map, message_tick);
 
-                        unsafe {
-                            component_fns
-                                .write(
-                                    &mut ctx,
-                                    rule_fns,
-                                    &entity_markers,
-                                    &mut entity,
-                                    &mut cursor,
-                                )
-                                .expect("writing data into an entity shouldn't fail");
-                        }
+                    unsafe {
+                        component_fns
+                            .write(
+                                &mut ctx,
+                                rule_fns,
+                                &entity_markers,
+                                &mut entity,
+                                &mut cursor,
+                            )
+                            .expect("writing data into an entity shouldn't fail");
+                    }
 
-                        state.apply(world);
-                    })
+                    queue.apply(world);
                 })
             })
         });
@@ -163,12 +160,13 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
     }
 
     fn apply_remove(&mut self, fns_info: FnsInfo, message_tick: RepliconTick) -> &mut Self {
+        let mut entity_markers = self.world_scope(EntityMarkers::from_world);
+        let command_markers = self.world().resource::<CommandMarkers>();
+        entity_markers.read(command_markers, &*self);
+
         let mut queue = CommandQueue::default();
         let mut commands = Commands::new(&mut queue, self.world());
         let entity = commands.entity(self.id());
-
-        let command_markers = self.world().resource::<CommandMarkers>();
-        let entity_markers: Vec<_> = command_markers.iter_contains(&*self).collect();
 
         let replication_fns = self.world().resource::<ReplicationFns>();
         let (component_fns, _) = replication_fns.get(fns_info.fns_id());
