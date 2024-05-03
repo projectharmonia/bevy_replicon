@@ -88,6 +88,7 @@ impl<C: Component> RuleFns<C> {
     /// Replaces default [`in_place_as_deserialize`] with a custom function.
     ///
     /// This function will be called when a component is already present on an entity.
+    /// For insertion [`Self::deserialize`] will be called instead.
     pub fn with_in_place(mut self, deserialize_in_place: DeserializeInPlaceFn<C>) -> Self {
         self.deserialize_in_place = deserialize_in_place;
         self

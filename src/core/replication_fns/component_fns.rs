@@ -182,6 +182,7 @@ type UntypedWriteFn = unsafe fn(
     &mut Cursor<&[u8]>,
 ) -> bincode::Result<()>;
 
+/// Signature of component consuming functions that restore the original type.
 type UntypedConsumeFn =
     unsafe fn(&mut WriteCtx, &UntypedRuleFns, &mut Cursor<&[u8]>) -> bincode::Result<()>;
 
