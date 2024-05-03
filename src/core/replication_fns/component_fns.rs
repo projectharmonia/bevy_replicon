@@ -92,7 +92,6 @@ impl ComponentFns {
 
     /// Calls the assigned writing function based on entity markers.
     ///
-    /// Entity markers store information about which markers are present on an entity.
     /// The first-found write function whose marker is present on the entity will be selected
     /// (the functions are sorted by priority).
     /// If there is no such function, it will use the default function.
@@ -100,10 +99,6 @@ impl ComponentFns {
     /// # Safety
     ///
     /// The caller must ensure that `rule_fns` was created for the same type as this instance.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `debug_assertions` is enabled and `entity_markers` has a different length than the number of marker slots.
     pub(crate) unsafe fn write(
         &self,
         ctx: &mut WriteCtx,
@@ -123,6 +118,14 @@ impl ComponentFns {
         (self.write)(ctx, &command_fns, rule_fns, entity, cursor)
     }
 
+    /// Calls the assigned writing or consuming function based on entity markers.
+    ///
+    /// Selects first-found write function like [`Self::write`], but if its marker doesn't require history,
+    /// consume function will be used instead.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `rule_fns` was created for the same type as this instance.
     pub(crate) unsafe fn consume_or_write(
         &self,
         ctx: &mut WriteCtx,
@@ -212,6 +215,11 @@ unsafe fn untyped_write<C: Component>(
     command_fns.write::<C>(ctx, &rule_fns.typed::<C>(), entity, cursor)
 }
 
+/// Resolves `rule_fns` to `C` and calls [`RuleFns::consume`](super::rule_fns::RuleFns) for `C`.
+///
+/// # Safety
+///
+/// The caller must ensure that `rule_fns` was created for `C`.
 unsafe fn untyped_consume<C: Component>(
     ctx: &mut WriteCtx,
     rule_fns: &UntypedRuleFns,

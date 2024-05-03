@@ -236,6 +236,7 @@ pub struct MarkerConfig {
     pub need_history: bool,
 }
 
+/// Stores which markers are present on an entity.
 pub(crate) struct EntityMarkers {
     markers: Vec<bool>,
     need_history: bool,
@@ -260,10 +261,14 @@ impl EntityMarkers {
         }
     }
 
+    /// Returns a slice of which markers are present on an entity.
+    ///
+    /// Indices corresponds markers in to [`CommandMarkers`].
     pub(super) fn markers(&self) -> &[bool] {
         &self.markers
     }
 
+    /// Returns `true` if an entity have at least one marker that needs history.
     pub(crate) fn need_history(&self) -> bool {
         self.need_history
     }

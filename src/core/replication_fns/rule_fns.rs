@@ -75,7 +75,7 @@ pub struct RuleFns<C> {
 impl<C: Component> RuleFns<C> {
     /// Creates a new instance.
     ///
-    /// You can also provide a custom behavior for deserialization in place, see [`Self::with_in_place`].
+    /// See also [`Self::with_in_place`] and [`Self::with_consume`].
     pub fn new(serialize: SerializeFn<C>, deserialize: DeserializeFn<C>) -> Self {
         Self {
             serialize,
@@ -86,19 +86,30 @@ impl<C: Component> RuleFns<C> {
     }
 
     /// Replaces default [`in_place_as_deserialize`] with a custom function.
+    ///
+    /// This function will be called when a component is already present on an entity.
     pub fn with_in_place(mut self, deserialize_in_place: DeserializeInPlaceFn<C>) -> Self {
         self.deserialize_in_place = deserialize_in_place;
         self
     }
 
     /// Replaces default [`consume_as_deserialize`] with a custom function.
+    ///
+    /// This function will be called if an entity have at least one marker
+    /// that requires history for components that don't belong to that markers.
+    ///
+    /// If no markers require history, old entity updates will be skipped entirely
+    /// by just advancing the cursor (without calling any consume functions).
+    ///
+    /// See [`MarkerConfig::need_history`](crate::core::command_markers::MarkerConfig::need_history)
+    /// for details.
     pub fn with_consume(mut self, consume: ConsumeFn<C>) -> Self {
         self.consume = consume;
         self
     }
 
     /// Serializes a component into a cursor.
-    pub fn serialize(
+    pub(super) fn serialize(
         &self,
         ctx: &SerializeCtx,
         component: &C,
@@ -130,7 +141,12 @@ impl<C: Component> RuleFns<C> {
         (self.deserialize_in_place)(self.deserialize, ctx, component, cursor)
     }
 
-    pub fn consume(&self, ctx: &mut WriteCtx, cursor: &mut Cursor<&[u8]>) -> bincode::Result<()> {
+    /// Consumes a component from a cursor.
+    pub(super) fn consume(
+        &self,
+        ctx: &mut WriteCtx,
+        cursor: &mut Cursor<&[u8]>,
+    ) -> bincode::Result<()> {
         (self.consume)(self.deserialize, ctx, cursor)
     }
 }
@@ -164,10 +180,11 @@ pub type SerializeFn<C> = fn(&SerializeCtx, &C, &mut Cursor<Vec<u8>>) -> bincode
 /// Signature of component deserialization functions.
 pub type DeserializeFn<C> = fn(&mut WriteCtx, &mut Cursor<&[u8]>) -> bincode::Result<C>;
 
-/// Signature of in-place component deserialization functions.
+/// Signature of component in-place deserialization functions.
 pub type DeserializeInPlaceFn<C> =
     fn(DeserializeFn<C>, &mut WriteCtx, &mut C, &mut Cursor<&[u8]>) -> bincode::Result<()>;
 
+/// Signature of component consume functions.
 pub type ConsumeFn<C> =
     fn(DeserializeFn<C>, &mut WriteCtx, &mut Cursor<&[u8]>) -> bincode::Result<()>;
 
@@ -211,6 +228,9 @@ pub fn in_place_as_deserialize<C: Component>(
     Ok(())
 }
 
+/// Default component consume function.
+///
+/// This implementation just calls deserialization function and ignores its result.
 pub fn consume_as_deserialize<C: Component>(
     deserialize: DeserializeFn<C>,
     ctx: &mut WriteCtx,

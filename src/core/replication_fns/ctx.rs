@@ -23,6 +23,7 @@ pub struct WriteCtx<'a, 'w, 's> {
     /// Tick for the currently processing message.
     pub message_tick: RepliconTick,
 
+    /// Disables mapping logic to avoid spawning entities for consume functions.
     pub(super) ignore_mapping: bool,
 }
 
