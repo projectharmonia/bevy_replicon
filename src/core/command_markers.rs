@@ -20,17 +20,12 @@ pub trait AppMarkerExt {
     /// based on marker-component presence.
     /// For details see [`Self::set_marker_fns`].
     ///
-    /// This function registers markers with priority equal to 0.
-    /// Use [`Self::register_marker_with`] if you have multiple
-    /// markers affecting the same component.
+    /// This function registers markers with default [`MarkerConfig`].
+    /// See also [`Self::register_marker_with`].
     fn register_marker<M: Component>(&mut self) -> &mut Self;
 
-    /// Same as [`Self::register_marker`], but allows setting a priority.
-    fn register_marker_with<M: Component>(
-        &mut self,
-        priority: usize,
-        need_history: bool,
-    ) -> &mut Self;
+    /// Same as [`Self::register_marker`], but also accepts marker configuration.
+    fn register_marker_with<M: Component>(&mut self, config: MarkerConfig) -> &mut Self;
 
     /**
     Associates command functions with a marker for a component.
@@ -127,20 +122,15 @@ pub trait AppMarkerExt {
 
 impl AppMarkerExt for App {
     fn register_marker<M: Component>(&mut self) -> &mut Self {
-        self.register_marker_with::<M>(0, false)
+        self.register_marker_with::<M>(MarkerConfig::default())
     }
 
-    fn register_marker_with<M: Component>(
-        &mut self,
-        priority: usize,
-        need_history: bool,
-    ) -> &mut Self {
+    fn register_marker_with<M: Component>(&mut self, config: MarkerConfig) -> &mut Self {
         let component_id = self.world.init_component::<M>();
         let mut command_markers = self.world.resource_mut::<CommandMarkers>();
         let marker_id = command_markers.insert(CommandMarker {
             component_id,
-            priority,
-            need_history,
+            config,
         });
 
         let mut replicaton_fns = self.world.resource_mut::<ReplicationFns>();
@@ -186,9 +176,10 @@ impl CommandMarkers {
     ///
     /// Use [`ReplicationFns::register_marker`] to register a slot for command functions for this marker.
     fn insert(&mut self, marker: CommandMarker) -> CommandMarkerIndex {
+        let key = Reverse(marker.config.priority);
         let index = self
             .0
-            .binary_search_by_key(&Reverse(marker.priority), |marker| Reverse(marker.priority))
+            .binary_search_by_key(&key, |marker| Reverse(marker.config.priority))
             .unwrap_or_else(|index| index);
 
         self.0.insert(index, marker);
@@ -208,7 +199,7 @@ impl CommandMarkers {
     }
 
     pub(super) fn iter_require_history(&self) -> impl Iterator<Item = bool> + '_ {
-        self.0.iter().map(|marker| marker.need_history)
+        self.0.iter().map(|marker| marker.config.need_history)
     }
 }
 
@@ -219,12 +210,30 @@ struct CommandMarker {
     /// Marker ID.
     component_id: ComponentId,
 
+    /// User-registered configuration.
+    config: MarkerConfig,
+}
+
+/// Parameters for a marker.
+#[derive(Default)]
+pub struct MarkerConfig {
     /// Priority of this marker.
     ///
-    /// Will affect the order in [`CommandMarkers::insert`].
-    priority: usize,
+    /// All tokens are sorted by priority, and if there are multiple matching
+    /// markers, the marker with the highest priority will be used.
+    ///
+    /// By default set to `0`.
+    pub priority: usize,
 
-    need_history: bool,
+    /// Represents whether a marker need to process old updates.
+    ///
+    /// Since updates use [`ChannelKind::Unreliable`](crate::core::replicon_channels::ChannelKind),
+    /// client may receive an older update for an entity. By default these updates are discarded,
+    /// but some markers, may need them. If this field is set to `true`, old component updates will
+    /// be passed to writing function for this marker.
+    ///
+    /// By default set to `false`.
+    pub need_history: bool,
 }
 
 pub(crate) struct EntityMarkers {
@@ -245,7 +254,7 @@ impl EntityMarkers {
         for marker in &markers.0 {
             let contains = entity.contains_id(marker.component_id);
             self.markers.push(contains);
-            if contains && marker.need_history {
+            if contains && marker.config.need_history {
                 self.need_history = true;
             }
         }
@@ -301,12 +310,22 @@ mod tests {
         app.init_resource::<CommandMarkers>()
             .init_resource::<ReplicationFns>()
             .register_marker::<DummyMarkerA>()
-            .register_marker_with::<DummyMarkerB>(2, false)
-            .register_marker_with::<DummyMarkerC>(1, false)
+            .register_marker_with::<DummyMarkerB>(MarkerConfig {
+                priority: 1,
+                ..Default::default()
+            })
+            .register_marker_with::<DummyMarkerC>(MarkerConfig {
+                priority: 1,
+                ..Default::default()
+            })
             .register_marker::<DummyMarkerD>();
 
         let markers = app.world.resource::<CommandMarkers>();
-        let priorities: Vec<_> = markers.0.iter().map(|marker| marker.priority).collect();
+        let priorities: Vec<_> = markers
+            .0
+            .iter()
+            .map(|marker| marker.config.priority)
+            .collect();
         assert_eq!(priorities, [2, 1, 0, 0]);
     }
 

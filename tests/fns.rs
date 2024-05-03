@@ -2,12 +2,15 @@ use std::io::Cursor;
 
 use bevy::prelude::*;
 use bevy_replicon::{
-    core::replication_fns::{
-        command_fns,
-        ctx::{DeleteCtx, WriteCtx},
-        rule_fns::RuleFns,
-        test_fns::TestFnsEntityExt,
-        ReplicationFns,
+    core::{
+        command_markers::MarkerConfig,
+        replication_fns::{
+            command_fns,
+            ctx::{DeleteCtx, WriteCtx},
+            rule_fns::RuleFns,
+            test_fns::TestFnsEntityExt,
+            ReplicationFns,
+        },
     },
     prelude::*,
     server::replicon_tick::RepliconTick,
@@ -263,7 +266,10 @@ fn remove_with_mutltiple_markers() {
 fn write_with_priority_marker() {
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, RepliconPlugins))
-        .register_marker_with::<ReplaceMarker>(1, false)
+        .register_marker_with::<ReplaceMarker>(MarkerConfig {
+            priority: 1,
+            ..Default::default()
+        })
         .register_marker::<DummyMarker>()
         .set_marker_fns::<ReplaceMarker, _>(
             replace,
@@ -293,7 +299,10 @@ fn write_with_priority_marker() {
 fn remove_with_priority_marker() {
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, RepliconPlugins))
-        .register_marker_with::<ReplaceMarker>(1, false)
+        .register_marker_with::<ReplaceMarker>(MarkerConfig {
+            priority: 1,
+            ..Default::default()
+        })
         .register_marker::<DummyMarker>()
         .set_marker_fns::<ReplaceMarker, _>(
             replace,
