@@ -21,7 +21,7 @@ pub trait AppMarkerExt {
     /// For details see [`Self::set_marker_fns`].
     ///
     /// This function registers markers with priority equal to 0.
-    /// Use [`Self::register_marker_with_priority`] if you have multiple
+    /// Use [`Self::register_marker_with`] if you have multiple
     /// markers affecting the same component.
     fn register_marker<M: Component>(&mut self) -> &mut Self;
 
