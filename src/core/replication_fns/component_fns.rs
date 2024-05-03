@@ -137,8 +137,9 @@ impl ComponentFns {
             .iter()
             .zip(entity_markers.markers())
             .zip(command_markers.iter_require_history())
-            .filter(|&((_, &contains), need_history)| contains && need_history)
-            .find_map(|((&fns, _), _)| fns)
+            .filter(|((_, &contains), _)| contains)
+            .find_map(|((&fns, _), need_history)| fns.map(|fns| (fns, need_history)))
+            .and_then(|(fns, need_history)| need_history.then_some(fns))
         {
             (self.write)(ctx, &command_fns, rule_fns, entity, cursor)
         } else {
