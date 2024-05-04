@@ -39,32 +39,36 @@ pub trait AppMarkerExt {
     # Examples
 
     In this example we write all received updates for [`Transform`] into user's
-    `History<Transform>` if `ComponentsHistory` marker is present on the client entity. In this
-    scenario, you'd insert `ComponentsHistory` the first time the entity
+    `History<Transform>` if `History` marker is present on the client entity. In this
+    scenario, you'd insert `History` the first time the entity
     is replicated (e.g. by detecting a `Player` marker component using the blueprint pattern).
     Then [`Transform`] updates after that will be inserted to the history.
 
     ```
     use std::io::Cursor;
 
-    use bevy::{ecs::system::EntityCommands, prelude::*};
+    use bevy::{ecs::system::EntityCommands, prelude::*, utils::HashMap};
     use bevy_replicon::{
-        core::replication_fns::{
-            ctx::{DeleteCtx, WriteCtx},
-            rule_fns::RuleFns,
+        core::{
+            command_markers::MarkerConfig,
+            replication_fns::{
+                ctx::{DeleteCtx, WriteCtx},
+                rule_fns::RuleFns,
+            },
         },
         prelude::*,
+        server::replicon_tick::RepliconTick,
     };
 
     # let mut app = App::new();
     # app.add_plugins(RepliconPlugins);
-    app.register_marker::<ComponentsHistory>()
-        .set_marker_fns::<ComponentsHistory, Transform>(
-            write_history,
-            remove_history::<Transform>,
-        );
+    app.register_marker_with::<ComponentsHistory>(MarkerConfig {
+        need_history: true, // Enable writing for values that are older than the last received value.
+        ..Default::default()
+    })
+    .set_marker_fns::<ComponentsHistory, Transform>(write_history, remove_history::<Transform>);
 
-    /// Instead of writing into a component directly, it writes data into [`ComponentHistory<C>`].
+    /// Instead of writing into a component directly, it writes data into [`History<C>`].
     fn write_history<C: Component>(
         ctx: &mut WriteCtx,
         rule_fns: &RuleFns<C>,
@@ -73,21 +77,18 @@ pub trait AppMarkerExt {
     ) -> bincode::Result<()> {
         let component: C = rule_fns.deserialize(ctx, cursor)?;
         if let Some(mut history) = entity.get_mut::<History<C>>() {
-            history.push(component);
+            history.insert(ctx.message_tick, component);
         } else {
             ctx.commands
                 .entity(entity.id())
-                .insert(History(vec![component]));
+                .insert(History([(ctx.message_tick, component)].into()));
         }
 
         Ok(())
     }
 
     /// Removes component `C` and its history.
-    fn remove_history<C: Component>(
-        _ctx: &DeleteCtx,
-        mut entity_commands: EntityCommands,
-    ) {
+    fn remove_history<C: Component>(_ctx: &DeleteCtx, mut entity_commands: EntityCommands) {
         entity_commands.remove::<History<C>>().remove::<C>();
     }
 
@@ -101,7 +102,7 @@ pub trait AppMarkerExt {
     ///
     /// Present only on client.
     #[derive(Component, Deref, DerefMut)]
-    struct History<C>(Vec<C>);
+    struct History<C>(HashMap<RepliconTick, C>);
     ```
     **/
     fn set_marker_fns<M: Component, C: Component>(
