@@ -150,44 +150,25 @@ fn apply_replication(
     params: &mut ReceiveParams,
     client: &mut RepliconClient,
     buffered_updates: &mut BufferedUpdates,
-) -> Result<(), Box<bincode::ErrorKind>> {
+) -> bincode::Result<()> {
     for message in client.receive(ReplicationChannel::Init) {
         apply_init_message(world, params, &message)?;
     }
 
+    // Unlike init messages, we read all updates first, sort them by tick
+    // in descending order to ensure that the last update will be applied first.
+    // Since update messages manually split by packet size, we apply all messages,
+    // but skip outdated data per-entity by checking last received tick for it.
     let init_tick = *world.resource::<ServerInitTick>();
     let acks_size = mem::size_of::<u16>() * client.received_count(ReplicationChannel::Update);
     let mut acks = Vec::with_capacity(acks_size);
     for message in client.receive(ReplicationChannel::Update) {
-        let index = apply_update_message(world, params, buffered_updates, message, init_tick)?;
-        bincode::serialize_into(&mut acks, &index)?;
+        let update_index = read_update_message(params, buffered_updates, message)?;
+        bincode::serialize_into(&mut acks, &update_index)?;
     }
     client.send(ReplicationChannel::Init, acks);
 
-    let mut result = Ok(());
-    buffered_updates.0.retain(|update| {
-        if update.change_tick > *init_tick {
-            return true;
-        }
-
-        trace!(
-            "applying buffered update message for {:?}",
-            update.message_tick
-        );
-        if let Err(e) = apply_update_components(
-            world,
-            params,
-            &mut Cursor::new(&*update.message),
-            update.message_tick,
-        ) {
-            result = Err(e);
-        }
-
-        false
-    });
-    result?;
-
-    Ok(())
+    apply_update_messages(world, params, buffered_updates, init_tick)
 }
 
 /// Applies [`InitMessage`](crate::server::replication_messages::InitMessage).
@@ -240,18 +221,13 @@ fn apply_init_message(
     Ok(())
 }
 
-/// Applies [`UpdateMessage`](crate::server::replication_messages::UpdateMessage).
-///
-/// If the update message can't be applied yet (because the init message with the
-/// corresponding tick hasn't arrived), it will be buffered.
+/// Reads and buffers [`UpdateMessage`](crate::server::replication_messages::UpdateMessage).
 ///
 /// Returns update index to be used for acknowledgment.
-fn apply_update_message(
-    world: &mut World,
+fn read_update_message(
     params: &mut ReceiveParams,
     buffered_updates: &mut BufferedUpdates,
     message: Bytes,
-    init_tick: ServerInitTick,
 ) -> bincode::Result<u16> {
     let end_pos: u64 = message.len().try_into().unwrap();
     let mut cursor = Cursor::new(&*message);
@@ -261,20 +237,46 @@ fn apply_update_message(
     }
 
     let (change_tick, message_tick, update_index) = bincode::deserialize_from(&mut cursor)?;
-    if change_tick > *init_tick {
-        trace!("buffering update message for {message_tick:?}");
-        buffered_updates.0.push(BufferedUpdate {
-            change_tick,
-            message_tick,
-            message: message.slice(cursor.position() as usize..),
-        });
-        return Ok(update_index);
-    }
-
-    trace!("applying update message for {message_tick:?}");
-    apply_update_components(world, params, &mut cursor, message_tick)?;
+    trace!("received update message for {message_tick:?}");
+    buffered_updates.insert(BufferedUpdate {
+        change_tick,
+        message_tick,
+        message: message.slice(cursor.position() as usize..),
+    });
 
     Ok(update_index)
+}
+
+/// Applies updates from [`BufferedUpdates`].
+///
+/// If the update message can't be applied yet (because the init message with the
+/// corresponding tick hasn't arrived), it will be kept in the buffer.
+fn apply_update_messages(
+    world: &mut World,
+    params: &mut ReceiveParams,
+    buffered_updates: &mut BufferedUpdates,
+    init_tick: ServerInitTick,
+) -> bincode::Result<()> {
+    let mut result = Ok(());
+    buffered_updates.0.retain(|update| {
+        if update.change_tick > *init_tick {
+            return true;
+        }
+
+        trace!("applying update message for {:?}", update.message_tick);
+        if let Err(e) = apply_update_components(
+            world,
+            params,
+            &mut Cursor::new(&*update.message),
+            update.message_tick,
+        ) {
+            result = Err(e);
+        }
+
+        false
+    });
+
+    result
 }
 
 /// Applies received server mappings from client's pre-spawned entities.
@@ -598,6 +600,14 @@ pub struct BufferedUpdates(Vec<BufferedUpdate>);
 impl BufferedUpdates {
     pub fn clear(&mut self) {
         self.0.clear();
+    }
+
+    /// Inserts a new update, maintaining sorting by their message tick in descending order.
+    fn insert(&mut self, update: BufferedUpdate) {
+        let index = self
+            .0
+            .partition_point(|other_update| update.message_tick < other_update.message_tick);
+        self.0.insert(index, update);
     }
 }
 
