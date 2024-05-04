@@ -453,36 +453,37 @@ fn old_ignored() {
     server_app.exchange_with_client(&mut client_app);
 
     // Change the value, but don't process it on client.
+    let update_entity1 = server_app.world.spawn_empty().id();
     let mut component = server_app
         .world
         .get_mut::<MappedComponent>(server_entity)
         .unwrap();
-    component.0 = Entity::PLACEHOLDER;
+    component.0 = update_entity1;
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
 
     // Change the value again to generate another update.
+    let update_entity2 = server_app.world.spawn_empty().id();
     let mut component = server_app
         .world
         .get_mut::<MappedComponent>(server_entity)
         .unwrap();
-    component.0 = server_entity;
+    component.0 = update_entity2;
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let component = client_app
-        .world
-        .query::<&MappedComponent>()
-        .single(&client_app.world);
-
-    assert_ne!(component.0, Entity::PLACEHOLDER);
+    let entity_map = client_app.world.resource::<ServerEntityMap>();
+    assert!(
+        !entity_map.to_client().contains_key(&update_entity1),
+        "client should ignore older update"
+    );
     assert_eq!(
         client_app.world.entities().len(),
-        2,
-        "only two entities should be spawned because old update should be ignored"
+        3,
+        "client should have 2 initial entities and 1 from update"
     );
 }
 
