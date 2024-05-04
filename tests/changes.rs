@@ -1,6 +1,6 @@
 use std::io::Cursor;
 
-use bevy::{prelude::*, utils::Duration};
+use bevy::{ecs::entity::MapEntities, prelude::*, utils::Duration};
 use bevy_replicon::{
     client::{server_entity_map::ServerEntityMap, ServerInitTick},
     core::replication_fns::{command_fns, ctx::WriteCtx, rule_fns::RuleFns},
@@ -425,6 +425,68 @@ fn buffering() {
 }
 
 #[test]
+fn old_ignored() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate_mapped::<MappedComponent>();
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    let server_map_entity = server_app.world.spawn_empty().id();
+    let server_entity = server_app
+        .world
+        .spawn((Replicated, MappedComponent(server_map_entity)))
+        .id();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    // Change the value, but don't process it on client.
+    let mut component = server_app
+        .world
+        .get_mut::<MappedComponent>(server_entity)
+        .unwrap();
+    component.0 = Entity::PLACEHOLDER;
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    // Change the value again to generate another update.
+    let mut component = server_app
+        .world
+        .get_mut::<MappedComponent>(server_entity)
+        .unwrap();
+    component.0 = server_entity;
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    let component = client_app
+        .world
+        .query::<&MappedComponent>()
+        .single(&client_app.world);
+
+    assert_ne!(component.0, Entity::PLACEHOLDER);
+    assert_eq!(
+        client_app.world.entities().len(),
+        2,
+        "only two entities should be spawned because old update should be ignored"
+    );
+}
+
+#[test]
 fn acknowledgment() {
     let mut server_app = App::new();
     let mut client_app = App::new();
@@ -513,6 +575,15 @@ struct BoolComponent(bool);
 
 #[derive(Component, Default, Deserialize, Serialize)]
 struct VecComponent(Vec<u8>);
+
+#[derive(Component, Deserialize, Serialize)]
+struct MappedComponent(Entity);
+
+impl MapEntities for MappedComponent {
+    fn map_entities<M: EntityMapper>(&mut self, entity_mapper: &mut M) {
+        self.0 = entity_mapper.map_entity(self.0);
+    }
+}
 
 #[derive(Component)]
 struct ReplaceMarker;
