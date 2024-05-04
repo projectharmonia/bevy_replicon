@@ -158,7 +158,8 @@ fn apply_replication(
     // Unlike init messages, we read all updates first, sort them by tick
     // in descending order to ensure that the last update will be applied first.
     // Since update messages manually split by packet size, we apply all messages,
-    // but skip outdated data per-entity by checking last received tick for it.
+    // but skip outdated data per-entity by checking last received tick for it
+    // (unless user requested history via marker).
     let init_tick = *world.resource::<ServerInitTick>();
     let acks_size = mem::size_of::<u16>() * client.received_count(ReplicationChannel::Update);
     let mut acks = Vec::with_capacity(acks_size);
