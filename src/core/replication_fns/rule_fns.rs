@@ -94,9 +94,9 @@ impl<C: Component> RuleFns<C> {
         self
     }
 
-    /// Replaces default [`consume_as_deserialize`] with a custom function.
+    /// Replaces the default [`consume_as_deserialize`] with a custom function.
     ///
-    /// This function will be called if an entity have at least one marker
+    /// This function will be called if an entity has at least one marker
     /// that requires history for components that don't belong to that markers.
     ///
     /// If no markers require history, old entity updates will be skipped entirely

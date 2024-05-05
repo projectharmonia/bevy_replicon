@@ -120,8 +120,8 @@ impl ComponentFns {
 
     /// Calls the assigned writing or consuming function based on entity markers.
     ///
-    /// Selects first-found write function like [`Self::write`], but if its marker doesn't require history,
-    /// consume function will be used instead.
+    /// Selects the first-found write function like [`Self::write`], but if its marker doesn't require history,
+    /// the consume function will be used instead.
     ///
     /// # Safety
     ///
@@ -182,7 +182,7 @@ type UntypedWriteFn = unsafe fn(
     &mut Cursor<&[u8]>,
 ) -> bincode::Result<()>;
 
-/// Signature of component consuming functions that restore the original type.
+/// Signature of component consuming functions that restores the original type.
 type UntypedConsumeFn =
     unsafe fn(&mut WriteCtx, &UntypedRuleFns, &mut Cursor<&[u8]>) -> bincode::Result<()>;
 

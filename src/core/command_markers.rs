@@ -226,12 +226,12 @@ pub struct MarkerConfig {
     /// By default set to `0`.
     pub priority: usize,
 
-    /// Represents whether a marker need to process old updates.
+    /// Represents whether a marker needs to process old updates.
     ///
     /// Since updates use [`ChannelKind::Unreliable`](crate::core::replicon_channels::ChannelKind),
-    /// client may receive an older update for an entity. By default these updates are discarded,
-    /// but some markers, may need them. If this field is set to `true`, old component updates will
-    /// be passed to writing function for this marker.
+    /// a client may receive an older update for an entity. By default these updates are discarded,
+    /// but some markers may need them. If this field is set to `true`, old component updates will
+    /// be passed to the writing function for this marker.
     ///
     /// By default set to `false`.
     pub need_history: bool,
@@ -269,7 +269,7 @@ impl EntityMarkers {
         &self.markers
     }
 
-    /// Returns `true` if an entity have at least one marker that needs history.
+    /// Returns `true` if an entity has at least one marker that needs history.
     pub(crate) fn need_history(&self) -> bool {
         self.need_history
     }
