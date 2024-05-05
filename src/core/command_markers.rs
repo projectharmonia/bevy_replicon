@@ -20,13 +20,12 @@ pub trait AppMarkerExt {
     /// based on marker-component presence.
     /// For details see [`Self::set_marker_fns`].
     ///
-    /// This function registers markers with priority equal to 0.
-    /// Use [`Self::register_marker_with_priority`] if you have multiple
-    /// markers affecting the same component.
+    /// This function registers markers with default [`MarkerConfig`].
+    /// See also [`Self::register_marker_with`].
     fn register_marker<M: Component>(&mut self) -> &mut Self;
 
-    /// Same as [`Self::register_marker`], but allows setting a priority.
-    fn register_marker_with_priority<M: Component>(&mut self, priority: usize) -> &mut Self;
+    /// Same as [`Self::register_marker`], but also accepts marker configuration.
+    fn register_marker_with<M: Component>(&mut self, config: MarkerConfig) -> &mut Self;
 
     /**
     Associates command functions with a marker for a component.
@@ -40,32 +39,36 @@ pub trait AppMarkerExt {
     # Examples
 
     In this example we write all received updates for [`Transform`] into user's
-    `History<Transform>` if `ComponentsHistory` marker is present on the client entity. In this
-    scenario, you'd insert `ComponentsHistory` the first time the entity
+    `History<Transform>` if `History` marker is present on the client entity. In this
+    scenario, you'd insert `History` the first time the entity
     is replicated (e.g. by detecting a `Player` marker component using the blueprint pattern).
     Then [`Transform`] updates after that will be inserted to the history.
 
     ```
     use std::io::Cursor;
 
-    use bevy::{ecs::system::EntityCommands, prelude::*};
+    use bevy::{ecs::system::EntityCommands, prelude::*, utils::HashMap};
     use bevy_replicon::{
-        core::replication_fns::{
-            ctx::{DeleteCtx, WriteCtx},
-            rule_fns::RuleFns,
+        core::{
+            command_markers::MarkerConfig,
+            replication_fns::{
+                ctx::{DeleteCtx, WriteCtx},
+                rule_fns::RuleFns,
+            },
         },
         prelude::*,
+        server::replicon_tick::RepliconTick,
     };
 
     # let mut app = App::new();
     # app.add_plugins(RepliconPlugins);
-    app.register_marker::<ComponentsHistory>()
-        .set_marker_fns::<ComponentsHistory, Transform>(
-            write_history,
-            remove_history::<Transform>,
-        );
+    app.register_marker_with::<ComponentsHistory>(MarkerConfig {
+        need_history: true, // Enable writing for values that are older than the last received value.
+        ..Default::default()
+    })
+    .set_marker_fns::<ComponentsHistory, Transform>(write_history, remove_history::<Transform>);
 
-    /// Instead of writing into a component directly, it writes data into [`ComponentHistory<C>`].
+    /// Instead of writing into a component directly, it writes data into [`History<C>`].
     fn write_history<C: Component>(
         ctx: &mut WriteCtx,
         rule_fns: &RuleFns<C>,
@@ -74,21 +77,18 @@ pub trait AppMarkerExt {
     ) -> bincode::Result<()> {
         let component: C = rule_fns.deserialize(ctx, cursor)?;
         if let Some(mut history) = entity.get_mut::<History<C>>() {
-            history.push(component);
+            history.insert(ctx.message_tick, component);
         } else {
             ctx.commands
                 .entity(entity.id())
-                .insert(History(vec![component]));
+                .insert(History([(ctx.message_tick, component)].into()));
         }
 
         Ok(())
     }
 
     /// Removes component `C` and its history.
-    fn remove_history<C: Component>(
-        _ctx: &DeleteCtx,
-        mut entity_commands: EntityCommands,
-    ) {
+    fn remove_history<C: Component>(_ctx: &DeleteCtx, mut entity_commands: EntityCommands) {
         entity_commands.remove::<History<C>>().remove::<C>();
     }
 
@@ -102,7 +102,7 @@ pub trait AppMarkerExt {
     ///
     /// Present only on client.
     #[derive(Component, Deref, DerefMut)]
-    struct History<C>(Vec<C>);
+    struct History<C>(HashMap<RepliconTick, C>);
     ```
     **/
     fn set_marker_fns<M: Component, C: Component>(
@@ -123,15 +123,15 @@ pub trait AppMarkerExt {
 
 impl AppMarkerExt for App {
     fn register_marker<M: Component>(&mut self) -> &mut Self {
-        self.register_marker_with_priority::<M>(0)
+        self.register_marker_with::<M>(MarkerConfig::default())
     }
 
-    fn register_marker_with_priority<M: Component>(&mut self, priority: usize) -> &mut Self {
+    fn register_marker_with<M: Component>(&mut self, config: MarkerConfig) -> &mut Self {
         let component_id = self.world.init_component::<M>();
         let mut command_markers = self.world.resource_mut::<CommandMarkers>();
         let marker_id = command_markers.insert(CommandMarker {
             component_id,
-            priority,
+            config,
         });
 
         let mut replicaton_fns = self.world.resource_mut::<ReplicationFns>();
@@ -177,9 +177,10 @@ impl CommandMarkers {
     ///
     /// Use [`ReplicationFns::register_marker`] to register a slot for command functions for this marker.
     fn insert(&mut self, marker: CommandMarker) -> CommandMarkerIndex {
+        let key = Reverse(marker.config.priority);
         let index = self
             .0
-            .binary_search_by_key(&Reverse(marker.priority), |marker| Reverse(marker.priority))
+            .binary_search_by_key(&key, |marker| Reverse(marker.config.priority))
             .unwrap_or_else(|index| index);
 
         self.0.insert(index, marker);
@@ -198,15 +199,8 @@ impl CommandMarkers {
         CommandMarkerIndex(index)
     }
 
-    /// Returns an iterator over markers presence for an entity.
-    pub(crate) fn iter_contains<'a>(
-        &'a self,
-        entity: impl Into<EntityRef<'a>>,
-    ) -> impl Iterator<Item = bool> + 'a {
-        let entity = entity.into();
-        self.0
-            .iter()
-            .map(move |marker| entity.contains_id(marker.component_id))
+    pub(super) fn iter_require_history(&self) -> impl Iterator<Item = bool> + '_ {
+        self.0.iter().map(|marker| marker.config.need_history)
     }
 }
 
@@ -217,10 +211,78 @@ struct CommandMarker {
     /// Marker ID.
     component_id: ComponentId,
 
+    /// User-registered configuration.
+    config: MarkerConfig,
+}
+
+/// Parameters for a marker.
+#[derive(Default)]
+pub struct MarkerConfig {
     /// Priority of this marker.
     ///
-    /// Will affect the order in [`CommandMarkers::insert`].
-    priority: usize,
+    /// All tokens are sorted by priority, and if there are multiple matching
+    /// markers, the marker with the highest priority will be used.
+    ///
+    /// By default set to `0`.
+    pub priority: usize,
+
+    /// Represents whether a marker needs to process old updates.
+    ///
+    /// Since updates use [`ChannelKind::Unreliable`](crate::core::replicon_channels::ChannelKind),
+    /// a client may receive an older update for an entity. By default these updates are discarded,
+    /// but some markers may need them. If this field is set to `true`, old component updates will
+    /// be passed to the writing function for this marker.
+    ///
+    /// By default set to `false`.
+    pub need_history: bool,
+}
+
+/// Stores which markers are present on an entity.
+pub(crate) struct EntityMarkers {
+    markers: Vec<bool>,
+    need_history: bool,
+}
+
+impl EntityMarkers {
+    pub(crate) fn read<'a>(
+        &'a mut self,
+        markers: &CommandMarkers,
+        entity: impl Into<EntityRef<'a>>,
+    ) {
+        self.markers.clear();
+        self.need_history = false;
+
+        let entity = entity.into();
+        for marker in &markers.0 {
+            let contains = entity.contains_id(marker.component_id);
+            self.markers.push(contains);
+            if contains && marker.config.need_history {
+                self.need_history = true;
+            }
+        }
+    }
+
+    /// Returns a slice of which markers are present on an entity.
+    ///
+    /// Indices corresponds markers in to [`CommandMarkers`].
+    pub(super) fn markers(&self) -> &[bool] {
+        &self.markers
+    }
+
+    /// Returns `true` if an entity has at least one marker that needs history.
+    pub(crate) fn need_history(&self) -> bool {
+        self.need_history
+    }
+}
+
+impl FromWorld for EntityMarkers {
+    fn from_world(world: &mut World) -> Self {
+        let markers = world.resource::<CommandMarkers>();
+        Self {
+            markers: Vec::with_capacity(markers.0.len()),
+            need_history: false,
+        }
+    }
 }
 
 /// Can be obtained from [`CommandMarkers::insert`].
@@ -254,12 +316,22 @@ mod tests {
         app.init_resource::<CommandMarkers>()
             .init_resource::<ReplicationFns>()
             .register_marker::<DummyMarkerA>()
-            .register_marker_with_priority::<DummyMarkerB>(2)
-            .register_marker_with_priority::<DummyMarkerC>(1)
+            .register_marker_with::<DummyMarkerB>(MarkerConfig {
+                priority: 2,
+                ..Default::default()
+            })
+            .register_marker_with::<DummyMarkerC>(MarkerConfig {
+                priority: 1,
+                ..Default::default()
+            })
             .register_marker::<DummyMarkerD>();
 
         let markers = app.world.resource::<CommandMarkers>();
-        let priorities: Vec<_> = markers.0.iter().map(|marker| marker.priority).collect();
+        let priorities: Vec<_> = markers
+            .0
+            .iter()
+            .map(|marker| marker.config.priority)
+            .collect();
         assert_eq!(priorities, [2, 1, 0, 0]);
     }
 

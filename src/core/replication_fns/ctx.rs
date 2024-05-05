@@ -22,10 +22,32 @@ pub struct WriteCtx<'a, 'w, 's> {
 
     /// Tick for the currently processing message.
     pub message_tick: RepliconTick,
+
+    /// Disables mapping logic to avoid spawning entities for consume functions.
+    pub(super) ignore_mapping: bool,
+}
+
+impl<'a, 'w, 's> WriteCtx<'a, 'w, 's> {
+    pub(crate) fn new(
+        commands: &'a mut Commands<'w, 's>,
+        entity_map: &'a mut ServerEntityMap,
+        message_tick: RepliconTick,
+    ) -> Self {
+        Self {
+            commands,
+            entity_map,
+            message_tick,
+            ignore_mapping: false,
+        }
+    }
 }
 
 impl EntityMapper for WriteCtx<'_, '_, '_> {
     fn map_entity(&mut self, entity: Entity) -> Entity {
+        if self.ignore_mapping {
+            return entity;
+        }
+
         self.entity_map
             .get_by_server_or_insert(entity, || self.commands.spawn(Replicated).id())
     }

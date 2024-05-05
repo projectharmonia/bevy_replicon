@@ -20,6 +20,7 @@ pub(crate) struct UntypedRuleFns {
     serialize: unsafe fn(),
     deserialize: unsafe fn(),
     deserialize_in_place: unsafe fn(),
+    consume: unsafe fn(),
 }
 
 impl UntypedRuleFns {
@@ -41,6 +42,7 @@ impl UntypedRuleFns {
             serialize: unsafe { mem::transmute(self.serialize) },
             deserialize: unsafe { mem::transmute(self.deserialize) },
             deserialize_in_place: unsafe { mem::transmute(self.deserialize_in_place) },
+            consume: unsafe { mem::transmute(self.consume) },
         }
     }
 }
@@ -54,6 +56,7 @@ impl<C: Component> From<RuleFns<C>> for UntypedRuleFns {
             serialize: unsafe { mem::transmute(value.serialize) },
             deserialize: unsafe { mem::transmute(value.deserialize) },
             deserialize_in_place: unsafe { mem::transmute(value.deserialize_in_place) },
+            consume: unsafe { mem::transmute(value.consume) },
         }
     }
 }
@@ -66,28 +69,51 @@ pub struct RuleFns<C> {
     serialize: SerializeFn<C>,
     deserialize: DeserializeFn<C>,
     deserialize_in_place: DeserializeInPlaceFn<C>,
+    consume: ConsumeFn<C>,
 }
 
 impl<C: Component> RuleFns<C> {
     /// Creates a new instance.
     ///
-    /// You can also provide a custom behavior for deserialization in place, see [`Self::with_in_place`].
+    /// See also [`Self::with_in_place`] and [`Self::with_consume`].
     pub fn new(serialize: SerializeFn<C>, deserialize: DeserializeFn<C>) -> Self {
         Self {
             serialize,
             deserialize,
             deserialize_in_place: in_place_as_deserialize::<C>,
+            consume: consume_as_deserialize,
         }
     }
 
     /// Replaces default [`in_place_as_deserialize`] with a custom function.
+    ///
+    /// This function will be called when a component is already present on an entity.
+    /// For insertion [`Self::deserialize`] will be called instead.
     pub fn with_in_place(mut self, deserialize_in_place: DeserializeInPlaceFn<C>) -> Self {
         self.deserialize_in_place = deserialize_in_place;
         self
     }
 
+    /// Replaces the default [`consume_as_deserialize`] with a custom function.
+    ///
+    /// This function will be called to handle stale component updates for entities
+    /// with a marker that indicates the entity's history should be consumed instead of discarded.
+    ///
+    /// If no markers on an entity request history, then stale updates will be skipped entirely
+    /// by just advancing the cursor (without calling any consume functions).
+    ///
+    /// If you want to ignore a component, just use its expected size to advance the cursor
+    /// without deserializing (but be careful if the component is dynamically sized).
+    ///
+    /// See [`MarkerConfig::need_history`](crate::core::command_markers::MarkerConfig::need_history)
+    /// for details.
+    pub fn with_consume(mut self, consume: ConsumeFn<C>) -> Self {
+        self.consume = consume;
+        self
+    }
+
     /// Serializes a component into a cursor.
-    pub fn serialize(
+    pub(super) fn serialize(
         &self,
         ctx: &SerializeCtx,
         component: &C,
@@ -117,6 +143,15 @@ impl<C: Component> RuleFns<C> {
         cursor: &mut Cursor<&[u8]>,
     ) -> bincode::Result<()> {
         (self.deserialize_in_place)(self.deserialize, ctx, component, cursor)
+    }
+
+    /// Consumes a component from a cursor.
+    pub(super) fn consume(
+        &self,
+        ctx: &mut WriteCtx,
+        cursor: &mut Cursor<&[u8]>,
+    ) -> bincode::Result<()> {
+        (self.consume)(self.deserialize, ctx, cursor)
     }
 }
 
@@ -149,9 +184,13 @@ pub type SerializeFn<C> = fn(&SerializeCtx, &C, &mut Cursor<Vec<u8>>) -> bincode
 /// Signature of component deserialization functions.
 pub type DeserializeFn<C> = fn(&mut WriteCtx, &mut Cursor<&[u8]>) -> bincode::Result<C>;
 
-/// Signature of in-place component deserialization functions.
+/// Signature of component in-place deserialization functions.
 pub type DeserializeInPlaceFn<C> =
     fn(DeserializeFn<C>, &mut WriteCtx, &mut C, &mut Cursor<&[u8]>) -> bincode::Result<()>;
+
+/// Signature of component consume functions.
+pub type ConsumeFn<C> =
+    fn(DeserializeFn<C>, &mut WriteCtx, &mut Cursor<&[u8]>) -> bincode::Result<()>;
 
 /// Default component serialization function.
 pub fn default_serialize<C: Component + Serialize>(
@@ -190,5 +229,19 @@ pub fn in_place_as_deserialize<C: Component>(
     cursor: &mut Cursor<&[u8]>,
 ) -> bincode::Result<()> {
     *component = (deserialize)(ctx, cursor)?;
+    Ok(())
+}
+
+/// Default component consume function.
+///
+/// This implementation just calls deserialization function and ignores its result.
+pub fn consume_as_deserialize<C: Component>(
+    deserialize: DeserializeFn<C>,
+    ctx: &mut WriteCtx,
+    cursor: &mut Cursor<&[u8]>,
+) -> bincode::Result<()> {
+    ctx.ignore_mapping = true;
+    (deserialize)(ctx, cursor)?;
+    ctx.ignore_mapping = false;
     Ok(())
 }

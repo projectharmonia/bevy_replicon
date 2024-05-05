@@ -14,7 +14,7 @@ use varint_rs::VarintReader;
 
 use crate::{
     core::{
-        command_markers::CommandMarkers,
+        command_markers::{CommandMarkers, EntityMarkers},
         common_conditions::{client_connected, client_just_connected, client_just_disconnected},
         replication_fns::{
             ctx::{DeleteCtx, WriteCtx},
@@ -90,7 +90,7 @@ impl ClientPlugin {
     pub(super) fn receive_replication(
         world: &mut World,
         mut queue: Local<CommandQueue>,
-        mut entity_markers: Local<Vec<bool>>,
+        mut entity_markers: Local<EntityMarkers>,
     ) -> bincode::Result<()> {
         world.resource_scope(|world, mut client: Mut<RepliconClient>| {
             world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
@@ -158,7 +158,8 @@ fn apply_replication(
     // Unlike init messages, we read all updates first, sort them by tick
     // in descending order to ensure that the last update will be applied first.
     // Since update messages manually split by packet size, we apply all messages,
-    // but skip outdated data per-entity by checking last received tick for it.
+    // but skip outdated data per-entity by checking last received tick for it
+    // (unless user requested history via marker).
     let init_tick = *world.resource::<ServerInitTick>();
     let acks_size = mem::size_of::<u16>() * client.received_count(ReplicationChannel::Update);
     let mut acks = Vec::with_capacity(acks_size);
@@ -330,7 +331,7 @@ fn apply_init_components(
         let mut commands = Commands::new_from_entities(params.queue, world_cell.entities());
         params
             .entity_markers
-            .extend(params.command_markers.iter_contains(&client_entity));
+            .read(params.command_markers, &client_entity);
 
         let end_pos = cursor.position() + data_size as u64;
         let mut components_len = 0u32;
@@ -339,11 +340,7 @@ fn apply_init_components(
             let (component_fns, rule_fns) = params.replication_fns.get(fns_id);
             match components_kind {
                 ComponentsKind::Insert => {
-                    let mut ctx = WriteCtx {
-                        commands: &mut commands,
-                        entity_map: params.entity_map,
-                        message_tick,
-                    };
+                    let mut ctx = WriteCtx::new(&mut commands, params.entity_map, message_tick);
 
                     // SAFETY: `rule_fns` and `component_fns` were created for the same type.
                     unsafe {
@@ -373,7 +370,6 @@ fn apply_init_components(
             stats.components_changed += components_len;
         }
 
-        params.entity_markers.clear();
         params.queue.apply(world);
     }
 
@@ -430,16 +426,6 @@ fn apply_update_components(
             cursor.set_position(cursor.position() + data_size as u64);
             continue;
         };
-        let entity_tick = params
-            .entity_ticks
-            .get_mut(&client_entity)
-            .expect("all entities from update should have assigned ticks");
-        if message_tick <= *entity_tick {
-            trace!("ignoring outdated update for client's {client_entity:?}");
-            cursor.set_position(cursor.position() + data_size as u64);
-            continue;
-        }
-        *entity_tick = message_tick;
 
         let world_cell = world.as_unsafe_world_cell();
         // SAFETY: access is unique and used to obtain `EntityMut`, which is just a wrapper over `UnsafeEntityCell`.
@@ -448,28 +434,50 @@ fn apply_update_components(
         let mut commands = Commands::new_from_entities(params.queue, world_cell.entities());
         params
             .entity_markers
-            .extend(params.command_markers.iter_contains(&client_entity));
+            .read(params.command_markers, &client_entity);
+
+        let entity_tick = params
+            .entity_ticks
+            .get_mut(&client_entity.id())
+            .expect("all entities from update should have assigned ticks");
+        let old_entity = message_tick <= *entity_tick;
+        if old_entity && !params.entity_markers.need_history() {
+            trace!(
+                "ignoring outdated update for client's {:?}",
+                client_entity.id()
+            );
+            cursor.set_position(cursor.position() + data_size as u64);
+            continue;
+        }
+        *entity_tick = message_tick;
 
         let end_pos = cursor.position() + data_size as u64;
         let mut components_count = 0u32;
         while cursor.position() < end_pos {
             let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
             let (component_fns, rule_fns) = params.replication_fns.get(fns_id);
-            let mut ctx = WriteCtx {
-                commands: &mut commands,
-                entity_map: params.entity_map,
-                message_tick,
-            };
+            let mut ctx = WriteCtx::new(&mut commands, params.entity_map, message_tick);
 
             // SAFETY: `rule_fns` and `component_fns` were created for the same type.
             unsafe {
-                component_fns.write(
-                    &mut ctx,
-                    rule_fns,
-                    params.entity_markers,
-                    &mut client_entity,
-                    cursor,
-                )?;
+                if old_entity {
+                    component_fns.consume_or_write(
+                        &mut ctx,
+                        rule_fns,
+                        params.entity_markers,
+                        params.command_markers,
+                        &mut client_entity,
+                        cursor,
+                    )?;
+                } else {
+                    component_fns.write(
+                        &mut ctx,
+                        rule_fns,
+                        params.entity_markers,
+                        &mut client_entity,
+                        cursor,
+                    )?;
+                }
             }
 
             components_count += 1;
@@ -480,7 +488,6 @@ fn apply_update_components(
             stats.components_changed += components_count;
         }
 
-        params.entity_markers.clear();
         params.queue.apply(world);
     }
 
@@ -510,7 +517,7 @@ fn deserialize_entity(cursor: &mut Cursor<&[u8]>) -> bincode::Result<Entity> {
 /// To avoid passing a lot of arguments into all receive functions.
 struct ReceiveParams<'a> {
     queue: &'a mut CommandQueue,
-    entity_markers: &'a mut Vec<bool>,
+    entity_markers: &'a mut EntityMarkers,
     entity_map: &'a mut ServerEntityMap,
     entity_ticks: &'a mut ServerEntityTicks,
     stats: Option<&'a mut ClientStats>,
