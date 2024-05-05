@@ -96,8 +96,11 @@ impl<C: Component> RuleFns<C> {
 
     /// Replaces the default [`consume_as_deserialize`] with a custom function.
     ///
-    /// This function will be called if an entity has at least one marker
-    /// that requires history for components that don't belong to that markers.
+    /// For example, if you know the size of the serialized component,
+    /// you can just advance the cursor without its deserialization logic.
+    ///
+    /// This function will be called to skip components for entities
+    /// with a marker that require history.
     ///
     /// If no markers require history, old entity updates will be skipped entirely
     /// by just advancing the cursor (without calling any consume functions).
