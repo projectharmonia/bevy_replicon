@@ -98,34 +98,29 @@ impl ClientPlugin {
                     world.resource_scope(|world, mut buffered_updates: Mut<BufferedUpdates>| {
                         world.resource_scope(|world, command_markers: Mut<CommandMarkers>| {
                             world.resource_scope(|world, replication_fns: Mut<ReplicationFns>| {
-                                world.resource_scope(
-                                    |world, mut tick_events: Mut<Events<TickConfirmed>>| {
-                                        let mut stats = world.remove_resource::<ClientStats>();
-                                        let mut params = ReceiveParams {
-                                            queue: &mut queue,
-                                            tick_events: &mut tick_events,
-                                            entity_markers: &mut entity_markers,
-                                            entity_map: &mut entity_map,
-                                            entity_ticks: &mut entity_ticks,
-                                            stats: stats.as_mut(),
-                                            command_markers: &command_markers,
-                                            replication_fns: &replication_fns,
-                                        };
+                                let mut stats = world.remove_resource::<ClientStats>();
+                                let mut params = ReceiveParams {
+                                    queue: &mut queue,
+                                    entity_markers: &mut entity_markers,
+                                    entity_map: &mut entity_map,
+                                    entity_ticks: &mut entity_ticks,
+                                    stats: stats.as_mut(),
+                                    command_markers: &command_markers,
+                                    replication_fns: &replication_fns,
+                                };
 
-                                        apply_replication(
-                                            world,
-                                            &mut params,
-                                            &mut client,
-                                            &mut buffered_updates,
-                                        )?;
+                                apply_replication(
+                                    world,
+                                    &mut params,
+                                    &mut client,
+                                    &mut buffered_updates,
+                                )?;
 
-                                        if let Some(stats) = stats {
-                                            world.insert_resource(stats);
-                                        }
+                                if let Some(stats) = stats {
+                                    world.insert_resource(stats);
+                                }
 
-                                        Ok(())
-                                    },
-                                )
+                                Ok(())
                             })
                         })
                     })
@@ -455,12 +450,6 @@ fn apply_update_components(
             continue;
         }
         *entity_tick = message_tick;
-        if params.entity_markers.need_history() {
-            params.tick_events.send(TickConfirmed {
-                entity: client_entity.id(),
-                tick: message_tick,
-            });
-        }
 
         let end_pos = cursor.position() + data_size as u64;
         let mut components_count = 0u32;
@@ -528,7 +517,6 @@ fn deserialize_entity(cursor: &mut Cursor<&[u8]>) -> bincode::Result<Entity> {
 /// To avoid passing a lot of arguments into all receive functions.
 struct ReceiveParams<'a> {
     queue: &'a mut CommandQueue,
-    tick_events: &'a mut Events<TickConfirmed>,
     entity_markers: &'a mut EntityMarkers,
     entity_map: &'a mut ServerEntityMap,
     entity_ticks: &'a mut ServerEntityTicks,
@@ -592,12 +580,6 @@ pub enum ClientSet {
     /// If this set is disabled and you don't want to repair client state, then you need to manually clean up
     /// the client after a disconnect or when reconnecting.
     Reset,
-}
-
-#[derive(Event)]
-pub struct TickConfirmed {
-    pub entity: Entity,
-    pub tick: RepliconTick,
 }
 
 /// Last received tick for init message from server.
