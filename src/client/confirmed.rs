@@ -22,6 +22,11 @@ impl Confirmed {
         Self { mask: 1, last_tick }
     }
 
+    /// Returns last received tick for an entity.
+    pub fn last_tick(&self) -> RepliconTick {
+        self.last_tick
+    }
+
     /// Returns `true` if this tick is confirmed for an entity.
     pub fn get(&self, tick: RepliconTick) -> bool {
         if tick > self.last_tick {
