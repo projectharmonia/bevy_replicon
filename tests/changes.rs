@@ -295,8 +295,8 @@ fn marker_with_history() {
 
     let client_entity = client_app.world.entity(client_entity);
     let component = client_entity.get::<BoolComponent>().unwrap();
-    assert_eq!(
-        component.0, false,
+    assert!(
+        !component.0,
         "original component should equal to the value before history marker insertion"
     );
 

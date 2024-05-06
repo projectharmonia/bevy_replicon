@@ -59,10 +59,10 @@ mod tests {
     fn get() {
         let confirmed = Confirmed::new(RepliconTick(1));
 
-        assert_eq!(confirmed.get(RepliconTick(0)), false);
-        assert_eq!(confirmed.get(RepliconTick(1)), true);
-        assert_eq!(confirmed.get(RepliconTick(2)), false);
-        assert_eq!(confirmed.get(RepliconTick(u32::MAX)), false);
+        assert!(!confirmed.get(RepliconTick(0)));
+        assert!(confirmed.get(RepliconTick(1)));
+        assert!(!confirmed.get(RepliconTick(2)));
+        assert!(!confirmed.get(RepliconTick(u32::MAX)));
     }
 
     #[test]
@@ -71,9 +71,9 @@ mod tests {
 
         confirmed.set(RepliconTick(0));
 
-        assert_eq!(confirmed.get(RepliconTick(0)), true);
-        assert_eq!(confirmed.get(RepliconTick(1)), true);
-        assert_eq!(confirmed.get(RepliconTick(2)), false);
+        assert!(confirmed.get(RepliconTick(0)));
+        assert!(confirmed.get(RepliconTick(1)));
+        assert!(!confirmed.get(RepliconTick(2)));
     }
 
     #[test]
@@ -82,9 +82,9 @@ mod tests {
 
         confirmed.set(RepliconTick(2));
 
-        assert_eq!(confirmed.get(RepliconTick(0)), false);
-        assert_eq!(confirmed.get(RepliconTick(1)), true);
-        assert_eq!(confirmed.get(RepliconTick(2)), true);
+        assert!(!confirmed.get(RepliconTick(0)));
+        assert!(confirmed.get(RepliconTick(1)));
+        assert!(confirmed.get(RepliconTick(2)));
     }
 
     #[test]
@@ -93,12 +93,12 @@ mod tests {
 
         confirmed.set(RepliconTick(65));
 
-        assert_eq!(confirmed.get(RepliconTick(0)), true);
-        assert_eq!(confirmed.get(RepliconTick(1)), true);
-        assert_eq!(confirmed.get(RepliconTick(2)), false);
-        assert_eq!(confirmed.get(RepliconTick(64)), false);
-        assert_eq!(confirmed.get(RepliconTick(65)), true);
-        assert_eq!(confirmed.get(RepliconTick(66)), false);
+        assert!(confirmed.get(RepliconTick(0)));
+        assert!(confirmed.get(RepliconTick(1)));
+        assert!(!confirmed.get(RepliconTick(2)));
+        assert!(!confirmed.get(RepliconTick(64)));
+        assert!(confirmed.get(RepliconTick(65)));
+        assert!(!confirmed.get(RepliconTick(66)));
     }
 
     #[test]
@@ -107,9 +107,9 @@ mod tests {
 
         confirmed.set(RepliconTick(1));
 
-        assert_eq!(confirmed.get(RepliconTick(0)), false);
-        assert_eq!(confirmed.get(RepliconTick(1)), true);
-        assert_eq!(confirmed.get(RepliconTick(3)), false);
-        assert_eq!(confirmed.get(RepliconTick(u32::MAX)), true);
+        assert!(!confirmed.get(RepliconTick(0)));
+        assert!(confirmed.get(RepliconTick(1)));
+        assert!(!confirmed.get(RepliconTick(3)));
+        assert!(confirmed.get(RepliconTick(u32::MAX)));
     }
 }
