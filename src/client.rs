@@ -323,14 +323,15 @@ fn apply_init_components(
         // SAFETY: access is unique and used to obtain `EntityMut`, which is just a wrapper over `UnsafeEntityCell`.
         let mut client_entity: EntityMut =
             unsafe { world_cell.world_mut().entity_mut(client_entity).into() };
-        client_entity
-            .get_mut::<Confirmed>()
-            .unwrap()
-            .set(message_tick);
         let mut commands = Commands::new_from_entities(params.queue, world_cell.entities());
         params
             .entity_markers
             .read(params.command_markers, &client_entity);
+
+        let mut confirmed = client_entity
+            .get_mut::<Confirmed>()
+            .expect("all init entities should have been spawned with confirmed ticks");
+        confirmed.resize_to(message_tick);
 
         let end_pos = cursor.position() + data_size as u64;
         let mut components_len = 0u32;
@@ -434,15 +435,33 @@ fn apply_update_components(
             .entity_markers
             .read(params.command_markers, &client_entity);
 
-        let mut confirmed = client_entity.get_mut::<Confirmed>().unwrap();
-        let old_entity = !confirmed.set(message_tick);
-        if old_entity && !params.entity_markers.need_history() {
-            trace!(
-                "ignoring outdated update for client's {:?}",
-                client_entity.id()
-            );
-            cursor.set_position(cursor.position() + data_size as u64);
-            continue;
+        let mut confirmed = client_entity
+            .get_mut::<Confirmed>()
+            .expect("all entities from update should have confirmed ticks");
+        let new_entity = message_tick > confirmed.last_tick();
+        if new_entity {
+            confirmed.resize_to(message_tick);
+        } else {
+            if !params.entity_markers.need_history() {
+                trace!(
+                    "ignoring outdated update for client's {:?}",
+                    client_entity.id()
+                );
+                cursor.set_position(cursor.position() + data_size as u64);
+                continue;
+            }
+
+            let ago = confirmed.last_tick() - message_tick;
+            if ago >= u64::BITS {
+                trace!(
+                    "discarding update {ago} ticks old for client's {:?}",
+                    client_entity.id()
+                );
+                cursor.set_position(cursor.position() + data_size as u64);
+                continue;
+            }
+
+            confirmed.set(ago);
         }
 
         let end_pos = cursor.position() + data_size as u64;
@@ -454,20 +473,20 @@ fn apply_update_components(
 
             // SAFETY: `rule_fns` and `component_fns` were created for the same type.
             unsafe {
-                if old_entity {
+                if new_entity {
+                    component_fns.write(
+                        &mut ctx,
+                        rule_fns,
+                        params.entity_markers,
+                        &mut client_entity,
+                        cursor,
+                    )?;
+                } else {
                     component_fns.consume_or_write(
                         &mut ctx,
                         rule_fns,
                         params.entity_markers,
                         params.command_markers,
-                        &mut client_entity,
-                        cursor,
-                    )?;
-                } else {
-                    component_fns.write(
-                        &mut ctx,
-                        rule_fns,
-                        params.entity_markers,
                         &mut client_entity,
                         cursor,
                     )?;
