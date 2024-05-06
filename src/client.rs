@@ -1,13 +1,11 @@
+pub mod confirmed;
 pub mod diagnostics;
 pub mod replicon_client;
 pub mod server_entity_map;
 
 use std::{io::Cursor, mem};
 
-use bevy::{
-    ecs::{entity::EntityHashMap, system::CommandQueue},
-    prelude::*,
-};
+use bevy::{ecs::system::CommandQueue, prelude::*};
 use bincode::{DefaultOptions, Options};
 use bytes::Bytes;
 use varint_rs::VarintReader;
@@ -25,6 +23,7 @@ use crate::{
     },
     server::replicon_tick::RepliconTick,
 };
+use confirmed::Confirmed;
 use diagnostics::ClientStats;
 use replicon_client::RepliconClient;
 use server_entity_map::ServerEntityMap;
@@ -36,7 +35,6 @@ impl Plugin for ClientPlugin {
         app.init_resource::<RepliconClient>()
             .init_resource::<ServerEntityMap>()
             .init_resource::<ServerInitTick>()
-            .init_resource::<ServerEntityTicks>()
             .init_resource::<BufferedUpdates>()
             .configure_sets(
                 PreUpdate,
@@ -94,34 +92,31 @@ impl ClientPlugin {
     ) -> bincode::Result<()> {
         world.resource_scope(|world, mut client: Mut<RepliconClient>| {
             world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
-                world.resource_scope(|world, mut entity_ticks: Mut<ServerEntityTicks>| {
-                    world.resource_scope(|world, mut buffered_updates: Mut<BufferedUpdates>| {
-                        world.resource_scope(|world, command_markers: Mut<CommandMarkers>| {
-                            world.resource_scope(|world, replication_fns: Mut<ReplicationFns>| {
-                                let mut stats = world.remove_resource::<ClientStats>();
-                                let mut params = ReceiveParams {
-                                    queue: &mut queue,
-                                    entity_markers: &mut entity_markers,
-                                    entity_map: &mut entity_map,
-                                    entity_ticks: &mut entity_ticks,
-                                    stats: stats.as_mut(),
-                                    command_markers: &command_markers,
-                                    replication_fns: &replication_fns,
-                                };
+                world.resource_scope(|world, mut buffered_updates: Mut<BufferedUpdates>| {
+                    world.resource_scope(|world, command_markers: Mut<CommandMarkers>| {
+                        world.resource_scope(|world, replication_fns: Mut<ReplicationFns>| {
+                            let mut stats = world.remove_resource::<ClientStats>();
+                            let mut params = ReceiveParams {
+                                queue: &mut queue,
+                                entity_markers: &mut entity_markers,
+                                entity_map: &mut entity_map,
+                                stats: stats.as_mut(),
+                                command_markers: &command_markers,
+                                replication_fns: &replication_fns,
+                            };
 
-                                apply_replication(
-                                    world,
-                                    &mut params,
-                                    &mut client,
-                                    &mut buffered_updates,
-                                )?;
+                            apply_replication(
+                                world,
+                                &mut params,
+                                &mut client,
+                                &mut buffered_updates,
+                            )?;
 
-                                if let Some(stats) = stats {
-                                    world.insert_resource(stats);
-                                }
+                            if let Some(stats) = stats {
+                                world.insert_resource(stats);
+                            }
 
-                                Ok(())
-                            })
+                            Ok(())
                         })
                     })
                 })
@@ -132,12 +127,10 @@ impl ClientPlugin {
     fn reset(
         mut init_tick: ResMut<ServerInitTick>,
         mut entity_map: ResMut<ServerEntityMap>,
-        mut entity_ticks: ResMut<ServerEntityTicks>,
         mut buffered_updates: ResMut<BufferedUpdates>,
     ) {
         *init_tick = Default::default();
         entity_map.clear();
-        entity_ticks.clear();
         buffered_updates.clear();
     }
 }
@@ -190,7 +183,7 @@ fn apply_init_message(
     world.resource_mut::<ServerInitTick>().0 = message_tick;
     debug_assert!(cursor.position() < end_pos, "init message can't be empty");
 
-    apply_entity_mappings(world, params, &mut cursor)?;
+    apply_entity_mappings(world, params, &mut cursor, message_tick)?;
     if cursor.position() == end_pos {
         return Ok(());
     }
@@ -285,6 +278,7 @@ fn apply_entity_mappings(
     world: &mut World,
     params: &mut ReceiveParams,
     cursor: &mut Cursor<&[u8]>,
+    message_tick: RepliconTick,
 ) -> bincode::Result<()> {
     let mappings_len: u16 = bincode::deserialize_from(&mut *cursor)?;
     if let Some(stats) = &mut params.stats {
@@ -296,7 +290,7 @@ fn apply_entity_mappings(
 
         if let Some(mut entity) = world.get_entity_mut(client_entity) {
             debug!("received mapping from {server_entity:?} to {client_entity:?}");
-            entity.insert(Replicated);
+            entity.insert((Replicated, Confirmed::new(message_tick)));
             params.entity_map.insert(server_entity, client_entity);
         } else {
             // Entity could be despawned on client already.
@@ -321,13 +315,18 @@ fn apply_init_components(
 
         let client_entity = params
             .entity_map
-            .get_by_server_or_insert(server_entity, || world.spawn(Replicated).id());
-        params.entity_ticks.insert(client_entity, message_tick);
+            .get_by_server_or_insert(server_entity, || {
+                world.spawn((Replicated, Confirmed::new(message_tick))).id()
+            });
 
         let world_cell = world.as_unsafe_world_cell();
         // SAFETY: access is unique and used to obtain `EntityMut`, which is just a wrapper over `UnsafeEntityCell`.
         let mut client_entity: EntityMut =
             unsafe { world_cell.world_mut().entity_mut(client_entity).into() };
+        client_entity
+            .get_mut::<Confirmed>()
+            .unwrap()
+            .set(message_tick);
         let mut commands = Commands::new_from_entities(params.queue, world_cell.entities());
         params
             .entity_markers
@@ -397,7 +396,6 @@ fn apply_despawns(
             .remove_by_server(server_entity)
             .and_then(|entity| world.get_entity_mut(entity))
         {
-            params.entity_ticks.remove(&client_entity.id());
             let ctx = DeleteCtx { message_tick };
             (params.replication_fns.despawn)(&ctx, client_entity);
         }
@@ -436,11 +434,8 @@ fn apply_update_components(
             .entity_markers
             .read(params.command_markers, &client_entity);
 
-        let entity_tick = params
-            .entity_ticks
-            .get_mut(&client_entity.id())
-            .expect("all entities from update should have assigned ticks");
-        let old_entity = message_tick <= *entity_tick;
+        let mut confirmed = client_entity.get_mut::<Confirmed>().unwrap();
+        let old_entity = !confirmed.set(message_tick);
         if old_entity && !params.entity_markers.need_history() {
             trace!(
                 "ignoring outdated update for client's {:?}",
@@ -449,7 +444,6 @@ fn apply_update_components(
             cursor.set_position(cursor.position() + data_size as u64);
             continue;
         }
-        *entity_tick = message_tick;
 
         let end_pos = cursor.position() + data_size as u64;
         let mut components_count = 0u32;
@@ -519,7 +513,6 @@ struct ReceiveParams<'a> {
     queue: &'a mut CommandQueue,
     entity_markers: &'a mut EntityMarkers,
     entity_map: &'a mut ServerEntityMap,
-    entity_ticks: &'a mut ServerEntityTicks,
     stats: Option<&'a mut ClientStats>,
     command_markers: &'a CommandMarkers,
     replication_fns: &'a ReplicationFns,
@@ -588,14 +581,6 @@ pub enum ClientSet {
 /// When a component changes, this value is not updated.
 #[derive(Clone, Copy, Debug, Default, Deref, Resource)]
 pub struct ServerInitTick(RepliconTick);
-
-/// Last received tick for each entity.
-///
-/// Used to avoid applying old updates.
-///
-/// If [`ClientSet::Reset`] is disabled, then this needs to be cleaned up manually.
-#[derive(Default, Deref, DerefMut, Resource)]
-pub struct ServerEntityTicks(EntityHashMap<RepliconTick>);
 
 /// All cached buffered updates, used by the replicon client to align replication updates with initialization
 /// messages.

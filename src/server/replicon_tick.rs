@@ -1,4 +1,4 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, ops::Sub};
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -28,6 +28,14 @@ impl RepliconTick {
     #[inline]
     pub fn increment(&mut self) {
         self.increment_by(1)
+    }
+}
+
+impl Sub for RepliconTick {
+    type Output = u32;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        self.0.wrapping_sub(rhs.0)
     }
 }
 

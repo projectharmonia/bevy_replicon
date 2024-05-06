@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use bevy_replicon::{
-    client::server_entity_map::ServerEntityMap, prelude::*, test_app::ServerTestAppExt,
+    client::{confirmed::Confirmed, server_entity_map::ServerEntityMap},
+    prelude::*,
+    test_app::ServerTestAppExt,
 };
 use serde::{Deserialize, Serialize};
 
@@ -199,6 +201,10 @@ fn pre_spawn() {
     let client_entity = client_app.world.entity(client_entity);
     assert!(
         client_entity.contains::<Replicated>(),
+        "entity should start receive replication"
+    );
+    assert!(
+        client_entity.contains::<Confirmed>(),
         "server should confirm replication of client entity"
     );
     assert!(

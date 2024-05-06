@@ -131,20 +131,15 @@ fn command_fns() {
         .spawn((Replicated, OriginalComponent(false)))
         .id();
 
-    let client_entity = client_app
-        .world
-        .spawn((Replicated, ReplacedComponent(false)))
-        .id();
-
-    client_app
-        .world
-        .resource_mut::<ServerEntityMap>()
-        .insert(server_entity, client_entity);
-
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
+
+    let client_entity = client_app
+        .world
+        .query_filtered::<Entity, With<ReplacedComponent>>()
+        .single(&client_app.world);
 
     // Change value.
     let mut component = server_app
@@ -191,20 +186,20 @@ fn marker() {
         .spawn((Replicated, OriginalComponent(false)))
         .id();
 
-    let client_entity = client_app
-        .world
-        .spawn((Replicated, ReplaceMarker, ReplacedComponent(false)))
-        .id();
-
-    client_app
-        .world
-        .resource_mut::<ServerEntityMap>()
-        .insert(server_entity, client_entity);
-
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
+
+    let client_entity = client_app
+        .world
+        .query_filtered::<Entity, With<OriginalComponent>>()
+        .single(&client_app.world);
+
+    client_app
+        .world
+        .entity_mut(client_entity)
+        .insert(ReplaceMarker);
 
     // Change value.
     let mut component = server_app
@@ -218,10 +213,11 @@ fn marker() {
     client_app.update();
 
     let client_entity = client_app.world.entity(client_entity);
-    assert!(!client_entity.contains::<OriginalComponent>());
+    let original_component = client_entity.get::<OriginalComponent>().unwrap();
+    assert!(!original_component.0);
 
-    let component = client_entity.get::<ReplacedComponent>().unwrap();
-    assert!(component.0);
+    let replaced_component = client_entity.get::<ReplacedComponent>().unwrap();
+    assert!(replaced_component.0);
 }
 
 #[test]
@@ -260,17 +256,22 @@ fn marker_with_history() {
         ))
         .id();
 
-    let client_map_entity = client_app.world.spawn_empty().id();
-    let client_entity = client_app.world.spawn((Replicated, HistoryMarker)).id();
-
-    let mut entity_map = client_app.world.resource_mut::<ServerEntityMap>();
-    entity_map.insert(server_map_entity, client_map_entity);
-    entity_map.insert(server_entity, client_entity);
-
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
+
+    let client_entity = client_app
+        .world
+        .query_filtered::<Entity, (With<BoolComponent>, With<MappedComponent>)>()
+        .single(&client_app.world);
+
+    client_app
+        .world
+        .entity_mut(client_entity)
+        .insert(HistoryMarker);
+
+    client_app.update();
 
     // Change values, but don't process them on client.
     let update_entity1 = server_app.world.spawn_empty().id();
@@ -293,12 +294,17 @@ fn marker_with_history() {
     client_app.update();
 
     let client_entity = client_app.world.entity(client_entity);
+    let component = client_entity.get::<BoolComponent>().unwrap();
+    assert_eq!(
+        component.0, false,
+        "original component should equal to the value before history marker insertion"
+    );
+
     let history = client_entity.get::<BoolHistory>().unwrap();
     assert_eq!(
         history.0,
-        [false, false, true],
-        "the initial value should come first, then the latest update,\
-        and after that the older update because recent updates processed first"
+        [false, true],
+        "the latest update should come first, that the older update because recent updates processed first"
     );
 
     let entity_map = client_app.world.resource::<ServerEntityMap>();
@@ -309,7 +315,7 @@ fn marker_with_history() {
     assert_eq!(
         client_app.world.entities().len(),
         3,
-        "client should have 2 initial entities and 1 from update without history"
+        "client should have 2 initial entities and 1 from update with history"
     );
 }
 

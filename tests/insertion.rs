@@ -245,27 +245,26 @@ fn marker() {
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app.world.spawn(Replicated).id();
-    let client_entity = client_app.world.spawn(Replicated).id();
-
-    client_app
-        .world
-        .resource_mut::<ServerEntityMap>()
-        .insert(server_entity, client_entity);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
+    let client_entity = client_app
+        .world
+        .query_filtered::<Entity, With<Replicated>>()
+        .single(&client_app.world);
+
+    client_app
+        .world
+        .entity_mut(client_entity)
+        .insert(ReplaceMarker);
+
     server_app
         .world
         .entity_mut(server_entity)
         .insert(OriginalComponent);
-
-    client_app
-        .world
-        .entity_mut(server_entity)
-        .insert(ReplaceMarker);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
