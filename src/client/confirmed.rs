@@ -98,6 +98,17 @@ mod tests {
     }
 
     #[test]
+    fn resize_to_same() {
+        let mut confirmed = Confirmed::new(RepliconTick(1));
+
+        confirmed.resize_to(RepliconTick(1));
+
+        assert!(!confirmed.get(RepliconTick(0)));
+        assert!(confirmed.get(RepliconTick(1)));
+        assert!(!confirmed.get(RepliconTick(2)));
+    }
+
+    #[test]
     fn resize_with_wrapping() {
         let mut confirmed = Confirmed::new(RepliconTick(1));
 
