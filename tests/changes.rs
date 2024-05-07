@@ -278,8 +278,6 @@ fn marker_with_history() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    client_app.update();
-
     // Change values, but don't process them on client.
     let update_entity1 = server_app.world.spawn_empty().id();
     let mut server_entity = server_app.world.entity_mut(server_entity);
