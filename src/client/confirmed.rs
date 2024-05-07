@@ -37,7 +37,7 @@ impl Confirmed {
     /// Returns `true` if this tick is confirmed for an entity.
     ///
     /// All ticks older then 64 ticks since [`Self::last_tick`] are considered received.
-    pub fn get(&self, tick: RepliconTick) -> bool {
+    pub fn test(&self, tick: RepliconTick) -> bool {
         if tick > self.last_tick {
             return false;
         }
@@ -77,13 +77,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn get() {
+    fn test() {
         let confirmed = Confirmed::new(RepliconTick(1));
 
-        assert!(!confirmed.get(RepliconTick(0)));
-        assert!(confirmed.get(RepliconTick(1)));
-        assert!(!confirmed.get(RepliconTick(2)));
-        assert!(!confirmed.get(RepliconTick(u32::MAX)));
+        assert!(!confirmed.test(RepliconTick(0)));
+        assert!(confirmed.test(RepliconTick(1)));
+        assert!(!confirmed.test(RepliconTick(2)));
+        assert!(!confirmed.test(RepliconTick(u32::MAX)));
     }
 
     #[test]
@@ -92,9 +92,9 @@ mod tests {
 
         confirmed.set(1);
 
-        assert!(confirmed.get(RepliconTick(0)));
-        assert!(confirmed.get(RepliconTick(1)));
-        assert!(!confirmed.get(RepliconTick(2)));
+        assert!(confirmed.test(RepliconTick(0)));
+        assert!(confirmed.test(RepliconTick(1)));
+        assert!(!confirmed.test(RepliconTick(2)));
     }
 
     #[test]
@@ -103,9 +103,9 @@ mod tests {
 
         confirmed.resize_to(RepliconTick(2));
 
-        assert!(!confirmed.get(RepliconTick(0)));
-        assert!(confirmed.get(RepliconTick(1)));
-        assert!(confirmed.get(RepliconTick(2)));
+        assert!(!confirmed.test(RepliconTick(0)));
+        assert!(confirmed.test(RepliconTick(1)));
+        assert!(confirmed.test(RepliconTick(2)));
     }
 
     #[test]
@@ -114,9 +114,9 @@ mod tests {
 
         confirmed.resize_to(RepliconTick(1));
 
-        assert!(!confirmed.get(RepliconTick(0)));
-        assert!(confirmed.get(RepliconTick(1)));
-        assert!(!confirmed.get(RepliconTick(2)));
+        assert!(!confirmed.test(RepliconTick(0)));
+        assert!(confirmed.test(RepliconTick(1)));
+        assert!(!confirmed.test(RepliconTick(2)));
     }
 
     #[test]
@@ -125,12 +125,12 @@ mod tests {
 
         confirmed.resize_to(RepliconTick(65));
 
-        assert!(confirmed.get(RepliconTick(0)));
-        assert!(confirmed.get(RepliconTick(1)));
-        assert!(!confirmed.get(RepliconTick(2)));
-        assert!(!confirmed.get(RepliconTick(64)));
-        assert!(confirmed.get(RepliconTick(65)));
-        assert!(!confirmed.get(RepliconTick(66)));
+        assert!(confirmed.test(RepliconTick(0)));
+        assert!(confirmed.test(RepliconTick(1)));
+        assert!(!confirmed.test(RepliconTick(2)));
+        assert!(!confirmed.test(RepliconTick(64)));
+        assert!(confirmed.test(RepliconTick(65)));
+        assert!(!confirmed.test(RepliconTick(66)));
     }
 
     #[test]
@@ -139,9 +139,9 @@ mod tests {
 
         confirmed.resize_to(RepliconTick(1));
 
-        assert!(!confirmed.get(RepliconTick(0)));
-        assert!(confirmed.get(RepliconTick(1)));
-        assert!(!confirmed.get(RepliconTick(3)));
-        assert!(confirmed.get(RepliconTick(u32::MAX)));
+        assert!(!confirmed.test(RepliconTick(0)));
+        assert!(confirmed.test(RepliconTick(1)));
+        assert!(!confirmed.test(RepliconTick(3)));
+        assert!(confirmed.test(RepliconTick(u32::MAX)));
     }
 }
