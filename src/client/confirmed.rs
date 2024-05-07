@@ -24,7 +24,8 @@ impl Debug for Confirmed {
 }
 
 impl Confirmed {
-    pub(super) fn new(last_tick: RepliconTick) -> Self {
+    /// Creates a new instance with a single confirmed tick.
+    pub fn new(last_tick: RepliconTick) -> Self {
         Self { mask: 1, last_tick }
     }
 
@@ -45,14 +46,24 @@ impl Confirmed {
         ago >= u64::BITS || (self.mask >> ago & 1) == 1
     }
 
-    /// Marks specific tick as received.
-    pub(super) fn set(&mut self, ago: u32) {
+    /// Marks previous tick as received.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `debug_assertions` are enabled and
+    /// `ago` is bigger then [`u64::BITS`].
+    pub fn set(&mut self, ago: u32) {
         debug_assert!(ago < u64::BITS);
         self.mask |= 1 << ago;
     }
 
     /// Sets the last received tick and shifts the mask.
-    pub(super) fn resize_to(&mut self, tick: RepliconTick) {
+    ///
+    /// # Panics
+    ///
+    /// Panics if `debug_assertions` are enabled and
+    /// `tick` is less then the last tick.
+    pub fn resize_to(&mut self, tick: RepliconTick) {
         debug_assert!(tick >= self.last_tick);
         let diff = tick - self.last_tick;
         self.mask = self.mask.wrapping_shl(diff);
