@@ -186,20 +186,24 @@ fn marker() {
         .spawn((Replicated, OriginalComponent(false)))
         .id();
 
+    let client_entity = client_app.world.spawn(ReplaceMarker).id();
+
+    let client = client_app.world.resource::<RepliconClient>();
+    let client_id = client.id().unwrap();
+
+    let mut entity_map = server_app.world.resource_mut::<ClientEntityMap>();
+    entity_map.insert(
+        client_id,
+        ClientMapping {
+            server_entity,
+            client_entity,
+        },
+    );
+
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
-
-    let client_entity = client_app
-        .world
-        .query_filtered::<Entity, With<OriginalComponent>>()
-        .single(&client_app.world);
-
-    client_app
-        .world
-        .entity_mut(client_entity)
-        .insert(ReplaceMarker);
 
     // Change value.
     let mut component = server_app
@@ -213,11 +217,10 @@ fn marker() {
     client_app.update();
 
     let client_entity = client_app.world.entity(client_entity);
-    let original_component = client_entity.get::<OriginalComponent>().unwrap();
-    assert!(!original_component.0);
+    assert!(!client_entity.contains::<OriginalComponent>());
 
-    let replaced_component = client_entity.get::<ReplacedComponent>().unwrap();
-    assert!(replaced_component.0);
+    let component = client_entity.get::<ReplacedComponent>().unwrap();
+    assert!(component.0);
 }
 
 #[test]
@@ -256,20 +259,24 @@ fn marker_with_history() {
         ))
         .id();
 
+    let client_entity = client_app.world.spawn(HistoryMarker).id();
+
+    let client = client_app.world.resource::<RepliconClient>();
+    let client_id = client.id().unwrap();
+
+    let mut entity_map = server_app.world.resource_mut::<ClientEntityMap>();
+    entity_map.insert(
+        client_id,
+        ClientMapping {
+            server_entity,
+            client_entity,
+        },
+    );
+
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
-
-    let client_entity = client_app
-        .world
-        .query_filtered::<Entity, (With<BoolComponent>, With<MappedComponent>)>()
-        .single(&client_app.world);
-
-    client_app
-        .world
-        .entity_mut(client_entity)
-        .insert(HistoryMarker);
 
     client_app.update();
 
@@ -294,17 +301,12 @@ fn marker_with_history() {
     client_app.update();
 
     let client_entity = client_app.world.entity(client_entity);
-    let component = client_entity.get::<BoolComponent>().unwrap();
-    assert!(
-        !component.0,
-        "original component should equal to the value before history marker insertion"
-    );
-
     let history = client_entity.get::<BoolHistory>().unwrap();
     assert_eq!(
         history.0,
-        [false, true],
-        "the latest update should come first, that the older update because recent updates processed first"
+        [false, false, true],
+        "the initial value should come first, then the latest update, \
+        and after that the older update because recent updates processed first"
     );
 
     let entity_map = client_app.world.resource::<ServerEntityMap>();
