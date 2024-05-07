@@ -46,13 +46,26 @@ impl Confirmed {
         ago >= u64::BITS || (self.mask >> ago & 1) == 1
     }
 
+    /// Confirms a tick.
+    ///
+    /// Useful for unit tests.
+    pub fn confirm(&mut self, tick: RepliconTick) {
+        if tick > self.last_tick {
+            self.resize_to(tick);
+        }
+        let ago = self.last_tick - tick;
+        if ago < u64::BITS {
+            self.set(ago);
+        }
+    }
+
     /// Marks previous tick as received.
     ///
     /// # Panics
     ///
     /// Panics if `debug_assertions` are enabled and
     /// `ago` is bigger then [`u64::BITS`].
-    pub fn set(&mut self, ago: u32) {
+    pub(super) fn set(&mut self, ago: u32) {
         debug_assert!(ago < u64::BITS);
         self.mask |= 1 << ago;
     }
@@ -63,7 +76,7 @@ impl Confirmed {
     ///
     /// Panics if `debug_assertions` are enabled and
     /// `tick` is less then the last tick.
-    pub fn resize_to(&mut self, tick: RepliconTick) {
+    pub(super) fn resize_to(&mut self, tick: RepliconTick) {
         debug_assert!(tick >= self.last_tick);
         let diff = tick - self.last_tick;
         self.mask = self.mask.wrapping_shl(diff);
