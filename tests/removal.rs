@@ -115,7 +115,7 @@ fn marker() {
 
     server_app.connect_client(&mut client_app);
 
-    let server_entity = server_app.world.spawn((Replicated, DummyComponent)).id();
+    let server_entity = server_app.world.spawn((Replicated, OriginalComponent)).id();
     let client_entity = client_app.world.spawn(ReplaceMarker).id();
 
     let client = client_app.world.resource::<RepliconClient>();
@@ -138,7 +138,7 @@ fn marker() {
     server_app
         .world
         .entity_mut(server_entity)
-        .remove::<DummyComponent>();
+        .remove::<OriginalComponent>();
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
