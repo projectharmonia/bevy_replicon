@@ -157,4 +157,26 @@ mod tests {
         assert!(!confirmed.contains(RepliconTick(3)));
         assert!(confirmed.contains(RepliconTick(u32::MAX)));
     }
+
+    #[test]
+    fn confirm_with_resize() {
+        let mut confirmed = Confirmed::new(RepliconTick(1));
+
+        confirmed.confirm(RepliconTick(2));
+
+        assert!(!confirmed.contains(RepliconTick(0)));
+        assert!(confirmed.contains(RepliconTick(1)));
+        assert!(confirmed.contains(RepliconTick(2)));
+    }
+
+    #[test]
+    fn confirm_with_set() {
+        let mut confirmed = Confirmed::new(RepliconTick(1));
+
+        confirmed.confirm(RepliconTick(0));
+
+        assert!(confirmed.contains(RepliconTick(0)));
+        assert!(confirmed.contains(RepliconTick(1)));
+        assert!(!confirmed.contains(RepliconTick(2)));
+    }
 }
