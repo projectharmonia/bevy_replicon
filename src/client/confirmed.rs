@@ -43,7 +43,36 @@ impl Confirmed {
         }
 
         let ago = self.last_tick - tick;
-        ago >= u64::BITS || (self.mask >> ago & 1) == 1
+        ago >= u64::BITS || (self.mask >> (ago & 1)) == 1
+    }
+
+    /// Returns `true` if any tick in the given range confirmed for an entity.
+    ///
+    /// All ticks older then 64 ticks since [`Self::last_tick`] are considered received.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `debug_assertions` are enabled and
+    /// `start_tick` is bigger then `end_tick`.
+    pub fn contains_any(&self, start_tick: RepliconTick, end_tick: RepliconTick) -> bool {
+        debug_assert!(start_tick <= end_tick);
+
+        let end_tick = if end_tick > self.last_tick {
+            self.last_tick
+        } else {
+            end_tick
+        };
+
+        if start_tick > end_tick {
+            return false;
+        }
+
+        let ago = end_tick - start_tick;
+        let range = (1 << (ago + 1)) - 1; // Set bit to `ago + 1` and then decrement to get `ago` of 1's.
+        let offset = self.last_tick - end_tick;
+        let mask = range << offset;
+
+        self.mask & mask != 0
     }
 
     /// Confirms a tick.
@@ -97,6 +126,34 @@ mod tests {
         assert!(confirmed.contains(RepliconTick(1)));
         assert!(!confirmed.contains(RepliconTick(2)));
         assert!(!confirmed.contains(RepliconTick(u32::MAX)));
+    }
+
+    #[test]
+    fn contains_any() {
+        let confirmed = Confirmed::new(RepliconTick(1));
+
+        assert!(confirmed.contains_any(RepliconTick(0), RepliconTick(1)));
+        assert!(confirmed.contains_any(RepliconTick(1), RepliconTick(2)));
+        assert!(!confirmed.contains_any(RepliconTick(2), RepliconTick(3)));
+        assert!(!confirmed.contains_any(RepliconTick(u32::MAX), RepliconTick(0)));
+        assert!(confirmed.contains_any(RepliconTick(0), RepliconTick(2)));
+        assert!(confirmed.contains_any(RepliconTick(u32::MAX), RepliconTick(3)));
+    }
+
+    #[test]
+    fn contains_any_with_set() {
+        let mut confirmed = Confirmed::new(RepliconTick(1));
+
+        confirmed.set(2);
+
+        assert!(confirmed.contains_any(RepliconTick(0), RepliconTick(1)));
+        assert!(confirmed.contains_any(RepliconTick(1), RepliconTick(2)));
+        assert!(!confirmed.contains_any(RepliconTick(2), RepliconTick(3)));
+        assert!(confirmed.contains_any(RepliconTick(u32::MAX), RepliconTick(0)));
+        assert!(confirmed.contains_any(RepliconTick(0), RepliconTick(2)));
+        assert!(confirmed.contains_any(RepliconTick(u32::MAX), RepliconTick(3)));
+        assert!(confirmed.contains_any(RepliconTick(u32::MAX - 1), RepliconTick(u32::MAX)));
+        assert!(!confirmed.contains_any(RepliconTick(u32::MAX - 2), RepliconTick(u32::MAX - 1)));
     }
 
     #[test]
