@@ -37,7 +37,7 @@ impl Confirmed {
     /// Returns `true` if this tick is confirmed for an entity.
     ///
     /// All ticks older then 64 ticks since [`Self::last_tick`] are considered received.
-    pub fn test(&self, tick: RepliconTick) -> bool {
+    pub fn contains(&self, tick: RepliconTick) -> bool {
         if tick > self.last_tick {
             return false;
         }
@@ -90,13 +90,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test() {
+    fn contains() {
         let confirmed = Confirmed::new(RepliconTick(1));
 
-        assert!(!confirmed.test(RepliconTick(0)));
-        assert!(confirmed.test(RepliconTick(1)));
-        assert!(!confirmed.test(RepliconTick(2)));
-        assert!(!confirmed.test(RepliconTick(u32::MAX)));
+        assert!(!confirmed.contains(RepliconTick(0)));
+        assert!(confirmed.contains(RepliconTick(1)));
+        assert!(!confirmed.contains(RepliconTick(2)));
+        assert!(!confirmed.contains(RepliconTick(u32::MAX)));
     }
 
     #[test]
@@ -105,9 +105,9 @@ mod tests {
 
         confirmed.set(1);
 
-        assert!(confirmed.test(RepliconTick(0)));
-        assert!(confirmed.test(RepliconTick(1)));
-        assert!(!confirmed.test(RepliconTick(2)));
+        assert!(confirmed.contains(RepliconTick(0)));
+        assert!(confirmed.contains(RepliconTick(1)));
+        assert!(!confirmed.contains(RepliconTick(2)));
     }
 
     #[test]
@@ -116,9 +116,9 @@ mod tests {
 
         confirmed.resize_to(RepliconTick(2));
 
-        assert!(!confirmed.test(RepliconTick(0)));
-        assert!(confirmed.test(RepliconTick(1)));
-        assert!(confirmed.test(RepliconTick(2)));
+        assert!(!confirmed.contains(RepliconTick(0)));
+        assert!(confirmed.contains(RepliconTick(1)));
+        assert!(confirmed.contains(RepliconTick(2)));
     }
 
     #[test]
@@ -127,9 +127,9 @@ mod tests {
 
         confirmed.resize_to(RepliconTick(1));
 
-        assert!(!confirmed.test(RepliconTick(0)));
-        assert!(confirmed.test(RepliconTick(1)));
-        assert!(!confirmed.test(RepliconTick(2)));
+        assert!(!confirmed.contains(RepliconTick(0)));
+        assert!(confirmed.contains(RepliconTick(1)));
+        assert!(!confirmed.contains(RepliconTick(2)));
     }
 
     #[test]
@@ -138,12 +138,12 @@ mod tests {
 
         confirmed.resize_to(RepliconTick(65));
 
-        assert!(confirmed.test(RepliconTick(0)));
-        assert!(confirmed.test(RepliconTick(1)));
-        assert!(!confirmed.test(RepliconTick(2)));
-        assert!(!confirmed.test(RepliconTick(64)));
-        assert!(confirmed.test(RepliconTick(65)));
-        assert!(!confirmed.test(RepliconTick(66)));
+        assert!(confirmed.contains(RepliconTick(0)));
+        assert!(confirmed.contains(RepliconTick(1)));
+        assert!(!confirmed.contains(RepliconTick(2)));
+        assert!(!confirmed.contains(RepliconTick(64)));
+        assert!(confirmed.contains(RepliconTick(65)));
+        assert!(!confirmed.contains(RepliconTick(66)));
     }
 
     #[test]
@@ -152,9 +152,9 @@ mod tests {
 
         confirmed.resize_to(RepliconTick(1));
 
-        assert!(!confirmed.test(RepliconTick(0)));
-        assert!(confirmed.test(RepliconTick(1)));
-        assert!(!confirmed.test(RepliconTick(3)));
-        assert!(confirmed.test(RepliconTick(u32::MAX)));
+        assert!(!confirmed.contains(RepliconTick(0)));
+        assert!(confirmed.contains(RepliconTick(1)));
+        assert!(!confirmed.contains(RepliconTick(3)));
+        assert!(confirmed.contains(RepliconTick(u32::MAX)));
     }
 }
