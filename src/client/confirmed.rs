@@ -43,7 +43,7 @@ impl Confirmed {
         }
 
         let ago = self.last_tick - tick;
-        ago >= u64::BITS || (self.mask >> (ago & 1)) == 1
+        ago >= u64::BITS || (self.mask >> ago & 1) == 1
     }
 
     /// Returns `true` if any tick in the given range confirmed for an entity.
