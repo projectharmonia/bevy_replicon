@@ -183,7 +183,7 @@ fn apply_init_message(
     world.resource_mut::<ServerInitTick>().0 = message_tick;
     debug_assert!(cursor.position() < end_pos, "init message can't be empty");
 
-    apply_entity_mappings(world, params, &mut cursor, message_tick)?;
+    apply_entity_mappings(world, params, &mut cursor)?;
     if cursor.position() == end_pos {
         return Ok(());
     }
@@ -278,7 +278,6 @@ fn apply_entity_mappings(
     world: &mut World,
     params: &mut ReceiveParams,
     cursor: &mut Cursor<&[u8]>,
-    message_tick: RepliconTick,
 ) -> bincode::Result<()> {
     let mappings_len: u16 = bincode::deserialize_from(&mut *cursor)?;
     if let Some(stats) = &mut params.stats {
@@ -290,7 +289,7 @@ fn apply_entity_mappings(
 
         if let Some(mut entity) = world.get_entity_mut(client_entity) {
             debug!("received mapping from {server_entity:?} to {client_entity:?}");
-            entity.insert((Replicated, Confirmed::new(message_tick)));
+            entity.insert(Replicated);
             params.entity_map.insert(server_entity, client_entity);
         } else {
             // Entity could be despawned on client already.
@@ -315,9 +314,7 @@ fn apply_init_components(
 
         let client_entity = params
             .entity_map
-            .get_by_server_or_insert(server_entity, || {
-                world.spawn((Replicated, Confirmed::new(message_tick))).id()
-            });
+            .get_by_server_or_insert(server_entity, || world.spawn(Replicated).id());
 
         let world_cell = world.as_unsafe_world_cell();
         // SAFETY: access is unique and used to obtain `EntityMut`, which is just a wrapper over `UnsafeEntityCell`.
@@ -328,10 +325,13 @@ fn apply_init_components(
             .entity_markers
             .read(params.command_markers, &client_entity);
 
-        let mut confirmed = client_entity
-            .get_mut::<Confirmed>()
-            .expect("all init entities should have been spawned with confirmed ticks");
-        confirmed.resize_to(message_tick);
+        if let Some(mut confirmed) = client_entity.get_mut::<Confirmed>() {
+            confirmed.resize_to(message_tick);
+        } else {
+            commands
+                .entity(client_entity.id())
+                .insert(Confirmed::new(message_tick));
+        }
 
         let end_pos = cursor.position() + data_size as u64;
         let mut components_len = 0u32;
