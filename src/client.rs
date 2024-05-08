@@ -331,6 +331,7 @@ fn apply_init_components(
         if let Some(mut confirmed) = client_entity.get_mut::<Confirmed>() {
             confirmed.resize_to(message_tick);
         } else {
+            commands.entity(client_entity.id()).log_components();
             error!("entity without Confirmed: {:?}", client_entity.id());
         }
 
@@ -436,9 +437,11 @@ fn apply_update_components(
             .entity_markers
             .read(params.command_markers, &client_entity);
 
-        let mut confirmed = client_entity
-            .get_mut::<Confirmed>()
-            .expect("all entities from update should have confirmed ticks");
+        let Some(mut confirmed) = client_entity.get_mut::<Confirmed>() else {
+            commands.entity(client_entity.id()).log_components();
+            error!("entity without Confirmed: {:?}", client_entity.id());
+            continue;
+        };
         let new_entity = message_tick > confirmed.last_tick();
         if new_entity {
             confirmed.resize_to(message_tick);
