@@ -41,6 +41,8 @@ Check out the [quick start guide](https://docs.rs/bevy_replicon/latest/bevy_repl
 
 See also [examples](https://github.com/projectharmonia/bevy_replicon/tree/master/bevy_replicon_renet/examples).
 
+Have any questions? Feel free to ask in the dedicated [`bevy_replicon` channel](https://discord.com/channels/691052431525675048/1090432346907492443) in Bevy's Discord server.
+
 ## Related Crates
 
 - [bevy_replicon_snap](https://github.com/Bendzae/bevy_replicon_snap) - adds snapshot interpolation and client-side prediction.
