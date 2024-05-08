@@ -2,12 +2,13 @@ use std::io::Cursor;
 
 use bevy::{ecs::entity::MapEntities, prelude::*, utils::Duration};
 use bevy_replicon::{
-    client::{server_entity_map::ServerEntityMap, ServerInitTick},
+    client::{confirmed::Confirmed, server_entity_map::ServerEntityMap, ServerInitTick},
     core::{
         command_markers::MarkerConfig,
         replication_fns::{command_fns, ctx::WriteCtx, rule_fns::RuleFns},
     },
     prelude::*,
+    server::replicon_tick::RepliconTick,
     test_app::ServerTestAppExt,
 };
 use serde::{Deserialize, Serialize};
@@ -243,6 +244,86 @@ fn marker_with_history() {
             write_history,
             command_fns::default_remove::<BoolComponent>,
         )
+        .replicate::<BoolComponent>();
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    let server_entity = server_app
+        .world
+        .spawn((Replicated, BoolComponent(false)))
+        .id();
+
+    let client_entity = client_app.world.spawn(HistoryMarker).id();
+
+    let client = client_app.world.resource::<RepliconClient>();
+    let client_id = client.id().unwrap();
+
+    let mut entity_map = server_app.world.resource_mut::<ClientEntityMap>();
+    entity_map.insert(
+        client_id,
+        ClientMapping {
+            server_entity,
+            client_entity,
+        },
+    );
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    // Change value, but don't process it on client.
+    let mut component = server_app
+        .world
+        .get_mut::<BoolComponent>(server_entity)
+        .unwrap();
+    component.0 = true;
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    // Change value again to generate another update.
+    let mut component = server_app
+        .world
+        .get_mut::<BoolComponent>(server_entity)
+        .unwrap();
+    component.0 = false;
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    let client_entity = client_app.world.entity(client_entity);
+    let history = client_entity.get::<BoolHistory>().unwrap();
+    assert_eq!(
+        history.0,
+        [false, false, true],
+        "the initial value should come first, then the latest update, \
+        and after that the older update because recent updates processed first"
+    );
+}
+
+#[test]
+fn marker_with_history_consume() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .register_marker_with::<HistoryMarker>(MarkerConfig {
+            need_history: true,
+            ..Default::default()
+        })
+        .set_marker_fns::<HistoryMarker, BoolComponent>(
+            write_history,
+            command_fns::default_remove::<BoolComponent>,
+        )
         .replicate::<BoolComponent>()
         .replicate_mapped::<MappedComponent>();
     }
@@ -278,44 +359,116 @@ fn marker_with_history() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    // Change values, but don't process them on client.
+    // Change value, but don't process it on client.
     let update_entity1 = server_app.world.spawn_empty().id();
-    let mut server_entity = server_app.world.entity_mut(server_entity);
-    server_entity.get_mut::<BoolComponent>().unwrap().0 = true;
-    server_entity.get_mut::<MappedComponent>().unwrap().0 = update_entity1;
-    let server_entity = server_entity.id();
+    let mut component = server_app
+        .world
+        .get_mut::<MappedComponent>(server_entity)
+        .unwrap();
+    component.0 = update_entity1;
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    // Change values again to generate another update.
+    // Change value again to generate another update.
     let update_entity2 = server_app.world.spawn_empty().id();
-    let mut server_entity = server_app.world.entity_mut(server_entity);
-    server_entity.get_mut::<BoolComponent>().unwrap().0 = false;
-    server_entity.get_mut::<MappedComponent>().unwrap().0 = update_entity2;
+    let mut component = server_app
+        .world
+        .get_mut::<MappedComponent>(server_entity)
+        .unwrap();
+    component.0 = update_entity2;
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let client_entity = client_app.world.entity(client_entity);
-    let history = client_entity.get::<BoolHistory>().unwrap();
-    assert_eq!(
-        history.0,
-        [false, false, true],
-        "the initial value should come first, then the latest update, \
-        and after that the older update because recent updates processed first"
-    );
-
     let entity_map = client_app.world.resource::<ServerEntityMap>();
+    assert!(entity_map.to_client().contains_key(&update_entity2));
     assert!(
         !entity_map.to_client().contains_key(&update_entity1),
-        "client should consume older update for components without history"
+        "client should consume older update for other components with marker that requested history"
     );
     assert_eq!(
         client_app.world.entities().len(),
         3,
-        "client should have 2 initial entities and 1 from update with history"
+        "client should have 2 initial entities and 1 from update"
+    );
+}
+
+#[test]
+fn marker_with_history_old_update() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .register_marker_with::<HistoryMarker>(MarkerConfig {
+            need_history: true,
+            ..Default::default()
+        })
+        .set_marker_fns::<HistoryMarker, BoolComponent>(
+            write_history,
+            command_fns::default_remove::<BoolComponent>,
+        )
+        .replicate::<BoolComponent>();
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    let server_entity = server_app
+        .world
+        .spawn((Replicated, BoolComponent(false)))
+        .id();
+
+    let client_entity = client_app.world.spawn(HistoryMarker).id();
+
+    let client = client_app.world.resource::<RepliconClient>();
+    let client_id = client.id().unwrap();
+
+    let mut entity_map = server_app.world.resource_mut::<ClientEntityMap>();
+    entity_map.insert(
+        client_id,
+        ClientMapping {
+            server_entity,
+            client_entity,
+        },
+    );
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    // Artificially make the last confirmed tick too large
+    // so that the next update for this entity is discarded.
+    let mut replicon_tick = *server_app.world.resource::<RepliconTick>();
+    replicon_tick.increment_by(u64::BITS + 1);
+    let mut confirmed = client_app
+        .world
+        .get_mut::<Confirmed>(client_entity)
+        .unwrap();
+    confirmed.confirm(replicon_tick);
+
+    let mut component = server_app
+        .world
+        .get_mut::<BoolComponent>(server_entity)
+        .unwrap();
+    component.0 = true;
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    let history = client_app.world.get::<BoolHistory>(client_entity).unwrap();
+    assert_eq!(
+        history.0,
+        [false],
+        "update should be considered too old and discarded"
     );
 }
 
