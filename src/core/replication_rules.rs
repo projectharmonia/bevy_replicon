@@ -21,8 +21,8 @@ pub trait AppRuleExt {
     ///
     /// If your component contains any [`Entity`] inside, use [`Self::replicate_mapped`].
     ///
-    /// See also [`Self::replicate_with`] and [`components`](../../index.html#components)
-    /// section from the quick start guide.
+    /// See also [`Self::replicate_with`] and the section on [`components`](../../index.html#components)
+    /// from the quick start guide.
     fn replicate<C>(&mut self) -> &mut Self
     where
         C: Component + Serialize + DeserializeOwned,

@@ -3,22 +3,22 @@ use std::cmp::Ordering;
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// Like to [`Tick`](bevy::ecs::component::Tick), but for replication.
+/// Like [`Tick`](bevy::ecs::component::Tick), but for replication.
 ///
-/// Used only on server. The [`ServerPlugin`](super::ServerPlugin) sends replication data
+/// Used only on the server. The [`ServerPlugin`](super::ServerPlugin) sends replication data
 /// in [`PostUpdate`] any time this resource changes.
 /// By default, its incremented in [`PostUpdate`] per the [`TickPolicy`](super::TickPolicy).
 ///
 /// If you set [`TickPolicy::Manual`](super::TickPolicy::Manual), you can increment [`RepliconTick`]
-/// at the start of your game loop inside [`FixedMain`](bevy::app::FixedMain).
-/// This value can represent your simulation step, and is made available to the client in the custom
-/// deserialization, despawn and component removal functions.
+/// at the start of your game loop (e.g. inside [`FixedMain`](bevy::app::FixedMain)).
+/// This value can be used to represent your simulation step, and is made available to the client in
+/// the custom deserialization, despawn, and component removal functions.
 ///
 /// One use for this is rollback networking: you may want to rollback time and apply the update
 /// for the tick frame, which is in the past, then resimulate.
 ///
-/// See [`ServerInitTick`](crate::client::ServerInitTick) for tick tracking the last received
-/// tick on the client.
+/// See [`ServerInitTick`](crate::client::ServerInitTick) for tracking the last received
+/// tick on clients.
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Resource, Serialize)]
 pub struct RepliconTick(pub(crate) u32);
 

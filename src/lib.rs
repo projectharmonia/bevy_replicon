@@ -13,11 +13,11 @@ If you want to write an integration for a messaging backend,
 see the documentation for [`RepliconServer`], [`RepliconClient`] and [`ServerEvent`].
 You can also use `bevy_replicon_renet` as a reference.
 
-Also depending on your game, you may want to use additional crates. For example, if you game
+Also depending on your game, you may want to use additional crates. For example, if your game
 is fast-paced, you will need interpolation and rollback.
 For details see [`goals`](https://github.com/projectharmonia/bevy_replicon#goals) and
 [`related crates`](https://github.com/projectharmonia/bevy_replicon#related-crates).
-But before adding advanced functionality, it's recommended to read the quick start guide
+Before adding advanced functionality, it's recommended to read the quick start guide
 first to understand the basics.
 
 ## Initialization
@@ -45,8 +45,8 @@ If you are planning to separate client and server you can use
 [`PluginGroupBuilder::disable()`] to disable [`ClientPlugin`] or [`ServerPlugin`] on [`RepliconPlugins`].
 You will need to disable similar plugins on your messaing library of choice too.
 
-Typically updates are not sent every frame. Instead, they are sent once at a certain interval
-to save traffic. You can change the defaults it with [`TickPolicy`] on [`ServerPlugin`]:
+Typically updates are not sent every frame. Instead, they are sent at a certain interval
+to save traffic. You can change the defaults with [`TickPolicy`] in the [`ServerPlugin`]:
 
 ```
 # use bevy::prelude::*;
@@ -85,23 +85,24 @@ in combination with [network events](#network-events).
 
 ## System conditions
 
-To run a system based on a network condition, use [`core::common_conditions`] module.
+To run a system based on a network condition, use the [`core::common_conditions`] module.
 This module is also available from [`prelude`].
 
 For example, to display a "connecting" message, you can use [`client_connecting`].
 But for gameplay systems, you most likely want to run them in both server and single-player
 sessions. For example, damage registration or procedural generation systems. Use [`has_authority`]
-condition for them.
+condition for those cases.
 
-If you want your systems to run only on frames when server send updates to clients use [`ServerSet::Send`].
+If you want your systems to run only on frames when the server sends updates to clients,
+use [`ServerSet::Send`].
 
 ## Replication
 
 It's a process of sending changes from server to clients in order to
 keep the world in sync.
 
-To prevent cheating, you can't replicate from client. If you need to send
-information from client to server, use [events](#network-events).
+To prevent cheating, we do not support replicating from the client. If you need to send
+information from clients to the server, use [events](#network-events).
 
 ### Marking for replication
 
@@ -167,14 +168,14 @@ waiting on replication.
 
 The idea was borrowed from [iyes_scene_tools](https://github.com/IyesGames/iyes_scene_tools#blueprints-pattern).
 You don't want to replicate all components because not all of them are
-necessary to send over the network. For example, components that computed based on other
+necessary to send over the network. For example, components that are computed based on other
 components (like [`GlobalTransform`]) can be inserted after replication.
 This can be easily done using a system with query filter.
 This way, you detect when such entities are spawned into the world, and you can
 do any additional setup on them using code. For example, if you have a
 character with mesh, you can replicate only your `Player` and [`Transform`] components and insert
 necessary components after replication. To avoid one frame delay, put
-your initialization systems to [`ClientSet::Receive`]:
+your initialization systems in [`ClientSet::Receive`]:
 
 ```
 # use bevy::{prelude::*, sprite::Mesh2dHandle};
