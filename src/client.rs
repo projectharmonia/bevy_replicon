@@ -328,11 +328,10 @@ fn apply_init_components(
             .entity_markers
             .read(params.command_markers, &client_entity);
 
-        if let Some(mut confirmed) = client_entity.get_mut::<Confirmed>() {
-            confirmed.resize_to(message_tick);
-        } else {
-            error!("entity without Confirmed: {:?}", client_entity.id());
-        }
+        let mut confirmed = client_entity
+            .get_mut::<Confirmed>()
+            .expect("all init entities should have been spawned with confirmed ticks");
+        confirmed.resize_to(message_tick);
 
         let end_pos = cursor.position() + data_size as u64;
         let mut components_len = 0u32;
