@@ -21,7 +21,8 @@ pub trait AppRuleExt {
     ///
     /// If your component contains any [`Entity`] inside, use [`Self::replicate_mapped`].
     ///
-    /// See also [`Self::replicate_with`].
+    /// See also [`Self::replicate_with`] and the section on [`components`](../../index.html#components)
+    /// from the quick start guide.
     fn replicate<C>(&mut self) -> &mut Self
     where
         C: Component + Serialize + DeserializeOwned,
@@ -29,11 +30,33 @@ pub trait AppRuleExt {
         self.replicate_with::<C>(RuleFns::default())
     }
 
-    /// Same as [`Self::replicate`], but additionally maps server entities to client inside the component after receiving.
-    ///
-    /// Always use it for components that contain entities.
-    ///
-    /// See also [`Self::replicate`].
+    /**
+    Same as [`Self::replicate`], but additionally maps server entities to client inside the component after receiving.
+
+    Always use it for components that contain entities.
+
+    See also [`Self::replicate`].
+
+    # Examples
+
+    ```
+    # use bevy::{prelude::*, ecs::entity::{EntityMapper, MapEntities}};
+    # use bevy_replicon::prelude::*;
+    # use serde::{Deserialize, Serialize};
+    # let mut app = App::new();
+    # app.add_plugins(RepliconPlugins);
+    app.replicate_mapped::<MappedComponent>();
+
+    #[derive(Component, Deserialize, Serialize)]
+    struct MappedComponent(Entity);
+
+    impl MapEntities for MappedComponent {
+        fn map_entities<T: EntityMapper>(&mut self, mapper: &mut T) {
+            self.0 = mapper.map_entity(self.0);
+        }
+    }
+    ```
+    **/
     fn replicate_mapped<C>(&mut self) -> &mut Self
     where
         C: Component + Serialize + DeserializeOwned + MapEntities,
