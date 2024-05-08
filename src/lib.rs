@@ -152,6 +152,7 @@ you can use [`AppRuleExt::replicate_group`].
 
 If you want to customize how the received component will be written or removed on clients based
 on some marker component (for example, write into a different component), see [`AppMarkerExt`].
+Useful for implementing rollback and interpolation.
 
 In order to serialize Bevy components you need to enable the `serialize` feature on Bevy.
 
