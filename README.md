@@ -4,7 +4,7 @@
 [![docs.rs](https://docs.rs/bevy_replicon/badge.svg)](https://docs.rs/bevy_replicon)
 [![codecov](https://codecov.io/gh/projectharmonia/bevy_replicon/graph/badge.svg?token=N1G28NQB1L)](https://codecov.io/gh/projectharmonia/bevy_replicon)
 
-ECS-focused high-level networking crate for the [Bevy game engine](https://bevyengine.org).
+Server-authoritative networking crate for the [Bevy game engine](https://bevyengine.org).
 
 ## Features
 
@@ -16,6 +16,8 @@ ECS-focused high-level networking crate for the [Bevy game engine](https://bevye
 - Customizable serialization and deserialization even for types that don't implement `serde` traits (like `Box<dyn Reflect>`).
 - No builtin I/O. Use it with any messaging library. We provide a first-party integration with [`renet`](https://github.com/lucaspoffo/renet) via `bevy_replicon_renet`.
 - API focused on writing logic once that automatically works for singleplayer, client, server, and listen server (when server is also a player).
+
+If you are new to networking, see [glossary](https://gist.github.com/maniwani/f92cc5d827b00163f5846ea7dcb90d44).
 
 ## Goals
 
@@ -30,6 +32,8 @@ The purpose of the crate is to provide a minimal and fast core that can be exten
 All of these examples also have drastically different optimization requirements. This is why modularity is essential. It also allows for more developers to be involved and for each to maintain what they use.
 
 Check out [related crates](#related-crates) to extend the core functionality.
+
+See also [What kind of networking should X game use?](https://github.com/bevyengine/bevy/discussions/8675).
 
 ## Getting Started
 

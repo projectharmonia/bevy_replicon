@@ -13,6 +13,13 @@ If you want to write an integration for a messaging backend,
 see the documentation for [`RepliconServer`], [`RepliconClient`] and [`ServerEvent`].
 You can also use `bevy_replicon_renet` as a reference.
 
+Also depending on your game, you may want to use additional crates. For example, if you game
+is fast-paced, you will need interpolation and rollback.
+For details see [`goals`](https://github.com/projectharmonia/bevy_replicon#goals) and
+[`related crates`](https://github.com/projectharmonia/bevy_replicon#related-crates).
+But before adding advanced functionality, it's recommended to read the quick start guide
+first to understand the basics.
+
 ## Initialization
 
 You need to add [`RepliconPlugins`] and plugins for your chosen messaging backend to your app:
@@ -38,8 +45,8 @@ If you are planning to separate client and server you can use
 [`PluginGroupBuilder::disable()`] to disable [`ClientPlugin`] or [`ServerPlugin`] on [`RepliconPlugins`].
 You will need to disable similar plugins on your messaing library of choice too.
 
-You can also configure how often updates are sent from
-server to clients with [`ServerPlugin`]'s [`TickPolicy`]:
+Typically updates are not sent every frame. Instead, they are sent once at a certain interval
+to save traffic. You can change the defaults it with [`TickPolicy`] on [`ServerPlugin`]:
 
 ```
 # use bevy::prelude::*;
@@ -56,23 +63,45 @@ app.add_plugins(
 );
 ```
 
+Depending on the game, you may notice that the lower the interval, the less smooth the game feels.
+To smooth updates, you will need to apply interpolation.
+
 ## Server and client creation
 
 This part is customized based on your messaging backend. For `bevy_replicon_renet`
 see [this](https://docs.rs/bevy_replicon_renet#server-and-client-creation) section.
 
-The backend will update the [`RepliconServer`] or [`RepliconClient`] resources, which can be
-interacted with without knowing what backend is used. Those resources typically don't need to
+The backend will automatically update the [`RepliconServer`] or [`RepliconClient`] resources, which
+can be interacted with without knowing what backend is used. Those resources typically don't need to
 be used directly, it is preferred to use more high-level abstractions described later.
+
+<div class="warning">
 
 Never initialize a client and server in the same app for single-player, it will cause a replication loop.
 Use the described pattern in [system sets and conditions](#system-sets-and-conditions)
 in combination with [network events](#network-events).
 
+</div>
+
+## System conditions
+
+To run a system based on a network condition, use [`core::common_conditions`] module.
+This module is also available from [`prelude`].
+
+For example, to display a "connecting" message, you can use [`client_connecting`].
+But for gameplay systems, you most likely want to run them in both server and single-player
+sessions. For example, damage registration or procedural generation systems. Use [`has_authority`]
+condition for them.
+
+If you want your systems to run only on frames when server send updates to clients use [`ServerSet::Send`].
+
 ## Replication
 
 It's a process of sending changes from server to clients in order to
 keep the world in sync.
+
+To prevent cheating, you can't replicate from client. If you need to send
+information from client to server, use [events](#network-events).
 
 ### Marking for replication
 
@@ -111,21 +140,7 @@ If your component contains an entity then it cannot be deserialized as is
 because entity IDs are different on server and client. The client should do the
 mapping. Therefore, to replicate such components properly, they need to implement
 the [`MapEntities`](bevy::ecs::entity::MapEntities) trait and register
-using [`AppRuleExt::replicate_mapped()`]:
-
-```
-# use bevy::{prelude::*, ecs::entity::{EntityMapper, MapEntities}};
-# use bevy_replicon::prelude::*;
-# use serde::{Deserialize, Serialize};
-#[derive(Component, Deserialize, Serialize)]
-struct MappedComponent(Entity);
-
-impl MapEntities for MappedComponent {
-    fn map_entities<T: EntityMapper>(&mut self, mapper: &mut T) {
-        self.0 = mapper.map_entity(self.0);
-    }
-}
-```
+using [`AppRuleExt::replicate_mapped()`].
 
 By default all components are serialized with [`bincode`] using [`DefaultOptions`](bincode::DefaultOptions).
 If your component doesn't implement serde traits or you want to serialize it partially
@@ -140,20 +155,6 @@ on some marker component (for example, write into a different component), see [`
 
 In order to serialize Bevy components you need to enable the `serialize` feature on Bevy.
 
-### Tick and fixed timestep games
-
-The [`ServerPlugin`] sends replication data in [`PostUpdate`] any time the
-[`RepliconTick`](server::replicon_tick::RepliconTick) resource changes.
-By default, its incremented in [`PostUpdate`] per the [`TickPolicy`].
-
-If you set [`TickPolicy::Manual`], you can increment [`RepliconTick`](server::replicon_tick::RepliconTick)
-at the start of your game loop inside [`FixedMain`](bevy::app::FixedMain).
-This value can represent your simulation step, and is made available to the client in the custom
-deserialization, despawn and component removal functions.
-
-One use for this is rollback networking: you may want to rollback time and apply the update
-for the tick frame, which is in the past, then resimulate.
-
 ### Mapping to existing client entities
 
 If you want the server to replicate an entity into a client entity that was already spawned on a client, see [`ClientEntityMap`].
@@ -165,13 +166,13 @@ waiting on replication.
 
 The idea was borrowed from [iyes_scene_tools](https://github.com/IyesGames/iyes_scene_tools#blueprints-pattern).
 You don't want to replicate all components because not all of them are
-necessary to send over the network. Components that computed based on other
+necessary to send over the network. For example, components that computed based on other
 components (like [`GlobalTransform`]) can be inserted after replication.
 This can be easily done using a system with query filter.
 This way, you detect when such entities are spawned into the world, and you can
 do any additional setup on them using code. For example, if you have a
 character with mesh, you can replicate only your `Player` and [`Transform`] components and insert
-necessary components after replication. If you want to avoid one frame delay, put
+necessary components after replication. To avoid one frame delay, put
 your initialization systems to [`ClientSet::Receive`]:
 
 ```
@@ -357,22 +358,8 @@ struct DummyEvent;
 Just like with client events, if the event contains an entity, then
 [`ServerEventAppExt::add_mapped_server_event()`] should be used instead.
 
-For events that require special sending and receiving functions you can use [`ServerEventAppExt::add_server_event_with()`].
-
-## System sets and conditions
-
-When configuring systems for multiplayer game, you often want to run some
-systems only on when you have authority over the world simulation
-(on server or in single-player session). For example, damage registration or
-procedural level generation systems. For this just add [`has_authority`]
-condition on such system. If you want your systems to run only on
-frames when server send updates to clients use [`ServerSet::Send`].
-
-To check if you are running a server or client, you can use
-[`server_running`] and [`client_connected`] conditions.
-They rarely used for gameplay systems (since you write the same logic for
-multiplayer and single-player!), but could be used for server
-creation / connection systems and corresponding UI.
+For events that require special sending and receiving functions you can use
+[`ServerEventAppExt::add_server_event_with()`].
 
 ## Client visibility
 
