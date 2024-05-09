@@ -469,12 +469,12 @@ pub mod prelude {
         },
         parent_sync::{ParentSync, ParentSyncPlugin},
         server::{
+            client_entity_map::{ClientEntityMap, ClientMapping},
             connected_clients::{
                 client_visibility::ClientVisibility, ConnectedClient, ConnectedClients,
             },
             replicon_server::RepliconServer,
-            ClientEntityMap, ClientMapping, ServerEvent, ServerPlugin, ServerSet, TickPolicy,
-            VisibilityPolicy,
+            ServerEvent, ServerPlugin, ServerSet, TickPolicy, VisibilityPolicy,
         },
         RepliconPlugins,
     };

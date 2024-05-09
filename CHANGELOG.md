@@ -75,6 +75,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Channel creation methods in `RepliconChannels` now accept `RepliconChannel` with full channel configuration.
 - Make `default_max_bytes` field in `RepliconChannels` public.
 - Move `RepliconChannels::get_server_configs` and `RepliconChannels::get_client_configs` to create channels configs for `renet` into `RenetChannelsExt` extension trait provided by `bevy_replion_renet`. Make sure to import it to use these methods.
+- Move `ClientEntityMap` and `ClientMapping` to `client_entity_map` submodule.
 - Rename `ReplicationPlugins` into `RepliconPlugins`.
 - Rename `ClientCache` into `ConnectedClients`.
 - Rename `ClientState` into `ConnectedClient`.
