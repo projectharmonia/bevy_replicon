@@ -10,10 +10,11 @@ use bytes::Bytes;
 use varint_rs::VarintWriter;
 
 use super::{
+    client_entity_map::ClientMapping,
     connected_clients::{ClientBuffers, ConnectedClients},
     replicon_server::RepliconServer,
     replicon_tick::RepliconTick,
-    ClientMapping, ConnectedClient,
+    ConnectedClient,
 };
 use crate::core::{
     replication_fns::{
