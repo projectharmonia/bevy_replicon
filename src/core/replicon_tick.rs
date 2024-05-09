@@ -51,7 +51,7 @@ impl Add<u32> for RepliconTick {
 
 impl AddAssign<u32> for RepliconTick {
     fn add_assign(&mut self, rhs: u32) {
-        *self = *self - rhs
+        self.0 = self.0.wrapping_add(rhs)
     }
 }
 
@@ -73,7 +73,7 @@ impl Sub<u32> for RepliconTick {
 
 impl SubAssign<u32> for RepliconTick {
     fn sub_assign(&mut self, rhs: u32) {
-        *self = *self - rhs;
+        self.0 = self.0.wrapping_sub(rhs);
     }
 }
 
