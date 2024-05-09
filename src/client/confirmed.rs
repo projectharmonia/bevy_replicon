@@ -81,7 +81,7 @@ impl Confirmed {
     /// Useful for unit tests.
     pub fn confirm(&mut self, tick: RepliconTick) {
         if tick > self.last_tick {
-            self.resize_to(tick);
+            self.set_last_tick(tick);
         }
         let ago = self.last_tick - tick;
         if ago < u64::BITS {
@@ -106,7 +106,7 @@ impl Confirmed {
     ///
     /// Panics if `debug_assertions` are enabled and
     /// `tick` is less then the last tick.
-    pub(super) fn resize_to(&mut self, tick: RepliconTick) {
+    pub(super) fn set_last_tick(&mut self, tick: RepliconTick) {
         debug_assert!(tick >= self.last_tick);
         let diff = tick - self.last_tick;
         self.mask = self.mask.wrapping_shl(diff);
@@ -172,7 +172,7 @@ mod tests {
     fn resize() {
         let mut confirmed = Confirmed::new(RepliconTick(1));
 
-        confirmed.resize_to(RepliconTick(2));
+        confirmed.set_last_tick(RepliconTick(2));
 
         assert!(!confirmed.contains(RepliconTick(0)));
         assert!(confirmed.contains(RepliconTick(1)));
@@ -183,7 +183,7 @@ mod tests {
     fn resize_to_same() {
         let mut confirmed = Confirmed::new(RepliconTick(1));
 
-        confirmed.resize_to(RepliconTick(1));
+        confirmed.set_last_tick(RepliconTick(1));
 
         assert!(!confirmed.contains(RepliconTick(0)));
         assert!(confirmed.contains(RepliconTick(1)));
@@ -194,7 +194,7 @@ mod tests {
     fn resize_with_wrapping() {
         let mut confirmed = Confirmed::new(RepliconTick(1));
 
-        confirmed.resize_to(RepliconTick(65));
+        confirmed.set_last_tick(RepliconTick(65));
 
         assert!(confirmed.contains(RepliconTick(0)));
         assert!(confirmed.contains(RepliconTick(1)));
@@ -208,7 +208,7 @@ mod tests {
     fn resize_with_overflow() {
         let mut confirmed = Confirmed::new(RepliconTick(u32::MAX));
 
-        confirmed.resize_to(RepliconTick(1));
+        confirmed.set_last_tick(RepliconTick(1));
 
         assert!(!confirmed.contains(RepliconTick(0)));
         assert!(confirmed.contains(RepliconTick(1)));

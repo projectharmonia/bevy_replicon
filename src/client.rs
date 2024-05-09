@@ -326,7 +326,7 @@ fn apply_init_components(
             .read(params.command_markers, &client_entity);
 
         if let Some(mut confirmed) = client_entity.get_mut::<Confirmed>() {
-            confirmed.resize_to(message_tick);
+            confirmed.set_last_tick(message_tick);
         } else {
             commands
                 .entity(client_entity.id())
@@ -440,7 +440,7 @@ fn apply_update_components(
             .expect("all entities from update should have confirmed ticks");
         let new_entity = message_tick > confirmed.last_tick();
         if new_entity {
-            confirmed.resize_to(message_tick);
+            confirmed.set_last_tick(message_tick);
         } else {
             if !params.entity_markers.need_history() {
                 trace!(
