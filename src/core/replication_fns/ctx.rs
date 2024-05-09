@@ -1,14 +1,14 @@
 use bevy::prelude::*;
 
 use crate::{
-    client::server_entity_map::ServerEntityMap, server::replicon_tick::RepliconTick, Replicated,
+    client::server_entity_map::ServerEntityMap, core::replicon_tick::RepliconTick, Replicated,
 };
 
 /// Replication context for serialization function.
 #[non_exhaustive]
 pub struct SerializeCtx {
     /// Current tick.
-    pub replicon_tick: RepliconTick,
+    pub server_tick: RepliconTick,
 }
 
 /// Replication context for writing and deserialization.

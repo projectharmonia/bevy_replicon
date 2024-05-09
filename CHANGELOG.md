@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Writing to entities on client now done via `EntityMut` and `Commands` instead of `EntityWorldMut`. It was needed to support the mentioned in-place deserialization and will possibly allow batching insertions in the future (for details see https://github.com/bevyengine/bevy/issues/10154).
 - Return iterator from `RepliconClient::receive` instead of popping the last message. If you used `while` loop for it before, replace it with `for`.
 - Use new `ServerInitTick` resource on client instead of `RepliconTick`. If you used `ServerEventAppExt::add_server_event_with`, use `ServerInitTick` instead of `RepliconTick` in your receive function.
+- Use new `ServerTick` resource on server instead of `RepliconTick`.
 - Replace `ServerEntityTicks` with `Confirmed` component. The component now also stores whether the last 64 ticks were received.
 - Move `replicon_tick` module under `server` module since now it's used only on server.
 - Move `Replication` to `core` module.

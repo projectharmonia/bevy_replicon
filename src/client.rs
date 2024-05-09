@@ -10,18 +10,16 @@ use bincode::{DefaultOptions, Options};
 use bytes::Bytes;
 use varint_rs::VarintReader;
 
-use crate::{
-    core::{
-        command_markers::{CommandMarkers, EntityMarkers},
-        common_conditions::{client_connected, client_just_connected, client_just_disconnected},
-        replication_fns::{
-            ctx::{DeleteCtx, WriteCtx},
-            ReplicationFns,
-        },
-        replicon_channels::{ReplicationChannel, RepliconChannels},
-        Replicated,
+use crate::core::{
+    command_markers::{CommandMarkers, EntityMarkers},
+    common_conditions::{client_connected, client_just_connected, client_just_disconnected},
+    replication_fns::{
+        ctx::{DeleteCtx, WriteCtx},
+        ReplicationFns,
     },
-    server::replicon_tick::RepliconTick,
+    replicon_channels::{ReplicationChannel, RepliconChannels},
+    replicon_tick::RepliconTick,
+    Replicated,
 };
 use confirmed::Confirmed;
 use diagnostics::ClientStats;
@@ -230,10 +228,10 @@ fn read_update_message(
         stats.bytes += end_pos;
     }
 
-    let (change_tick, message_tick, update_index) = bincode::deserialize_from(&mut cursor)?;
+    let (init_tick, message_tick, update_index) = bincode::deserialize_from(&mut cursor)?;
     trace!("received update message for {message_tick:?}");
     buffered_updates.insert(BufferedUpdate {
-        change_tick,
+        init_tick,
         message_tick,
         message: message.slice(cursor.position() as usize..),
     });
@@ -253,7 +251,7 @@ fn apply_update_messages(
 ) -> bincode::Result<()> {
     let mut result = Ok(());
     buffered_updates.0.retain(|update| {
-        if update.change_tick > *init_tick {
+        if update.init_tick > *init_tick {
             return true;
         }
 
@@ -627,7 +625,7 @@ impl BufferedUpdates {
 /// See also [`crate::server::replication_messages::UpdateMessage`].
 pub(super) struct BufferedUpdate {
     /// Required tick to wait for.
-    change_tick: RepliconTick,
+    init_tick: RepliconTick,
 
     /// The tick this update corresponds to.
     message_tick: RepliconTick,

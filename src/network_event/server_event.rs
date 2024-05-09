@@ -18,13 +18,13 @@ use crate::{
     core::{
         common_conditions::{client_connected, has_authority, server_running},
         replicon_channels::{RepliconChannel, RepliconChannels},
+        replicon_tick::RepliconTick,
         ClientId,
     },
     prelude::{ClientPlugin, ServerPlugin},
     server::{
         connected_clients::{ConnectedClient, ConnectedClients},
         replicon_server::RepliconServer,
-        replicon_tick::RepliconTick,
         ServerSet,
     },
 };
@@ -198,7 +198,7 @@ fn pop_from_queue<T: Event>(
     mut server_events: EventWriter<T>,
     mut event_queue: ResMut<ServerEventQueue<T>>,
 ) {
-    while let Some((tick, event)) = event_queue.pop_if_le(*init_tick) {
+    while let Some((tick, event)) = event_queue.pop_if_le(**init_tick) {
         trace!(
             "applying event `{}` from queue with `{tick:?}`",
             any::type_name::<T>()
@@ -478,9 +478,9 @@ impl<T> ServerEventQueue<T> {
     }
 
     /// Pops the next event that is at least as old as the specified replicon tick.
-    fn pop_if_le(&mut self, init_tick: ServerInitTick) -> Option<(RepliconTick, T)> {
+    fn pop_if_le(&mut self, init_tick: RepliconTick) -> Option<(RepliconTick, T)> {
         let (tick, _) = self.0.front()?;
-        if *tick > *init_tick {
+        if *tick > init_tick {
             return None;
         }
         self.0

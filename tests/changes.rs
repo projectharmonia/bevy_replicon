@@ -8,7 +8,7 @@ use bevy_replicon::{
         replication_fns::{command_fns, ctx::WriteCtx, rule_fns::RuleFns},
     },
     prelude::*,
-    server::replicon_tick::RepliconTick,
+    server::server_tick::ServerTick,
     test_app::ServerTestAppExt,
 };
 use serde::{Deserialize, Serialize};
@@ -446,13 +446,13 @@ fn marker_with_history_old_update() {
 
     // Artificially make the last confirmed tick too large
     // so that the next update for this entity is discarded.
-    let mut replicon_tick = *server_app.world.resource::<RepliconTick>();
-    replicon_tick.increment_by(u64::BITS + 1);
+    let mut tick = **server_app.world.resource::<ServerTick>();
+    tick += u64::BITS + 1;
     let mut confirmed = client_app
         .world
         .get_mut::<Confirmed>(client_entity)
         .unwrap();
-    confirmed.confirm(replicon_tick);
+    confirmed.confirm(tick);
 
     let mut component = server_app
         .world

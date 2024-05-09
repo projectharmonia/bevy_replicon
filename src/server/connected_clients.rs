@@ -9,8 +9,8 @@ use bevy::{
 };
 
 use crate::{
-    core::ClientId,
-    server::{replicon_tick::RepliconTick, VisibilityPolicy},
+    core::{replicon_tick::RepliconTick, ClientId},
+    server::VisibilityPolicy,
 };
 use client_visibility::ClientVisibility;
 
@@ -200,8 +200,8 @@ impl ConnectedClient {
     }
 
     /// Sets the client's change tick.
-    pub(super) fn set_change_tick(&mut self, new: RepliconTick) {
-        self.change_tick = new;
+    pub(super) fn set_change_tick(&mut self, tick: RepliconTick) {
+        self.change_tick = tick;
     }
 
     /// Returns the last tick in which a replicated entity was spawned, despawned, or gained/lost a component from the

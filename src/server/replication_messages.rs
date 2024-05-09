@@ -12,7 +12,6 @@ use varint_rs::VarintWriter;
 use super::{
     connected_clients::{ClientBuffers, ConnectedClients},
     replicon_server::RepliconServer,
-    replicon_tick::RepliconTick,
     ClientMapping, ConnectedClient,
 };
 use crate::core::{
@@ -20,6 +19,7 @@ use crate::core::{
         component_fns::ComponentFns, ctx::SerializeCtx, rule_fns::UntypedRuleFns, FnsId,
     },
     replicon_channels::ReplicationChannel,
+    replicon_tick::RepliconTick,
 };
 
 /// Accumulates replication messages and sends them to clients.

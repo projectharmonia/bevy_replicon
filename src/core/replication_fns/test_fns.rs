@@ -11,8 +11,9 @@ use crate::{
     core::{
         command_markers::{CommandMarkers, EntityMarkers},
         replication_fns::{ctx::SerializeCtx, ReplicationFns},
+        replicon_tick::RepliconTick,
     },
-    server::replicon_tick::RepliconTick,
+    server::server_tick::ServerTick,
 };
 
 /**
@@ -29,14 +30,14 @@ use bevy::prelude::*;
 use bevy_replicon::{
     core::replication_fns::{rule_fns::RuleFns, test_fns::TestFnsEntityExt, ReplicationFns},
     prelude::*,
-    server::replicon_tick::RepliconTick,
+    server::server_tick::ServerTick,
 };
 use serde::{Deserialize, Serialize};
 
 let mut app = App::new();
 app.add_plugins((MinimalPlugins, RepliconPlugins));
 
-let replicon_tick = *app.world.resource::<RepliconTick>();
+let tick = **app.world.resource::<ServerTick>();
 
 // Register rule functions manually to obtain `FnsInfo`.
 let fns_info = app
@@ -49,13 +50,13 @@ let mut entity = app.world.spawn(DummyComponent);
 let data = entity.serialize(fns_info);
 entity.remove::<DummyComponent>();
 
-entity.apply_write(&data, fns_info, replicon_tick);
+entity.apply_write(&data, fns_info, tick);
 assert!(entity.contains::<DummyComponent>());
 
-entity.apply_remove(fns_info, replicon_tick);
+entity.apply_remove(fns_info, tick);
 assert!(!entity.contains::<DummyComponent>());
 
-entity.apply_despawn(replicon_tick);
+entity.apply_despawn(tick);
 assert!(app.world.entities().is_empty());
 
 #[derive(Component, Serialize, Deserialize)]
@@ -93,9 +94,9 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
     fn serialize(&mut self, fns_info: FnsInfo) -> Vec<u8> {
         let replication_fns = self.world().resource::<ReplicationFns>();
         let (component_fns, rule_fns) = replication_fns.get(fns_info.fns_id());
-        let replicon_tick = *self.world().resource::<RepliconTick>();
+        let server_tick = **self.world().resource::<ServerTick>();
         let mut cursor = Cursor::default();
-        let ctx = SerializeCtx { replicon_tick };
+        let ctx = SerializeCtx { server_tick };
         let ptr = self.get_by_id(fns_info.component_id()).unwrap_or_else(|| {
             let components = self.world().components();
             let component_name = components
