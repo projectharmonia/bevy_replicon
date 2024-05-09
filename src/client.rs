@@ -451,7 +451,7 @@ fn apply_update_components(
                 continue;
             }
 
-            let ago = confirmed.last_tick() - message_tick;
+            let ago = confirmed.last_tick().get().wrapping_sub(message_tick.get());
             if ago >= u64::BITS {
                 trace!(
                     "discarding update {ago} ticks old for client's {:?}",

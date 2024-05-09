@@ -42,7 +42,7 @@ impl Confirmed {
             return false;
         }
 
-        let ago = self.last_tick - tick;
+        let ago = self.last_tick.get().wrapping_sub(tick.get());
         ago >= u64::BITS || (self.mask >> ago & 1) == 1
     }
 
@@ -68,9 +68,9 @@ impl Confirmed {
             return false;
         }
 
-        let ago = end_tick - start_tick;
+        let ago = end_tick.get().wrapping_sub(start_tick.get());
         let range = (1 << (ago + 1)) - 1; // Set bit to `ago + 1` and then decrement to get `ago` of 1's.
-        let offset = self.last_tick - end_tick;
+        let offset = self.last_tick.get().wrapping_sub(end_tick.get());
         let mask = range << offset;
 
         self.mask & mask != 0
@@ -83,7 +83,7 @@ impl Confirmed {
         if tick > self.last_tick {
             self.set_last_tick(tick);
         }
-        let ago = self.last_tick - tick;
+        let ago = self.last_tick.get().wrapping_sub(tick.get());
         if ago < u64::BITS {
             self.set(ago);
         }
@@ -108,7 +108,7 @@ impl Confirmed {
     /// `tick` is less then the last tick.
     pub(super) fn set_last_tick(&mut self, tick: RepliconTick) {
         debug_assert!(tick >= self.last_tick);
-        let diff = tick - self.last_tick;
+        let diff = tick.get().wrapping_sub(self.last_tick.get());
         self.mask = self.mask.wrapping_shl(diff);
         self.last_tick = tick;
         self.mask |= 1;
