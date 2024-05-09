@@ -46,14 +46,15 @@ impl Confirmed {
         ago >= u64::BITS || (self.mask >> ago & 1) == 1
     }
 
-    /// Returns `true` if any tick in the given range confirmed for an entity.
+    /// Returns `true` if any tick in the given range was confirmed for the entity with
+    /// this component.
     ///
     /// All ticks older then 64 ticks since [`Self::last_tick`] are considered received.
     ///
     /// # Panics
     ///
     /// Panics if `debug_assertions` are enabled and
-    /// `start_tick` is bigger then `end_tick`.
+    /// `start_tick` is greater then `end_tick`.
     pub fn contains_any(&self, start_tick: RepliconTick, end_tick: RepliconTick) -> bool {
         debug_assert!(start_tick <= end_tick);
 
