@@ -45,12 +45,21 @@ Have any questions? Feel free to ask in the dedicated [`bevy_replicon` channel](
 
 ## Related Crates
 
-- [bevy_replicon_snap](https://github.com/Bendzae/bevy_replicon_snap) - adds snapshot interpolation and client-side prediction.
+**Note:** Ensure that your `bevy_replicon` version is compatible with the used crate according to semantic versioning.
+
+#### Helper crates
+
+- [bevy_bundlication](https://github.com/NiseVoid/bevy_bundlication) - adds registration of replication groups using a bundle-like api.
 - [bevy_replicon_attributes](https://github.com/UkoeHB/bevy_replicon_attributes) - adds ergonomic visibility control through client attributes and entity/event visibility conditions. An extension of this crate's raw client visibility API.
-- [bevy_replicon_repair](https://github.com/UkoeHB/bevy_replicon_repair) - preserves replicated client state across reconnects.
+
+#### Interpolation and/or rollback
+
+- [bevy_replicon_snap](https://github.com/Bendzae/bevy_replicon_snap) - adds snapshot interpolation and client-side prediction.
 - [bevy_timewarp](https://github.com/RJ/bevy_timewarp) - a rollback library that buffers component state. See [this](https://github.com/RJ/bevy_timewarp/blob/main/REPLICON_INTEGRATION.md) instruction about how to integrate.
 
-**Note:** Ensure that your `bevy_replicon` version is compatible with the used crate according to semantic versioning.
+#### Miscellaneous crates
+
+- [bevy_replicon_repair](https://github.com/UkoeHB/bevy_replicon_repair) - preserves replicated client state across reconnects.
 
 ## Bevy compatibility
 
