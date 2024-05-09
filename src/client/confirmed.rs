@@ -4,16 +4,16 @@ use bevy::prelude::*;
 
 use crate::server::replicon_tick::RepliconTick;
 
-/// Received ticks from server for an entity.
+/// Received ticks from the server for an entity.
 ///
-/// For efficiency reason we store only last received tick and
-/// a bitmask indicating whether the last 64 ticks were received.
+/// For efficiency we store only the last received tick and
+/// a bitmask indicating whether the most recent 64 ticks were received.
 #[derive(Component)]
 pub struct Confirmed {
     /// Previously confirmed ticks, including the last tick at position 0.
     mask: u64,
 
-    /// Last received tick from server for an entity.
+    /// The last received server tick for an entity.
     last_tick: RepliconTick,
 }
 
