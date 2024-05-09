@@ -1,6 +1,9 @@
+use std::io::Cursor;
+
 use bevy::prelude::*;
 use bevy_replicon::{
-    client::server_entity_map::ServerEntityMap, core::replication_fns::command_fns, prelude::*,
+    core::replication_fns::{command_fns, ctx::WriteCtx, rule_fns::RuleFns},
+    prelude::*,
     test_app::ServerTestAppExt,
 };
 use serde::{Deserialize, Serialize};
@@ -23,17 +26,16 @@ fn single() {
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app.world.spawn((Replicated, DummyComponent)).id();
-    let client_entity = client_app.world.spawn((Replicated, DummyComponent)).id();
-
-    client_app
-        .world
-        .resource_mut::<ServerEntityMap>()
-        .insert(server_entity, client_entity);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
+
+    let client_entity = client_app
+        .world
+        .query_filtered::<Entity, With<DummyComponent>>()
+        .single(&client_app.world);
 
     server_app
         .world
@@ -60,39 +62,35 @@ fn command_fns() {
                 ..Default::default()
             }),
         ))
-        .replicate::<DummyComponent>()
-        .set_command_fns(
-            command_fns::default_write::<DummyComponent>,
-            command_fns::default_remove::<RemovingComponent>,
-        );
+        .replicate::<OriginalComponent>()
+        .set_command_fns(replace, command_fns::default_remove::<ReplacedComponent>);
     }
 
     server_app.connect_client(&mut client_app);
 
-    let server_entity = server_app.world.spawn((Replicated, DummyComponent)).id();
-    let client_entity = client_app.world.spawn((Replicated, RemovingComponent)).id();
-
-    client_app
-        .world
-        .resource_mut::<ServerEntityMap>()
-        .insert(server_entity, client_entity);
+    let server_entity = server_app.world.spawn((Replicated, OriginalComponent)).id();
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
+    let client_entity = client_app
+        .world
+        .query_filtered::<Entity, With<ReplacedComponent>>()
+        .single(&client_app.world);
+
     server_app
         .world
         .entity_mut(server_entity)
-        .remove::<DummyComponent>();
+        .remove::<OriginalComponent>();
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let client_entity = client_app.world.entity(client_entity);
-    assert!(!client_entity.contains::<RemovingComponent>());
+    assert!(!client_entity.contains::<ReplacedComponent>());
 }
 
 #[test]
@@ -107,26 +105,30 @@ fn marker() {
                 ..Default::default()
             }),
         ))
-        .register_marker::<RemoveMarker>()
-        .replicate::<DummyComponent>()
-        .set_marker_fns::<RemoveMarker, DummyComponent>(
-            command_fns::default_write,
-            command_fns::default_remove::<RemovingComponent>,
+        .register_marker::<ReplaceMarker>()
+        .replicate::<OriginalComponent>()
+        .set_marker_fns::<ReplaceMarker, _>(
+            replace,
+            command_fns::default_remove::<ReplacedComponent>,
         );
     }
 
     server_app.connect_client(&mut client_app);
 
-    let server_entity = server_app.world.spawn((Replicated, DummyComponent)).id();
-    let client_entity = client_app
-        .world
-        .spawn((Replicated, RemoveMarker, RemovingComponent))
-        .id();
+    let server_entity = server_app.world.spawn((Replicated, OriginalComponent)).id();
+    let client_entity = client_app.world.spawn(ReplaceMarker).id();
 
-    client_app
-        .world
-        .resource_mut::<ServerEntityMap>()
-        .insert(server_entity, client_entity);
+    let client = client_app.world.resource::<RepliconClient>();
+    let client_id = client.id().unwrap();
+
+    let mut entity_map = server_app.world.resource_mut::<ClientEntityMap>();
+    entity_map.insert(
+        client_id,
+        ClientMapping {
+            server_entity,
+            client_entity,
+        },
+    );
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -136,14 +138,14 @@ fn marker() {
     server_app
         .world
         .entity_mut(server_entity)
-        .remove::<DummyComponent>();
+        .remove::<OriginalComponent>();
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let client_entity = client_app.world.entity(client_entity);
-    assert!(!client_entity.contains::<RemovingComponent>());
+    assert!(!client_entity.contains::<ReplacedComponent>());
 }
 
 #[test]
@@ -168,20 +170,15 @@ fn group() {
         .spawn((Replicated, (GroupComponentA, GroupComponentB)))
         .id();
 
-    let client_entity = client_app
-        .world
-        .spawn((Replicated, (GroupComponentA, GroupComponentB)))
-        .id();
-
-    client_app
-        .world
-        .resource_mut::<ServerEntityMap>()
-        .insert(server_entity, client_entity);
-
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
+
+    let client_entity = client_app
+        .world
+        .query_filtered::<Entity, (With<GroupComponentA>, With<GroupComponentB>)>()
+        .single(&client_app.world);
 
     server_app
         .world
@@ -218,20 +215,20 @@ fn not_replicated() {
         .spawn((Replicated, NotReplicatedComponent))
         .id();
 
-    let client_entity = client_app
-        .world
-        .spawn((Replicated, NotReplicatedComponent))
-        .id();
-
-    client_app
-        .world
-        .resource_mut::<ServerEntityMap>()
-        .insert(server_entity, client_entity);
-
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
+
+    let client_entity = client_app
+        .world
+        .query_filtered::<Entity, (With<Replicated>, Without<NotReplicatedComponent>)>()
+        .single(&client_app.world);
+
+    client_app
+        .world
+        .entity_mut(client_entity)
+        .insert(NotReplicatedComponent);
 
     server_app
         .world
@@ -264,17 +261,16 @@ fn after_insertion() {
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app.world.spawn((Replicated, DummyComponent)).id();
-    let client_entity = client_app.world.spawn((Replicated, DummyComponent)).id();
-
-    client_app
-        .world
-        .resource_mut::<ServerEntityMap>()
-        .insert(server_entity, client_entity);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
+
+    let client_entity = client_app
+        .world
+        .query_filtered::<Entity, With<DummyComponent>>()
+        .single(&client_app.world);
 
     // Insert and remove at the same time.
     server_app
@@ -309,17 +305,13 @@ fn with_despawn() {
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app.world.spawn((Replicated, DummyComponent)).id();
-    let client_entity = client_app.world.spawn((Replicated, DummyComponent)).id();
-
-    client_app
-        .world
-        .resource_mut::<ServerEntityMap>()
-        .insert(server_entity, client_entity);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
+
+    assert_eq!(client_app.world.entities().len(), 1);
 
     // Un-replicate and remove at the same time.
     server_app
@@ -348,7 +340,23 @@ struct GroupComponentB;
 struct NotReplicatedComponent;
 
 #[derive(Component)]
-struct RemoveMarker;
+struct ReplaceMarker;
 
 #[derive(Component, Deserialize, Serialize)]
-struct RemovingComponent;
+struct OriginalComponent;
+
+#[derive(Component, Deserialize, Serialize)]
+struct ReplacedComponent;
+
+/// Deserializes [`OriginalComponent`], but ignores it and inserts [`ReplacedComponent`].
+fn replace(
+    ctx: &mut WriteCtx,
+    rule_fns: &RuleFns<OriginalComponent>,
+    entity: &mut EntityMut,
+    cursor: &mut Cursor<&[u8]>,
+) -> bincode::Result<()> {
+    rule_fns.deserialize(ctx, cursor)?;
+    ctx.commands.entity(entity.id()).insert(ReplacedComponent);
+
+    Ok(())
+}

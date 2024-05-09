@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Writing to entities on client now done via `EntityMut` and `Commands` instead of `EntityWorldMut`. It was needed to support the mentioned in-place deserialization and will possibly allow batching insertions in the future (for details see https://github.com/bevyengine/bevy/issues/10154).
 - Return iterator from `RepliconClient::receive` instead of popping the last message. If you used `while` loop for it before, replace it with `for`.
 - Use new `ServerInitTick` resource on client instead of `RepliconTick`. If you used `ServerEventAppExt::add_server_event_with`, use `ServerInitTick` instead of `RepliconTick` in your receive function.
+- Replace `ServerEntityTicks` with `Confirmed` component. The component now also stores whether the last 64 ticks were received.
 - Move `replicon_tick` module under `server` module since now it's used only on server.
 - Move `Replication` to `core` module.
 - Move all functions-related logic from `ReplicationRules` into a new `ReplicationFns` and hide `ReplicationRules` from public API.
@@ -80,7 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replace `RepliconChannels::set_client_max_bytes` and `RepliconChannels::set_server_max_bytes` with `RepliconChannels::server_channel_mut` and `RepliconChannels::client_channel_mut` respectively with more rich configuration.
 - Move `ClientEventChannel` to `client_event` module.
 - Move `ServerEventChannel` to `server_event` module.
-- `ClientMapper`, `ServerEntityMap`, `BufferedUpdates`, `ServerEntityTicks`, `ReplicationRules`, `ReplicationChannel`, `ClientEventChannel`, `ServerEventChannel`, `ServerEventQueue` and `EventMapper` are no longer in `prelude` module. Import them directly.
+- `ClientMapper`, `ServerEntityMap`, `BufferedUpdates`, `ReplicationRules`, `ReplicationChannel`, `ClientEventChannel`, `ServerEventChannel`, `ServerEventQueue` and `EventMapper` are no longer in `prelude` module. Import them directly.
 
 ## [0.23.0] - 2024-02-22
 
