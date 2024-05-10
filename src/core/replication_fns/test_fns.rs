@@ -3,7 +3,7 @@ use std::io::Cursor;
 use bevy::{ecs::system::CommandQueue, prelude::*};
 
 use super::{
-    ctx::{DeleteCtx, WriteCtx},
+    ctx::{DespawnCtx, RemoveCtx, WriteCtx},
     FnsInfo,
 };
 use crate::{
@@ -164,18 +164,23 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
         let command_markers = self.world().resource::<CommandMarkers>();
         entity_markers.read(command_markers, &*self);
 
-        let mut queue = CommandQueue::default();
-        let mut commands = Commands::new(&mut queue, self.world());
-        let entity = commands.entity(self.id());
-
-        let replication_fns = self.world().resource::<ReplicationFns>();
-        let (component_fns, _) = replication_fns.get(fns_info.fns_id());
-        let ctx = DeleteCtx { message_tick };
-
-        component_fns.remove(&ctx, &entity_markers, entity);
-
+        let entity = self.id();
         self.world_scope(|world| {
-            queue.apply(world);
+            world.resource_scope(|world, replication_fns: Mut<ReplicationFns>| {
+                let world_cell = world.as_unsafe_world_cell();
+                // SAFETY: access is unique and used to obtain `EntityMut`, which is just a wrapper over `UnsafeEntityCell`.
+                let mut entity: EntityMut =
+                    unsafe { world_cell.world_mut().entity_mut(entity).into() };
+                let mut queue = CommandQueue::default();
+                let mut commands = Commands::new_from_entities(&mut queue, world_cell.entities());
+
+                let (component_fns, _) = replication_fns.get(fns_info.fns_id());
+                let mut ctx = RemoveCtx::new(&mut commands, message_tick);
+
+                component_fns.remove(&mut ctx, &entity_markers, &mut entity);
+
+                queue.apply(world);
+            })
         });
 
         self
@@ -183,7 +188,7 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
 
     fn apply_despawn(self, message_tick: RepliconTick) {
         let replication_fns = self.world().resource::<ReplicationFns>();
-        let ctx = DeleteCtx { message_tick };
+        let ctx = DespawnCtx { message_tick };
         (replication_fns.despawn)(&ctx, self);
     }
 }

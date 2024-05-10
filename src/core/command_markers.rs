@@ -52,7 +52,7 @@ pub trait AppMarkerExt {
         core::{
             command_markers::MarkerConfig,
             replication_fns::{
-                ctx::{DeleteCtx, WriteCtx},
+                ctx::{RemoveCtx, WriteCtx},
                 rule_fns::RuleFns,
             },
         },
@@ -88,8 +88,8 @@ pub trait AppMarkerExt {
     }
 
     /// Removes component `C` and its history.
-    fn remove_history<C: Component>(_ctx: &DeleteCtx, mut entity_commands: EntityCommands) {
-        entity_commands.remove::<History<C>>().remove::<C>();
+    fn remove_history<C: Component>(ctx: &mut RemoveCtx, entity: &mut EntityMut) {
+        ctx.commands.entity(entity.id()).remove::<History<C>>().remove::<C>();
     }
 
     /// If this marker is present on an entity, registered components will be stored in [`History<T>`].
