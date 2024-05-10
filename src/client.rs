@@ -14,7 +14,7 @@ use crate::core::{
     command_markers::{CommandMarkers, EntityMarkers},
     common_conditions::{client_connected, client_just_connected, client_just_disconnected},
     replication_fns::{
-        ctx::{DeleteCtx, WriteCtx},
+        ctx::{DespawnCtx, RemoveCtx, WriteCtx},
         ReplicationFns,
     },
     replicon_channels::{ReplicationChannel, RepliconChannels},
@@ -352,12 +352,8 @@ fn apply_init_components(
                     }
                 }
                 ComponentsKind::Removal => {
-                    let ctx = DeleteCtx { message_tick };
-                    component_fns.remove(
-                        &ctx,
-                        params.entity_markers,
-                        commands.entity(client_entity.id()),
-                    );
+                    let mut ctx = RemoveCtx::new(&mut commands, message_tick);
+                    component_fns.remove(&mut ctx, params.entity_markers, &mut client_entity);
                 }
             }
             components_len += 1;
@@ -395,7 +391,7 @@ fn apply_despawns(
             .remove_by_server(server_entity)
             .and_then(|entity| world.get_entity_mut(entity))
         {
-            let ctx = DeleteCtx { message_tick };
+            let ctx = DespawnCtx { message_tick };
             (params.replication_fns.despawn)(&ctx, client_entity);
         }
     }

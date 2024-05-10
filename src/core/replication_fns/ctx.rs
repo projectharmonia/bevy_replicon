@@ -53,9 +53,28 @@ impl EntityMapper for WriteCtx<'_, '_, '_> {
     }
 }
 
-/// Replication context for removal and despawn functions.
+/// Replication context for removal.
 #[non_exhaustive]
-pub struct DeleteCtx {
+pub struct RemoveCtx<'a, 'w, 's> {
+    /// A queue to perform structural changes to the [`World`].
+    pub commands: &'a mut Commands<'w, 's>,
+
+    /// Tick for the currently processing message.
+    pub message_tick: RepliconTick,
+}
+
+impl<'a, 'w, 's> RemoveCtx<'a, 'w, 's> {
+    pub(crate) fn new(commands: &'a mut Commands<'w, 's>, message_tick: RepliconTick) -> Self {
+        Self {
+            commands,
+            message_tick,
+        }
+    }
+}
+
+/// Replication context for despawn.
+#[non_exhaustive]
+pub struct DespawnCtx {
     /// Tick for the currently processing message.
     pub message_tick: RepliconTick,
 }

@@ -1,10 +1,10 @@
 use std::io::Cursor;
 
-use bevy::{ecs::system::EntityCommands, prelude::*, ptr::Ptr};
+use bevy::{prelude::*, ptr::Ptr};
 
 use super::{
     command_fns::UntypedCommandFns,
-    ctx::{DeleteCtx, SerializeCtx, WriteCtx},
+    ctx::{RemoveCtx, SerializeCtx, WriteCtx},
     rule_fns::UntypedRuleFns,
 };
 use crate::core::command_markers::{CommandMarkerIndex, CommandMarkers, EntityMarkers};
@@ -153,9 +153,9 @@ impl ComponentFns {
     /// Same as [`Self::write`], but calls the assigned remove function.
     pub(crate) fn remove(
         &self,
-        ctx: &DeleteCtx,
+        ctx: &mut RemoveCtx,
         entity_markers: &EntityMarkers,
-        entity_commands: EntityCommands,
+        entity: &mut EntityMut,
     ) {
         let command_fns = self
             .markers
@@ -165,7 +165,7 @@ impl ComponentFns {
             .find_map(|(&fns, _)| fns)
             .unwrap_or(self.commands);
 
-        command_fns.remove(ctx, entity_commands)
+        command_fns.remove(ctx, entity)
     }
 }
 

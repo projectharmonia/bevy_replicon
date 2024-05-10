@@ -6,7 +6,7 @@ use bevy_replicon::{
         command_markers::MarkerConfig,
         replication_fns::{
             command_fns,
-            ctx::{DeleteCtx, WriteCtx},
+            ctx::{DespawnCtx, WriteCtx},
             rule_fns::RuleFns,
             test_fns::TestFnsEntityExt,
             ReplicationFns,
@@ -371,6 +371,6 @@ fn replace(
 }
 
 /// Adds special [`Despawned`] marker instead of despawning an entity.
-fn mark_despawned(_ctx: &DeleteCtx, mut entity: EntityWorldMut) {
+fn mark_despawned(_ctx: &DespawnCtx, mut entity: EntityWorldMut) {
     entity.insert(Despawned);
 }
