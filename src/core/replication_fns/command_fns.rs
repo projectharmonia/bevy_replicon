@@ -4,10 +4,10 @@ use std::{
     mem,
 };
 
-use bevy::{ecs::system::EntityCommands, prelude::*};
+use bevy::prelude::*;
 
 use super::{
-    ctx::{DeleteCtx, WriteCtx},
+    ctx::{RemoveCtx, WriteCtx},
     rule_fns::RuleFns,
 };
 
@@ -63,8 +63,8 @@ impl UntypedCommandFns {
     }
 
     /// Calls the assigned removal function.
-    pub(super) fn remove(&self, ctx: &DeleteCtx, commands: EntityCommands) {
-        (self.remove)(ctx, commands);
+    pub(super) fn remove(&self, ctx: &mut RemoveCtx, entity: &mut EntityMut) {
+        (self.remove)(ctx, entity);
     }
 }
 
@@ -73,7 +73,7 @@ pub type WriteFn<C> =
     fn(&mut WriteCtx, &RuleFns<C>, &mut EntityMut, &mut Cursor<&[u8]>) -> bincode::Result<()>;
 
 /// Signature of component removal functions.
-pub type RemoveFn = fn(&DeleteCtx, EntityCommands);
+pub type RemoveFn = fn(&mut RemoveCtx, &mut EntityMut);
 
 /// Default component writing function.
 ///
@@ -96,6 +96,6 @@ pub fn default_write<C: Component>(
 }
 
 /// Default component removal function.
-pub fn default_remove<C: Component>(_ctx: &DeleteCtx, mut entity_commands: EntityCommands) {
-    entity_commands.remove::<C>();
+pub fn default_remove<C: Component>(ctx: &mut RemoveCtx, entity: &mut EntityMut) {
+    ctx.commands.entity(entity.id()).remove::<C>();
 }
