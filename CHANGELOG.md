@@ -24,22 +24,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `SerializeFn` now accepts regular `C` instead of `Ptr`.
 - `DeserializeFn` now does only deserialization and returns `C`. Use the newly added marker-based API if you want to customize how component will be written. See docs for `AppMarkerExt` for details.
 - Rename `AppReplicationExt` into `AppRuleExt`.
-- `AppRuleExt::replicate_with` now no longer accepts `RemoveComponentFn`. Use the mentioned marker-based API to customize it instead.
-- `AppRuleExt::replicate_with` now additionally accepts `in_place_as_deserialize`. You can use it to customize deserialization if a component is already present or just pass `command_fns::deserialize_in_place` to make it fallback to the passed `deserialize`.
+- `AppRuleExt::replicate_with` now accepts `RuleFns` struct with functions. You no longer can customize removals this way, use the mentioned marker-based API instead.
 - Writing to entities on client now done via `EntityMut` and `Commands` instead of `EntityWorldMut`. It was needed to support the mentioned in-place deserialization and will possibly allow batching insertions in the future (for details see https://github.com/bevyengine/bevy/issues/10154).
-- Return iterator from `RepliconClient::receive` instead of popping the last message. If you used `while` loop for it before, replace it with `for`.
+- Return iterator from `RepliconClient::receive` instead of popping the last message. If you used `while` loop with it before, replace it with `for`.
 - Use new `ServerInitTick` resource on client instead of `RepliconTick`. If you used `ServerEventAppExt::add_server_event_with`, use `ServerInitTick` instead of `RepliconTick` in your receive function.
 - Use new `ServerTick` resource on server instead of `RepliconTick`.
 - Replace `ServerEntityTicks` with `Confirmed` component. The component now also stores whether the last 64 ticks were received.
+- Now serialization/deserialization, removal, despawn and writing functions accept context to access additional information.
 - Move `replicon_tick` module under `server` module since now it's used only on server.
 - Move `Replication` to `core` module.
 - Move all functions-related logic from `ReplicationRules` into a new `ReplicationFns` and hide `ReplicationRules` from public API.
+- Move `despawn_recursive` into `replication_fns` module.
 - Rename `serialize_component` into `default_serialize` and move into `rule_fns` module.
 - Rename `deserialize_component` into `default_deserialize` and move into `rule_fns` module.
 - Rename `deserialize_mapped_component` into `default_deserialize_mapped` and move into `rule_fns` module.
 - Rename `remove_component` into `default_remove` and move into `command_fns` module.
-- Now serialization/deserialization, removal, despawn and writing functions accept context to access additional information.
-- Move `despawn_recursive` into `replication_fns` module.
 
 ### Removed
 
