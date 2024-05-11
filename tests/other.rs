@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy_replicon::{
-    core::replicon_channels::ReplicationChannel, prelude::*, server::replicon_tick::RepliconTick,
+    core::replicon_channels::ReplicationChannel, prelude::*, server::server_tick::ServerTick,
     test_app::ServerTestAppExt,
 };
 use serde::{Deserialize, Serialize};
@@ -149,7 +149,7 @@ fn server_cleanup_on_stop() {
 
     app.update();
 
-    assert_eq!(app.world.resource::<RepliconTick>().get(), 0);
+    assert_eq!(app.world.resource::<ServerTick>().get(), 0);
 }
 
 #[test]
@@ -201,7 +201,7 @@ fn server_inactive() {
 
     app.update();
 
-    assert_eq!(app.world.resource::<RepliconTick>().get(), 0);
+    assert_eq!(app.world.resource::<ServerTick>().get(), 0);
 }
 
 #[test]

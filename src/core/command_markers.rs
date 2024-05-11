@@ -55,9 +55,9 @@ pub trait AppMarkerExt {
                 ctx::{RemoveCtx, WriteCtx},
                 rule_fns::RuleFns,
             },
+            replicon_tick::RepliconTick,
         },
         prelude::*,
-        server::replicon_tick::RepliconTick,
     };
 
     # let mut app = App::new();

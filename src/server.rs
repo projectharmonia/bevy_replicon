@@ -5,7 +5,7 @@ pub(super) mod removal_buffer;
 pub(super) mod replicated_archetypes;
 pub(super) mod replication_messages;
 pub mod replicon_server;
-pub mod replicon_tick;
+pub mod server_tick;
 
 use std::{io::Cursor, mem, time::Duration};
 
@@ -26,6 +26,7 @@ use crate::core::{
     replication_fns::{ctx::SerializeCtx, ReplicationFns},
     replication_rules::ReplicationRules,
     replicon_channels::{ReplicationChannel, RepliconChannels},
+    replicon_tick::RepliconTick,
     ClientId,
 };
 use client_entity_map::ClientEntityMap;
@@ -37,7 +38,7 @@ use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
 use replicated_archetypes::ReplicatedArchetypes;
 use replication_messages::ReplicationMessages;
 use replicon_server::RepliconServer;
-use replicon_tick::RepliconTick;
+use server_tick::ServerTick;
 
 pub struct ServerPlugin {
     /// Tick configuration.
@@ -66,7 +67,7 @@ impl Plugin for ServerPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((DespawnBufferPlugin, RemovalBufferPlugin))
             .init_resource::<RepliconServer>()
-            .init_resource::<RepliconTick>()
+            .init_resource::<ServerTick>()
             .init_resource::<ClientBuffers>()
             .init_resource::<ClientEntityMap>()
             .insert_resource(ConnectedClients::new(self.visibility_policy))
@@ -108,7 +109,7 @@ impl Plugin for ServerPlugin {
                         .map(Result::unwrap)
                         .in_set(ServerSet::Send)
                         .run_if(server_running)
-                        .run_if(resource_changed::<RepliconTick>),
+                        .run_if(resource_changed::<ServerTick>),
                     Self::reset.run_if(server_just_stopped),
                 ),
             );
@@ -143,9 +144,9 @@ impl ServerPlugin {
     }
 
     /// Increments current server tick which causes the server to replicate this frame.
-    pub fn increment_tick(mut replicon_tick: ResMut<RepliconTick>) {
-        replicon_tick.increment();
-        trace!("incremented {replicon_tick:?}");
+    pub fn increment_tick(mut server_tick: ResMut<ServerTick>) {
+        server_tick.increment();
+        trace!("incremented {server_tick:?}");
     }
 
     fn handle_connections(
@@ -223,7 +224,7 @@ impl ServerPlugin {
         )>,
         replication_fns: Res<ReplicationFns>,
         rules: Res<ReplicationRules>,
-        replicon_tick: Res<RepliconTick>,
+        server_tick: Res<ServerTick>,
         time: Res<Time>,
     ) -> bincode::Result<()> {
         replicated_archetypes.update(set.p0(), &rules);
@@ -240,14 +241,14 @@ impl ServerPlugin {
             &replication_fns,
             set.p0(),
             &change_tick,
-            *replicon_tick,
+            **server_tick,
         )?;
 
         let mut client_buffers = mem::take(&mut *set.p5());
         let connected_clients = messages.send(
             &mut set.p6(),
             &mut client_buffers,
-            *replicon_tick,
+            **server_tick,
             change_tick.this_run(),
             time.elapsed(),
         )?;
@@ -260,12 +261,12 @@ impl ServerPlugin {
     }
 
     fn reset(
-        mut replicon_tick: ResMut<RepliconTick>,
+        mut server_tick: ResMut<ServerTick>,
         mut entity_map: ResMut<ClientEntityMap>,
         mut connected_clients: ResMut<ConnectedClients>,
         mut client_buffers: ResMut<ClientBuffers>,
     ) {
-        *replicon_tick = Default::default();
+        *server_tick = Default::default();
         entity_map.0.clear();
         connected_clients.clear(&mut client_buffers);
     }
@@ -300,7 +301,7 @@ fn collect_changes(
     replication_fns: &ReplicationFns,
     world: &World,
     change_tick: &SystemChangeTick,
-    replicon_tick: RepliconTick,
+    server_tick: RepliconTick,
 ) -> bincode::Result<()> {
     for (init_message, _) in messages.iter_mut() {
         init_message.start_array();
@@ -359,7 +360,7 @@ fn collect_changes(
                 };
 
                 let (component_fns, rule_fns) = replication_fns.get(replicated_component.fns_id);
-                let ctx = SerializeCtx { replicon_tick };
+                let ctx = SerializeCtx { server_tick };
                 let mut shared_bytes = None;
                 for (init_message, update_message, client) in messages.iter_mut_with_clients() {
                     let visibility = client.visibility().cached_visibility();

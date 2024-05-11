@@ -3,6 +3,7 @@ pub mod common_conditions;
 pub mod replication_fns;
 pub mod replication_rules;
 pub mod replicon_channels;
+pub mod replicon_tick;
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
