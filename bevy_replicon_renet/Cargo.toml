@@ -1,6 +1,6 @@
 [package]
 name = "bevy_replicon_renet"
-version = "0.1.0"
+version = "0.2.0"
 authors = [
   "Hennadii Chernyshchyk <genaloner@gmail.com>",
   "koe <ukoe@protonmail.com>",
@@ -21,7 +21,7 @@ license = "MIT OR Apache-2.0"
 include = ["/src", "/tests", "../LICENSE*"]
 
 [dependencies]
-bevy_replicon = { version = "0.24", path = ".." }
+bevy_replicon = { version = "0.25", path = ".." }
 bevy_renet = { version = "0.0.11", default-features = false }
 bevy = { version = "0.13", default-features = false }
 
