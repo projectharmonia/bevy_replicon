@@ -49,7 +49,7 @@ Have any questions? Feel free to ask in the dedicated [`bevy_replicon` channel](
 
 #### Messaging backends
 
-- [bevy_replicon_quinnet](https://github.com/Henauxg/bevy_quinnet/tree/main/bevy_replicon_quinnet) - Provides integration to use bevy_quinnet as a messaging backend.
+- [bevy_replicon_quinnet](https://github.com/Henauxg/bevy_quinnet/tree/main/bevy_replicon_quinnet) - Provides integration to use `bevy_quinnet` as a messaging backend.
 
 #### Helper crates
 
