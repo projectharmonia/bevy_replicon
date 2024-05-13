@@ -101,8 +101,8 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((RepliconCorePlugin, ParentSyncPlugin));
 
-        let child_entity = app.world.spawn_empty().id();
-        app.world.spawn_empty().add_child(child_entity);
+        let child_entity = app.world_mut().spawn_empty().id();
+        app.world_mut().spawn_empty().add_child(child_entity);
 
         app.add_systems(Update, move |mut commands: Commands| {
             // Should be inserted in `Update` to avoid sync in `PreUpdate`.
@@ -111,7 +111,7 @@ mod tests {
 
         app.update();
 
-        let child_entity = app.world.entity(child_entity);
+        let child_entity = app.world().entity(child_entity);
         let parent = child_entity.get::<Parent>().unwrap();
         let parent_sync = child_entity.get::<ParentSync>().unwrap();
         assert!(parent_sync.0.is_some_and(|entity| entity == **parent));
@@ -122,9 +122,9 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((RepliconCorePlugin, ParentSyncPlugin));
 
-        let parent_entity = app.world.spawn_empty().id();
+        let parent_entity = app.world_mut().spawn_empty().id();
         let child_entity = app
-            .world
+            .world_mut()
             .spawn_empty()
             .set_parent(parent_entity)
             .remove_parent()
@@ -139,7 +139,7 @@ mod tests {
 
         app.update();
 
-        let parent_sync = app.world.get::<ParentSync>(child_entity).unwrap();
+        let parent_sync = app.world().get::<ParentSync>(child_entity).unwrap();
         assert!(parent_sync.0.is_none());
     }
 
@@ -148,12 +148,12 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((RepliconCorePlugin, ParentSyncPlugin));
 
-        let parent_entity = app.world.spawn_empty().id();
-        let child_entity = app.world.spawn(ParentSync(Some(parent_entity))).id();
+        let parent_entity = app.world_mut().spawn_empty().id();
+        let child_entity = app.world_mut().spawn(ParentSync(Some(parent_entity))).id();
 
         app.update();
 
-        let child_entity = app.world.entity(child_entity);
+        let child_entity = app.world().entity(child_entity);
         let parent = child_entity.get::<Parent>().unwrap();
         let parent_sync = child_entity.get::<ParentSync>().unwrap();
         assert!(parent_sync.0.is_some_and(|entity| entity == **parent));
@@ -164,18 +164,18 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((RepliconCorePlugin, ParentSyncPlugin));
 
-        let child_entity = app.world.spawn_empty().id();
-        app.world.spawn_empty().add_child(child_entity);
+        let child_entity = app.world_mut().spawn_empty().id();
+        app.world_mut().spawn_empty().add_child(child_entity);
 
         app.update();
 
-        app.world
+        app.world_mut()
             .entity_mut(child_entity)
             .insert(ParentSync::default());
 
         app.update();
 
-        let child_entity = app.world.entity(child_entity);
+        let child_entity = app.world_mut().entity(child_entity);
         assert!(!child_entity.contains::<Parent>());
         assert!(child_entity.get::<ParentSync>().unwrap().0.is_none());
     }
@@ -191,23 +191,23 @@ mod tests {
         ));
 
         let mut scene_world = World::new();
-        scene_world.insert_resource(app.world.resource::<AppTypeRegistry>().clone());
+        scene_world.insert_resource(app.world().resource::<AppTypeRegistry>().clone());
         let parent_entity = scene_world.spawn_empty().id();
         scene_world.spawn(ParentSync(Some(parent_entity)));
         let dynamic_scene = DynamicScene::from_world(&scene_world);
 
-        let mut scenes = app.world.resource_mut::<Assets<DynamicScene>>();
+        let mut scenes = app.world_mut().resource_mut::<Assets<DynamicScene>>();
         let scene_handle = scenes.add(dynamic_scene);
-        let mut scene_spawner = app.world.resource_mut::<SceneSpawner>();
+        let mut scene_spawner = app.world_mut().resource_mut::<SceneSpawner>();
         scene_spawner.spawn_dynamic(scene_handle);
 
         app.update();
         app.update();
 
         let (parent, parent_sync) = app
-            .world
+            .world_mut()
             .query::<(&Parent, &ParentSync)>()
-            .single(&app.world);
+            .single(&app.world());
         assert!(parent_sync.0.is_some_and(|entity| entity == **parent));
     }
 }

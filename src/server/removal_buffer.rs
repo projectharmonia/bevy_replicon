@@ -217,17 +217,19 @@ mod tests {
             .init_resource::<ReplicationFns>()
             .init_resource::<ReplicationRules>();
 
-        app.world.resource_mut::<RepliconServer>().set_running(true);
+        app.world_mut()
+            .resource_mut::<RepliconServer>()
+            .set_running(true);
 
         app.update();
 
-        app.world
+        app.world_mut()
             .spawn((Replicated, ComponentA))
             .remove::<ComponentA>();
 
         app.update();
 
-        let removal_buffer = app.world.resource::<RemovalBuffer>();
+        let removal_buffer = app.world().resource::<RemovalBuffer>();
         assert!(removal_buffer.removals.is_empty());
     }
 
@@ -240,17 +242,19 @@ mod tests {
             .init_resource::<ReplicationRules>()
             .replicate::<ComponentA>();
 
-        app.world.resource_mut::<RepliconServer>().set_running(true);
+        app.world_mut()
+            .resource_mut::<RepliconServer>()
+            .set_running(true);
 
         app.update();
 
-        app.world
+        app.world_mut()
             .spawn((Replicated, ComponentA))
             .remove::<ComponentA>();
 
         app.update();
 
-        let removal_buffer = app.world.resource::<RemovalBuffer>();
+        let removal_buffer = app.world().resource::<RemovalBuffer>();
         assert_eq!(removal_buffer.removals.len(), 1);
 
         let (_, removals_id) = removal_buffer.removals.first().unwrap();
@@ -266,17 +270,19 @@ mod tests {
             .init_resource::<ReplicationRules>()
             .replicate_group::<(ComponentA, ComponentB)>();
 
-        app.world.resource_mut::<RepliconServer>().set_running(true);
+        app.world_mut()
+            .resource_mut::<RepliconServer>()
+            .set_running(true);
 
         app.update();
 
-        app.world
+        app.world_mut()
             .spawn((Replicated, ComponentA, ComponentB))
             .remove::<(ComponentA, ComponentB)>();
 
         app.update();
 
-        let removal_buffer = app.world.resource::<RemovalBuffer>();
+        let removal_buffer = app.world().resource::<RemovalBuffer>();
         assert_eq!(removal_buffer.removals.len(), 1);
 
         let (_, removals_id) = removal_buffer.removals.first().unwrap();
@@ -292,17 +298,19 @@ mod tests {
             .init_resource::<ReplicationRules>()
             .replicate_group::<(ComponentA, ComponentB)>();
 
-        app.world.resource_mut::<RepliconServer>().set_running(true);
+        app.world_mut()
+            .resource_mut::<RepliconServer>()
+            .set_running(true);
 
         app.update();
 
-        app.world
+        app.world_mut()
             .spawn((Replicated, ComponentA, ComponentB))
             .remove::<ComponentA>();
 
         app.update();
 
-        let removal_buffer = app.world.resource::<RemovalBuffer>();
+        let removal_buffer = app.world().resource::<RemovalBuffer>();
         assert_eq!(removal_buffer.removals.len(), 1);
 
         let (_, removals_id) = removal_buffer.removals.first().unwrap();
@@ -319,17 +327,19 @@ mod tests {
             .replicate::<ComponentA>()
             .replicate_group::<(ComponentA, ComponentB)>();
 
-        app.world.resource_mut::<RepliconServer>().set_running(true);
+        app.world_mut()
+            .resource_mut::<RepliconServer>()
+            .set_running(true);
 
         app.update();
 
-        app.world
+        app.world_mut()
             .spawn((Replicated, ComponentA, ComponentB))
             .remove::<(ComponentA, ComponentB)>();
 
         app.update();
 
-        let removal_buffer = app.world.resource::<RemovalBuffer>();
+        let removal_buffer = app.world_mut().resource::<RemovalBuffer>();
         assert_eq!(removal_buffer.removals.len(), 1);
 
         let (_, removals_id) = removal_buffer.removals.first().unwrap();
@@ -346,17 +356,19 @@ mod tests {
             .replicate::<ComponentA>()
             .replicate_group::<(ComponentA, ComponentB)>();
 
-        app.world.resource_mut::<RepliconServer>().set_running(true);
+        app.world_mut()
+            .resource_mut::<RepliconServer>()
+            .set_running(true);
 
         app.update();
 
-        app.world
+        app.world_mut()
             .spawn((Replicated, ComponentA, ComponentB))
             .remove::<ComponentA>();
 
         app.update();
 
-        let removal_buffer = app.world.resource::<RemovalBuffer>();
+        let removal_buffer = app.world().resource::<RemovalBuffer>();
         assert_eq!(removal_buffer.removals.len(), 1);
 
         let (_, removals_id) = removal_buffer.removals.first().unwrap();
@@ -372,15 +384,17 @@ mod tests {
             .init_resource::<ReplicationRules>()
             .replicate::<ComponentA>();
 
-        app.world.resource_mut::<RepliconServer>().set_running(true);
+        app.world_mut()
+            .resource_mut::<RepliconServer>()
+            .set_running(true);
 
         app.update();
 
-        app.world.spawn((ComponentA, Replicated)).despawn();
+        app.world_mut().spawn((ComponentA, Replicated)).despawn();
 
         app.update();
 
-        let removal_buffer = app.world.resource::<RemovalBuffer>();
+        let removal_buffer = app.world().resource::<RemovalBuffer>();
         assert!(
             removal_buffer.removals.is_empty(),
             "despawns shouldn't be counted as removals"

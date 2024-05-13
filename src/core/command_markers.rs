@@ -127,14 +127,14 @@ impl AppMarkerExt for App {
     }
 
     fn register_marker_with<M: Component>(&mut self, config: MarkerConfig) -> &mut Self {
-        let component_id = self.world.init_component::<M>();
-        let mut command_markers = self.world.resource_mut::<CommandMarkers>();
+        let component_id = self.world_mut().init_component::<M>();
+        let mut command_markers = self.world_mut().resource_mut::<CommandMarkers>();
         let marker_id = command_markers.insert(CommandMarker {
             component_id,
             config,
         });
 
-        let mut replicaton_fns = self.world.resource_mut::<ReplicationFns>();
+        let mut replicaton_fns = self.world_mut().resource_mut::<ReplicationFns>();
         replicaton_fns.register_marker(marker_id);
 
         self
@@ -145,10 +145,10 @@ impl AppMarkerExt for App {
         write: WriteFn<C>,
         remove: RemoveFn,
     ) -> &mut Self {
-        let component_id = self.world.init_component::<M>();
-        let command_markers = self.world.resource::<CommandMarkers>();
+        let component_id = self.world_mut().init_component::<M>();
+        let command_markers = self.world().resource::<CommandMarkers>();
         let marker_id = command_markers.marker_id(component_id);
-        self.world
+        self.world_mut()
             .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| {
                 replication_fns.set_marker_fns::<C>(world, marker_id, write, remove);
             });
@@ -157,7 +157,7 @@ impl AppMarkerExt for App {
     }
 
     fn set_command_fns<C: Component>(&mut self, write: WriteFn<C>, remove: RemoveFn) -> &mut Self {
-        self.world
+        self.world_mut()
             .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| {
                 replication_fns.set_command_fns::<C>(world, write, remove);
             });
@@ -326,7 +326,7 @@ mod tests {
             })
             .register_marker::<DummyMarkerD>();
 
-        let markers = app.world.resource::<CommandMarkers>();
+        let markers = app.world().resource::<CommandMarkers>();
         let priorities: Vec<_> = markers
             .0
             .iter()

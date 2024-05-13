@@ -33,7 +33,7 @@ impl ServerEntityMap {
     /// # Examples
     ///
     /// ```
-    /// # use bevy::{ecs::system::CommandQueue, prelude::*};
+    /// # use bevy::{ecs::world::CommandQueue, prelude::*};
     /// # use bevy_replicon::{client::server_entity_map::ServerEntityMap, prelude::*};
     /// # let mut entity_map = ServerEntityMap::default();
     /// # let mut queue = CommandQueue::default();

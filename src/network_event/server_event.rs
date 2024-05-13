@@ -158,7 +158,7 @@ impl ServerEventAppExt for App {
         receive_system: impl IntoSystemConfigs<Marker2>,
     ) -> &mut Self {
         let channel_id = self
-            .world
+            .world_mut()
             .resource_mut::<RepliconChannels>()
             .create_server_channel(channel.into());
 

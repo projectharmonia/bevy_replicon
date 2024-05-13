@@ -22,13 +22,13 @@ include = ["/src", "/tests", "../LICENSE*"]
 
 [dependencies]
 bevy_replicon = { version = "0.25", path = ".." }
-bevy_renet = { version = "0.0.11", default-features = false }
-bevy = { version = "0.13", default-features = false }
+bevy_renet = { git = "https://github.com/notmd/renet.git", branch = "v0.14", default-features = false }
+bevy = { git = "https://github.com/bevyengine/bevy.git", default-features = false }
 
 [dev-dependencies]
 serde = "1.0"
 clap = { version = "4.1", features = ["derive"] }
-bevy = { version = "0.13", default-features = false, features = [
+bevy = { git = "https://github.com/bevyengine/bevy.git", default-features = false, features = [
   "bevy_text",
   "bevy_ui",
   "bevy_gizmos",

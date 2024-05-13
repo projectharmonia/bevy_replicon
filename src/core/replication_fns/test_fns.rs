@@ -1,6 +1,6 @@
 use std::io::Cursor;
 
-use bevy::{ecs::system::CommandQueue, prelude::*};
+use bevy::{ecs::world::CommandQueue, prelude::*};
 
 use super::{
     ctx::{DespawnCtx, RemoveCtx, WriteCtx},
@@ -37,7 +37,7 @@ use serde::{Deserialize, Serialize};
 let mut app = App::new();
 app.add_plugins((MinimalPlugins, RepliconPlugins));
 
-let tick = **app.world.resource::<ServerTick>();
+let tick = **app.world().resource::<ServerTick>();
 
 // Register rule functions manually to obtain `FnsInfo`.
 let fns_info = app
@@ -46,7 +46,7 @@ let fns_info = app
         replication_fns.register_rule_fns(world, RuleFns::<DummyComponent>::default())
     });
 
-let mut entity = app.world.spawn(DummyComponent);
+let mut entity = app.world_mut().spawn(DummyComponent);
 let data = entity.serialize(fns_info);
 entity.remove::<DummyComponent>();
 
@@ -57,7 +57,7 @@ entity.apply_remove(fns_info, tick);
 assert!(!entity.contains::<DummyComponent>());
 
 entity.apply_despawn(tick);
-assert!(app.world.entities().is_empty());
+assert!(app.world().entities().is_empty());
 
 #[derive(Component, Serialize, Deserialize)]
 struct DummyComponent;

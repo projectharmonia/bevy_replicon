@@ -23,7 +23,7 @@ use serde::de::DeserializeSeed;
 # app.add_plugins(RepliconPlugins);
 
 // Serialization
-let registry = app.world.resource::<AppTypeRegistry>();
+let registry = app.world_mut().resource::<AppTypeRegistry>();
 let mut scene = DynamicScene::default();
 scene::replicate_into(&mut scene, &app.world);
 let scene = scene

@@ -164,25 +164,29 @@ impl AppRuleExt for App {
     where
         C: Component,
     {
-        let rule = self
-            .world
-            .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| {
-                let fns_info = replication_fns.register_rule_fns(world, rule_fns);
-                ReplicationRule::new(vec![fns_info])
-            });
+        let rule =
+            self.world_mut()
+                .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| {
+                    let fns_info = replication_fns.register_rule_fns(world, rule_fns);
+                    ReplicationRule::new(vec![fns_info])
+                });
 
-        self.world.resource_mut::<ReplicationRules>().insert(rule);
+        self.world_mut()
+            .resource_mut::<ReplicationRules>()
+            .insert(rule);
         self
     }
 
     fn replicate_group<C: GroupReplication>(&mut self) -> &mut Self {
-        let rule = self
-            .world
-            .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| {
-                C::register(world, &mut replication_fns)
-            });
+        let rule =
+            self.world_mut()
+                .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| {
+                    C::register(world, &mut replication_fns)
+                });
 
-        self.world.resource_mut::<ReplicationRules>().insert(rule);
+        self.world_mut()
+            .resource_mut::<ReplicationRules>()
+            .insert(rule);
         self
     }
 }
@@ -358,7 +362,7 @@ mod tests {
             .replicate::<ComponentC>()
             .replicate::<ComponentD>();
 
-        let replication_rules = app.world.resource::<ReplicationRules>();
+        let replication_rules = app.world().resource::<ReplicationRules>();
         let priorities: Vec<_> = replication_rules.iter().map(|rule| rule.priority).collect();
         assert_eq!(priorities, [2, 2, 1, 1, 1, 1]);
     }
