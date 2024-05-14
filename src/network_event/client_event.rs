@@ -1,4 +1,8 @@
-use std::{any, marker::PhantomData};
+use std::{
+    any::{self, TypeId},
+    fmt::Debug,
+    marker::PhantomData,
+};
 
 use bevy::{
     ecs::{entity::MapEntities, event::Event},
@@ -7,7 +11,7 @@ use bevy::{
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Serialize};
 
-use super::EventMapper;
+use super::{ClientEventRegistry, EventMapper};
 use crate::{
     client::{replicon_client::RepliconClient, server_entity_map::ServerEntityMap, ClientSet},
     core::{
@@ -24,7 +28,7 @@ pub trait ClientEventAppExt {
     ///
     /// For usage example see the [corresponding section](../../index.html#from-client-to-server)
     /// in the quick start guide.
-    fn add_client_event<T: Event + Serialize + DeserializeOwned>(
+    fn add_client_event<T: Event + Serialize + Debug + DeserializeOwned>(
         &mut self,
         channel: impl Into<RepliconChannel>,
     ) -> &mut Self;
@@ -34,7 +38,9 @@ pub trait ClientEventAppExt {
     /// Always use it for events that contain entities.
     /// For usage example see the [corresponding section](../../index.html#from-client-to-server)
     /// in the quick start guide.
-    fn add_mapped_client_event<T: Event + Serialize + DeserializeOwned + MapEntities + Clone>(
+    fn add_mapped_client_event<
+        T: Event + Serialize + Debug + DeserializeOwned + MapEntities + Clone,
+    >(
         &mut self,
         channel: impl Into<RepliconChannel>,
     ) -> &mut Self;
@@ -106,7 +112,7 @@ pub trait ClientEventAppExt {
     struct ReflectEvent(Box<dyn Reflect>);
     ```
     */
-    fn add_client_event_with<T: Event, Marker1, Marker2>(
+    fn add_client_event_with<T: Event + Serialize + Debug, Marker1, Marker2>(
         &mut self,
         channel: impl Into<RepliconChannel>,
         send_system: impl IntoSystemConfigs<Marker1>,
@@ -115,21 +121,23 @@ pub trait ClientEventAppExt {
 }
 
 impl ClientEventAppExt for App {
-    fn add_client_event<T: Event + Serialize + DeserializeOwned>(
+    fn add_client_event<T: Event + Serialize + Debug + DeserializeOwned>(
         &mut self,
         channel: impl Into<RepliconChannel>,
     ) -> &mut Self {
         self.add_client_event_with::<T, _, _>(channel, send::<T>, receive::<T>)
     }
 
-    fn add_mapped_client_event<T: Event + Serialize + DeserializeOwned + MapEntities + Clone>(
+    fn add_mapped_client_event<
+        T: Event + Serialize + Debug + DeserializeOwned + MapEntities + Clone,
+    >(
         &mut self,
         channel: impl Into<RepliconChannel>,
     ) -> &mut Self {
         self.add_client_event_with::<T, _, _>(channel, map_and_send::<T>, receive::<T>)
     }
 
-    fn add_client_event_with<T: Event, Marker1, Marker2>(
+    fn add_client_event_with<T: Event + Serialize + Debug, Marker1, Marker2>(
         &mut self,
         channel: impl Into<RepliconChannel>,
         send_system: impl IntoSystemConfigs<Marker1>,
@@ -140,27 +148,52 @@ impl ClientEventAppExt for App {
             .resource_mut::<RepliconChannels>()
             .create_client_channel(channel.into());
 
-        self.add_event::<T>()
-            .init_resource::<Events<FromClient<T>>>()
-            .insert_resource(ClientEventChannel::<T>::new(channel_id))
-            .add_systems(
-                PreUpdate,
-                (
-                    reset::<T>.in_set(ClientSet::ResetEvents),
-                    receive_system
-                        .in_set(ServerSet::Receive)
-                        .run_if(server_running),
-                ),
-            )
-            .add_systems(
-                PostUpdate,
-                (
-                    send_system.run_if(client_connected),
-                    resend_locally::<T>.run_if(has_authority),
-                )
-                    .chain()
-                    .in_set(ClientSet::Send),
-            );
+        // self.add_event::<T>()
+        //     .init_resource::<Events<FromClient<T>>>()
+        //     .insert_resource(ClientEventChannel::<T>::new(channel_id))
+        //     .add_systems(
+        //         PreUpdate,
+        //         (
+        //             reset::<T>.in_set(ClientSet::ResetEvents),
+        //             receive_system
+        //                 .in_set(ServerSet::Receive)
+        //                 .run_if(server_running),
+        //         ),
+        //     )
+        //     .add_systems(
+        //         PostUpdate,
+        //         (
+        //             send_system.run_if(client_connected),
+        //             resend_locally::<T>.run_if(has_authority),
+        //         )
+        //             .chain()
+        //             .in_set(ClientSet::Send),
+        //     );
+        // if !self.world.contains_resource::<Events<T>>() {
+        //     self
+        // }
+
+        self.add_event::<T>();
+        let event_id = self
+            .world
+            .components()
+            .get_resource_id(TypeId::of::<Events<T>>())
+            .unwrap();
+
+        self.world
+            .insert_resource(ClientEventChannel::<T>::new(channel_id));
+        let event_channel_id = self
+            .world
+            .components()
+            .get_resource_id(TypeId::of::<ClientEventChannel<T>>())
+            .unwrap();
+
+        let from_client_event_id = self.world.init_resource::<Events<FromClient<T>>>();
+        self.world
+            .get_resource_mut::<ClientEventRegistry>()
+            .unwrap()
+            .register_event::<T>(event_id, event_channel_id, from_client_event_id);
+        // ClientEventRegistry::register_event::<T>(&mut self.world);
 
         self
     }
