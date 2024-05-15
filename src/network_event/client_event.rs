@@ -109,8 +109,8 @@ pub trait ClientEventAppExt {
     fn add_client_event_with<T: Event + Serialize + DeserializeOwned>(
         &mut self,
         channel: impl Into<RepliconChannel>,
-        send_system: SendFn,
-        receive_system: ReceiveFn,
+        send_fn: SendFn,
+        receive_fn: ReceiveFn,
     ) -> &mut Self;
 }
 
@@ -132,8 +132,8 @@ impl ClientEventAppExt for App {
     fn add_client_event_with<T: Event + Serialize + DeserializeOwned>(
         &mut self,
         channel: impl Into<RepliconChannel>,
-        send_system: SendFn,
-        receive_system: ReceiveFn,
+        send_fn: SendFn,
+        receive_fn: ReceiveFn,
     ) -> &mut Self {
         let channel_id = self
             .world
@@ -146,7 +146,7 @@ impl ClientEventAppExt for App {
         self.world
             .get_resource_mut::<ClientEventRegistry>()
             .unwrap()
-            .register_event::<T>(channel_id, send_system, receive_system);
+            .register_event::<T>(channel_id, send_fn, receive_fn);
 
         self
     }
