@@ -198,16 +198,16 @@ type ReceiveFn = fn(&mut World, u8);
 
 fn send<T: Event + Serialize>(world: &mut World, channel_id: u8) {
     world.resource_scope(|world, mut client: Mut<RepliconClient>| {
-        world.resource_scope(|_, events: Mut<Events<T>>| {
-            for event in events.get_reader().read(&events) {
-                let message = DefaultOptions::new()
-                    .serialize(&event)
-                    .expect("mapped client event should be serializable");
+        let events = world.get_resource::<Events<T>>().unwrap();
 
-                trace!("Sending event: {}", std::any::type_name::<T>());
-                client.send(channel_id, message)
-            }
-        });
+        for event in events.get_reader().read(&events) {
+            let message = DefaultOptions::new()
+                .serialize(&event)
+                .expect("mapped client event should be serializable");
+
+            trace!("Sending event: {}", std::any::type_name::<T>());
+            client.send(channel_id, message)
+        }
     })
 }
 
