@@ -13,14 +13,11 @@ use replication_fns::ReplicationFns;
 use replication_rules::ReplicationRules;
 use replicon_channels::RepliconChannels;
 
-use crate::network_event;
-
 pub struct RepliconCorePlugin;
 
 impl Plugin for RepliconCorePlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<Replicated>()
-            .add_plugins(network_event::NetWorkEventPlugin)
             .init_resource::<RepliconChannels>()
             .init_resource::<ReplicationFns>()
             .init_resource::<ReplicationRules>()

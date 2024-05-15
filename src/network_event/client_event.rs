@@ -1,8 +1,4 @@
-use std::{
-    any::{self, TypeId},
-    fmt::Debug,
-    marker::PhantomData,
-};
+use std::any;
 
 use bevy::{
     ecs::{entity::MapEntities, event::Event},
@@ -11,7 +7,7 @@ use bevy::{
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Serialize};
 
-use super::{ClientEventRegistry, EventMapper};
+use super::EventMapper;
 use crate::{
     client::{replicon_client::RepliconClient, server_entity_map::ServerEntityMap, ClientSet},
     core::{
@@ -28,7 +24,7 @@ pub trait ClientEventAppExt {
     ///
     /// For usage example see the [corresponding section](../../index.html#from-client-to-server)
     /// in the quick start guide.
-    fn add_client_event<T: Event + Serialize + Debug + DeserializeOwned>(
+    fn add_client_event<T: Event + Serialize + DeserializeOwned>(
         &mut self,
         channel: impl Into<RepliconChannel>,
     ) -> &mut Self;
@@ -38,9 +34,7 @@ pub trait ClientEventAppExt {
     /// Always use it for events that contain entities.
     /// For usage example see the [corresponding section](../../index.html#from-client-to-server)
     /// in the quick start guide.
-    fn add_mapped_client_event<
-        T: Event + Serialize + Debug + DeserializeOwned + MapEntities + Clone,
-    >(
+    fn add_mapped_client_event<T: Event + Serialize + DeserializeOwned + MapEntities + Clone>(
         &mut self,
         channel: impl Into<RepliconChannel>,
     ) -> &mut Self;
@@ -112,190 +106,232 @@ pub trait ClientEventAppExt {
     struct ReflectEvent(Box<dyn Reflect>);
     ```
     */
-    fn add_client_event_with<T: Event + Serialize + DeserializeOwned + Debug, Marker1, Marker2>(
+    fn add_client_event_with<T: Event + Serialize + DeserializeOwned>(
         &mut self,
         channel: impl Into<RepliconChannel>,
-        send_system: impl IntoSystemConfigs<Marker1>,
-        receive_system: impl IntoSystemConfigs<Marker2>,
+        send_system: SendFn,
+        receive_system: ReceiveFn,
     ) -> &mut Self;
 }
 
 impl ClientEventAppExt for App {
-    fn add_client_event<T: Event + Serialize + Debug + DeserializeOwned>(
+    fn add_client_event<T: Event + Serialize + DeserializeOwned>(
         &mut self,
         channel: impl Into<RepliconChannel>,
     ) -> &mut Self {
-        self.add_client_event_with::<T, _, _>(channel, send::<T>, receive::<T>)
+        self.add_client_event_with::<T>(channel, send::<T>, receive::<T>)
     }
 
-    fn add_mapped_client_event<
-        T: Event + Serialize + Debug + DeserializeOwned + MapEntities + Clone,
-    >(
+    fn add_mapped_client_event<T: Event + Serialize + DeserializeOwned + MapEntities + Clone>(
         &mut self,
         channel: impl Into<RepliconChannel>,
     ) -> &mut Self {
-        self.add_client_event_with::<T, _, _>(channel, map_and_send::<T>, receive::<T>)
+        self.add_client_event_with::<T>(channel, map_and_send::<T>, receive::<T>)
     }
 
-    fn add_client_event_with<T: Event + Serialize + DeserializeOwned + Debug, Marker1, Marker2>(
+    fn add_client_event_with<T: Event + Serialize + DeserializeOwned>(
         &mut self,
         channel: impl Into<RepliconChannel>,
-        send_system: impl IntoSystemConfigs<Marker1>,
-        receive_system: impl IntoSystemConfigs<Marker2>,
+        send_system: SendFn,
+        receive_system: ReceiveFn,
     ) -> &mut Self {
         let channel_id = self
             .world
             .resource_mut::<RepliconChannels>()
             .create_client_channel(channel.into());
 
-        // self.add_event::<T>()
-        //     .init_resource::<Events<FromClient<T>>>()
-        //     .insert_resource(ClientEventChannel::<T>::new(channel_id))
-        //     .add_systems(
-        //         PreUpdate,
-        //         (
-        //             reset::<T>.in_set(ClientSet::ResetEvents),
-        //             receive_system
-        //                 .in_set(ServerSet::Receive)
-        //                 .run_if(server_running),
-        //         ),
-        //     )
-        //     .add_systems(
-        //         PostUpdate,
-        //         (
-        //             send_system.run_if(client_connected),
-        //             resend_locally::<T>.run_if(has_authority),
-        //         )
-        //             .chain()
-        //             .in_set(ClientSet::Send),
-        //     );
-        // if !self.world.contains_resource::<Events<T>>() {
-        //     self
-        // }
+        self.add_event::<T>()
+            .init_resource::<Events<FromClient<T>>>();
 
-        self.add_event::<T>();
-        let event_id = self
-            .world
-            .components()
-            .get_resource_id(TypeId::of::<Events<T>>())
-            .unwrap();
-
-        self.world
-            .insert_resource(ClientEventChannel::<T>::new(channel_id));
-
-        let from_client_event_id = self.world.init_resource::<Events<FromClient<T>>>();
         self.world
             .get_resource_mut::<ClientEventRegistry>()
             .unwrap()
-            .register_event::<T>(channel_id);
-        // ClientEventRegistry::register_event::<T>(&mut self.world);
+            .register_event::<T>(channel_id, send_system, receive_system);
 
         self
     }
 }
 
-fn receive<T: Event + DeserializeOwned>(
-    mut client_events: EventWriter<FromClient<T>>,
-    mut server: ResMut<RepliconServer>,
-    channel: Res<ClientEventChannel<T>>,
-) {
-    for (client_id, message) in server.receive(*channel) {
-        match DefaultOptions::new().deserialize(&message) {
-            Ok(event) => {
-                trace!(
-                    "applying event `{}` from `{client_id:?}`",
-                    any::type_name::<T>()
-                );
-                client_events.send(FromClient { client_id, event });
-            }
-            Err(e) => debug!("unable to deserialize event from {client_id:?}: {e}"),
+fn map_and_send<T: Event + MapEntities + Serialize + Clone>(world: &mut World, channel: u8) {
+    world.resource_scope(|world, mut client: Mut<RepliconClient>| {
+        let entity_map = world.get_resource::<ServerEntityMap>().unwrap();
+        let events = world.get_resource::<Events<T>>().unwrap();
+
+        for mut event in events.get_reader().read(events).cloned() {
+            event.map_entities(&mut EventMapper(entity_map.to_server()));
+            let message = DefaultOptions::new()
+                .serialize(&event)
+                .expect("mapped client event should be serializable");
+
+            trace!("sending event `{}`", any::type_name::<T>());
+            client.send(channel, message);
+        }
+    });
+}
+
+struct ClientEventFns {
+    channel_id: u8,
+    send: SendFn,
+    resend_locally: fn(&mut World),
+    receive: ReceiveFn,
+    reset: fn(&mut World),
+}
+
+impl ClientEventFns {
+    fn new<T: Event + Serialize + DeserializeOwned>(
+        channel_id: u8,
+        send: SendFn,
+        receive: ReceiveFn,
+    ) -> Self {
+        Self {
+            channel_id,
+            send,
+            resend_locally: resend_locally::<T>,
+            receive,
+            reset: reset::<T>,
         }
     }
 }
 
-fn send<T: Event + Serialize>(
-    mut events: EventReader<T>,
-    mut client: ResMut<RepliconClient>,
-    channel: Res<ClientEventChannel<T>>,
-) {
-    for event in events.read() {
-        let message = DefaultOptions::new()
-            .serialize(&event)
-            .expect("client event should be serializable");
+type SendFn = fn(&mut World, u8);
+type ReceiveFn = fn(&mut World, u8);
 
-        trace!("sending event `{}`", any::type_name::<T>());
-        client.send(*channel, message);
-    }
-}
+fn send<T: Event + Serialize>(world: &mut World, channel_id: u8) {
+    world.resource_scope(|world, mut client: Mut<RepliconClient>| {
+        world.resource_scope(|_, events: Mut<Events<T>>| {
+            for event in events.get_reader().read(&events) {
+                let message = DefaultOptions::new()
+                    .serialize(&event)
+                    .expect("mapped client event should be serializable");
 
-fn map_and_send<T: Event + MapEntities + Serialize + Clone>(
-    mut events: EventReader<T>,
-    mut client: ResMut<RepliconClient>,
-    entity_map: Res<ServerEntityMap>,
-    channel: Res<ClientEventChannel<T>>,
-) {
-    for mut event in events.read().cloned() {
-        event.map_entities(&mut EventMapper(entity_map.to_server()));
-        let message = DefaultOptions::new()
-            .serialize(&event)
-            .expect("mapped client event should be serializable");
-
-        trace!("sending event `{}`", any::type_name::<T>());
-        client.send(*channel, message);
-    }
+                trace!("Sending event: {}", std::any::type_name::<T>());
+                client.send(channel_id, message)
+            }
+        });
+    })
 }
 
 /// Transforms `T` events into [`FromClient<T>`] events to "emulate"
 /// message sending for offline mode or when server is also a player.
-fn resend_locally<T: Event>(
-    mut events: ResMut<Events<T>>,
-    mut client_events: EventWriter<FromClient<T>>,
-) {
-    for event in events.drain() {
-        client_events.send(FromClient {
-            client_id: ClientId::SERVER,
-            event,
-        });
-    }
+fn resend_locally<T: Event + Serialize>(world: &mut World) {
+    world.resource_scope(|world, mut events: Mut<Events<T>>| {
+        world.resource_scope(|_world, mut client_events: Mut<Events<FromClient<T>>>| {
+            if events.len() > 0 {
+                let mapped_events = events.drain().map(|event| FromClient {
+                    client_id: ClientId::SERVER,
+                    event,
+                });
+                trace!("Resending event: {}", std::any::type_name::<T>());
+
+                client_events.send_batch(mapped_events);
+            }
+        })
+    })
+}
+
+fn receive<T: Event + DeserializeOwned>(world: &mut World, channel_id: u8) {
+    world.resource_scope(|world, mut server: Mut<RepliconServer>| {
+        world.resource_scope(|_world, mut client_events: Mut<Events<FromClient<T>>>| {
+            for (client_id, message) in server.receive(channel_id) {
+                match DefaultOptions::new().deserialize(&message) {
+                    Ok(event) => {
+                        trace!(
+                            "applying event `{}` from `{client_id:?}`",
+                            std::any::type_name::<T>()
+                        );
+                        client_events.send(FromClient { client_id, event });
+                    }
+                    Err(e) => debug!("unable to deserialize event from {client_id:?}: {e}"),
+                }
+            }
+        })
+    })
 }
 
 /// Discards all pending events.
 ///
 /// We discard events while waiting to connect to ensure clean reconnects.
-fn reset<T: Event>(mut events: ResMut<Events<T>>) {
-    let drained_count = events.drain().count();
-    if drained_count > 0 {
-        warn!("discarded {drained_count} client events due to a disconnect");
-    }
-}
-
-/// Holds a client's channel ID for `T`.
-#[derive(Resource)]
-pub struct ClientEventChannel<T> {
-    id: u8,
-    marker: PhantomData<T>,
-}
-
-impl<T> ClientEventChannel<T> {
-    fn new(id: u8) -> Self {
-        Self {
-            id,
-            marker: PhantomData,
+fn reset<T: Event>(world: &mut World) {
+    world.resource_scope(|_world, mut events: Mut<Events<T>>| {
+        let drained_count = events.drain().count();
+        if drained_count > 0 {
+            warn!("Discarded {drained_count} client events due to a disconnect");
         }
+    })
+}
+
+#[derive(Resource, Default)]
+struct ClientEventRegistry {
+    events: Vec<ClientEventFns>,
+}
+
+impl ClientEventRegistry {
+    fn register_event<T: Event + Serialize + DeserializeOwned>(
+        &mut self,
+        channel_id: u8,
+        send: SendFn,
+        receive: ReceiveFn,
+    ) {
+        self.events
+            .push(ClientEventFns::new::<T>(channel_id, send, receive));
     }
 }
 
-impl<T> Clone for ClientEventChannel<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
+fn send_system(world: &mut World) {
+    world.resource_scope(|world, registry: Mut<ClientEventRegistry>| {
+        for event in &registry.events {
+            (event.send)(world, event.channel_id);
+        }
+    });
 }
 
-impl<T> Copy for ClientEventChannel<T> {}
+fn resend_locally_system(world: &mut World) {
+    world.resource_scope(|world, registry: Mut<ClientEventRegistry>| {
+        for event in &registry.events {
+            (event.resend_locally)(world);
+        }
+    });
+}
 
-impl<T> From<ClientEventChannel<T>> for u8 {
-    fn from(value: ClientEventChannel<T>) -> Self {
-        value.id
+fn receive_system(world: &mut World) {
+    world.resource_scope(|world, registry: Mut<ClientEventRegistry>| {
+        for event in &registry.events {
+            (event.receive)(world, event.channel_id);
+        }
+    });
+}
+
+fn reset_system(world: &mut World) {
+    world.resource_scope(|world, registry: Mut<ClientEventRegistry>| {
+        for event in &registry.events {
+            (event.reset)(world);
+        }
+    });
+}
+
+pub struct ClientNetWorkEventPlugin;
+
+impl Plugin for ClientNetWorkEventPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<ClientEventRegistry>()
+            .add_systems(
+                PreUpdate,
+                (
+                    reset_system.in_set(ClientSet::ResetEvents),
+                    receive_system
+                        .in_set(ServerSet::Receive)
+                        .run_if(server_running),
+                ),
+            )
+            .add_systems(
+                PostUpdate,
+                (
+                    send_system.run_if(client_connected),
+                    resend_locally_system.run_if(has_authority),
+                )
+                    .chain()
+                    .in_set(ClientSet::Send),
+            );
     }
 }
 
