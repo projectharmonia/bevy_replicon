@@ -58,19 +58,22 @@ impl Confirmed {
     pub fn contains_any(&self, start_tick: RepliconTick, end_tick: RepliconTick) -> bool {
         debug_assert!(start_tick <= end_tick);
 
-        let end_tick = if end_tick > self.last_tick {
-            self.last_tick
-        } else {
-            end_tick
-        };
-
-        if start_tick > end_tick {
+        if start_tick > self.last_tick {
             return false;
         }
+        if start_tick <= self.last_tick - u64::BITS {
+            return true;
+        }
 
-        let ago = end_tick.get().wrapping_sub(start_tick.get());
-        let range = (1 << (ago + 1)) - 1; // Set bit to `ago + 1` and then decrement to get `ago` of 1's.
-        let offset = self.last_tick.get().wrapping_sub(end_tick.get());
+        let end_tick = if end_tick < self.last_tick {
+            end_tick
+        } else {
+            self.last_tick
+        };
+
+        let len = end_tick - start_tick + 1; // +1 because the range is inclusive.
+        let range = (1 << len) - 1; // Shift 1 to `len` and then decrement to get `len` of 1's.
+        let offset = self.last_tick - end_tick;
         let mask = range << offset;
 
         self.mask & mask != 0
@@ -130,15 +133,57 @@ mod tests {
     }
 
     #[test]
+    fn contains_with_wrapping() {
+        let confirmed = Confirmed::new(RepliconTick::new(u64::BITS + 1));
+
+        assert!(confirmed.contains(RepliconTick::new(0)));
+        assert!(confirmed.contains(RepliconTick::new(1)));
+        assert!(!confirmed.contains(RepliconTick::new(2)));
+
+        assert!(!confirmed.contains(RepliconTick::new(u64::BITS)));
+        assert!(confirmed.contains(RepliconTick::new(u64::BITS + 1)));
+        assert!(!confirmed.contains(RepliconTick::new(u64::BITS + 2)));
+    }
+
+    #[test]
     fn contains_any() {
         let confirmed = Confirmed::new(RepliconTick::new(1));
 
         assert!(confirmed.contains_any(RepliconTick::new(0), RepliconTick::new(1)));
+        assert!(confirmed.contains_any(RepliconTick::new(1), RepliconTick::new(1)));
         assert!(confirmed.contains_any(RepliconTick::new(1), RepliconTick::new(2)));
         assert!(!confirmed.contains_any(RepliconTick::new(2), RepliconTick::new(3)));
         assert!(!confirmed.contains_any(RepliconTick::new(u32::MAX), RepliconTick::new(0)));
+        assert!(confirmed.contains_any(RepliconTick::new(u32::MAX), RepliconTick::new(1)));
         assert!(confirmed.contains_any(RepliconTick::new(0), RepliconTick::new(2)));
         assert!(confirmed.contains_any(RepliconTick::new(u32::MAX), RepliconTick::new(3)));
+    }
+
+    #[test]
+    fn contains_any_with_wrapping() {
+        let confirmed = Confirmed::new(RepliconTick::new(u64::BITS + 1));
+
+        assert!(confirmed.contains_any(RepliconTick::new(0), RepliconTick::new(1)));
+        assert!(confirmed.contains_any(RepliconTick::new(1), RepliconTick::new(2)));
+        assert!(!confirmed.contains_any(RepliconTick::new(2), RepliconTick::new(3)));
+        assert!(confirmed.contains_any(RepliconTick::new(0), RepliconTick::new(3)));
+
+        assert!(confirmed.contains_any(
+            RepliconTick::new(u64::BITS),
+            RepliconTick::new(u64::BITS + 1)
+        ));
+        assert!(confirmed.contains_any(
+            RepliconTick::new(u64::BITS + 1),
+            RepliconTick::new(u64::BITS + 2)
+        ));
+        assert!(!confirmed.contains_any(
+            RepliconTick::new(u64::BITS + 2),
+            RepliconTick::new(u64::BITS + 3)
+        ));
+        assert!(confirmed.contains_any(
+            RepliconTick::new(u64::BITS),
+            RepliconTick::new(u64::BITS + 3)
+        ));
     }
 
     #[test]
