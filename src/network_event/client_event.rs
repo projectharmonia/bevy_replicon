@@ -112,7 +112,7 @@ pub trait ClientEventAppExt {
     struct ReflectEvent(Box<dyn Reflect>);
     ```
     */
-    fn add_client_event_with<T: Event + Serialize + Debug, Marker1, Marker2>(
+    fn add_client_event_with<T: Event + Serialize + DeserializeOwned + Debug, Marker1, Marker2>(
         &mut self,
         channel: impl Into<RepliconChannel>,
         send_system: impl IntoSystemConfigs<Marker1>,
@@ -137,7 +137,7 @@ impl ClientEventAppExt for App {
         self.add_client_event_with::<T, _, _>(channel, map_and_send::<T>, receive::<T>)
     }
 
-    fn add_client_event_with<T: Event + Serialize + Debug, Marker1, Marker2>(
+    fn add_client_event_with<T: Event + Serialize + DeserializeOwned + Debug, Marker1, Marker2>(
         &mut self,
         channel: impl Into<RepliconChannel>,
         send_system: impl IntoSystemConfigs<Marker1>,
@@ -182,17 +182,12 @@ impl ClientEventAppExt for App {
 
         self.world
             .insert_resource(ClientEventChannel::<T>::new(channel_id));
-        let event_channel_id = self
-            .world
-            .components()
-            .get_resource_id(TypeId::of::<ClientEventChannel<T>>())
-            .unwrap();
 
         let from_client_event_id = self.world.init_resource::<Events<FromClient<T>>>();
         self.world
             .get_resource_mut::<ClientEventRegistry>()
             .unwrap()
-            .register_event::<T>(event_id, event_channel_id, from_client_event_id);
+            .register_event::<T>(channel_id);
         // ClientEventRegistry::register_event::<T>(&mut self.world);
 
         self
