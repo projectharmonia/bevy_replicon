@@ -199,14 +199,14 @@ mod tests {
     fn resize_with_wrapping() {
         let mut confirmed = Confirmed::new(RepliconTick::new(1));
 
-        confirmed.set_last_tick(RepliconTick::new(65));
+        confirmed.set_last_tick(RepliconTick::new(u64::BITS + 1));
 
         assert!(confirmed.contains(RepliconTick::new(0)));
         assert!(confirmed.contains(RepliconTick::new(1)));
         assert!(!confirmed.contains(RepliconTick::new(2)));
-        assert!(!confirmed.contains(RepliconTick::new(64)));
-        assert!(confirmed.contains(RepliconTick::new(65)));
-        assert!(!confirmed.contains(RepliconTick::new(66)));
+        assert!(!confirmed.contains(RepliconTick::new(u64::BITS)));
+        assert!(confirmed.contains(RepliconTick::new(u64::BITS + 1)));
+        assert!(!confirmed.contains(RepliconTick::new(u64::BITS + 2)));
     }
 
     #[test]
