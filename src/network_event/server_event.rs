@@ -1,4 +1,4 @@
-use std::{any, io::Cursor};
+use std::{any, io::Cursor, iter};
 
 use bevy::{
     ecs::{entity::MapEntities, event::Event},
@@ -178,13 +178,17 @@ fn pop_from_queue<T: Event>(world: &mut World) {
     world.resource_scope(|world, mut server_events: Mut<Events<T>>| {
         world.resource_scope(|world, mut event_queue: Mut<ServerEventQueue<T>>| {
             let init_tick = world.resource::<ServerInitTick>();
-            while let Some((tick, event)) = event_queue.pop_if_le(**init_tick) {
-                trace!(
-                    "applying event `{}` from queue with `{tick:?}`",
-                    any::type_name::<T>()
-                );
-                server_events.send(event);
-            }
+            let events = iter::from_fn(|| {
+                event_queue.pop_if_le(**init_tick).map(|(tick, event)| {
+                    trace!(
+                        "applying event `{}` from queue with `{tick:?}`",
+                        any::type_name::<T>()
+                    );
+                    event
+                })
+            });
+
+            server_events.send_batch(events);
         });
     });
 }
@@ -194,6 +198,7 @@ fn receive<T: Event + DeserializeOwned>(world: &mut World, channel_id: u8) {
         world.resource_scope(|world, mut client: Mut<RepliconClient>| {
             world.resource_scope(|world, mut event_queue: Mut<ServerEventQueue<T>>| {
                 let init_tick = world.resource::<ServerInitTick>();
+
                 for message in client.receive(channel_id) {
                     let (tick, event) = deserialize_with(&message, |cursor| {
                         DefaultOptions::new().deserialize_from(cursor)

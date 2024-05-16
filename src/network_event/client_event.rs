@@ -228,18 +228,26 @@ fn resend_locally<T: Event + Serialize>(world: &mut World) {
 fn receive<T: Event + DeserializeOwned>(world: &mut World, channel_id: u8) {
     world.resource_scope(|world, mut server: Mut<RepliconServer>| {
         world.resource_scope(|_world, mut client_events: Mut<Events<FromClient<T>>>| {
-            for (client_id, message) in server.receive(channel_id) {
-                match DefaultOptions::new().deserialize(&message) {
-                    Ok(event) => {
-                        trace!(
-                            "applying event `{}` from `{client_id:?}`",
-                            std::any::type_name::<T>()
-                        );
-                        client_events.send(FromClient { client_id, event });
-                    }
-                    Err(e) => debug!("unable to deserialize event from {client_id:?}: {e}"),
-                }
-            }
+            let events = server
+                .receive(channel_id)
+                .filter_map(|(client_id, message)| {
+                    DefaultOptions::new()
+                        .deserialize::<T>(&message)
+                        .map(|event| {
+                            trace!(
+                                "applying event `{}` from `{client_id:?}`",
+                                std::any::type_name::<T>()
+                            );
+
+                            FromClient { client_id, event }
+                        })
+                        .inspect_err(|e| {
+                            debug!("unable to deserialize event from {client_id:?}: {e}")
+                        })
+                        .ok()
+                });
+
+            client_events.send_batch(events);
         })
     })
 }
