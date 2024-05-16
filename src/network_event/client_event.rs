@@ -273,6 +273,32 @@ impl ClientEventRegistry {
     }
 }
 
+pub struct ClientEventPlugin;
+
+impl Plugin for ClientEventPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<ClientEventRegistry>()
+            .add_systems(
+                PreUpdate,
+                (
+                    reset_system.in_set(ClientSet::ResetEvents),
+                    receive_system
+                        .in_set(ServerSet::Receive)
+                        .run_if(server_running),
+                ),
+            )
+            .add_systems(
+                PostUpdate,
+                (
+                    send_system.run_if(client_connected),
+                    resend_locally_system.run_if(has_authority),
+                )
+                    .chain()
+                    .in_set(ClientSet::Send),
+            );
+    }
+}
+
 fn send_system(world: &mut World) {
     world.resource_scope(|world, registry: Mut<ClientEventRegistry>| {
         for event in &registry.events {
@@ -304,33 +330,6 @@ fn reset_system(world: &mut World) {
         }
     });
 }
-
-pub struct ClientEventPlugin;
-
-impl Plugin for ClientEventPlugin {
-    fn build(&self, app: &mut App) {
-        app.init_resource::<ClientEventRegistry>()
-            .add_systems(
-                PreUpdate,
-                (
-                    reset_system.in_set(ClientSet::ResetEvents),
-                    receive_system
-                        .in_set(ServerSet::Receive)
-                        .run_if(server_running),
-                ),
-            )
-            .add_systems(
-                PostUpdate,
-                (
-                    send_system.run_if(client_connected),
-                    resend_locally_system.run_if(has_authority),
-                )
-                    .chain()
-                    .in_set(ClientSet::Send),
-            );
-    }
-}
-
 /// An event indicating that a message from client was received.
 /// Emited only on server.
 #[derive(Clone, Copy, Event)]

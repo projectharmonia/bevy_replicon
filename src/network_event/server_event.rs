@@ -437,6 +437,33 @@ impl ServerEventRegistry {
     }
 }
 
+pub struct ServerEventPlugin;
+
+impl Plugin for ServerEventPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<ServerEventRegistry>()
+            .add_systems(
+                PreUpdate,
+                (
+                    reset_system.in_set(ClientSet::ResetEvents),
+                    (pop_from_queue_system, receive_system)
+                        .chain()
+                        .after(ClientPlugin::receive_replication)
+                        .in_set(ClientSet::Receive)
+                        .run_if(client_connected),
+                ),
+            )
+            .add_systems(
+                PostUpdate,
+                (
+                    send_system.run_if(server_running),
+                    resend_locally_system.run_if(has_authority),
+                )
+                    .chain(),
+            );
+    }
+}
+
 fn reset_system(world: &mut World) {
     world.resource_scope(|world, registry: Mut<ServerEventRegistry>| {
         for event in registry.events.iter() {
@@ -475,33 +502,6 @@ fn resend_locally_system(world: &mut World) {
             (event.resend_locally)(world);
         }
     })
-}
-
-pub struct ServerEventPlugin;
-
-impl Plugin for ServerEventPlugin {
-    fn build(&self, app: &mut App) {
-        app.init_resource::<ServerEventRegistry>()
-            .add_systems(
-                PreUpdate,
-                (
-                    reset_system.in_set(ClientSet::ResetEvents),
-                    (pop_from_queue_system, receive_system)
-                        .chain()
-                        .after(ClientPlugin::receive_replication)
-                        .in_set(ClientSet::Receive)
-                        .run_if(client_connected),
-                ),
-            )
-            .add_systems(
-                PostUpdate,
-                (
-                    send_system.run_if(server_running),
-                    resend_locally_system.run_if(has_authority),
-                )
-                    .chain(),
-            );
-    }
 }
 
 /// An event that will be send to client(s).
