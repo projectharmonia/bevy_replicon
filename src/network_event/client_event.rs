@@ -177,7 +177,7 @@ impl ClientEventFns {
 
 fn send<T: Event + Serialize>(world: &mut World, channel_id: u8) {
     world.resource_scope(|world, mut client: Mut<RepliconClient>| {
-        let events = world.get_resource::<Events<T>>().unwrap();
+        let events = world.resource::<Events<T>>();
 
         for event in events.get_reader().read(&events) {
             let message = DefaultOptions::new()

@@ -1,10 +1,7 @@
-use std::{any, io::Cursor, marker::PhantomData};
+use std::{any, io::Cursor};
 
 use bevy::{
-    ecs::{
-        entity::MapEntities,
-        event::{self, Event},
-    },
+    ecs::{entity::MapEntities, event::Event},
     prelude::*,
 };
 use bincode::{DefaultOptions, Options};
@@ -24,11 +21,10 @@ use crate::{
         replicon_tick::RepliconTick,
         ClientId,
     },
-    prelude::{ClientPlugin, ServerPlugin},
+    prelude::ClientPlugin,
     server::{
         connected_clients::{ConnectedClient, ConnectedClients},
         replicon_server::RepliconServer,
-        ServerSet,
     },
 };
 
@@ -245,8 +241,8 @@ fn receive_and_map<T: Event + MapEntities + DeserializeOwned>(world: &mut World,
 
 fn send<T: Event + Serialize>(world: &mut World, channel_id: u8) {
     world.resource_scope(|world, mut server: Mut<RepliconServer>| {
-        let events = world.get_resource::<Events<ToClients<T>>>().unwrap();
-        let connected_clients = world.get_resource::<ConnectedClients>().unwrap();
+        let events = world.resource::<Events<ToClients<T>>>();
+        let connected_clients = world.resource::<ConnectedClients>();
         for ToClients { event, mode } in events.get_reader().read(&events) {
             trace!("sending event `{}` with `{mode:?}`", any::type_name::<T>());
             send_with(
