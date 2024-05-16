@@ -19,3 +19,11 @@ impl EntityMapper for EventMapper<'_> {
 
 pub type SendFn = fn(&mut World, u8);
 pub type ReceiveFn = fn(&mut World, u8);
+
+struct NetworkEventFns {
+    channel_id: u8,
+    send: SendFn,
+    resend_locally: fn(&mut World),
+    receive: ReceiveFn,
+    reset: fn(&mut World),
+}

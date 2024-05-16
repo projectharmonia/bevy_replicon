@@ -9,7 +9,7 @@ use bytes::Bytes;
 use ordered_multimap::ListOrderedMultimap;
 use serde::{de::DeserializeOwned, Serialize};
 
-use super::{EventMapper, ReceiveFn, SendFn};
+use super::{EventMapper, NetworkEventFns, ReceiveFn, SendFn};
 use crate::{
     client::{
         replicon_client::RepliconClient, server_entity_map::ServerEntityMap, ClientSet,
@@ -167,7 +167,14 @@ impl ServerEventAppExt for App {
 
         self.world
             .resource_mut::<ServerEventRegistry>()
-            .register_event::<T>(channel_id, send_fn, receive_fn);
+            .events
+            .push(NetworkEventFns {
+                channel_id,
+                send: send_fn,
+                resend_locally: resend_locally::<T>,
+                receive: receive_fn,
+                reset: reset::<T>,
+            });
 
         self
     }
@@ -194,6 +201,7 @@ fn pop_from_queue<T: Event>(world: &mut World) {
 }
 
 fn receive<T: Event + DeserializeOwned>(world: &mut World, channel_id: u8) {
+    pop_from_queue::<T>(world);
     world.resource_scope(|world, mut server_events: Mut<Events<T>>| {
         world.resource_scope(|world, mut client: Mut<RepliconClient>| {
             world.resource_scope(|world, mut event_queue: Mut<ServerEventQueue<T>>| {
@@ -219,6 +227,7 @@ fn receive<T: Event + DeserializeOwned>(world: &mut World, channel_id: u8) {
 }
 
 fn receive_and_map<T: Event + MapEntities + DeserializeOwned>(world: &mut World, channel_id: u8) {
+    pop_from_queue::<T>(world);
     world.resource_scope(|world, mut server_events: Mut<Events<T>>| {
         world.resource_scope(|world, mut client: Mut<RepliconClient>| {
             world.resource_scope(|world, mut event_queue: Mut<ServerEventQueue<T>>| {
@@ -411,31 +420,9 @@ pub fn deserialize_with<T>(
     Ok((tick, event))
 }
 
-struct ServerEventFns {
-    channel_id: u8,
-    send: SendFn,
-    resend_locally: fn(&mut World),
-    receive: ReceiveFn,
-    reset: fn(&mut World),
-    pop_from_queue: fn(&mut World),
-}
-
 #[derive(Resource, Default)]
 struct ServerEventRegistry {
-    events: Vec<ServerEventFns>,
-}
-
-impl ServerEventRegistry {
-    fn register_event<T: Event>(&mut self, channel_id: u8, send: SendFn, receive: ReceiveFn) {
-        self.events.push(ServerEventFns {
-            channel_id,
-            send,
-            resend_locally: resend_locally::<T>,
-            receive,
-            reset: reset::<T>,
-            pop_from_queue: pop_from_queue::<T>,
-        });
-    }
+    events: Vec<NetworkEventFns>,
 }
 
 pub struct ServerEventPlugin;
@@ -447,8 +434,7 @@ impl Plugin for ServerEventPlugin {
                 PreUpdate,
                 (
                     reset_system.in_set(ClientSet::ResetEvents),
-                    (pop_from_queue_system, receive_system)
-                        .chain()
+                    receive_system
                         .after(ClientPlugin::receive_replication)
                         .in_set(ClientSet::Receive)
                         .run_if(client_connected),
@@ -471,14 +457,6 @@ fn reset_system(world: &mut World) {
             (event.reset)(world);
         }
     });
-}
-
-fn pop_from_queue_system(world: &mut World) {
-    world.resource_scope(|world, registry: Mut<ServerEventRegistry>| {
-        for event in registry.events.iter() {
-            (event.pop_from_queue)(world);
-        }
-    })
 }
 
 fn receive_system(world: &mut World) {

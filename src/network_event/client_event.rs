@@ -7,7 +7,7 @@ use bevy::{
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Serialize};
 
-use super::{EventMapper, ReceiveFn, SendFn};
+use super::{EventMapper, NetworkEventFns, ReceiveFn, SendFn};
 use crate::{
     client::{replicon_client::RepliconClient, server_entity_map::ServerEntityMap, ClientSet},
     core::{
@@ -129,7 +129,7 @@ impl ClientEventAppExt for App {
         self.add_client_event_with::<T>(channel, map_and_send::<T>, receive::<T>)
     }
 
-    fn add_client_event_with<T: Event + Serialize + DeserializeOwned>(
+    fn add_client_event_with<T: Event + Serialize>(
         &mut self,
         channel: impl Into<RepliconChannel>,
         send_fn: SendFn,
@@ -145,33 +145,16 @@ impl ClientEventAppExt for App {
 
         self.world
             .resource_mut::<ClientEventRegistry>()
-            .register_event::<T>(channel_id, send_fn, receive_fn);
+            .events
+            .push(NetworkEventFns {
+                channel_id,
+                send: send_fn,
+                resend_locally: resend_locally::<T>,
+                receive: receive_fn,
+                reset: reset::<T>,
+            });
 
         self
-    }
-}
-
-struct ClientEventFns {
-    channel_id: u8,
-    send: SendFn,
-    resend_locally: fn(&mut World),
-    receive: ReceiveFn,
-    reset: fn(&mut World),
-}
-
-impl ClientEventFns {
-    fn new<T: Event + Serialize + DeserializeOwned>(
-        channel_id: u8,
-        send: SendFn,
-        receive: ReceiveFn,
-    ) -> Self {
-        Self {
-            channel_id,
-            send,
-            resend_locally: resend_locally::<T>,
-            receive,
-            reset: reset::<T>,
-        }
     }
 }
 
@@ -266,19 +249,7 @@ fn reset<T: Event>(world: &mut World) {
 
 #[derive(Resource, Default)]
 struct ClientEventRegistry {
-    events: Vec<ClientEventFns>,
-}
-
-impl ClientEventRegistry {
-    fn register_event<T: Event + Serialize + DeserializeOwned>(
-        &mut self,
-        channel_id: u8,
-        send: SendFn,
-        receive: ReceiveFn,
-    ) {
-        self.events
-            .push(ClientEventFns::new::<T>(channel_id, send, receive));
-    }
+    events: Vec<NetworkEventFns>,
 }
 
 pub struct ClientEventPlugin;
