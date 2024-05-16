@@ -1,7 +1,10 @@
 use std::{any, io::Cursor, marker::PhantomData};
 
 use bevy::{
-    ecs::{entity::MapEntities, event::Event},
+    ecs::{
+        entity::MapEntities,
+        event::{self, Event},
+    },
     prelude::*,
 };
 use bincode::{DefaultOptions, Options};
@@ -128,11 +131,11 @@ pub trait ServerEventAppExt {
     struct ReflectEvent(Box<dyn Reflect>);
     ```
     */
-    fn add_server_event_with<T: Event, Marker1, Marker2>(
+    fn add_server_event_with<T: Event>(
         &mut self,
         channel: impl Into<RepliconChannel>,
-        send_system: impl IntoSystemConfigs<Marker1>,
-        receive_system: impl IntoSystemConfigs<Marker2>,
+        send_fn: SendFn,
+        receive_fn: ReceiveFn,
     ) -> &mut Self;
 }
 
@@ -141,21 +144,21 @@ impl ServerEventAppExt for App {
         &mut self,
         channel: impl Into<RepliconChannel>,
     ) -> &mut Self {
-        self.add_server_event_with::<T, _, _>(channel, send::<T>, receive::<T>)
+        self.add_server_event_with::<T>(channel, send::<T>, receive::<T>)
     }
 
     fn add_mapped_server_event<T: Event + Serialize + DeserializeOwned + MapEntities>(
         &mut self,
         channel: impl Into<RepliconChannel>,
     ) -> &mut Self {
-        self.add_server_event_with::<T, _, _>(channel, send::<T>, receive_and_map::<T>)
+        self.add_server_event_with::<T>(channel, send::<T>, receive_and_map::<T>)
     }
 
-    fn add_server_event_with<T: Event, Marker1, Marker2>(
+    fn add_server_event_with<T: Event>(
         &mut self,
         channel: impl Into<RepliconChannel>,
-        send_system: impl IntoSystemConfigs<Marker1>,
-        receive_system: impl IntoSystemConfigs<Marker2>,
+        send_fn: SendFn,
+        receive_fn: ReceiveFn,
     ) -> &mut Self {
         let channel_id = self
             .world
@@ -164,141 +167,131 @@ impl ServerEventAppExt for App {
 
         self.add_event::<T>()
             .init_resource::<Events<ToClients<T>>>()
-            .init_resource::<ServerEventQueue<T>>()
-            .insert_resource(ServerEventChannel::<T>::new(channel_id))
-            .add_systems(
-                PreUpdate,
-                (
-                    reset::<T>.in_set(ClientSet::ResetEvents),
-                    (pop_from_queue::<T>, receive_system)
-                        .chain()
-                        .after(ClientPlugin::receive_replication)
-                        .in_set(ClientSet::Receive)
-                        .run_if(client_connected),
-                ),
-            )
-            .add_systems(
-                PostUpdate,
-                (
-                    send_system.run_if(server_running),
-                    resend_locally::<T>.run_if(has_authority),
-                )
-                    .chain()
-                    .after(ServerPlugin::send_replication)
-                    .in_set(ServerSet::Send),
-            );
+            .init_resource::<ServerEventQueue<T>>();
+
+        self.world
+            .resource_mut::<ServerEventRegistry>()
+            .register_event::<T>(channel_id, send_fn, receive_fn);
 
         self
     }
 }
 
 /// Applies all queued events if their tick is less or equal to [`RepliconTick`].
-fn pop_from_queue<T: Event>(
-    init_tick: Res<ServerInitTick>,
-    mut server_events: EventWriter<T>,
-    mut event_queue: ResMut<ServerEventQueue<T>>,
-) {
-    while let Some((tick, event)) = event_queue.pop_if_le(**init_tick) {
-        trace!(
-            "applying event `{}` from queue with `{tick:?}`",
-            any::type_name::<T>()
-        );
-        server_events.send(event);
-    }
+fn pop_from_queue<T: Event>(world: &mut World) {
+    world.resource_scope(|world, mut server_events: Mut<Events<T>>| {
+        world.resource_scope(|world, mut event_queue: Mut<ServerEventQueue<T>>| {
+            let init_tick = world.resource::<ServerInitTick>();
+            while let Some((tick, event)) = event_queue.pop_if_le(**init_tick) {
+                trace!(
+                    "applying event `{}` from queue with `{tick:?}`",
+                    any::type_name::<T>()
+                );
+                server_events.send(event);
+            }
+        });
+    });
 }
 
-fn receive<T: Event + DeserializeOwned>(
-    mut server_events: EventWriter<T>,
-    mut client: ResMut<RepliconClient>,
-    mut event_queue: ResMut<ServerEventQueue<T>>,
-    init_tick: Res<ServerInitTick>,
-    channel: Res<ServerEventChannel<T>>,
-) {
-    for message in client.receive(*channel) {
-        let (tick, event) = deserialize_with(&message, |cursor| {
-            DefaultOptions::new().deserialize_from(cursor)
-        })
-        .expect("server should send valid events");
+fn receive<T: Event + DeserializeOwned>(world: &mut World, channel_id: u8) {
+    world.resource_scope(|world, mut server_events: Mut<Events<T>>| {
+        world.resource_scope(|world, mut client: Mut<RepliconClient>| {
+            world.resource_scope(|world, mut event_queue: Mut<ServerEventQueue<T>>| {
+                let init_tick = world.resource::<ServerInitTick>();
+                for message in client.receive(channel_id) {
+                    let (tick, event) = deserialize_with(&message, |cursor| {
+                        DefaultOptions::new().deserialize_from(cursor)
+                    })
+                    .expect("server should send valid events");
 
-        if tick <= **init_tick {
-            trace!("applying event `{}` with `{tick:?}`", any::type_name::<T>());
-            server_events.send(event);
-        } else {
-            trace!("queuing event `{}` with `{tick:?}`", any::type_name::<T>());
-            event_queue.insert(tick, event);
+                    if tick <= **init_tick {
+                        trace!("applying event `{}` with `{tick:?}`", any::type_name::<T>());
+                        server_events.send(event);
+                    } else {
+                        trace!("queuing event `{}` with `{tick:?}`", any::type_name::<T>());
+                        event_queue.insert(tick, event);
+                    }
+                }
+            });
+        });
+    });
+}
+
+fn receive_and_map<T: Event + MapEntities + DeserializeOwned>(world: &mut World, channel_id: u8) {
+    world.resource_scope(|world, mut server_events: Mut<Events<T>>| {
+        world.resource_scope(|world, mut client: Mut<RepliconClient>| {
+            world.resource_scope(|world, mut event_queue: Mut<ServerEventQueue<T>>| {
+                let init_tick = world.resource::<ServerInitTick>();
+                let entity_map = world.resource::<ServerEntityMap>();
+                for message in client.receive(channel_id) {
+                    let (tick, mut event): (_, T) = deserialize_with(&message, |cursor| {
+                        DefaultOptions::new().deserialize_from(cursor)
+                    })
+                    .expect("server should send valid events");
+
+                    event.map_entities(&mut EventMapper(entity_map.to_client()));
+                    if tick <= **init_tick {
+                        trace!("applying event `{}` for `{tick:?}`", any::type_name::<T>());
+                        server_events.send(event);
+                    } else {
+                        trace!("queuing event `{}` for `{tick:?}`", any::type_name::<T>());
+                        event_queue.insert(tick, event);
+                    }
+                }
+            });
+        });
+    });
+}
+
+fn send<T: Event + Serialize>(world: &mut World, channel_id: u8) {
+    world.resource_scope(|world, mut server: Mut<RepliconServer>| {
+        let events = world.get_resource::<Events<ToClients<T>>>().unwrap();
+        let connected_clients = world.get_resource::<ConnectedClients>().unwrap();
+        for ToClients { event, mode } in events.get_reader().read(&events) {
+            trace!("sending event `{}` with `{mode:?}`", any::type_name::<T>());
+            send_with(
+                &mut server,
+                &connected_clients,
+                channel_id,
+                *mode,
+                |cursor| DefaultOptions::new().serialize_into(cursor, &event),
+            )
+            .expect("server event should be serializable");
         }
-    }
-}
-
-fn receive_and_map<T: Event + MapEntities + DeserializeOwned>(
-    mut server_events: EventWriter<T>,
-    mut client: ResMut<RepliconClient>,
-    mut event_queue: ResMut<ServerEventQueue<T>>,
-    init_tick: Res<ServerInitTick>,
-    entity_map: Res<ServerEntityMap>,
-    channel: Res<ServerEventChannel<T>>,
-) {
-    for message in client.receive(*channel) {
-        let (tick, mut event): (_, T) = deserialize_with(&message, |cursor| {
-            DefaultOptions::new().deserialize_from(cursor)
-        })
-        .expect("server should send valid events");
-
-        event.map_entities(&mut EventMapper(entity_map.to_client()));
-        if tick <= **init_tick {
-            trace!("applying event `{}` for `{tick:?}`", any::type_name::<T>());
-            server_events.send(event);
-        } else {
-            trace!("queuing event `{}` for `{tick:?}`", any::type_name::<T>());
-            event_queue.insert(tick, event);
-        }
-    }
-}
-
-fn send<T: Event + Serialize>(
-    mut server: ResMut<RepliconServer>,
-    mut server_events: EventReader<ToClients<T>>,
-    connected_clients: Res<ConnectedClients>,
-    channel: Res<ServerEventChannel<T>>,
-) {
-    for ToClients { event, mode } in server_events.read() {
-        trace!("sending event `{}` with `{mode:?}`", any::type_name::<T>());
-        send_with(&mut server, &connected_clients, *channel, *mode, |cursor| {
-            DefaultOptions::new().serialize_into(cursor, &event)
-        })
-        .expect("server event should be serializable");
-    }
+    });
 }
 
 /// Transforms [`ToClients<T>`] events into `T` events to "emulate"
 /// message sending for offline mode or when server is also a player.
-fn resend_locally<T: Event>(
-    mut server_events: ResMut<Events<ToClients<T>>>,
-    mut local_events: EventWriter<T>,
-) {
-    for ToClients { event, mode } in server_events.drain() {
-        match mode {
-            SendMode::Broadcast => {
-                local_events.send(event);
-            }
-            SendMode::BroadcastExcept(client_id) => {
-                if client_id != ClientId::SERVER {
-                    local_events.send(event);
+fn resend_locally<T: Event>(world: &mut World) {
+    world.resource_scope(|world, mut local_events: Mut<Events<T>>| {
+        world.resource_scope(|_world, mut server_events: Mut<Events<ToClients<T>>>| {
+            for ToClients { event, mode } in server_events.drain() {
+                match mode {
+                    SendMode::Broadcast => {
+                        local_events.send(event);
+                    }
+                    SendMode::BroadcastExcept(client_id) => {
+                        if client_id != ClientId::SERVER {
+                            local_events.send(event);
+                        }
+                    }
+                    SendMode::Direct(client_id) => {
+                        if client_id == ClientId::SERVER {
+                            local_events.send(event);
+                        }
+                    }
                 }
             }
-            SendMode::Direct(client_id) => {
-                if client_id == ClientId::SERVER {
-                    local_events.send(event);
-                }
-            }
-        }
-    }
+        });
+    });
 }
 
 /// Clears queued events.
 ///
 /// We clear events while waiting for a connection to ensure clean reconnects.
-fn reset<T: Event>(mut event_queue: ResMut<ServerEventQueue<T>>) {
+fn reset<T: Event>(world: &mut World) {
+    let mut event_queue = world.resource_mut::<ServerEventQueue<T>>();
     if !event_queue.0.is_empty() {
         warn!(
             "discarding {} queued server events due to a disconnect",
@@ -311,10 +304,10 @@ fn reset<T: Event>(mut event_queue: ResMut<ServerEventQueue<T>>) {
 /// Helper for custom sending systems.
 ///
 /// See also [`ServerEventAppExt::add_server_event_with`].
-pub fn send_with<T>(
+pub fn send_with(
     server: &mut RepliconServer,
     connected_clients: &ConnectedClients,
-    channel: ServerEventChannel<T>,
+    channel_id: u8,
     mode: SendMode,
     serialize: impl Fn(&mut Cursor<Vec<u8>>) -> bincode::Result<()>,
 ) -> bincode::Result<()> {
@@ -323,7 +316,7 @@ pub fn send_with<T>(
             let mut previous_message = None;
             for client in connected_clients.iter() {
                 let message = serialize_with(client, previous_message, &serialize)?;
-                server.send(client.id(), channel, message.bytes.clone());
+                server.send(client.id(), channel_id, message.bytes.clone());
                 previous_message = Some(message);
             }
         }
@@ -334,7 +327,7 @@ pub fn send_with<T>(
                     continue;
                 }
                 let message = serialize_with(client, previous_message, &serialize)?;
-                server.send(client.id(), channel, message.bytes.clone());
+                server.send(client.id(), channel_id, message.bytes.clone());
                 previous_message = Some(message);
             }
         }
@@ -342,7 +335,7 @@ pub fn send_with<T>(
             if client_id != ClientId::SERVER {
                 if let Some(client) = connected_clients.get_client(client_id) {
                     let message = serialize_with(client, None, &serialize)?;
-                    server.send(client.id(), channel, message.bytes);
+                    server.send(client.id(), channel_id, message.bytes);
                 }
             }
         }
@@ -417,33 +410,100 @@ pub fn deserialize_with<T>(
     Ok((tick, event))
 }
 
-/// Holds a server's channel ID for `T`.
-#[derive(Resource)]
-pub struct ServerEventChannel<T> {
-    id: u8,
-    marker: PhantomData<T>,
+type SendFn = fn(&mut World, u8);
+type ReceiveFn = fn(&mut World, u8);
+
+struct ServerEventFns {
+    channel_id: u8,
+    send: SendFn,
+    resend_locally: fn(&mut World),
+    receive: ReceiveFn,
+    reset: fn(&mut World),
+    pop_from_queue: fn(&mut World),
 }
 
-impl<T> ServerEventChannel<T> {
-    fn new(id: u8) -> Self {
-        Self {
-            id,
-            marker: PhantomData,
+#[derive(Resource, Default)]
+struct ServerEventRegistry {
+    events: Vec<ServerEventFns>,
+}
+
+impl ServerEventRegistry {
+    fn register_event<T: Event>(&mut self, channel_id: u8, send: SendFn, receive: ReceiveFn) {
+        self.events.push(ServerEventFns {
+            channel_id,
+            send,
+            resend_locally: resend_locally::<T>,
+            receive,
+            reset: reset::<T>,
+            pop_from_queue: pop_from_queue::<T>,
+        });
+    }
+}
+
+fn reset_system(world: &mut World) {
+    world.resource_scope(|world, registry: Mut<ServerEventRegistry>| {
+        for event in registry.events.iter() {
+            (event.reset)(world);
         }
-    }
+    });
 }
 
-impl<T> Clone for ServerEventChannel<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
+fn pop_from_queue_system(world: &mut World) {
+    world.resource_scope(|world, registry: Mut<ServerEventRegistry>| {
+        for event in registry.events.iter() {
+            (event.pop_from_queue)(world);
+        }
+    })
 }
 
-impl<T> Copy for ServerEventChannel<T> {}
+fn receive_system(world: &mut World) {
+    world.resource_scope(|world, registry: Mut<ServerEventRegistry>| {
+        for event in registry.events.iter() {
+            (event.receive)(world, event.channel_id);
+        }
+    });
+}
 
-impl<T> From<ServerEventChannel<T>> for u8 {
-    fn from(value: ServerEventChannel<T>) -> Self {
-        value.id
+fn send_system(world: &mut World) {
+    world.resource_scope(|world, registry: Mut<ServerEventRegistry>| {
+        for event in registry.events.iter() {
+            (event.send)(world, event.channel_id);
+        }
+    })
+}
+
+fn resend_locally_system(world: &mut World) {
+    world.resource_scope(|world, registry: Mut<ServerEventRegistry>| {
+        for event in registry.events.iter() {
+            (event.resend_locally)(world);
+        }
+    })
+}
+
+pub struct ServerNetworkEventPlugin;
+
+impl Plugin for ServerNetworkEventPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<ServerEventRegistry>()
+            .add_systems(
+                PreUpdate,
+                (
+                    reset_system.in_set(ClientSet::ResetEvents),
+                    (pop_from_queue_system, receive_system)
+                        .chain()
+                        .after(ClientPlugin::receive_replication)
+                        .in_set(ClientSet::Receive)
+                        .run_if(client_connected),
+                ),
+            )
+            .add_systems(
+                PostUpdate,
+                (
+                    send_system.run_if(server_running),
+                    resend_locally_system.run_if(has_authority),
+                )
+                    .chain(),
+            );
     }
 }
 

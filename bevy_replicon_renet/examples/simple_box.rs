@@ -4,11 +4,12 @@
 use std::{
     error::Error,
     net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket},
-    time::SystemTime,
+    time::{Duration, SystemTime},
 };
 
 use bevy::{
     prelude::*,
+    time::common_conditions::on_timer,
     winit::{UpdateMode::Continuous, WinitSettings},
 };
 use bevy_replicon::prelude::*;
@@ -49,6 +50,7 @@ impl Plugin for SimpleBoxPlugin {
         app.replicate::<PlayerPosition>()
             .replicate::<PlayerColor>()
             .add_client_event::<MoveDirection>(ChannelKind::Ordered)
+            .add_server_event::<ServerMessage>(ChannelKind::Ordered)
             .add_systems(
                 Startup,
                 (Self::read_cli.map(Result::unwrap), Self::spawn_camera),
@@ -58,7 +60,13 @@ impl Plugin for SimpleBoxPlugin {
                 (
                     Self::apply_movement.run_if(has_authority), // Runs only on the server or a single player.
                     Self::handle_connections.run_if(server_running), // Runs only on the server.
-                    (Self::draw_boxes, Self::read_input),
+                    (
+                        Self::draw_boxes,
+                        Self::read_input,
+                        Self::handle_server_message,
+                    ),
+                    Self::send_server_message
+                        .run_if(has_authority.and_then(on_timer(Duration::from_secs(5)))),
                 ),
             );
     }
@@ -233,6 +241,19 @@ impl SimpleBoxPlugin {
             }
         }
     }
+
+    fn send_server_message(mut events: EventWriter<ToClients<ServerMessage>>) {
+        events.send(ToClients {
+            mode: SendMode::Broadcast,
+            event: ServerMessage,
+        });
+    }
+
+    fn handle_server_message(mut server_events: EventReader<ServerMessage>) {
+        for _ in server_events.read() {
+            info!("Received server message");
+        }
+    }
 }
 
 const PORT: u16 = 5000;
@@ -292,3 +313,6 @@ struct PlayerColor(Color);
 /// A movement event for the controlled box.
 #[derive(Debug, Default, Deserialize, Event, Serialize)]
 struct MoveDirection(Vec2);
+
+#[derive(Event, Serialize, Deserialize)]
+struct ServerMessage;

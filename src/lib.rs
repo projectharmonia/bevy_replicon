@@ -482,7 +482,9 @@ pub mod prelude {
 pub use bincode;
 
 use bevy::{app::PluginGroupBuilder, prelude::*};
-use network_event::client_event::ClientNetWorkEventPlugin;
+use network_event::{
+    client_event::ClientNetWorkEventPlugin, server_event::ServerNetworkEventPlugin,
+};
 use prelude::*;
 
 /// Plugin Group for all replicon plugins.
@@ -496,5 +498,6 @@ impl PluginGroup for RepliconPlugins {
             .add(ClientPlugin)
             .add(ServerPlugin::default())
             .add(ClientNetWorkEventPlugin)
+            .add(ServerNetworkEventPlugin)
     }
 }
