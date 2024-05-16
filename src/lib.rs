@@ -445,6 +445,7 @@ pub mod parent_sync;
 pub mod scene;
 pub mod server;
 pub mod test_app;
+
 pub mod prelude {
     #[allow(deprecated)]
     pub use super::core::Replication;
@@ -482,9 +483,7 @@ pub mod prelude {
 pub use bincode;
 
 use bevy::{app::PluginGroupBuilder, prelude::*};
-use network_event::{
-    client_event::ClientNetWorkEventPlugin, server_event::ServerNetworkEventPlugin,
-};
+use network_event::{client_event::ClientEventPlugin, server_event::ServerEventPlugin};
 use prelude::*;
 
 /// Plugin Group for all replicon plugins.
@@ -497,7 +496,7 @@ impl PluginGroup for RepliconPlugins {
             .add(ParentSyncPlugin)
             .add(ClientPlugin)
             .add(ServerPlugin::default())
-            .add(ClientNetWorkEventPlugin)
-            .add(ServerNetworkEventPlugin)
+            .add(ClientEventPlugin)
+            .add(ServerEventPlugin)
     }
 }

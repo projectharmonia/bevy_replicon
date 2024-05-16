@@ -16,3 +16,6 @@ impl EntityMapper for EventMapper<'_> {
             .unwrap_or_else(|| panic!("{entity:?} should be mappable"))
     }
 }
+
+pub type SendFn = fn(&mut World, u8);
+pub type ReceiveFn = fn(&mut World, u8);

@@ -12,7 +12,7 @@ use bytes::Bytes;
 use ordered_multimap::ListOrderedMultimap;
 use serde::{de::DeserializeOwned, Serialize};
 
-use super::EventMapper;
+use super::{EventMapper, ReceiveFn, SendFn};
 use crate::{
     client::{
         replicon_client::RepliconClient, server_entity_map::ServerEntityMap, ClientSet,
@@ -410,9 +410,6 @@ pub fn deserialize_with<T>(
     Ok((tick, event))
 }
 
-type SendFn = fn(&mut World, u8);
-type ReceiveFn = fn(&mut World, u8);
-
 struct ServerEventFns {
     channel_id: u8,
     send: SendFn,
@@ -480,9 +477,9 @@ fn resend_locally_system(world: &mut World) {
     })
 }
 
-pub struct ServerNetworkEventPlugin;
+pub struct ServerEventPlugin;
 
-impl Plugin for ServerNetworkEventPlugin {
+impl Plugin for ServerEventPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ServerEventRegistry>()
             .add_systems(
