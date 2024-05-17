@@ -20,9 +20,7 @@ impl ClientVisibility {
     /// Creates a new instance based on the preconfigured policy.
     pub(super) fn new(policy: VisibilityPolicy) -> Self {
         match policy {
-            VisibilityPolicy::All => Self::with_filter(VisibilityFilter::All {
-                just_connected: true,
-            }),
+            VisibilityPolicy::All => Self::with_filter(VisibilityFilter::All),
             VisibilityPolicy::Blacklist => Self::with_filter(VisibilityFilter::Blacklist {
                 list: Default::default(),
                 added: Default::default(),
@@ -49,7 +47,7 @@ impl ClientVisibility {
     /// `cached_visibility` remains untouched.
     pub(super) fn clear(&mut self) {
         match &mut self.filter {
-            VisibilityFilter::All { just_connected } => *just_connected = true,
+            VisibilityFilter::All => (),
             VisibilityFilter::Blacklist {
                 list,
                 added,
@@ -76,7 +74,7 @@ impl ClientVisibility {
     /// Should be called after each tick.
     pub(crate) fn update(&mut self) {
         match &mut self.filter {
-            VisibilityFilter::All { just_connected } => *just_connected = false,
+            VisibilityFilter::All => (),
             VisibilityFilter::Blacklist {
                 list,
                 added,
@@ -250,13 +248,7 @@ impl ClientVisibility {
     /// Returns visibility of a specific entity.
     fn get_visibility_state(&self, entity: Entity) -> Visibility {
         match &self.filter {
-            VisibilityFilter::All { just_connected } => {
-                if *just_connected {
-                    Visibility::Gained
-                } else {
-                    Visibility::Visible
-                }
-            }
+            VisibilityFilter::All => Visibility::Visible,
             VisibilityFilter::Blacklist { list, .. } => match list.get(&entity) {
                 Some(BlacklistInfo::QueuedForRemoval) => Visibility::Gained,
                 Some(BlacklistInfo::Hidden) => Visibility::Hidden,
@@ -273,12 +265,7 @@ impl ClientVisibility {
 
 /// Filter for [`ClientVisibility`] based on [`VisibilityPolicy`].
 enum VisibilityFilter {
-    All {
-        /// Indicates that the client has just connected to the server.
-        ///
-        /// If true, then visibility of all entities has been gained.
-        just_connected: bool,
-    },
+    All,
     Blacklist {
         /// All blacklisted entities and an indicator of whether they are in the queue for deletion
         /// at the end of this tick.

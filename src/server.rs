@@ -368,21 +368,12 @@ fn collect_changes(
                         continue;
                     }
 
-                    let new_entity = marker_added || visibility == Visibility::Gained;
-                    if new_entity || ticks.is_added(change_tick.last_run(), change_tick.this_run())
+                    if let Some(tick) = client
+                        .get_change_limit(entity.id())
+                        .filter(|_| !marker_added)
+                        .filter(|_| visibility != Visibility::Gained)
+                        .filter(|_| !ticks.is_added(change_tick.last_run(), change_tick.this_run()))
                     {
-                        init_message.write_component(
-                            &mut shared_bytes,
-                            rule_fns,
-                            component_fns,
-                            &ctx,
-                            replicated_component.fns_id,
-                            component,
-                        )?;
-                    } else {
-                        let tick = client
-                            .get_change_limit(entity.id())
-                            .expect("entity should be present after adding component");
                         if ticks.is_changed(tick, change_tick.this_run()) {
                             update_message.write_component(
                                 &mut shared_bytes,
@@ -393,6 +384,15 @@ fn collect_changes(
                                 component,
                             )?;
                         }
+                    } else {
+                        init_message.write_component(
+                            &mut shared_bytes,
+                            rule_fns,
+                            component_fns,
+                            &ctx,
+                            replicated_component.fns_id,
+                            component,
+                        )?;
                     }
                 }
             }

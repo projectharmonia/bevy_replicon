@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.25.1] - 2024-05-16
 
+- Fix replicating previously spawned entities to a newly connected client with visibility policy different from `VisibilityPolicy::All`.
+
 ### Fixed
 
 - Fix possible overflow in `Confirmed::contains_any`.
