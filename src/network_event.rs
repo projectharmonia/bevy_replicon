@@ -1,7 +1,16 @@
 pub mod client_event;
 pub mod server_event;
 
-use bevy::{ecs::entity::EntityHashMap, prelude::*};
+use std::any::Any;
+
+use bevy::{
+    ecs::entity::EntityHashMap,
+    prelude::*,
+    reflect::{erased_serde::Serialize, TypeRegistry},
+};
+use bytes::Bytes;
+
+use crate::core::replicon_tick::RepliconTick;
 
 /// Maps server entities into client entities inside events.
 ///
@@ -17,8 +26,10 @@ impl EntityMapper for EventMapper<'_> {
     }
 }
 
-pub type SendFn = fn(&mut World, u8);
+pub type SendFn = fn(&mut World, u8, UntypedSerializeFn);
 pub type ReceiveFn = fn(&mut World, u8);
+pub type SerializeFn<T> = fn(&T, &EventContext) -> Bytes;
+type UntypedSerializeFn = fn(&dyn Any, &EventContext) -> Bytes;
 
 struct NetworkEventFns {
     channel_id: u8,
@@ -26,4 +37,10 @@ struct NetworkEventFns {
     resend_locally: fn(&mut World),
     receive: ReceiveFn,
     reset: fn(&mut World),
+    serialize_fn: UntypedSerializeFn,
+}
+
+pub struct EventContext<'a> {
+    pub type_registry: &'a AppTypeRegistry,
+    // pub current_tick: RepliconTick,
 }

@@ -3,16 +3,21 @@ use std::any;
 use bevy::{
     ecs::{entity::MapEntities, event::Event},
     prelude::*,
+    reflect::TypeRegistry,
 };
 use bincode::{DefaultOptions, Options};
+use bytes::Bytes;
 use serde::{de::DeserializeOwned, Serialize};
 
-use super::{EventMapper, NetworkEventFns, ReceiveFn, SendFn};
+use super::{
+    EventContext, EventMapper, NetworkEventFns, ReceiveFn, SendFn, SerializeFn, UntypedSerializeFn,
+};
 use crate::{
     client::{replicon_client::RepliconClient, server_entity_map::ServerEntityMap, ClientSet},
     core::{
         common_conditions::{client_connected, has_authority, server_running},
         replicon_channels::{RepliconChannel, RepliconChannels},
+        replicon_tick::RepliconTick,
         ClientId,
     },
     server::{replicon_server::RepliconServer, ServerSet},
@@ -109,7 +114,7 @@ pub trait ClientEventAppExt {
     fn add_client_event_with<T: Event + Serialize + DeserializeOwned>(
         &mut self,
         channel: impl Into<RepliconChannel>,
-        send_fn: SendFn,
+        send_fn: SerializeFn<T>,
         receive_fn: ReceiveFn,
     ) -> &mut Self;
 }
@@ -119,20 +124,21 @@ impl ClientEventAppExt for App {
         &mut self,
         channel: impl Into<RepliconChannel>,
     ) -> &mut Self {
-        self.add_client_event_with::<T>(channel, send::<T>, receive::<T>)
+        self.add_client_event_with::<T>(channel, default_serialize::<T>, receive::<T>)
     }
 
     fn add_mapped_client_event<T: Event + Serialize + DeserializeOwned + MapEntities + Clone>(
         &mut self,
         channel: impl Into<RepliconChannel>,
     ) -> &mut Self {
-        self.add_client_event_with::<T>(channel, map_and_send::<T>, receive::<T>)
+        self
+        // self.add_client_event_with::<T>(channel, map_and_send::<T>, receive::<T>)
     }
 
     fn add_client_event_with<T: Event + Serialize>(
         &mut self,
         channel: impl Into<RepliconChannel>,
-        send_fn: SendFn,
+        serialize_fn: SerializeFn<T>,
         receive_fn: ReceiveFn,
     ) -> &mut Self {
         let channel_id = self
@@ -148,29 +154,39 @@ impl ClientEventAppExt for App {
             .events
             .push(NetworkEventFns {
                 channel_id,
-                send: send_fn,
+                send: send::<T>,
                 resend_locally: resend_locally::<T>,
                 receive: receive_fn,
                 reset: reset::<T>,
+                serialize_fn: unsafe { std::mem::transmute(serialize_fn) },
             });
 
         self
     }
 }
 
-fn send<T: Event + Serialize>(world: &mut World, channel_id: u8) {
+fn default_serialize<T: Serialize>(event: &T, _ctx: &EventContext) -> Bytes {
+    DefaultOptions::new()
+        .serialize(event)
+        .expect("client event should be serializable")
+        .into()
+}
+
+fn send<'a, T: Event + Serialize>(
+    world: &mut World,
+    channel_id: u8,
+    serialize_fn: UntypedSerializeFn,
+) {
     world.resource_scope(|world, mut client: Mut<RepliconClient>| {
         let events = world.resource::<Events<T>>();
-
+        let ctx = EventContext {
+            type_registry: world.resource::<AppTypeRegistry>(),
+        };
         for event in events.get_reader().read(&events) {
-            let message = DefaultOptions::new()
-                .serialize(&event)
-                .expect("mapped client event should be serializable");
-
             trace!("Sending event: {}", std::any::type_name::<T>());
-            client.send(channel_id, message)
+            client.send(channel_id, serialize_fn(event, &ctx));
         }
-    })
+    });
 }
 
 fn map_and_send<T: Event + MapEntities + Serialize + Clone>(world: &mut World, channel: u8) {
@@ -281,7 +297,7 @@ impl Plugin for ClientEventPlugin {
 fn send_system(world: &mut World) {
     world.resource_scope(|world, registry: Mut<ClientEventRegistry>| {
         for event in &registry.events {
-            (event.send)(world, event.channel_id);
+            (event.send)(world, event.channel_id, event.serialize_fn);
         }
     });
 }

@@ -50,7 +50,7 @@ impl Plugin for SimpleBoxPlugin {
         app.replicate::<PlayerPosition>()
             .replicate::<PlayerColor>()
             .add_client_event::<MoveDirection>(ChannelKind::Ordered)
-            .add_server_event::<ServerMessage>(ChannelKind::Ordered)
+            // .add_server_event::<ServerMessage>(ChannelKind::Ordered)
             .add_systems(
                 Startup,
                 (Self::read_cli.map(Result::unwrap), Self::spawn_camera),
@@ -63,10 +63,10 @@ impl Plugin for SimpleBoxPlugin {
                     (
                         Self::draw_boxes,
                         Self::read_input,
-                        Self::handle_server_message,
+                        // Self::handle_server_message,
                     ),
-                    Self::send_server_message
-                        .run_if(has_authority.and_then(on_timer(Duration::from_secs(5)))),
+                    // Self::send_server_message
+                    // .run_if(has_authority.and_then(on_timer(Duration::from_secs(5)))),
                 ),
             );
     }

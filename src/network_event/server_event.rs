@@ -140,14 +140,16 @@ impl ServerEventAppExt for App {
         &mut self,
         channel: impl Into<RepliconChannel>,
     ) -> &mut Self {
-        self.add_server_event_with::<T>(channel, send::<T>, receive::<T>)
+        self
+        // self.add_server_event_with::<T>(channel, send::<T>, receive::<T>)
     }
 
     fn add_mapped_server_event<T: Event + Serialize + DeserializeOwned + MapEntities>(
         &mut self,
         channel: impl Into<RepliconChannel>,
     ) -> &mut Self {
-        self.add_server_event_with::<T>(channel, send::<T>, receive_and_map::<T>)
+        self
+        // self.add_server_event_with::<T>(channel, send::<T>, receive_and_map::<T>)
     }
 
     fn add_server_event_with<T: Event>(
@@ -165,16 +167,16 @@ impl ServerEventAppExt for App {
             .init_resource::<Events<ToClients<T>>>()
             .init_resource::<ServerEventQueue<T>>();
 
-        self.world
-            .resource_mut::<ServerEventRegistry>()
-            .events
-            .push(NetworkEventFns {
-                channel_id,
-                send: send_fn,
-                resend_locally: resend_locally::<T>,
-                receive: receive_fn,
-                reset: reset::<T>,
-            });
+        // self.world
+        // .resource_mut::<ServerEventRegistry>()
+        // .events
+        // .push(NetworkEventFns {
+        // channel_id,
+        // send: send_fn,
+        // resend_locally: resend_locally::<T>,
+        // receive: receive_fn,
+        // reset: reset::<T>,
+        // });
 
         self
     }
@@ -470,7 +472,7 @@ fn receive_system(world: &mut World) {
 fn send_system(world: &mut World) {
     world.resource_scope(|world, registry: Mut<ServerEventRegistry>| {
         for event in registry.events.iter() {
-            (event.send)(world, event.channel_id);
+            // (event.send)(world, event.channel_id);
         }
     })
 }
