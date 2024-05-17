@@ -259,25 +259,24 @@ fn resend_locally<T: Event + Serialize>(world: &mut World) {
 fn receive<T: Event + DeserializeOwned>(world: &mut World, network_event: &NetworkEventFns) {
     world.resource_scope(|world, mut server: Mut<RepliconServer>| {
         world.resource_scope(|world, mut client_events: Mut<Events<FromClient<T>>>| {
-            world.resource_scope(|_world, type_registry: Mut<AppTypeRegistry>| {
-                let deserialize_fn = unsafe { network_event.typed_deserialize::<T>() };
-                let ctx = EventContext {
-                    type_registry: &type_registry,
-                };
-                let events =
-                    server
-                        .receive(network_event.channel_id)
-                        .filter_map(|(client_id, message)| {
-                            deserialize_fn(message, &ctx)
-                                .map(|event| FromClient { client_id, event })
-                                .inspect_err(|e| {
-                                    error!("unable to deserialize event from {client_id:?}: {e}")
-                                })
-                                .ok()
-                        });
+            let type_registry = world.resource::<AppTypeRegistry>();
+            let deserialize_fn = unsafe { network_event.typed_deserialize::<T>() };
+            let ctx = EventContext {
+                type_registry: &type_registry,
+            };
+            let events =
+                server
+                    .receive(network_event.channel_id)
+                    .filter_map(|(client_id, message)| {
+                        deserialize_fn(message, &ctx)
+                            .map(|event| FromClient { client_id, event })
+                            .inspect_err(|e| {
+                                error!("unable to deserialize event from {client_id:?}: {e}")
+                            })
+                            .ok()
+                    });
 
-                client_events.send_batch(events);
-            })
+            client_events.send_batch(events);
         })
     })
 }
