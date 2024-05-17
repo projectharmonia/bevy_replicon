@@ -131,7 +131,7 @@ fn blacklist() {
 }
 
 #[test]
-fn blacklist_despawn() {
+fn blacklist_with_despawn() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
@@ -250,7 +250,7 @@ fn whitelist() {
 }
 
 #[test]
-fn whitelist_despawn() {
+fn whitelist_with_despawn() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
