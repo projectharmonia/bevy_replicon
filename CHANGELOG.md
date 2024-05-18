@@ -7,9 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.25.1] - 2024-05-16
+## [0.25.2] - 2024-05-18
+
+### Fixed
 
 - Fix replicating previously spawned entities to a newly connected client with visibility policy different from `VisibilityPolicy::All`.
+
+## [0.25.1] - 2024-05-16
 
 ### Fixed
 
@@ -464,7 +468,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release after separation from [Project Harmonia](https://github.com/projectharmonia/project_harmonia).
 
-[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.25.1...HEAD
+[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.25.2...HEAD
+[0.25.2]: https://github.com/projectharmonia/bevy_replicon/compare/v0.25.1...v0.25.2
 [0.25.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.25.0...v0.25.1
 [0.25.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.24.1...v0.25.0
 [0.24.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.24.0...v0.24.1
