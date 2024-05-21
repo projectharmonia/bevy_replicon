@@ -1,16 +1,14 @@
 pub mod command_fns;
 pub mod component_fns;
-pub mod ctx;
 pub mod rule_fns;
 pub mod test_fns;
 
 use bevy::{ecs::component::ComponentId, prelude::*};
 use serde::{Deserialize, Serialize};
 
-use super::command_markers::CommandMarkerIndex;
+use super::{command_markers::CommandMarkerIndex, ctx::DespawnCtx};
 use command_fns::{RemoveFn, UntypedCommandFns, WriteFn};
 use component_fns::ComponentFns;
-use ctx::DespawnCtx;
 use rule_fns::{RuleFns, UntypedRuleFns};
 
 /// Stores configurable replication functions.

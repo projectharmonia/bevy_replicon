@@ -4,12 +4,9 @@ use bevy::prelude::*;
 use bevy_replicon::{
     core::{
         command_markers::MarkerConfig,
+        ctx::{DespawnCtx, WriteCtx},
         replication_fns::{
-            command_fns,
-            ctx::{DespawnCtx, WriteCtx},
-            rule_fns::RuleFns,
-            test_fns::TestFnsEntityExt,
-            ReplicationFns,
+            command_fns, rule_fns::RuleFns, test_fns::TestFnsEntityExt, ReplicationFns,
         },
     },
     prelude::*,

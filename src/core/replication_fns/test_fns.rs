@@ -2,15 +2,12 @@ use std::io::Cursor;
 
 use bevy::{ecs::system::CommandQueue, prelude::*};
 
-use super::{
-    ctx::{DespawnCtx, RemoveCtx, WriteCtx},
-    FnsInfo,
-};
+use super::{FnsInfo, ReplicationFns};
 use crate::{
     client::server_entity_map::ServerEntityMap,
     core::{
         command_markers::{CommandMarkers, EntityMarkers},
-        replication_fns::{ctx::SerializeCtx, ReplicationFns},
+        ctx::{DespawnCtx, RemoveCtx, SerializeCtx, WriteCtx},
         replicon_tick::RepliconTick,
     },
     server::server_tick::ServerTick,

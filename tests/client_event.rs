@@ -15,7 +15,7 @@ fn without_server_plugin() {
         MinimalPlugins,
         RepliconPlugins.build().disable::<ServerPlugin>(),
     ))
-    .add_client_event_with::<DummyEvent, _, _>(ChannelKind::Ordered, || {}, || {})
+    .add_client_event::<DummyEvent>(ChannelKind::Ordered)
     .update();
 }
 
@@ -26,7 +26,7 @@ fn without_client_plugin() {
         MinimalPlugins,
         RepliconPlugins.build().disable::<ClientPlugin>(),
     ))
-    .add_client_event_with::<DummyEvent, _, _>(ChannelKind::Ordered, || {}, || {})
+    .add_client_event::<DummyEvent>(ChannelKind::Ordered)
     .update();
 }
 

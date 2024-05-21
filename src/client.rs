@@ -13,10 +13,8 @@ use varint_rs::VarintReader;
 use crate::core::{
     command_markers::{CommandMarkers, EntityMarkers},
     common_conditions::{client_connected, client_just_connected, client_just_disconnected},
-    replication_fns::{
-        ctx::{DespawnCtx, RemoveCtx, WriteCtx},
-        ReplicationFns,
-    },
+    ctx::{DespawnCtx, RemoveCtx, WriteCtx},
+    replication_fns::ReplicationFns,
     replicon_channels::{ReplicationChannel, RepliconChannels},
     replicon_tick::RepliconTick,
     Replicated,

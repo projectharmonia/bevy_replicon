@@ -51,10 +51,8 @@ pub trait AppMarkerExt {
     use bevy_replicon::{
         core::{
             command_markers::MarkerConfig,
-            replication_fns::{
-                ctx::{RemoveCtx, WriteCtx},
-                rule_fns::RuleFns,
-            },
+            ctx::{RemoveCtx, WriteCtx},
+            replication_fns::rule_fns::RuleFns,
             replicon_tick::RepliconTick,
         },
         prelude::*,

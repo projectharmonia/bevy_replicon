@@ -80,9 +80,9 @@ pub trait AppRuleExt {
 
     use bevy::prelude::*;
     use bevy_replicon::{
-        core::replication_fns::{
+        core::{
             ctx::{SerializeCtx, WriteCtx},
-            rule_fns::RuleFns,
+            replication_fns::rule_fns::RuleFns,
         },
         prelude::*,
     };
@@ -267,11 +267,8 @@ use std::io::Cursor;
 use bevy::prelude::*;
 use bevy_replicon::{
     core::{
-        replication_fns::{
-            ctx::{SerializeCtx, WriteCtx},
-            rule_fns::RuleFns,
-            ReplicationFns,
-        },
+        ctx::{SerializeCtx, WriteCtx},
+        replication_fns::{rule_fns::RuleFns, ReplicationFns},
         replication_rules::{GroupReplication, ReplicationRule},
     },
     prelude::*,

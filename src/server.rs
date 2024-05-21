@@ -23,7 +23,8 @@ use bevy::{
 
 use crate::core::{
     common_conditions::{server_just_stopped, server_running},
-    replication_fns::{ctx::SerializeCtx, ReplicationFns},
+    ctx::SerializeCtx,
+    replication_fns::ReplicationFns,
     replication_rules::ReplicationRules,
     replicon_channels::{ReplicationChannel, RepliconChannels},
     replicon_tick::RepliconTick,
