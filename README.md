@@ -14,7 +14,7 @@ Server-authoritative networking crate for the [Bevy game engine](https://bevyeng
 - Replication into scene to save server state.
 - Support for client and server both in one `App` and in separate.
 - Customizable serialization and deserialization even for types that don't implement `serde` traits (like `Box<dyn Reflect>`).
-- No builtin I/O. Use it with any messaging library. We provide a first-party integration with [`renet`](https://github.com/lucaspoffo/renet) via `bevy_replicon_renet`.
+- No builtin I/O, can be used with any messaging library. See [messaging backends](#messaging-backends) for already available integrations.
 - API focused on writing logic once that automatically works for singleplayer, client, server, and listen server (when server is also a player).
 
 If you are new to networking, see [glossary](https://gist.github.com/maniwani/f92cc5d827b00163f5846ea7dcb90d44).
@@ -49,21 +49,22 @@ Have any questions? Feel free to ask in the dedicated [`bevy_replicon` channel](
 
 #### Messaging backends
 
-- [bevy_replicon_quinnet](https://github.com/Henauxg/bevy_quinnet/tree/main/bevy_replicon_quinnet) - Provides integration to use `bevy_quinnet` as a messaging backend.
+- `bevy_replicon_renet` - integration for [`bevy_renet`](https://github.com/lucaspoffo/renet/tree/master/bevy_renet). Provided by this repo.
+- [`bevy_replicon_quinnet`](https://github.com/Henauxg/bevy_quinnet/tree/main/bevy_replicon_quinnet) - integration for [`bevy_quinnet`](https://github.com/Henauxg/bevy_quinnet).
 
 #### Helper crates
 
-- [bevy_bundlication](https://github.com/NiseVoid/bevy_bundlication) - adds registration of replication groups using a bundle-like api.
-- [bevy_replicon_attributes](https://github.com/UkoeHB/bevy_replicon_attributes) - adds ergonomic visibility control through client attributes and entity/event visibility conditions. An extension of this crate's raw client visibility API.
+- [`bevy_bundlication`](https://github.com/NiseVoid/bevy_bundlication) - adds registration of replication groups using a bundle-like api.
+- [`bevy_replicon_attributes`](https://github.com/UkoeHB/bevy_replicon_attributes) - adds ergonomic visibility control through client attributes and entity/event visibility conditions. An extension of this crate's raw client visibility API.
 
 #### Interpolation and/or rollback
 
-- [bevy_replicon_snap](https://github.com/Bendzae/bevy_replicon_snap) - adds snapshot interpolation and client-side prediction.
-- [bevy_timewarp](https://github.com/RJ/bevy_timewarp) - a rollback library that buffers component state. See [this](https://github.com/RJ/bevy_timewarp/blob/main/REPLICON_INTEGRATION.md) instruction about how to integrate.
+- [`bevy_replicon_snap`](https://github.com/Bendzae/bevy_replicon_snap) - adds snapshot interpolation and client-side prediction.
+- [`bevy_timewarp`](https://github.com/RJ/bevy_timewarp) - a rollback library that buffers component state. See [this](https://github.com/RJ/bevy_timewarp/blob/main/REPLICON_INTEGRATION.md) instruction about how to integrate.
 
 #### Miscellaneous crates
 
-- [bevy_replicon_repair](https://github.com/UkoeHB/bevy_replicon_repair) - preserves replicated client state across reconnects.
+- [`bevy_replicon_repair`](https://github.com/UkoeHB/bevy_replicon_repair) - preserves replicated client state across reconnects.
 
 ## Bevy compatibility
 
