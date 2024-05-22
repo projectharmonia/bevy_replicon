@@ -141,8 +141,8 @@ impl ClientEventAppExt for App {
             .create_client_channel(channel.into());
 
         self.world
-            .resource_scope(|world, mut client_events: Mut<ClientEvents>| {
-                client_events.0.push(ClientEvent::new(
+            .resource_scope(|world, mut event_registry: Mut<ClientEventRegistry>| {
+                event_registry.0.push(ClientEventData::new(
                     world.components(),
                     channel_id,
                     serialize,
@@ -158,7 +158,7 @@ pub struct ClientEventPlugin;
 
 impl Plugin for ClientEventPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ClientEvents>()
+        app.init_resource::<ClientEventRegistry>()
             .add_systems(
                 PreUpdate,
                 (
@@ -185,28 +185,28 @@ impl ClientEventPlugin {
         world.resource_scope(|world, mut client: Mut<RepliconClient>| {
             world.resource_scope(|world, registry: Mut<AppTypeRegistry>| {
                 world.resource_scope(|world, entity_map: Mut<ServerEntityMap>| {
-                    world.resource_scope(|world, client_events: Mut<ClientEvents>| {
+                    world.resource_scope(|world, event_registry: Mut<ClientEventRegistry>| {
                         let mut ctx = ClientSendCtx {
                             entity_map: &entity_map,
                             registry: &registry.read(),
                         };
 
                         let world_cell = world.as_unsafe_world_cell();
-                        for client_event in &client_events.0 {
+                        for event_data in &event_registry.0 {
                             // SAFETY: both resources mutably borrowed uniquely.
                             let (events, reader) = unsafe {
                                 let events = world_cell
-                                    .get_resource_by_id(client_event.events_id)
+                                    .get_resource_by_id(event_data.events_id)
                                     .expect("events shouldn't be removed");
                                 let reader = world_cell
-                                    .get_resource_mut_by_id(client_event.reader_id)
+                                    .get_resource_mut_by_id(event_data.reader_id)
                                     .expect("event reader shouldn't be removed");
                                 (events, reader)
                             };
 
                             // SAFETY: passed pointers were obtained from this event IDs.
                             unsafe {
-                                client_event.send(
+                                event_data.send(
                                     &mut ctx,
                                     &events,
                                     reader.into_inner(),
@@ -223,19 +223,19 @@ impl ClientEventPlugin {
     fn receive(world: &mut World) {
         world.resource_scope(|world, mut server: Mut<RepliconServer>| {
             world.resource_scope(|world, registry: Mut<AppTypeRegistry>| {
-                world.resource_scope(|world, client_events: Mut<ClientEvents>| {
+                world.resource_scope(|world, event_registry: Mut<ClientEventRegistry>| {
                     let mut ctx = ServerReceiveCtx {
                         registry: &registry.read(),
                     };
 
-                    for client_event in &client_events.0 {
+                    for event_data in &event_registry.0 {
                         let client_events = world
-                            .get_resource_mut_by_id(client_event.client_events_id)
+                            .get_resource_mut_by_id(event_data.client_events_id)
                             .expect("client events shouldn't be removed");
 
                         // SAFETY: passed pointer was obtained from this event ID.
                         unsafe {
-                            client_event.receive(&mut ctx, client_events.into_inner(), &mut server)
+                            event_data.receive(&mut ctx, client_events.into_inner(), &mut server)
                         };
                     }
                 });
@@ -244,37 +244,37 @@ impl ClientEventPlugin {
     }
 
     fn resend_locally(world: &mut World) {
-        world.resource_scope(|world, client_events: Mut<ClientEvents>| {
+        world.resource_scope(|world, event_registry: Mut<ClientEventRegistry>| {
             let world_cell = world.as_unsafe_world_cell();
-            for client_event in &client_events.0 {
+            for event_data in &event_registry.0 {
                 // SAFETY: both resources mutably borrowed uniquely.
                 let (events, client_events) = unsafe {
                     let events = world_cell
-                        .get_resource_mut_by_id(client_event.events_id)
+                        .get_resource_mut_by_id(event_data.events_id)
                         .expect("events shouldn't be removed");
                     let client_events = world_cell
-                        .get_resource_mut_by_id(client_event.client_events_id)
+                        .get_resource_mut_by_id(event_data.client_events_id)
                         .expect("client events shouldn't be removed");
                     (events, client_events)
                 };
 
                 // SAFETY: passed pointers were obtained from this event IDs.
                 unsafe {
-                    client_event.resend_locally(events.into_inner(), client_events.into_inner())
+                    event_data.resend_locally(events.into_inner(), client_events.into_inner())
                 };
             }
         });
     }
 
     fn reset(world: &mut World) {
-        world.resource_scope(|world, client_events: Mut<ClientEvents>| {
-            for client_event in &client_events.0 {
+        world.resource_scope(|world, event_registry: Mut<ClientEventRegistry>| {
+            for event_data in &event_registry.0 {
                 let events = world
-                    .get_resource_mut_by_id(client_event.events_id)
+                    .get_resource_mut_by_id(event_data.events_id)
                     .expect("events shouldn't be removed");
 
                 // SAFETY: passed pointer was obtained from this event ID.
-                unsafe { client_event.reset(events.into_inner()) };
+                unsafe { event_data.reset(events.into_inner()) };
             }
         });
     }
@@ -282,12 +282,12 @@ impl ClientEventPlugin {
 
 /// Registered client events.
 #[derive(Resource, Default)]
-struct ClientEvents(Vec<ClientEvent>);
+struct ClientEventRegistry(Vec<ClientEventData>);
 
 /// Type-erased functions and metadata for a registered client event.
 ///
 /// Needed to process all events in a single system and call its functions without knowing the type.
-struct ClientEvent {
+struct ClientEventData {
     type_id: TypeId,
     type_name: &'static str,
 
@@ -311,7 +311,7 @@ struct ClientEvent {
     deserialize: unsafe fn(),
 }
 
-impl ClientEvent {
+impl ClientEventData {
     fn new<E: Event>(
         components: &Components,
         channel_id: u8,
@@ -465,10 +465,10 @@ impl<E: Event> FromWorld for ClientEventReader<E> {
 }
 
 /// Signature of client event sending functions.
-type SendFn = unsafe fn(&ClientEvent, &mut ClientSendCtx, &Ptr, PtrMut, &mut RepliconClient);
+type SendFn = unsafe fn(&ClientEventData, &mut ClientSendCtx, &Ptr, PtrMut, &mut RepliconClient);
 
 /// Signature of client event receiving functions.
-type ReceiveFn = unsafe fn(&ClientEvent, &mut ServerReceiveCtx, PtrMut, &mut RepliconServer);
+type ReceiveFn = unsafe fn(&ClientEventData, &mut ServerReceiveCtx, PtrMut, &mut RepliconServer);
 
 /// Signature of client event resending functions.
 type ResendLocallyFn = unsafe fn(PtrMut, PtrMut);
@@ -487,9 +487,9 @@ pub type DeserializeFn<E> = fn(&mut ServerReceiveCtx, &mut Cursor<&[u8]>) -> bin
 /// # Safety
 ///
 /// The caller must ensure that `events` is [`Events<FromClient<E>>`], `reader` is [`ClientEventReader<E>`]
-/// and `client_event` was created for `E`.
+/// and `event_data` was created for `E`.
 unsafe fn send<E: Event>(
-    client_event: &ClientEvent,
+    event_data: &ClientEventData,
     ctx: &mut ClientSendCtx,
     events: &Ptr,
     reader: PtrMut,
@@ -498,12 +498,12 @@ unsafe fn send<E: Event>(
     let reader: &mut ClientEventReader<E> = reader.deref_mut();
     for event in reader.read(events.deref()) {
         let mut cursor = Default::default();
-        client_event
+        event_data
             .serialize::<E>(ctx, event, &mut cursor)
             .expect("client event should be serializable");
 
         trace!("sending event `{}`", any::type_name::<E>());
-        client.send(client_event.channel_id, cursor.into_inner());
+        client.send(event_data.channel_id, cursor.into_inner());
     }
 }
 
@@ -512,17 +512,17 @@ unsafe fn send<E: Event>(
 /// # Safety
 ///
 /// The caller must ensure that `events` is [`Events<E>`]
-/// and `client_event` was created for `E`.
+/// and `event_data` was created for `E`.
 unsafe fn receive<E: Event>(
-    client_event: &ClientEvent,
+    event_data: &ClientEventData,
     ctx: &mut ServerReceiveCtx,
     events: PtrMut,
     server: &mut RepliconServer,
 ) {
     let events: &mut Events<FromClient<E>> = events.deref_mut();
-    for (client_id, message) in server.receive(client_event.channel_id) {
+    for (client_id, message) in server.receive(event_data.channel_id) {
         let mut cursor = Cursor::new(&*message);
-        match client_event.deserialize::<E>(ctx, &mut cursor) {
+        match event_data.deserialize::<E>(ctx, &mut cursor) {
             Ok(event) => {
                 trace!(
                     "applying event `{}` from `{client_id:?}`",
