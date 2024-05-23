@@ -595,7 +595,11 @@ unsafe fn reset<E: Event>(events: PtrMut) {
 }
 
 /// Sends event `E` based on a mode.
-fn send_with<E: Event>(
+///
+/// # Safety
+///
+/// The caller must ensure that `event_data` was created for `E`.
+unsafe fn send_with<E: Event>(
     event_data: &ServerEventData,
     ctx: &mut ServerSendCtx,
     event: &E,
@@ -639,9 +643,12 @@ fn send_with<E: Event>(
 /// Helper for serializing a server event.
 ///
 /// Will prepend the client's change tick to the injected message.
-///
 /// Optimized to avoid reallocations when consecutive clients have the same change tick.
-fn serialize_with<E: Event>(
+///
+/// # Safety
+///
+/// The caller must ensure that `event_data` was created for `E`.
+unsafe fn serialize_with<E: Event>(
     event_data: &ServerEventData,
     ctx: &mut ServerSendCtx,
     event: &E,
@@ -668,7 +675,7 @@ fn serialize_with<E: Event>(
         let mut cursor = Cursor::new(Vec::new());
         DefaultOptions::new().serialize_into(&mut cursor, &client.change_tick())?;
         let tick_size = cursor.get_ref().len();
-        unsafe { event_data.serialize(ctx, event, &mut cursor)? };
+        event_data.serialize(ctx, event, &mut cursor)?;
         let message = SerializedMessage {
             tick: client.change_tick(),
             tick_size,
@@ -680,13 +687,17 @@ fn serialize_with<E: Event>(
 }
 
 /// Deserializes event change tick first and then calls the specified deserialization function to get the event itself.
-fn deserialize_with<E: Event>(
+///
+/// # Safety
+///
+/// The caller must ensure that `event_data` was created for `E`.
+unsafe fn deserialize_with<E: Event>(
     ctx: &mut ClientReceiveCtx,
     event_data: &ServerEventData,
     cursor: &mut Cursor<&[u8]>,
 ) -> bincode::Result<(RepliconTick, E)> {
     let tick = DefaultOptions::new().deserialize_from(&mut *cursor)?;
-    let event = unsafe { event_data.deserialize(ctx, cursor)? };
+    let event = event_data.deserialize(ctx, cursor)?;
 
     Ok((tick, event))
 }
