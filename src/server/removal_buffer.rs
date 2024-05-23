@@ -184,7 +184,12 @@ impl RemovalBuffer {
                 }
             }
         }
-        self.removals.push((entity, removed_ids));
+
+        if removed_ids.is_empty() {
+            self.ids_buffer.push(removed_ids);
+        } else {
+            self.removals.push((entity, removed_ids));
+        }
     }
 
     /// Clears all removals.

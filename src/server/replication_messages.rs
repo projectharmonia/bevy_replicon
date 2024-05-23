@@ -346,6 +346,10 @@ impl InitMessage {
         update_message: &mut UpdateMessage,
     ) -> bincode::Result<()> {
         if update_message.entity_data_size != 0 {
+            if self.entity_data_size == 0 {
+                self.write_data_entity()?;
+            }
+
             let slice = update_message.as_slice();
             let offset = update_message.entity_data_size_pos as usize
                 + mem::size_of_val(&update_message.entity_data_size);
