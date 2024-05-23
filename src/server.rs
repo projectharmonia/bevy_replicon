@@ -12,7 +12,8 @@ use std::{io::Cursor, mem, time::Duration};
 use bevy::{
     ecs::{
         archetype::ArchetypeEntity,
-        component::{ComponentId, ComponentTicks, StorageType, Tick},
+        component::{ComponentId, ComponentTicks, StorageType},
+        entity::EntityHashSet,
         storage::{SparseSets, Table},
         system::SystemChangeTick,
     },
@@ -211,6 +212,7 @@ impl ServerPlugin {
 
     /// Collects [`ReplicationMessages`] and sends them.
     pub(super) fn send_replication(
+        mut entities_with_removals: Local<EntityHashSet>,
         mut messages: Local<ReplicationMessages>,
         mut replicated_archetypes: Local<ReplicatedArchetypes>,
         change_tick: SystemChangeTick,
@@ -235,15 +237,17 @@ impl ServerPlugin {
 
         collect_mappings(&mut messages, &mut set.p2())?;
         collect_despawns(&mut messages, &mut set.p3())?;
-        collect_removals(&mut messages, &mut set.p4(), change_tick.this_run())?;
+        collect_removals(&mut messages, &mut set.p4(), &mut entities_with_removals)?;
         collect_changes(
             &mut messages,
             &replicated_archetypes,
             &replication_fns,
+            &entities_with_removals,
             set.p0(),
             &change_tick,
             **server_tick,
         )?;
+        entities_with_removals.clear();
 
         let mut client_buffers = mem::take(&mut *set.p5());
         let connected_clients = messages.send(
@@ -300,6 +304,7 @@ fn collect_changes(
     messages: &mut ReplicationMessages,
     replicated_archetypes: &ReplicatedArchetypes,
     replication_fns: &ReplicationFns,
+    entities_with_removals: &EntityHashSet,
     world: &World,
     change_tick: &SystemChangeTick,
     server_tick: RepliconTick,
@@ -405,8 +410,11 @@ fn collect_changes(
                 }
 
                 let new_entity = marker_added || visibility == Visibility::Gained;
-                if new_entity || init_message.entity_data_size() != 0 {
-                    // If there is any insertion or we must initialize, include all updates into init message
+                if new_entity
+                    || init_message.entity_data_size() != 0
+                    || entities_with_removals.contains(&entity.id())
+                {
+                    // If there is any insertion, removal, or we must initialize, include all updates into init message.
                     // and bump the last acknowledged tick to keep entity updates atomic.
                     init_message.take_entity_data(update_message)?;
                     client.set_change_limit(entity.id(), change_tick.this_run());
@@ -488,19 +496,19 @@ fn collect_despawns(
 fn collect_removals(
     messages: &mut ReplicationMessages,
     removal_buffer: &mut RemovalBuffer,
-    tick: Tick,
+    entities_with_removals: &mut EntityHashSet,
 ) -> bincode::Result<()> {
     for (message, _) in messages.iter_mut() {
         message.start_array();
     }
 
     for (entity, remove_ids) in removal_buffer.iter() {
-        for (message, _, client) in messages.iter_mut_with_clients() {
+        for (message, _) in messages.iter_mut() {
             message.start_entity_data(entity);
             for fns_info in remove_ids {
-                client.set_change_limit(entity, tick);
                 message.write_fns_id(fns_info.fns_id())?;
             }
+            entities_with_removals.insert(entity);
             message.end_entity_data(false)?;
         }
     }

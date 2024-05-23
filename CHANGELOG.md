@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Custom events are now registered with serialization and deserialization functions instead of systems. This makes the API more convenient since the purpose of custom systems was to customize serialization.
 - All events are processed in one system instead of a separate system for each event. Bevy does a [similar optimization](https://github.com/bevyengine/bevy/pull/12936) for event updates. It won't be that noticeable since users register much fewer replicon events.
 
+## [0.25.3] - 2024-05-24
+
+### Fixed
+
+- Fix replication with a removal at the same tick.
+
 ## [0.25.2] - 2024-05-18
 
 ### Fixed
@@ -473,7 +479,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release after separation from [Project Harmonia](https://github.com/projectharmonia/project_harmonia).
 
-[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.25.2...HEAD
+[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.25.3...HEAD
+[0.25.3]: https://github.com/projectharmonia/bevy_replicon/compare/v0.25.2...v0.25.3
 [0.25.2]: https://github.com/projectharmonia/bevy_replicon/compare/v0.25.1...v0.25.2
 [0.25.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.25.0...v0.25.1
 [0.25.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.24.1...v0.25.0
