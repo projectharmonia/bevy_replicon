@@ -413,7 +413,7 @@ fn collect_changes(
                     || init_message.entity_data_size() != 0
                     || entities_with_removals.contains(&entity.id())
                 {
-                    // If there is any insertion, removal or we must initialize, include all updates into init message
+                    // If there is any insertion, removal, or we must initialize, include all updates into init message.
                     // and bump the last acknowledged tick to keep entity updates atomic.
                     init_message.take_entity_data(update_message)?;
                     client.set_change_limit(entity.id(), change_tick.this_run());
