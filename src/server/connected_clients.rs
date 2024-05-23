@@ -156,12 +156,12 @@ pub struct ConnectedClient {
     /// Entity visibility settings.
     visibility: ClientVisibility,
 
-    /// The last tick in which a replicated entity was spawned, despawned, or gained/lost a component from the
+    /// The last tick in which a replicated entity had an insertion, removal, or gained/lost a component from the
     /// perspective of the client.
     ///
     /// It should be included in update messages and server events to avoid needless waiting for the next init
     /// message to arrive.
-    change_tick: RepliconTick,
+    init_tick: RepliconTick,
 
     /// Update message indexes mapped to their info.
     updates: HashMap<u16, UpdateInfo>,
@@ -178,7 +178,7 @@ impl ConnectedClient {
             id,
             ticks: Default::default(),
             visibility: ClientVisibility::new(policy),
-            change_tick: Default::default(),
+            init_tick: Default::default(),
             updates: Default::default(),
             next_update_index: Default::default(),
         }
@@ -199,15 +199,15 @@ impl ConnectedClient {
         &mut self.visibility
     }
 
-    /// Sets the client's change tick.
-    pub(super) fn set_change_tick(&mut self, tick: RepliconTick) {
-        self.change_tick = tick;
+    /// Sets the client's init tick.
+    pub(super) fn set_init_tick(&mut self, tick: RepliconTick) {
+        self.init_tick = tick;
     }
 
-    /// Returns the last tick in which a replicated entity was spawned, despawned, or gained/lost a component from the
+    /// Returns the last tick in which a replicated entity had an insertion, removal, or gained/lost a component from the
     /// perspective of the client.
-    pub fn change_tick(&self) -> RepliconTick {
-        self.change_tick
+    pub fn init_tick(&self) -> RepliconTick {
+        self.init_tick
     }
 
     /// Clears all entities for unacknowledged updates, returning them as an iterator.
