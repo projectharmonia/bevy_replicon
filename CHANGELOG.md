@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.25.3] - 2024-05-24
 
+### Fixed
+
 - Fix replication with a removal at the same tick.
 
 ## [0.25.2] - 2024-05-18
