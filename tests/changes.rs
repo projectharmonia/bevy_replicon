@@ -567,6 +567,49 @@ fn with_insertion() {
 }
 
 #[test]
+fn with_removal() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<BoolComponent>()
+        .replicate::<DummyComponent>();
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    let server_entity = server_app
+        .world
+        .spawn((Replicated, BoolComponent(false), DummyComponent))
+        .id();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    let mut server_entity = server_app.world.entity_mut(server_entity);
+    server_entity.get_mut::<BoolComponent>().unwrap().0 = true;
+    server_entity.remove::<DummyComponent>();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    let component = client_app
+        .world
+        .query_filtered::<&BoolComponent, Without<DummyComponent>>()
+        .single(&client_app.world);
+    assert!(component.0);
+}
+
+#[test]
 fn with_despawn() {
     let mut server_app = App::new();
     let mut client_app = App::new();
