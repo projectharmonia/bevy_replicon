@@ -35,11 +35,11 @@ pub trait ClientEventAppExt {
     /// In listen-server mode `E` will be drained right after sending and re-emitted as
     /// [`FromClient<E>`] with [`ClientId::SERVER`](crate::core::ClientId::SERVER).
     ///
-    /// Can be called for already existing regular events, a duplicate registration for
-    /// `E` won't be created. But be careful, since on listen server all events `E` will be drained,
-    /// it could break other Bevy or third-party plugin systems that listen for `E`.
+    /// Can be called for events that were registered with [add_event](bevy::app::App::add_event).
+    /// A duplicate registration for `E` won't be created.
+    /// But be careful, since on listen servers all events `E` are drained,
+    /// which could break other Bevy or third-party plugin systems that listen for `E`.
     ///
-    /// It can be registered for an already existing events. It won't create a duplicate event, but
     /// See also [`Self::add_client_event_with`] and the [corresponding section](../index.html#from-client-to-server)
     /// from the quick start guide.
     fn add_client_event<E: Event + Serialize + DeserializeOwned>(
@@ -204,7 +204,7 @@ impl ClientEventPlugin {
                                 (events, reader)
                             };
 
-                            // SAFETY: passed pointers were obtained from this event IDs.
+                            // SAFETY: passed pointers were obtained using this event data.
                             unsafe {
                                 event_data.send(
                                     &mut ctx,
@@ -233,7 +233,7 @@ impl ClientEventPlugin {
                             .get_resource_mut_by_id(event_data.client_events_id)
                             .expect("client events shouldn't be removed");
 
-                        // SAFETY: passed pointer was obtained from this event ID.
+                        // SAFETY: passed pointer was obtained using this event data.
                         unsafe {
                             event_data.receive(&mut ctx, client_events.into_inner(), &mut server)
                         };
@@ -258,7 +258,7 @@ impl ClientEventPlugin {
                     (events, client_events)
                 };
 
-                // SAFETY: passed pointers were obtained from this event IDs.
+                // SAFETY: passed pointers were obtained using this event data.
                 unsafe {
                     event_data.resend_locally(events.into_inner(), client_events.into_inner())
                 };
@@ -273,7 +273,7 @@ impl ClientEventPlugin {
                     .get_resource_mut_by_id(event_data.events_id)
                     .expect("events shouldn't be removed");
 
-                // SAFETY: passed pointer was obtained from this event ID.
+                // SAFETY: passed pointer was obtained using this event data.
                 unsafe { event_data.reset(events.into_inner()) };
             }
         });
@@ -286,18 +286,18 @@ struct ClientEventRegistry(Vec<ClientEventData>);
 
 /// Type-erased functions and metadata for a registered client event.
 ///
-/// Needed to process all events in a single system and call its functions without knowing the type.
+/// Needed so events of different types can be processed together.
 struct ClientEventData {
     type_id: TypeId,
     type_name: &'static str,
 
-    /// ID of [`Events<E>`].
+    /// ID of [`Events<E>`] resource.
     events_id: ComponentId,
 
-    /// ID of [`ClientEventReader<E>`].
+    /// ID of [`ClientEventReader<E>`] resource.
     reader_id: ComponentId,
 
-    /// ID of [`Events<ToClients<E>>`].
+    /// ID of [`Events<ToClients<E>>`] resource.
     client_events_id: ComponentId,
 
     /// Used channel.
@@ -453,7 +453,7 @@ impl ClientEventData {
 
 /// Tracks read events for [`ClientEventPlugin::send`].
 ///
-/// Unlike with server events, we not always drain all events in [`ClientEventPlugin::resend_locally`].
+/// Unlike with server events, we don't always drain all events in [`ClientEventPlugin::resend_locally`].
 #[derive(Resource, Deref, DerefMut)]
 struct ClientEventReader<E: Event>(ManualEventReader<E>);
 
@@ -486,7 +486,7 @@ pub type DeserializeFn<E> = fn(&mut ServerReceiveCtx, &mut Cursor<&[u8]>) -> bin
 ///
 /// # Safety
 ///
-/// The caller must ensure that `events` is [`Events<FromClient<E>>`], `reader` is [`ClientEventReader<E>`]
+/// The caller must ensure that `events` is [`Events<FromClient<E>>`], `reader` is [`ClientEventReader<E>`],
 /// and `event_data` was created for `E`.
 unsafe fn send<E: Event>(
     event_data: &ClientEventData,

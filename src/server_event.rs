@@ -32,11 +32,11 @@ use crate::{
 
 /// An extension trait for [`App`] for creating client events.
 pub trait ServerEventAppExt {
-    /// Registers event `E` and [`ToClients<E>`] events.
+    /// Registers `E` and [`ToClients<E>`] events.
     ///
     /// `E` will be emitted on client after sending [`ToClients<E>`] on the server.
-    /// [`ToClients<E>`] will be drained right after sending and re-emitted on server
-    /// if it's in the list of the event recipients.
+    /// If [`ClientId::SERVER`] is a recipient of the event, then [`ToClients<E>`] will be drained
+    /// after sending to clients and `E` events will be emitted on the server.
     ///
     /// Can be called for already existing regular events, a duplicate registration
     /// for `E` won't be created.
@@ -198,7 +198,7 @@ impl ServerEventPlugin {
                                 .get_resource_by_id(event_data.server_events_id)
                                 .expect("server events shouldn't be removed");
 
-                            // SAFETY: passed pointer was obtained from this event ID.
+                            // SAFETY: passed pointer was obtained using this event data.
                             unsafe {
                                 event_data.send(
                                     &mut ctx,
@@ -238,7 +238,7 @@ impl ServerEventPlugin {
                                 (events, queue)
                             };
 
-                            // SAFETY: passed pointers were obtained from this event IDs.
+                            // SAFETY: passed pointers were obtained using this event data.
                             unsafe {
                                 event_data.receive(
                                     &mut ctx,
@@ -270,7 +270,7 @@ impl ServerEventPlugin {
                     (events, server_events)
                 };
 
-                // SAFETY: passed pointers were obtained from this event IDs.
+                // SAFETY: passed pointers were obtained using this event data.
                 unsafe {
                     event_data.resend_locally(events.into_inner(), server_events.into_inner())
                 };
@@ -285,7 +285,7 @@ impl ServerEventPlugin {
                     .get_resource_mut_by_id(event_data.events_id)
                     .expect("events shouldn't be removed");
 
-                // SAFETY: passed pointer was obtained from this event ID.
+                // SAFETY: passed pointer was obtained using this event data.
                 unsafe { event_data.reset(events.into_inner()) };
             }
         });
@@ -298,7 +298,7 @@ struct ServerEventRegistry(Vec<ServerEventData>);
 
 /// Type-erased functions and metadata for a registered server event.
 ///
-/// Needed to process all events in a single system and call its functions without knowing the type.
+/// Needed so events of different types can be processed together.
 struct ServerEventData {
     type_id: TypeId,
     type_name: &'static str,
@@ -390,7 +390,7 @@ impl ServerEventData {
     ///
     /// # Safety
     ///
-    /// The caller must ensure that `events` is [`Events<E>`], `queue` is [`ServerEventQueue<E>`]
+    /// The caller must ensure that `events` is [`Events<E>`], `queue` is [`ServerEventQueue<E>`],
     /// and this instance was created for `E`.
     unsafe fn receive(
         &self,
@@ -407,7 +407,7 @@ impl ServerEventData {
     ///
     /// # Safety
     ///
-    /// The caller must ensure that `events` is [`Events<E>`], `server_events` is [`Events<ToClients<E>>`]
+    /// The caller must ensure that `events` is [`Events<E>`], `server_events` is [`Events<ToClients<E>>`],
     /// and this instance was created for `E`.
     unsafe fn resend_locally(&self, events: PtrMut, server_events: PtrMut) {
         (self.resend_locally)(events, server_events);

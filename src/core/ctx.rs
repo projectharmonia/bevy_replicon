@@ -106,7 +106,7 @@ pub struct ServerReceiveCtx<'a> {
     pub registry: &'a TypeRegistry,
 }
 
-/// Event sending context for client.
+/// Event sending context for server.
 #[non_exhaustive]
 pub struct ServerSendCtx<'a> {
     /// Registry of reflected types.
