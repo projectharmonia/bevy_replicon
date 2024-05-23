@@ -8,7 +8,7 @@ use bevy::{ecs::entity::MapEntities, prelude::*};
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Serialize};
 
-use super::ctx::{SerializeCtx, WriteCtx};
+use crate::core::ctx::{SerializeCtx, WriteCtx};
 
 /// Type-erased version of [`RuleFns`].
 ///

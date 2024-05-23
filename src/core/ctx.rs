@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, reflect::TypeRegistry};
 
 use crate::{
     client::server_entity_map::ServerEntityMap, core::replicon_tick::RepliconTick, Replicated,
@@ -77,4 +77,58 @@ impl<'a, 'w, 's> RemoveCtx<'a, 'w, 's> {
 pub struct DespawnCtx {
     /// Tick for the currently processing message.
     pub message_tick: RepliconTick,
+}
+
+/// Event sending context for client.
+#[non_exhaustive]
+pub struct ClientSendCtx<'a> {
+    /// Registry of reflected types.
+    pub registry: &'a TypeRegistry,
+
+    /// Maps server entities to client entities and vice versa.
+    pub entity_map: &'a ServerEntityMap,
+}
+
+impl EntityMapper for ClientSendCtx<'_> {
+    fn map_entity(&mut self, entity: Entity) -> Entity {
+        *self
+            .entity_map
+            .to_server()
+            .get(&entity)
+            .unwrap_or_else(|| panic!("client {entity:?} should have a mapping"))
+    }
+}
+
+/// Event receiving context for server.
+#[non_exhaustive]
+pub struct ServerReceiveCtx<'a> {
+    /// Registry of reflected types.
+    pub registry: &'a TypeRegistry,
+}
+
+/// Event sending context for server.
+#[non_exhaustive]
+pub struct ServerSendCtx<'a> {
+    /// Registry of reflected types.
+    pub registry: &'a TypeRegistry,
+}
+
+/// Event receiving context for client.
+#[non_exhaustive]
+pub struct ClientReceiveCtx<'a> {
+    /// Registry of reflected types.
+    pub registry: &'a TypeRegistry,
+
+    /// Maps server entities to client entities and vice versa.
+    pub entity_map: &'a ServerEntityMap,
+}
+
+impl EntityMapper for ClientReceiveCtx<'_> {
+    fn map_entity(&mut self, entity: Entity) -> Entity {
+        *self
+            .entity_map
+            .to_client()
+            .get(&entity)
+            .unwrap_or_else(|| panic!("server {entity:?} should have a mapping"))
+    }
 }

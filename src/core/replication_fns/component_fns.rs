@@ -2,12 +2,11 @@ use std::io::Cursor;
 
 use bevy::{prelude::*, ptr::Ptr};
 
-use super::{
-    command_fns::UntypedCommandFns,
+use super::{command_fns::UntypedCommandFns, rule_fns::UntypedRuleFns};
+use crate::core::{
+    command_markers::{CommandMarkerIndex, CommandMarkers, EntityMarkers},
     ctx::{RemoveCtx, SerializeCtx, WriteCtx},
-    rule_fns::UntypedRuleFns,
 };
-use crate::core::command_markers::{CommandMarkerIndex, CommandMarkers, EntityMarkers};
 
 /// Type-erased functions for a component.
 ///

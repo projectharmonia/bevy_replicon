@@ -5,7 +5,8 @@ use bevy_replicon::{
     client::{confirmed::Confirmed, server_entity_map::ServerEntityMap, ServerInitTick},
     core::{
         command_markers::MarkerConfig,
-        replication_fns::{command_fns, ctx::WriteCtx, rule_fns::RuleFns},
+        ctx::WriteCtx,
+        replication_fns::{command_fns, rule_fns::RuleFns},
     },
     prelude::*,
     server::server_tick::ServerTick,

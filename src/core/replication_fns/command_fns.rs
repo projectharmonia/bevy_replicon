@@ -6,10 +6,8 @@ use std::{
 
 use bevy::prelude::*;
 
-use super::{
-    ctx::{RemoveCtx, WriteCtx},
-    rule_fns::RuleFns,
-};
+use super::rule_fns::RuleFns;
+use crate::core::ctx::{RemoveCtx, WriteCtx};
 
 /// Writing and removal functions for a component, like [`Commands`].
 #[derive(Clone, Copy)]
