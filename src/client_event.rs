@@ -248,19 +248,19 @@ impl ClientEventPlugin {
             let world_cell = world.as_unsafe_world_cell();
             for event_data in &event_registry.0 {
                 // SAFETY: both resources mutably borrowed uniquely.
-                let (events, client_events) = unsafe {
-                    let events = world_cell
-                        .get_resource_mut_by_id(event_data.events_id)
-                        .expect("events shouldn't be removed");
+                let (client_events, events) = unsafe {
                     let client_events = world_cell
                         .get_resource_mut_by_id(event_data.client_events_id)
                         .expect("client events shouldn't be removed");
-                    (events, client_events)
+                    let events = world_cell
+                        .get_resource_mut_by_id(event_data.events_id)
+                        .expect("events shouldn't be removed");
+                    (client_events, events)
                 };
 
                 // SAFETY: passed pointers were obtained using this event data.
                 unsafe {
-                    event_data.resend_locally(events.into_inner(), client_events.into_inner())
+                    event_data.resend_locally(client_events.into_inner(), events.into_inner())
                 };
             }
         });
@@ -395,8 +395,8 @@ impl ClientEventData {
     ///
     /// The caller must ensure that `events` is [`Events<E>`], `client_events` is [`Events<FromClient<E>>`]
     /// and this instance was created for `E`.
-    unsafe fn resend_locally(&self, events: PtrMut, client_events: PtrMut) {
-        (self.resend_locally)(events, client_events);
+    unsafe fn resend_locally(&self, client_events: PtrMut, events: PtrMut) {
+        (self.resend_locally)(client_events, events);
     }
 
     /// Drains all events.
@@ -540,7 +540,7 @@ unsafe fn receive<E: Event>(
 /// # Safety
 ///
 /// The caller must ensure that `events` is [`Events<E>`] and `server_events` is [`Events<ToClients<E>>`].
-unsafe fn resend_locally<E: Event>(events: PtrMut, client_events: PtrMut) {
+unsafe fn resend_locally<E: Event>(client_events: PtrMut, events: PtrMut) {
     let client_events: &mut Events<FromClient<E>> = client_events.deref_mut();
     let events: &mut Events<E> = events.deref_mut();
     client_events.send_batch(events.drain().map(|event| FromClient {
