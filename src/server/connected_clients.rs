@@ -151,7 +151,7 @@ pub struct ConnectedClient {
     id: ClientId,
 
     /// Lowest tick for use in change detection for each entity.
-    ticks: EntityHashMap<Tick>,
+    change_ticks: EntityHashMap<Tick>,
 
     /// Entity visibility settings.
     visibility: ClientVisibility,
@@ -176,7 +176,7 @@ impl ConnectedClient {
     fn new(id: ClientId, policy: VisibilityPolicy) -> Self {
         Self {
             id,
-            ticks: Default::default(),
+            change_ticks: Default::default(),
             visibility: ClientVisibility::new(policy),
             init_tick: Default::default(),
             updates: Default::default(),
@@ -225,7 +225,7 @@ impl ConnectedClient {
     fn reset(&mut self, id: ClientId) {
         self.id = id;
         self.visibility.clear();
-        self.ticks.clear();
+        self.change_ticks.clear();
         self.updates.clear();
         self.next_update_index = 0;
     }
@@ -259,17 +259,17 @@ impl ConnectedClient {
         (update_index, &mut update_info.entities)
     }
 
-    /// Sets the change limit for an entity that is replicated to this client.
+    /// Sets the change tick for an entity that is replicated to this client.
     ///
-    /// The change limit is the reference point for determining if components on an entity have changed and
+    /// The change tick is the reference point for determining if components on an entity have changed and
     /// need to be replicated. Component changes older than the change limit are assumed to be acked by the client.
-    pub(super) fn set_change_limit(&mut self, entity: Entity, tick: Tick) {
-        self.ticks.insert(entity, tick);
+    pub(super) fn set_change_tick(&mut self, entity: Entity, tick: Tick) {
+        self.change_ticks.insert(entity, tick);
     }
 
-    /// Gets the change limit for an entity that is replicated to this client.
-    pub fn get_change_limit(&mut self, entity: Entity) -> Option<Tick> {
-        self.ticks.get(&entity).copied()
+    /// Gets the change tick for an entity that is replicated to this client.
+    pub fn get_change_tick(&mut self, entity: Entity) -> Option<Tick> {
+        self.change_ticks.get(&entity).copied()
     }
 
     /// Marks update with the specified index as acknowledged.
@@ -292,7 +292,7 @@ impl ConnectedClient {
         };
 
         for entity in &update_info.entities {
-            let Some(last_tick) = self.ticks.get_mut(entity) else {
+            let Some(last_tick) = self.change_ticks.get_mut(entity) else {
                 // We ignore missing entities, since they were probably despawned.
                 continue;
             };
@@ -314,7 +314,7 @@ impl ConnectedClient {
 
     /// Removes a despawned entity tracked by this client.
     pub fn remove_despawned(&mut self, entity: Entity) {
-        self.ticks.remove(&entity);
+        self.change_ticks.remove(&entity);
         self.visibility.remove_despawned(entity);
         // We don't clean up `self.updates` for efficiency reasons.
         // `Self::acknowledge()` will properly ignore despawned entities.
@@ -325,7 +325,7 @@ impl ConnectedClient {
     /// Internal cleanup happens lazily during the iteration.
     pub(super) fn drain_lost_visibility(&mut self) -> impl Iterator<Item = Entity> + '_ {
         self.visibility.drain_lost_visibility().inspect(|entity| {
-            self.ticks.remove(entity);
+            self.change_ticks.remove(entity);
         })
     }
 
