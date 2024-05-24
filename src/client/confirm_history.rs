@@ -9,7 +9,7 @@ use crate::core::replicon_tick::RepliconTick;
 /// For efficiency we store only the last received tick and
 /// a bitmask indicating whether the most recent 64 ticks were received.
 #[derive(Component)]
-pub struct Confirmed {
+pub struct ConfirmHistory {
     /// Previously confirmed ticks, including the last tick at position 0.
     mask: u64,
 
@@ -17,13 +17,13 @@ pub struct Confirmed {
     last_tick: RepliconTick,
 }
 
-impl Debug for Confirmed {
+impl Debug for ConfirmHistory {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "Confirmed [{:?} {:b}]", self.last_tick, self.mask)
+        write!(f, "ConfirmHistory [{:?} {:b}]", self.last_tick, self.mask)
     }
 }
 
-impl Confirmed {
+impl ConfirmHistory {
     /// Creates a new instance with a single confirmed tick.
     pub fn new(last_tick: RepliconTick) -> Self {
         Self { mask: 1, last_tick }
@@ -129,7 +129,7 @@ mod tests {
 
     #[test]
     fn contains() {
-        let confirmed = Confirmed::new(RepliconTick::new(1));
+        let confirmed = ConfirmHistory::new(RepliconTick::new(1));
 
         assert!(!confirmed.contains(RepliconTick::new(0)));
         assert!(confirmed.contains(RepliconTick::new(1)));
@@ -139,7 +139,7 @@ mod tests {
 
     #[test]
     fn contains_with_wrapping() {
-        let confirmed = Confirmed::new(RepliconTick::new(u64::BITS + 1));
+        let confirmed = ConfirmHistory::new(RepliconTick::new(u64::BITS + 1));
 
         assert!(confirmed.contains(RepliconTick::new(0)));
         assert!(confirmed.contains(RepliconTick::new(1)));
@@ -152,7 +152,7 @@ mod tests {
 
     #[test]
     fn contains_any() {
-        let confirmed = Confirmed::new(RepliconTick::new(1));
+        let confirmed = ConfirmHistory::new(RepliconTick::new(1));
 
         assert!(confirmed.contains_any(RepliconTick::new(0), RepliconTick::new(1)));
         assert!(confirmed.contains_any(RepliconTick::new(1), RepliconTick::new(1)));
@@ -166,7 +166,7 @@ mod tests {
 
     #[test]
     fn contains_any_with_wrapping() {
-        let confirmed = Confirmed::new(RepliconTick::new(u64::BITS + 1));
+        let confirmed = ConfirmHistory::new(RepliconTick::new(u64::BITS + 1));
 
         assert!(confirmed.contains_any(RepliconTick::new(0), RepliconTick::new(1)));
         assert!(confirmed.contains_any(RepliconTick::new(1), RepliconTick::new(2)));
@@ -193,7 +193,7 @@ mod tests {
 
     #[test]
     fn contains_any_with_set() {
-        let mut confirmed = Confirmed::new(RepliconTick::new(1));
+        let mut confirmed = ConfirmHistory::new(RepliconTick::new(1));
         assert_eq!(confirmed.mask(), 0b1);
 
         confirmed.set(2);
@@ -216,7 +216,7 @@ mod tests {
 
     #[test]
     fn set() {
-        let mut confirmed = Confirmed::new(RepliconTick::new(1));
+        let mut confirmed = ConfirmHistory::new(RepliconTick::new(1));
 
         confirmed.set(1);
 
@@ -227,7 +227,7 @@ mod tests {
 
     #[test]
     fn resize() {
-        let mut confirmed = Confirmed::new(RepliconTick::new(1));
+        let mut confirmed = ConfirmHistory::new(RepliconTick::new(1));
 
         confirmed.set_last_tick(RepliconTick::new(2));
 
@@ -238,7 +238,7 @@ mod tests {
 
     #[test]
     fn resize_to_same() {
-        let mut confirmed = Confirmed::new(RepliconTick::new(1));
+        let mut confirmed = ConfirmHistory::new(RepliconTick::new(1));
 
         confirmed.set_last_tick(RepliconTick::new(1));
 
@@ -249,7 +249,7 @@ mod tests {
 
     #[test]
     fn resize_with_wrapping() {
-        let mut confirmed = Confirmed::new(RepliconTick::new(1));
+        let mut confirmed = ConfirmHistory::new(RepliconTick::new(1));
 
         confirmed.set_last_tick(RepliconTick::new(u64::BITS + 1));
 
@@ -263,7 +263,7 @@ mod tests {
 
     #[test]
     fn resize_with_overflow() {
-        let mut confirmed = Confirmed::new(RepliconTick::new(u32::MAX));
+        let mut confirmed = ConfirmHistory::new(RepliconTick::new(u32::MAX));
 
         confirmed.set_last_tick(RepliconTick::new(1));
 
@@ -275,7 +275,7 @@ mod tests {
 
     #[test]
     fn confirm_with_resize() {
-        let mut confirmed = Confirmed::new(RepliconTick::new(1));
+        let mut confirmed = ConfirmHistory::new(RepliconTick::new(1));
 
         confirmed.confirm(RepliconTick::new(2));
 
@@ -286,7 +286,7 @@ mod tests {
 
     #[test]
     fn confirm_with_set() {
-        let mut confirmed = Confirmed::new(RepliconTick::new(1));
+        let mut confirmed = ConfirmHistory::new(RepliconTick::new(1));
         assert_eq!(confirmed.mask(), 0b1);
 
         confirmed.confirm(RepliconTick::new(0));

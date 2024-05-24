@@ -1,4 +1,4 @@
-pub mod confirmed;
+pub mod confirm_history;
 pub mod diagnostics;
 pub mod replicon_client;
 pub mod server_entity_map;
@@ -19,7 +19,7 @@ use crate::core::{
     replicon_tick::RepliconTick,
     Replicated,
 };
-use confirmed::Confirmed;
+use confirm_history::ConfirmHistory;
 use diagnostics::ClientStats;
 use replicon_client::RepliconClient;
 use server_entity_map::ServerEntityMap;
@@ -321,12 +321,12 @@ fn apply_init_components(
             .entity_markers
             .read(params.command_markers, &client_entity);
 
-        if let Some(mut confirmed) = client_entity.get_mut::<Confirmed>() {
-            confirmed.set_last_tick(message_tick);
+        if let Some(mut confirm_history) = client_entity.get_mut::<ConfirmHistory>() {
+            confirm_history.set_last_tick(message_tick);
         } else {
             commands
                 .entity(client_entity.id())
-                .insert(Confirmed::new(message_tick));
+                .insert(ConfirmHistory::new(message_tick));
         }
 
         let end_pos = cursor.position() + data_size as u64;
@@ -427,12 +427,12 @@ fn apply_update_components(
             .entity_markers
             .read(params.command_markers, &client_entity);
 
-        let mut confirmed = client_entity
-            .get_mut::<Confirmed>()
+        let mut confirm_history = client_entity
+            .get_mut::<ConfirmHistory>()
             .expect("all entities from update should have confirmed ticks");
-        let new_entity = message_tick > confirmed.last_tick();
+        let new_entity = message_tick > confirm_history.last_tick();
         if new_entity {
-            confirmed.set_last_tick(message_tick);
+            confirm_history.set_last_tick(message_tick);
         } else {
             if !params.entity_markers.need_history() {
                 trace!(
@@ -443,7 +443,7 @@ fn apply_update_components(
                 continue;
             }
 
-            let ago = confirmed.last_tick().get().wrapping_sub(message_tick.get());
+            let ago = confirm_history.last_tick().get().wrapping_sub(message_tick.get());
             if ago >= u64::BITS {
                 trace!(
                     "discarding update {ago} ticks old for client's {:?}",
@@ -453,7 +453,7 @@ fn apply_update_components(
                 continue;
             }
 
-            confirmed.set(ago);
+            confirm_history.set(ago);
         }
 
         let end_pos = cursor.position() + data_size as u64;
