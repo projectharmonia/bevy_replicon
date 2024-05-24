@@ -34,6 +34,11 @@ impl Confirmed {
         self.last_tick
     }
 
+    /// Returns a mask that represents the received ticks.
+    pub fn mask(&self) -> u64 {
+        self.mask
+    }
+
     /// Returns `true` if this tick is confirmed for an entity.
     ///
     /// All ticks older then 64 ticks since [`Self::last_tick`] are considered received.
@@ -189,8 +194,10 @@ mod tests {
     #[test]
     fn contains_any_with_set() {
         let mut confirmed = Confirmed::new(RepliconTick::new(1));
+        assert_eq!(confirmed.mask(), 0b1);
 
         confirmed.set(2);
+        assert_eq!(confirmed.mask(), 0b101);
 
         assert!(confirmed.contains_any(RepliconTick::new(0), RepliconTick::new(1)));
         assert!(confirmed.contains_any(RepliconTick::new(1), RepliconTick::new(2)));
@@ -280,8 +287,10 @@ mod tests {
     #[test]
     fn confirm_with_set() {
         let mut confirmed = Confirmed::new(RepliconTick::new(1));
+        assert_eq!(confirmed.mask(), 0b1);
 
         confirmed.confirm(RepliconTick::new(0));
+        assert_eq!(confirmed.mask(), 0b11);
 
         assert!(confirmed.contains(RepliconTick::new(0)));
         assert!(confirmed.contains(RepliconTick::new(1)));
