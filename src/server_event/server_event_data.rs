@@ -394,16 +394,16 @@ unsafe fn serialize_with<E: Event>(
     previous_message: Option<SerializedMessage>,
 ) -> bincode::Result<SerializedMessage> {
     if let Some(previous_message) = previous_message {
-        if previous_message.tick == client.change_tick() {
+        if previous_message.tick == client.init_tick() {
             return Ok(previous_message);
         }
 
-        let tick_size = DefaultOptions::new().serialized_size(&client.change_tick())? as usize;
+        let tick_size = DefaultOptions::new().serialized_size(&client.init_tick())? as usize;
         let mut bytes = Vec::with_capacity(tick_size + previous_message.event_bytes().len());
-        DefaultOptions::new().serialize_into(&mut bytes, &client.change_tick())?;
+        DefaultOptions::new().serialize_into(&mut bytes, &client.init_tick())?;
         bytes.extend_from_slice(previous_message.event_bytes());
         let message = SerializedMessage {
-            tick: client.change_tick(),
+            tick: client.init_tick(),
             tick_size,
             bytes: bytes.into(),
         };
@@ -411,11 +411,11 @@ unsafe fn serialize_with<E: Event>(
         Ok(message)
     } else {
         let mut cursor = Cursor::new(Vec::new());
-        DefaultOptions::new().serialize_into(&mut cursor, &client.change_tick())?;
+        DefaultOptions::new().serialize_into(&mut cursor, &client.init_tick())?;
         let tick_size = cursor.get_ref().len();
         event_data.serialize(ctx, event, &mut cursor)?;
         let message = SerializedMessage {
-            tick: client.change_tick(),
+            tick: client.init_tick(),
             tick_size,
             bytes: cursor.into_inner().into(),
         };

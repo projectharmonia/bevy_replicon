@@ -375,7 +375,7 @@ fn collect_changes(
                     }
 
                     if let Some(tick) = client
-                        .get_change_limit(entity.id())
+                        .get_change_tick(entity.id())
                         .filter(|_| !marker_added)
                         .filter(|_| visibility != Visibility::Gained)
                         .filter(|_| !ticks.is_added(change_tick.last_run(), change_tick.this_run()))
@@ -417,7 +417,7 @@ fn collect_changes(
                     // If there is any insertion, removal, or we must initialize, include all updates into init message.
                     // and bump the last acknowledged tick to keep entity updates atomic.
                     init_message.take_entity_data(update_message)?;
-                    client.set_change_limit(entity.id(), change_tick.this_run());
+                    client.set_change_tick(entity.id(), change_tick.this_run());
                 } else {
                     update_message.end_entity_data()?;
                 }
