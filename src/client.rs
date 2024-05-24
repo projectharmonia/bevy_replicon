@@ -443,7 +443,10 @@ fn apply_update_components(
                 continue;
             }
 
-            let ago = confirm_history.last_tick().get().wrapping_sub(message_tick.get());
+            let ago = confirm_history
+                .last_tick()
+                .get()
+                .wrapping_sub(message_tick.get());
             if ago >= u64::BITS {
                 trace!(
                     "discarding update {ago} ticks old for client's {:?}",
