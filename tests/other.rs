@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy_replicon::{
-    core::channels::ReplicationChannel, prelude::*, server::server_tick::ServerTick,
+    core::channels::ReplicationChannel, prelude::*, server::tick::ServerTick,
     test_app::ServerTestAppExt,
 };
 use serde::{Deserialize, Serialize};
