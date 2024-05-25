@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rename `ConnectedClient::change_tick` into `ConnectedClient::init_tick`.
 - Rename `ConnectedClient::get_change_limit` into `ConnectedClient::get_change_tick`.
 
+### Fixed
+
+- `bevy_replicon_renet` now properly sets `RepliconClientStatus::Connecting` when `RenetClient` is connecting.
+
 ## [0.25.3] - 2024-05-24
 
 ### Fixed
