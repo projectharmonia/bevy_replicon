@@ -25,6 +25,9 @@ use diagnostics::ClientStats;
 use replicon_client::RepliconClient;
 use server_entity_map::ServerEntityMap;
 
+/// Client functionality and replication receiving.
+///
+/// Can be disabled for server-only apps.
 pub struct ClientPlugin;
 
 impl Plugin for ClientPlugin {

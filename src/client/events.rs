@@ -148,6 +148,10 @@ impl ClientEventAppExt for App {
     }
 }
 
+/// Sending events from a client to the server.
+///
+/// Requires [`ClientPlugin`](super::ClientPlugin) for clients
+/// and [`ServerPlugin`](crate::server::ServerPlugin) for the server.
 pub struct ClientEventsPlugin;
 
 impl Plugin for ClientEventsPlugin {

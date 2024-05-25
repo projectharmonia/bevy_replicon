@@ -66,6 +66,9 @@ impl Default for ServerPlugin {
     }
 }
 
+/// Server functionality and replication sending.
+///
+/// Can be disabled for client-only apps.
 impl Plugin for ServerPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((DespawnBufferPlugin, RemovalBufferPlugin))

@@ -150,6 +150,9 @@ impl ServerEventAppExt for App {
     }
 }
 
+/// Sending events from the server to clients.
+///
+/// Requires [`ServerPlugin`] for the server and [`ClientPlugin`] for clients.
 pub struct ServerEventsPlugin;
 
 impl Plugin for ServerEventsPlugin {
