@@ -81,22 +81,15 @@ impl ReplicationMessages {
         &mut self,
         server: &mut RepliconServer,
         client_buffers: &mut ClientBuffers,
-        replicon_tick: RepliconTick,
+        server_tick: RepliconTick,
         tick: Tick,
         timestamp: Duration,
     ) -> bincode::Result<ConnectedClients> {
         for ((init_message, update_message), client) in
             self.data.iter_mut().zip(self.connected_clients.iter_mut())
         {
-            init_message.send(server, client, replicon_tick)?;
-            update_message.send(
-                server,
-                client_buffers,
-                client,
-                replicon_tick,
-                tick,
-                timestamp,
-            )?;
+            init_message.send(server, client, server_tick)?;
+            update_message.send(server, client_buffers, client, server_tick, tick, timestamp)?;
             client.visibility_mut().update();
         }
 
@@ -384,7 +377,7 @@ impl InitMessage {
         &self,
         server: &mut RepliconServer,
         client: &mut ConnectedClient,
-        replicon_tick: RepliconTick,
+        server_tick: RepliconTick,
     ) -> bincode::Result<()> {
         debug_assert_eq!(self.array_len, 0);
         debug_assert_eq!(self.entity_data_size, 0);
@@ -395,10 +388,10 @@ impl InitMessage {
             return Ok(());
         }
 
-        client.set_init_tick(replicon_tick);
+        client.set_init_tick(server_tick);
 
         let mut header = [0; mem::size_of::<RepliconTick>()];
-        bincode::serialize_into(&mut header[..], &replicon_tick)?;
+        bincode::serialize_into(&mut header[..], &server_tick)?;
 
         trace!("sending init message to {:?}", client.id());
         server.send(
@@ -563,7 +556,7 @@ impl UpdateMessage {
         server: &mut RepliconServer,
         client_buffers: &mut ClientBuffers,
         client: &mut ConnectedClient,
-        replicon_tick: RepliconTick,
+        server_tick: RepliconTick,
         tick: Tick,
         timestamp: Duration,
     ) -> bincode::Result<()> {
@@ -578,7 +571,7 @@ impl UpdateMessage {
         trace!("sending update message(s) to {:?}", client.id());
         const TICKS_SIZE: usize = 2 * mem::size_of::<RepliconTick>();
         let mut header = [0; TICKS_SIZE + mem::size_of::<u16>()];
-        bincode::serialize_into(&mut header[..], &(client.init_tick(), replicon_tick))?;
+        bincode::serialize_into(&mut header[..], &(client.init_tick(), server_tick))?;
 
         let mut message_size = 0;
         let client_id = client.id();
