@@ -9,7 +9,7 @@ use bevy_replicon::{
         replication_registry::{command_fns, rule_fns::RuleFns},
     },
     prelude::*,
-    server::tick::ServerTick,
+    server::server_tick::ServerTick,
     test_app::ServerTestAppExt,
 };
 use serde::{Deserialize, Serialize};

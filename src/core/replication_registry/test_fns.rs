@@ -10,7 +10,7 @@ use crate::{
         ctx::{DespawnCtx, RemoveCtx, SerializeCtx, WriteCtx},
         tick::RepliconTick,
     },
-    server::tick::ServerTick,
+    server::server_tick::ServerTick,
 };
 
 /**
@@ -27,7 +27,7 @@ use bevy::prelude::*;
 use bevy_replicon::{
     core::replication_registry::{rule_fns::RuleFns, test_fns::TestFnsEntityExt, ReplicationRegistry},
     prelude::*,
-    server::tick::ServerTick,
+    server::server_tick::ServerTick,
 };
 use serde::{Deserialize, Serialize};
 

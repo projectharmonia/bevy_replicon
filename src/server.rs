@@ -6,7 +6,7 @@ pub(super) mod removal_buffer;
 pub(super) mod replicated_archetypes;
 pub(super) mod replication_messages;
 pub mod replicon_server;
-pub mod tick;
+pub mod server_tick;
 
 use std::{io::Cursor, mem, time::Duration};
 
@@ -41,7 +41,7 @@ use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
 use replicated_archetypes::ReplicatedArchetypes;
 use replication_messages::ReplicationMessages;
 use replicon_server::RepliconServer;
-use tick::ServerTick;
+use server_tick::ServerTick;
 
 pub struct ServerPlugin {
     /// Tick configuration.

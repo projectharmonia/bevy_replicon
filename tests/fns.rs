@@ -10,7 +10,7 @@ use bevy_replicon::{
         },
     },
     prelude::*,
-    server::tick::ServerTick,
+    server::server_tick::ServerTick,
 };
 use serde::{Deserialize, Serialize};
 

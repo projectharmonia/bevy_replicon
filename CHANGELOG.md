@@ -24,7 +24,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rename `Confirmed` into `ConfirmHistory`.
 - Rename `replicon_channels` module into `channels`.
 - Rename `replicon_tick` module into `tick`.
-- Rename `server_tick` module into `tick`.
 - Rename `replication_fns` and `ReplicationFns` into `replication_registry` and `ReplicationRegistry`.
 
 ## [0.25.3] - 2024-05-24
