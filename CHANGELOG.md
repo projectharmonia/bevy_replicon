@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `ClientEventsPlugin` and `ServerEventsPlugin` that are required for events (available from the `RepliconPlugins` group). Can be disabled if you don't use them.
+
 ### Fixed
 
 - `bevy_replicon_renet` now properly sets `RepliconClientStatus::Connecting` when `RenetClient` is connecting.
