@@ -459,10 +459,10 @@ pub mod prelude {
         },
         client_event::{ClientEventAppExt, ClientEventPlugin, FromClient},
         core::{
+            channels::{ChannelKind, RepliconChannel, RepliconChannels},
             command_markers::AppMarkerExt,
             common_conditions::*,
             replication_rules::AppRuleExt,
-            replicon_channels::{ChannelKind, RepliconChannel, RepliconChannels},
             ClientId, Replicated, RepliconCorePlugin,
         },
         parent_sync::{ParentSync, ParentSyncPlugin},

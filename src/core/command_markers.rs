@@ -226,7 +226,7 @@ pub struct MarkerConfig {
 
     /// Represents whether a marker needs to process old updates.
     ///
-    /// Since updates use [`ChannelKind::Unreliable`](crate::core::replicon_channels::ChannelKind),
+    /// Since updates use [`ChannelKind::Unreliable`](crate::core::channels::ChannelKind),
     /// a client may receive an older update for an entity. By default these updates are discarded,
     /// but some markers may need them. If this field is set to `true`, old component updates will
     /// be passed to the writing function for this marker.

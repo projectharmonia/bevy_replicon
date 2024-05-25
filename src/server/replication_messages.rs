@@ -16,9 +16,9 @@ use super::{
     ConnectedClient,
 };
 use crate::core::{
+    channels::ReplicationChannel,
     ctx::SerializeCtx,
     replication_fns::{component_fns::ComponentFns, rule_fns::UntypedRuleFns, FnsId},
-    replicon_channels::ReplicationChannel,
     replicon_tick::RepliconTick,
 };
 

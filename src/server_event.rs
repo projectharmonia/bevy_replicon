@@ -13,9 +13,9 @@ use crate::{
         ClientSet, ServerInitTick,
     },
     core::{
+        channels::{RepliconChannel, RepliconChannels},
         common_conditions::*,
         ctx::{ClientReceiveCtx, ServerSendCtx},
-        replicon_channels::{RepliconChannel, RepliconChannels},
         replicon_tick::RepliconTick,
         ClientId,
     },

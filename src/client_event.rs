@@ -12,9 +12,9 @@ use serde::{de::DeserializeOwned, Serialize};
 use crate::{
     client::{replicon_client::RepliconClient, server_entity_map::ServerEntityMap, ClientSet},
     core::{
+        channels::{RepliconChannel, RepliconChannels},
         common_conditions::*,
         ctx::{ClientSendCtx, ServerReceiveCtx},
-        replicon_channels::{RepliconChannel, RepliconChannels},
         ClientId,
     },
     server::{replicon_server::RepliconServer, ServerSet},
