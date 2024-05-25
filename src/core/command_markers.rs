@@ -53,7 +53,7 @@ pub trait AppMarkerExt {
             command_markers::MarkerConfig,
             ctx::{RemoveCtx, WriteCtx},
             replication_registry::rule_fns::RuleFns,
-            replicon_tick::RepliconTick,
+            tick::RepliconTick,
         },
         prelude::*,
     };

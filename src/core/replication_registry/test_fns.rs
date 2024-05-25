@@ -8,7 +8,7 @@ use crate::{
     core::{
         command_markers::{CommandMarkers, EntityMarkers},
         ctx::{DespawnCtx, RemoveCtx, SerializeCtx, WriteCtx},
-        replicon_tick::RepliconTick,
+        tick::RepliconTick,
     },
     server::server_tick::ServerTick,
 };

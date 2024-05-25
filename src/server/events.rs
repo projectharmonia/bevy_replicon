@@ -19,7 +19,7 @@ use crate::{
         channels::{RepliconChannel, RepliconChannels},
         common_conditions::*,
         ctx::{ClientReceiveCtx, ServerSendCtx},
-        replicon_tick::RepliconTick,
+        tick::RepliconTick,
         ClientId,
     },
 };
