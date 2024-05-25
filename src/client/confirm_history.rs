@@ -132,63 +132,63 @@ mod tests {
 
     #[test]
     fn contains() {
-        let confirmed = ConfirmHistory::new(RepliconTick::new(1));
+        let history = ConfirmHistory::new(RepliconTick::new(1));
 
-        assert!(!confirmed.contains(RepliconTick::new(0)));
-        assert!(confirmed.contains(RepliconTick::new(1)));
-        assert!(!confirmed.contains(RepliconTick::new(2)));
-        assert!(!confirmed.contains(RepliconTick::new(u32::MAX)));
+        assert!(!history.contains(RepliconTick::new(0)));
+        assert!(history.contains(RepliconTick::new(1)));
+        assert!(!history.contains(RepliconTick::new(2)));
+        assert!(!history.contains(RepliconTick::new(u32::MAX)));
     }
 
     #[test]
     fn contains_with_wrapping() {
-        let confirmed = ConfirmHistory::new(RepliconTick::new(u64::BITS + 1));
+        let history = ConfirmHistory::new(RepliconTick::new(u64::BITS + 1));
 
-        assert!(confirmed.contains(RepliconTick::new(0)));
-        assert!(confirmed.contains(RepliconTick::new(1)));
-        assert!(!confirmed.contains(RepliconTick::new(2)));
+        assert!(history.contains(RepliconTick::new(0)));
+        assert!(history.contains(RepliconTick::new(1)));
+        assert!(!history.contains(RepliconTick::new(2)));
 
-        assert!(!confirmed.contains(RepliconTick::new(u64::BITS)));
-        assert!(confirmed.contains(RepliconTick::new(u64::BITS + 1)));
-        assert!(!confirmed.contains(RepliconTick::new(u64::BITS + 2)));
+        assert!(!history.contains(RepliconTick::new(u64::BITS)));
+        assert!(history.contains(RepliconTick::new(u64::BITS + 1)));
+        assert!(!history.contains(RepliconTick::new(u64::BITS + 2)));
     }
 
     #[test]
     fn contains_any() {
-        let confirmed = ConfirmHistory::new(RepliconTick::new(1));
+        let history = ConfirmHistory::new(RepliconTick::new(1));
 
-        assert!(confirmed.contains_any(RepliconTick::new(0), RepliconTick::new(1)));
-        assert!(confirmed.contains_any(RepliconTick::new(1), RepliconTick::new(1)));
-        assert!(confirmed.contains_any(RepliconTick::new(1), RepliconTick::new(2)));
-        assert!(!confirmed.contains_any(RepliconTick::new(2), RepliconTick::new(3)));
-        assert!(!confirmed.contains_any(RepliconTick::new(u32::MAX), RepliconTick::new(0)));
-        assert!(confirmed.contains_any(RepliconTick::new(u32::MAX), RepliconTick::new(1)));
-        assert!(confirmed.contains_any(RepliconTick::new(0), RepliconTick::new(2)));
-        assert!(confirmed.contains_any(RepliconTick::new(u32::MAX), RepliconTick::new(3)));
+        assert!(history.contains_any(RepliconTick::new(0), RepliconTick::new(1)));
+        assert!(history.contains_any(RepliconTick::new(1), RepliconTick::new(1)));
+        assert!(history.contains_any(RepliconTick::new(1), RepliconTick::new(2)));
+        assert!(!history.contains_any(RepliconTick::new(2), RepliconTick::new(3)));
+        assert!(!history.contains_any(RepliconTick::new(u32::MAX), RepliconTick::new(0)));
+        assert!(history.contains_any(RepliconTick::new(u32::MAX), RepliconTick::new(1)));
+        assert!(history.contains_any(RepliconTick::new(0), RepliconTick::new(2)));
+        assert!(history.contains_any(RepliconTick::new(u32::MAX), RepliconTick::new(3)));
     }
 
     #[test]
     fn contains_any_with_wrapping() {
-        let confirmed = ConfirmHistory::new(RepliconTick::new(u64::BITS + 1));
+        let history = ConfirmHistory::new(RepliconTick::new(u64::BITS + 1));
 
-        assert!(confirmed.contains_any(RepliconTick::new(0), RepliconTick::new(1)));
-        assert!(confirmed.contains_any(RepliconTick::new(1), RepliconTick::new(2)));
-        assert!(!confirmed.contains_any(RepliconTick::new(2), RepliconTick::new(3)));
-        assert!(confirmed.contains_any(RepliconTick::new(0), RepliconTick::new(3)));
+        assert!(history.contains_any(RepliconTick::new(0), RepliconTick::new(1)));
+        assert!(history.contains_any(RepliconTick::new(1), RepliconTick::new(2)));
+        assert!(!history.contains_any(RepliconTick::new(2), RepliconTick::new(3)));
+        assert!(history.contains_any(RepliconTick::new(0), RepliconTick::new(3)));
 
-        assert!(confirmed.contains_any(
+        assert!(history.contains_any(
             RepliconTick::new(u64::BITS),
             RepliconTick::new(u64::BITS + 1)
         ));
-        assert!(confirmed.contains_any(
+        assert!(history.contains_any(
             RepliconTick::new(u64::BITS + 1),
             RepliconTick::new(u64::BITS + 2)
         ));
-        assert!(!confirmed.contains_any(
+        assert!(!history.contains_any(
             RepliconTick::new(u64::BITS + 2),
             RepliconTick::new(u64::BITS + 3)
         ));
-        assert!(confirmed.contains_any(
+        assert!(history.contains_any(
             RepliconTick::new(u64::BITS),
             RepliconTick::new(u64::BITS + 3)
         ));
@@ -196,22 +196,20 @@ mod tests {
 
     #[test]
     fn contains_any_with_set() {
-        let mut confirmed = ConfirmHistory::new(RepliconTick::new(1));
-        assert_eq!(confirmed.mask(), 0b1);
+        let mut history = ConfirmHistory::new(RepliconTick::new(1));
+        assert_eq!(history.mask(), 0b1);
 
-        confirmed.set(2);
-        assert_eq!(confirmed.mask(), 0b101);
+        history.set(2);
+        assert_eq!(history.mask(), 0b101);
 
-        assert!(confirmed.contains_any(RepliconTick::new(0), RepliconTick::new(1)));
-        assert!(confirmed.contains_any(RepliconTick::new(1), RepliconTick::new(2)));
-        assert!(!confirmed.contains_any(RepliconTick::new(2), RepliconTick::new(3)));
-        assert!(confirmed.contains_any(RepliconTick::new(u32::MAX), RepliconTick::new(0)));
-        assert!(confirmed.contains_any(RepliconTick::new(0), RepliconTick::new(2)));
-        assert!(confirmed.contains_any(RepliconTick::new(u32::MAX), RepliconTick::new(3)));
-        assert!(
-            confirmed.contains_any(RepliconTick::new(u32::MAX - 1), RepliconTick::new(u32::MAX))
-        );
-        assert!(!confirmed.contains_any(
+        assert!(history.contains_any(RepliconTick::new(0), RepliconTick::new(1)));
+        assert!(history.contains_any(RepliconTick::new(1), RepliconTick::new(2)));
+        assert!(!history.contains_any(RepliconTick::new(2), RepliconTick::new(3)));
+        assert!(history.contains_any(RepliconTick::new(u32::MAX), RepliconTick::new(0)));
+        assert!(history.contains_any(RepliconTick::new(0), RepliconTick::new(2)));
+        assert!(history.contains_any(RepliconTick::new(u32::MAX), RepliconTick::new(3)));
+        assert!(history.contains_any(RepliconTick::new(u32::MAX - 1), RepliconTick::new(u32::MAX)));
+        assert!(!history.contains_any(
             RepliconTick::new(u32::MAX - 2),
             RepliconTick::new(u32::MAX - 1)
         ));
@@ -219,13 +217,13 @@ mod tests {
 
     #[test]
     fn set() {
-        let mut confirmed = ConfirmHistory::new(RepliconTick::new(1));
+        let mut history = ConfirmHistory::new(RepliconTick::new(1));
 
-        confirmed.set(1);
+        history.set(1);
 
-        assert!(confirmed.contains(RepliconTick::new(0)));
-        assert!(confirmed.contains(RepliconTick::new(1)));
-        assert!(!confirmed.contains(RepliconTick::new(2)));
+        assert!(history.contains(RepliconTick::new(0)));
+        assert!(history.contains(RepliconTick::new(1)));
+        assert!(!history.contains(RepliconTick::new(2)));
     }
 
     #[test]
@@ -241,62 +239,62 @@ mod tests {
 
     #[test]
     fn resize_to_same() {
-        let mut confirmed = ConfirmHistory::new(RepliconTick::new(1));
+        let mut history = ConfirmHistory::new(RepliconTick::new(1));
 
-        confirmed.set_last_tick(RepliconTick::new(1));
+        history.set_last_tick(RepliconTick::new(1));
 
-        assert!(!confirmed.contains(RepliconTick::new(0)));
-        assert!(confirmed.contains(RepliconTick::new(1)));
-        assert!(!confirmed.contains(RepliconTick::new(2)));
+        assert!(!history.contains(RepliconTick::new(0)));
+        assert!(history.contains(RepliconTick::new(1)));
+        assert!(!history.contains(RepliconTick::new(2)));
     }
 
     #[test]
     fn resize_with_wrapping() {
-        let mut confirmed = ConfirmHistory::new(RepliconTick::new(1));
+        let mut history = ConfirmHistory::new(RepliconTick::new(1));
 
-        confirmed.set_last_tick(RepliconTick::new(u64::BITS + 1));
+        history.set_last_tick(RepliconTick::new(u64::BITS + 1));
 
-        assert!(confirmed.contains(RepliconTick::new(0)));
-        assert!(confirmed.contains(RepliconTick::new(1)));
-        assert!(!confirmed.contains(RepliconTick::new(2)));
-        assert!(!confirmed.contains(RepliconTick::new(u64::BITS)));
-        assert!(confirmed.contains(RepliconTick::new(u64::BITS + 1)));
-        assert!(!confirmed.contains(RepliconTick::new(u64::BITS + 2)));
+        assert!(history.contains(RepliconTick::new(0)));
+        assert!(history.contains(RepliconTick::new(1)));
+        assert!(!history.contains(RepliconTick::new(2)));
+        assert!(!history.contains(RepliconTick::new(u64::BITS)));
+        assert!(history.contains(RepliconTick::new(u64::BITS + 1)));
+        assert!(!history.contains(RepliconTick::new(u64::BITS + 2)));
     }
 
     #[test]
     fn resize_with_overflow() {
-        let mut confirmed = ConfirmHistory::new(RepliconTick::new(u32::MAX));
+        let mut history = ConfirmHistory::new(RepliconTick::new(u32::MAX));
 
-        confirmed.set_last_tick(RepliconTick::new(1));
+        history.set_last_tick(RepliconTick::new(1));
 
-        assert!(!confirmed.contains(RepliconTick::new(0)));
-        assert!(confirmed.contains(RepliconTick::new(1)));
-        assert!(!confirmed.contains(RepliconTick::new(3)));
-        assert!(confirmed.contains(RepliconTick::new(u32::MAX)));
+        assert!(!history.contains(RepliconTick::new(0)));
+        assert!(history.contains(RepliconTick::new(1)));
+        assert!(!history.contains(RepliconTick::new(3)));
+        assert!(history.contains(RepliconTick::new(u32::MAX)));
     }
 
     #[test]
     fn confirm_with_resize() {
-        let mut confirmed = ConfirmHistory::new(RepliconTick::new(1));
+        let mut history = ConfirmHistory::new(RepliconTick::new(1));
 
-        confirmed.confirm(RepliconTick::new(2));
+        history.confirm(RepliconTick::new(2));
 
-        assert!(!confirmed.contains(RepliconTick::new(0)));
-        assert!(confirmed.contains(RepliconTick::new(1)));
-        assert!(confirmed.contains(RepliconTick::new(2)));
+        assert!(!history.contains(RepliconTick::new(0)));
+        assert!(history.contains(RepliconTick::new(1)));
+        assert!(history.contains(RepliconTick::new(2)));
     }
 
     #[test]
     fn confirm_with_set() {
-        let mut confirmed = ConfirmHistory::new(RepliconTick::new(1));
-        assert_eq!(confirmed.mask(), 0b1);
+        let mut history = ConfirmHistory::new(RepliconTick::new(1));
+        assert_eq!(history.mask(), 0b1);
 
-        confirmed.confirm(RepliconTick::new(0));
-        assert_eq!(confirmed.mask(), 0b11);
+        history.confirm(RepliconTick::new(0));
+        assert_eq!(history.mask(), 0b11);
 
-        assert!(confirmed.contains(RepliconTick::new(0)));
-        assert!(confirmed.contains(RepliconTick::new(1)));
-        assert!(!confirmed.contains(RepliconTick::new(2)));
+        assert!(history.contains(RepliconTick::new(0)));
+        assert!(history.contains(RepliconTick::new(1)));
+        assert!(!history.contains(RepliconTick::new(2)));
     }
 }

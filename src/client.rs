@@ -321,8 +321,8 @@ fn apply_init_components(
             .entity_markers
             .read(params.command_markers, &client_entity);
 
-        if let Some(mut confirm_history) = client_entity.get_mut::<ConfirmHistory>() {
-            confirm_history.set_last_tick(message_tick);
+        if let Some(mut history) = client_entity.get_mut::<ConfirmHistory>() {
+            history.set_last_tick(message_tick);
         } else {
             commands
                 .entity(client_entity.id())
@@ -427,12 +427,12 @@ fn apply_update_components(
             .entity_markers
             .read(params.command_markers, &client_entity);
 
-        let mut confirm_history = client_entity
+        let mut history = client_entity
             .get_mut::<ConfirmHistory>()
             .expect("all entities from update should have confirmed ticks");
-        let new_entity = message_tick > confirm_history.last_tick();
+        let new_entity = message_tick > history.last_tick();
         if new_entity {
-            confirm_history.set_last_tick(message_tick);
+            history.set_last_tick(message_tick);
         } else {
             if !params.entity_markers.need_history() {
                 trace!(
@@ -443,10 +443,7 @@ fn apply_update_components(
                 continue;
             }
 
-            let ago = confirm_history
-                .last_tick()
-                .get()
-                .wrapping_sub(message_tick.get());
+            let ago = history.last_tick().get().wrapping_sub(message_tick.get());
             if ago >= u64::BITS {
                 trace!(
                     "discarding update {ago} ticks old for client's {:?}",
@@ -456,7 +453,7 @@ fn apply_update_components(
                 continue;
             }
 
-            confirm_history.set(ago);
+            history.set(ago);
         }
 
         let end_pos = cursor.position() + data_size as u64;

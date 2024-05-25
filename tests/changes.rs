@@ -449,11 +449,11 @@ fn marker_with_history_old_update() {
     // so that the next update for this entity is discarded.
     let mut tick = **server_app.world.resource::<ServerTick>();
     tick += u64::BITS + 1;
-    let mut confirm_history = client_app
+    let mut history = client_app
         .world
         .get_mut::<ConfirmHistory>(client_entity)
         .unwrap();
-    confirm_history.confirm(tick);
+    history.confirm(tick);
 
     let mut component = server_app
         .world
