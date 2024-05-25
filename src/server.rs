@@ -26,7 +26,7 @@ use crate::core::{
     channels::{ReplicationChannel, RepliconChannels},
     common_conditions::{server_just_stopped, server_running},
     ctx::SerializeCtx,
-    replication_fns::ReplicationFns,
+    replication_registry::ReplicationRegistry,
     replication_rules::ReplicationRules,
     replicon_tick::RepliconTick,
     ClientId,
@@ -225,7 +225,7 @@ impl ServerPlugin {
             ResMut<ClientBuffers>,
             ResMut<RepliconServer>,
         )>,
-        replication_fns: Res<ReplicationFns>,
+        registry: Res<ReplicationRegistry>,
         rules: Res<ReplicationRules>,
         server_tick: Res<ServerTick>,
         time: Res<Time>,
@@ -241,7 +241,7 @@ impl ServerPlugin {
         collect_changes(
             &mut messages,
             &replicated_archetypes,
-            &replication_fns,
+            &registry,
             &entities_with_removals,
             set.p0(),
             &change_tick,
@@ -303,7 +303,7 @@ fn collect_mappings(
 fn collect_changes(
     messages: &mut ReplicationMessages,
     replicated_archetypes: &ReplicatedArchetypes,
-    replication_fns: &ReplicationFns,
+    registry: &ReplicationRegistry,
     entities_with_removals: &EntityHashSet,
     world: &World,
     change_tick: &SystemChangeTick,
@@ -365,7 +365,7 @@ fn collect_changes(
                     )
                 };
 
-                let (component_fns, rule_fns) = replication_fns.get(replicated_component.fns_id);
+                let (component_fns, rule_fns) = registry.get(replicated_component.fns_id);
                 let ctx = SerializeCtx { server_tick };
                 let mut shared_bytes = None;
                 for (init_message, update_message, client) in messages.iter_mut_with_clients() {

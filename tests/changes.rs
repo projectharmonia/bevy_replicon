@@ -6,7 +6,7 @@ use bevy_replicon::{
     core::{
         command_markers::MarkerConfig,
         ctx::WriteCtx,
-        replication_fns::{command_fns, rule_fns::RuleFns},
+        replication_registry::{command_fns, rule_fns::RuleFns},
     },
     prelude::*,
     server::server_tick::ServerTick,

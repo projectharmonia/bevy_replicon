@@ -18,7 +18,7 @@ use super::{
 use crate::core::{
     channels::ReplicationChannel,
     ctx::SerializeCtx,
-    replication_fns::{component_fns::ComponentFns, rule_fns::UntypedRuleFns, FnsId},
+    replication_registry::{component_fns::ComponentFns, rule_fns::UntypedRuleFns, FnsId},
     replicon_tick::RepliconTick,
 };
 

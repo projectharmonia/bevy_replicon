@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use bevy_replicon::{
     core::{
         ctx::WriteCtx,
-        replication_fns::{command_fns, rule_fns::RuleFns},
+        replication_registry::{command_fns, rule_fns::RuleFns},
     },
     prelude::*,
     test_app::ServerTestAppExt,

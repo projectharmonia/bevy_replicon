@@ -13,7 +13,7 @@ use rule_fns::{RuleFns, UntypedRuleFns};
 
 /// Stores configurable replication functions.
 #[derive(Resource)]
-pub struct ReplicationFns {
+pub struct ReplicationRegistry {
     /// Custom function to handle entity despawning.
     ///
     /// By default uses [`despawn_recursive`].
@@ -38,7 +38,7 @@ pub struct ReplicationFns {
     marker_slots: usize,
 }
 
-impl ReplicationFns {
+impl ReplicationRegistry {
     /// Registers marker slot for component functions.
     ///
     /// Should be used after calling
@@ -148,7 +148,7 @@ impl ReplicationFns {
     }
 }
 
-impl Default for ReplicationFns {
+impl Default for ReplicationRegistry {
     fn default() -> Self {
         Self {
             despawn: despawn_recursive,
@@ -158,6 +158,9 @@ impl Default for ReplicationFns {
         }
     }
 }
+
+#[deprecated(note = "use `Replicated` instead")]
+pub type ReplicationFns = ReplicationRegistry;
 
 /// IDs of a registered replication function and its component.
 ///
@@ -201,22 +204,22 @@ mod tests {
     #[test]
     fn rule_fns() {
         let mut world = World::new();
-        let mut replication_fns = ReplicationFns::default();
-        replication_fns.register_rule_fns(&mut world, RuleFns::<ComponentA>::default());
-        assert_eq!(replication_fns.rules.len(), 1);
-        assert_eq!(replication_fns.components.len(), 1);
+        let mut registry = ReplicationRegistry::default();
+        registry.register_rule_fns(&mut world, RuleFns::<ComponentA>::default());
+        assert_eq!(registry.rules.len(), 1);
+        assert_eq!(registry.components.len(), 1);
     }
 
     #[test]
     fn duplicate_rule_fns() {
         let mut world = World::new();
-        let mut replication_fns = ReplicationFns::default();
-        replication_fns.register_rule_fns(&mut world, RuleFns::<ComponentA>::default());
-        replication_fns.register_rule_fns(&mut world, RuleFns::<ComponentA>::default());
+        let mut registry = ReplicationRegistry::default();
+        registry.register_rule_fns(&mut world, RuleFns::<ComponentA>::default());
+        registry.register_rule_fns(&mut world, RuleFns::<ComponentA>::default());
 
-        assert_eq!(replication_fns.rules.len(), 2);
+        assert_eq!(registry.rules.len(), 2);
         assert_eq!(
-            replication_fns.components.len(),
+            registry.components.len(),
             1,
             "multiple serde registrations for the same component should result only in a single command functions instance"
         );
@@ -225,12 +228,12 @@ mod tests {
     #[test]
     fn different_rule_fns() {
         let mut world = World::new();
-        let mut replication_fns = ReplicationFns::default();
-        replication_fns.register_rule_fns(&mut world, RuleFns::<ComponentA>::default());
-        replication_fns.register_rule_fns(&mut world, RuleFns::<ComponentB>::default());
+        let mut registry = ReplicationRegistry::default();
+        registry.register_rule_fns(&mut world, RuleFns::<ComponentA>::default());
+        registry.register_rule_fns(&mut world, RuleFns::<ComponentB>::default());
 
-        assert_eq!(replication_fns.rules.len(), 2);
-        assert_eq!(replication_fns.components.len(), 2);
+        assert_eq!(registry.rules.len(), 2);
+        assert_eq!(registry.components.len(), 2);
     }
 
     #[derive(Component, Serialize, Deserialize)]

@@ -7,7 +7,7 @@ use bevy::{
 };
 use serde::{de::DeserializeOwned, Serialize};
 
-use super::replication_fns::{rule_fns::RuleFns, FnsInfo, ReplicationFns};
+use super::replication_registry::{rule_fns::RuleFns, FnsInfo, ReplicationRegistry};
 
 /// Replication functions for [`App`].
 pub trait AppRuleExt {
@@ -82,7 +82,7 @@ pub trait AppRuleExt {
     use bevy_replicon::{
         core::{
             ctx::{SerializeCtx, WriteCtx},
-            replication_fns::rule_fns::RuleFns,
+            replication_registry::rule_fns::RuleFns,
         },
         prelude::*,
     };
@@ -166,8 +166,8 @@ impl AppRuleExt for App {
     {
         let rule = self
             .world
-            .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| {
-                let fns_info = replication_fns.register_rule_fns(world, rule_fns);
+            .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
+                let fns_info = registry.register_rule_fns(world, rule_fns);
                 ReplicationRule::new(vec![fns_info])
             });
 
@@ -178,8 +178,8 @@ impl AppRuleExt for App {
     fn replicate_group<C: GroupReplication>(&mut self) -> &mut Self {
         let rule = self
             .world
-            .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| {
-                C::register(world, &mut replication_fns)
+            .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
+                C::register(world, &mut registry)
             });
 
         self.world.resource_mut::<ReplicationRules>().insert(rule);
@@ -268,7 +268,7 @@ use bevy::prelude::*;
 use bevy_replicon::{
     core::{
         ctx::{SerializeCtx, WriteCtx},
-        replication_fns::{rule_fns::RuleFns, ReplicationFns},
+        replication_registry::{rule_fns::RuleFns, ReplicationFns},
         replication_rules::{GroupReplication, ReplicationRule},
     },
     prelude::*,
@@ -290,15 +290,15 @@ struct PlayerBundle {
 struct Player;
 
 impl GroupReplication for PlayerBundle {
-    fn register(world: &mut World, replication_fns: &mut ReplicationFns) -> ReplicationRule {
+    fn register(world: &mut World, registry: &mut ReplicationFns) -> ReplicationRule {
         // Customize serlialization to serialize only `translation`.
-        let transform_info = replication_fns.register_rule_fns(
+        let transform_info = registry.register_rule_fns(
             world,
             RuleFns::new(serialize_translation, deserialize_translation),
         );
 
         // Serialize `player` as usual.
-        let player_info = replication_fns.register_rule_fns(world, RuleFns::<Player>::default());
+        let player_info = registry.register_rule_fns(world, RuleFns::<Player>::default());
 
         // We skip `replication` registration since it's a special component.
         // It's automatically inserted on clients after replication and
@@ -313,18 +313,18 @@ impl GroupReplication for PlayerBundle {
 ```
 **/
 pub trait GroupReplication {
-    /// Creates the associated replication rules and registers its functions in [`ReplicationFns`].
-    fn register(world: &mut World, replication_fns: &mut ReplicationFns) -> ReplicationRule;
+    /// Creates the associated replication rules and registers its functions in [`ReplicationRegistry`].
+    fn register(world: &mut World, registry: &mut ReplicationRegistry) -> ReplicationRule;
 }
 
 macro_rules! impl_registrations {
     ($($type:ident),*) => {
         impl<$($type: Component + Serialize + DeserializeOwned),*> GroupReplication for ($($type,)*) {
-            fn register(world: &mut World, replication_fns: &mut ReplicationFns) -> ReplicationRule {
+            fn register(world: &mut World, registry: &mut ReplicationRegistry) -> ReplicationRule {
                 // TODO: initialize with capacity after stabilization: https://github.com/rust-lang/rust/pull/122808
                 let mut components = Vec::new();
                 $(
-                    let fns_info = replication_fns.register_rule_fns(world, RuleFns::<$type>::default());
+                    let fns_info = registry.register_rule_fns(world, RuleFns::<$type>::default());
                     components.push(fns_info);
                 )*
 
@@ -341,13 +341,13 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::{core::replication_fns::ReplicationFns, AppRuleExt};
+    use crate::{core::replication_registry::ReplicationRegistry, AppRuleExt};
 
     #[test]
     fn sorting() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
-            .init_resource::<ReplicationFns>()
+            .init_resource::<ReplicationRegistry>()
             .replicate::<ComponentA>()
             .replicate::<ComponentB>()
             .replicate_group::<(ComponentA, ComponentB)>()
