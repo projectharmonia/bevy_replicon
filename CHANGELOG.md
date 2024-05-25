@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rename `ConnectedClient::change_tick` into `ConnectedClient::init_tick`.
 - Rename `ConnectedClient::get_change_limit` into `ConnectedClient::get_change_tick`.
 - Rename `Confirmed` into `ConfirmHistory`.
+- Rename "packets" into "messages" in client diagnostics.
 
 ## [0.25.3] - 2024-05-24
 
