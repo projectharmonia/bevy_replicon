@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `bevy_replicon_renet` now properly sets `RepliconClientStatus::Connecting` when `RenetClient` is connecting.
+
 ### Changed
 
 - Custom events are now registered with serialization and deserialization functions instead of systems. This makes the API more convenient since the purpose of custom systems was to customize serialization.
