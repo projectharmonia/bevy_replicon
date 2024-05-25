@@ -50,6 +50,7 @@ Have any questions? Feel free to ask in the dedicated [`bevy_replicon` channel](
 #### Messaging backends
 
 - `bevy_replicon_renet` - integration for [`bevy_renet`](https://github.com/lucaspoffo/renet/tree/master/bevy_renet). Provided by this repo.
+- [`bevy_replicon_renet2`](https://github.com/UkoeHB/renet2) - integration for [`bevy_renet2`](https://github.com/UkoeHB/renet2/tree/main/bevy_renet2). Includes a WebTransport backend for browsers, and enables servers that can manage multi-platform clients simultaneously.
 - [`bevy_replicon_quinnet`](https://github.com/Henauxg/bevy_quinnet/tree/main/bevy_replicon_quinnet) - integration for [`bevy_quinnet`](https://github.com/Henauxg/bevy_quinnet).
 
 #### Helper crates
