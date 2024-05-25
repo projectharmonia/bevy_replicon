@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy_replicon::{
-    client::{confirmed::Confirmed, server_entity_map::ServerEntityMap},
+    client::{confirm_history::ConfirmHistory, server_entity_map::ServerEntityMap},
     prelude::*,
     test_app::ServerTestAppExt,
 };
@@ -204,7 +204,7 @@ fn pre_spawn() {
         "entity should start receive replication"
     );
     assert!(
-        client_entity.contains::<Confirmed>(),
+        client_entity.contains::<ConfirmHistory>(),
         "server should confirm replication of client entity"
     );
     assert!(
