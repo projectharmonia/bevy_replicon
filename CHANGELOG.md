@@ -7,16 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `bevy_replicon_renet` now properly sets `RepliconClientStatus::Connecting` when `RenetClient` is connecting.
+
 ### Changed
 
 - Custom events are now registered with serialization and deserialization functions instead of systems. This makes the API more convenient since the purpose of custom systems was to customize serialization.
 - All events are processed in one system instead of a separate system for each event. Bevy does a [similar optimization](https://github.com/bevyengine/bevy/pull/12936) for event updates. It won't be that noticeable since users register much fewer replicon events.
 - Rename `ConnectedClient::change_tick` into `ConnectedClient::init_tick`.
 - Rename `ConnectedClient::get_change_limit` into `ConnectedClient::get_change_tick`.
-
-### Fixed
-
-- `bevy_replicon_renet` now properly sets `RepliconClientStatus::Connecting` when `RenetClient` is connecting.
 
 ## [0.25.3] - 2024-05-24
 
