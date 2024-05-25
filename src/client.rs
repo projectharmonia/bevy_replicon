@@ -1,5 +1,6 @@
 pub mod confirm_history;
 pub mod diagnostics;
+pub mod events;
 pub mod replicon_client;
 pub mod server_entity_map;
 

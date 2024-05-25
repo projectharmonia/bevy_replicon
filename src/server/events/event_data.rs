@@ -12,6 +12,7 @@ use bevy::{
 use bincode::{DefaultOptions, Options};
 use bytes::Bytes;
 
+use super::{DeserializeFn, SendMode, SerializeFn, ServerEventQueue, ToClients};
 use crate::{
     client::replicon_client::RepliconClient,
     core::{
@@ -23,10 +24,7 @@ use crate::{
         connected_clients::{ConnectedClient, ConnectedClients},
         replicon_server::RepliconServer,
     },
-    server_event::ServerEventQueue,
 };
-
-use super::{DeserializeFn, SendMode, SerializeFn, ToClients};
 
 /// Type-erased functions and metadata for a registered server event.
 ///

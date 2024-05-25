@@ -439,12 +439,10 @@ To reduce packet size there are the following limits per replication update:
 */
 
 pub mod client;
-pub mod client_event;
 pub mod core;
 pub mod parent_sync;
 pub mod scene;
 pub mod server;
-pub mod server_event;
 pub mod test_app;
 
 pub mod prelude {
@@ -454,10 +452,10 @@ pub mod prelude {
     pub use super::{
         client::{
             diagnostics::{ClientDiagnosticsPlugin, ClientStats},
+            events::{ClientEventAppExt, ClientEventsPlugin, FromClient},
             replicon_client::{RepliconClient, RepliconClientStatus},
             ClientPlugin, ClientSet,
         },
-        client_event::{ClientEventAppExt, ClientEventPlugin, FromClient},
         core::{
             channels::{ChannelKind, RepliconChannel, RepliconChannels},
             command_markers::AppMarkerExt,
@@ -471,10 +469,10 @@ pub mod prelude {
             connected_clients::{
                 client_visibility::ClientVisibility, ConnectedClient, ConnectedClients,
             },
+            events::{SendMode, ServerEventAppExt, ServerEventsPlugin, ToClients},
             replicon_server::RepliconServer,
             ServerEvent, ServerPlugin, ServerSet, TickPolicy, VisibilityPolicy,
         },
-        server_event::{SendMode, ServerEventAppExt, ServerEventPlugin, ToClients},
         RepliconPlugins,
     };
 }
@@ -494,7 +492,7 @@ impl PluginGroup for RepliconPlugins {
             .add(ParentSyncPlugin)
             .add(ClientPlugin)
             .add(ServerPlugin::default())
-            .add(ClientEventPlugin)
-            .add(ServerEventPlugin)
+            .add(ClientEventsPlugin)
+            .add(ServerEventsPlugin)
     }
 }

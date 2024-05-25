@@ -39,7 +39,7 @@ let tick = **app.world.resource::<ServerTick>();
 // Register rule functions manually to obtain `FnsInfo`.
 let fns_info = app
     .world
-    .resource_scope(|world, mut registry: Mut<ReplicationFns>| {
+    .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
         registry.register_rule_fns(world, RuleFns::<DummyComponent>::default())
     });
 
