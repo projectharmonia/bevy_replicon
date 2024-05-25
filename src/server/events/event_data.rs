@@ -17,7 +17,7 @@ use crate::{
     client::replicon_client::RepliconClient,
     core::{
         ctx::{ClientReceiveCtx, ServerSendCtx},
-        tick::RepliconTick,
+        replicon_tick::RepliconTick,
         ClientId,
     },
     server::{

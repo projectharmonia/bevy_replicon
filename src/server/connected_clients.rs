@@ -9,7 +9,7 @@ use bevy::{
 };
 
 use crate::{
-    core::{tick::RepliconTick, ClientId},
+    core::{replicon_tick::RepliconTick, ClientId},
     server::VisibilityPolicy,
 };
 use client_visibility::ClientVisibility;

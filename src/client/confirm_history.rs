@@ -2,7 +2,7 @@ use std::fmt::{self, Debug, Formatter};
 
 use bevy::prelude::*;
 
-use crate::core::tick::RepliconTick;
+use crate::core::replicon_tick::RepliconTick;
 
 /// Received ticks from the server for an entity.
 ///

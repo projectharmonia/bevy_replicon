@@ -19,7 +19,7 @@ use crate::core::{
     channels::ReplicationChannel,
     ctx::SerializeCtx,
     replication_registry::{component_fns::ComponentFns, rule_fns::UntypedRuleFns, FnsId},
-    tick::RepliconTick,
+    replicon_tick::RepliconTick,
 };
 
 /// Accumulates replication messages and sends them to clients.

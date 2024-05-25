@@ -4,7 +4,7 @@ pub mod common_conditions;
 pub mod ctx;
 pub mod replication_registry;
 pub mod replication_rules;
-pub mod tick;
+pub mod replicon_tick;
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};

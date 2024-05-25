@@ -29,7 +29,7 @@ use crate::core::{
     ctx::SerializeCtx,
     replication_registry::ReplicationRegistry,
     replication_rules::ReplicationRules,
-    tick::RepliconTick,
+    replicon_tick::RepliconTick,
     ClientId,
 };
 use client_entity_map::ClientEntityMap;

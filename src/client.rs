@@ -17,7 +17,7 @@ use crate::core::{
     common_conditions::{client_connected, client_just_connected, client_just_disconnected},
     ctx::{DespawnCtx, RemoveCtx, WriteCtx},
     replication_registry::ReplicationRegistry,
-    tick::RepliconTick,
+    replicon_tick::RepliconTick,
     Replicated,
 };
 use confirm_history::ConfirmHistory;
