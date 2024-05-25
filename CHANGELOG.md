@@ -35,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fix possible overflow in `Confirm::contains_any`.
+- Fix possible overflow in `Confirmed::contains_any`.
 
 ## [0.25.0] - 2024-05-11
 
