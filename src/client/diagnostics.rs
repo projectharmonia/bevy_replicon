@@ -6,7 +6,7 @@ use bevy::{
 };
 use std::time::Duration;
 
-/// Replication stats during packet processing.
+/// Replication stats during message processing.
 ///
 /// Flushed to Diagnostics system periodically.
 #[derive(Default, Resource, Debug)]
@@ -19,9 +19,9 @@ pub struct ClientStats {
     pub mappings: u32,
     /// Incremented per entity despawn.
     pub despawns: u32,
-    /// Replication packets received.
-    pub packets: u32,
-    /// Replication bytes received in packet payloads (without internal messaging plugin data).
+    /// Replication messages received.
+    pub messages: u32,
+    /// Replication bytes received in message payloads (without internal messaging plugin data).
     pub bytes: u64,
 }
 
@@ -58,8 +58,8 @@ impl Plugin for ClientDiagnosticsPlugin {
                 .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
         )
         .register_diagnostic(
-            Diagnostic::new(Self::PACKETS)
-                .with_suffix("packets per second")
+            Diagnostic::new(Self::MESSAGES)
+                .with_suffix("messages per second")
                 .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
         )
         .register_diagnostic(
@@ -81,9 +81,9 @@ impl ClientDiagnosticsPlugin {
     pub const MAPPINGS: DiagnosticPath = DiagnosticPath::const_new("replication.client.mappings");
     /// How many despawns per second from replication.
     pub const DESPAWNS: DiagnosticPath = DiagnosticPath::const_new("replication.client.despawns");
-    /// How many replication packets processed per second.
-    pub const PACKETS: DiagnosticPath = DiagnosticPath::const_new("replication.client.packets");
-    /// How many bytes of replication packets payloads per second.
+    /// How many replication messages processed per second.
+    pub const MESSAGES: DiagnosticPath = DiagnosticPath::const_new("replication.client.messages");
+    /// How many bytes of replication messages payloads per second.
     pub const BYTES: DiagnosticPath = DiagnosticPath::const_new("replication.client.bytes");
 
     /// Max diagnostic history length.
@@ -91,41 +91,41 @@ impl ClientDiagnosticsPlugin {
 
     fn add_measurements(mut stats: ResMut<ClientStats>, mut diagnostics: Diagnostics) {
         diagnostics.add_measurement(&Self::ENTITY_CHANGES, || {
-            if stats.packets == 0 {
+            if stats.messages == 0 {
                 0_f64
             } else {
-                stats.entities_changed as f64 / stats.packets as f64
+                stats.entities_changed as f64 / stats.messages as f64
             }
         });
         diagnostics.add_measurement(&Self::COMPONENT_CHANGES, || {
-            if stats.packets == 0 {
+            if stats.messages == 0 {
                 0_f64
             } else {
-                stats.components_changed as f64 / stats.packets as f64
+                stats.components_changed as f64 / stats.messages as f64
             }
         });
         diagnostics.add_measurement(&Self::MAPPINGS, || {
-            if stats.packets == 0 {
+            if stats.messages == 0 {
                 0_f64
             } else {
-                stats.mappings as f64 / stats.packets as f64
+                stats.mappings as f64 / stats.messages as f64
             }
         });
         diagnostics.add_measurement(&Self::DESPAWNS, || {
-            if stats.packets == 0 {
+            if stats.messages == 0 {
                 0_f64
             } else {
-                stats.despawns as f64 / stats.packets as f64
+                stats.despawns as f64 / stats.messages as f64
             }
         });
         diagnostics.add_measurement(&Self::BYTES, || {
-            if stats.packets == 0 {
+            if stats.messages == 0 {
                 0_f64
             } else {
-                stats.bytes as f64 / stats.packets as f64
+                stats.bytes as f64 / stats.messages as f64
             }
         });
-        diagnostics.add_measurement(&Self::PACKETS, || stats.packets as f64);
+        diagnostics.add_measurement(&Self::MESSAGES, || stats.messages as f64);
         *stats = ClientStats::default();
     }
 }
