@@ -71,7 +71,7 @@ Have any questions? Feel free to ask in the dedicated [`bevy_replicon` channel](
 
 | bevy   | bevy_replicon | bevy_replicon_renet |
 | ------ | ------------- | ------------------- |
-| 0.13.0 | 0.23-0.25     | 0.2                 |
+| 0.13.0 | 0.23-0.26     | 0.1-0.3             |
 | 0.12.1 | 0.18-0.22     |                     |
 | 0.11.0 | 0.6-0.17      |                     |
 | 0.10.1 | 0.2-0.6       |                     |

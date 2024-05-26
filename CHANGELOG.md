@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.26.0] - 2024-05-26
+
 ### Added
 
 - `ClientEventsPlugin` and `ServerEventsPlugin` that are required for events (available from the `RepliconPlugins` group). Can be disabled if you don't use them.
