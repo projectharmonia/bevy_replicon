@@ -72,11 +72,25 @@ impl ParentSyncPlugin {
     }
 }
 
-/// Updates entity parent on change.
+/// Replicates parent-children relations for an entity.
 ///
-/// Removes the parent if [`None`].
 /// The component captures changes in [`PostUpdate`] on server before sending
 /// and applies them on [`PreUpdate`] after receive on clients or scene deserialization.
+///
+/// # Example
+///
+/// Replicating two entities and their parent-children relation:
+///
+/// ```
+/// # use bevy::{ecs::system::CommandQueue, prelude::*};
+/// # use bevy_replicon::prelude::*;
+/// # let mut queue = CommandQueue::default();
+/// # let world = World::default();
+/// # let mut commands = Commands::new(&mut queue, &world);
+/// commands.spawn(Replicated).with_children(|parent| {
+///     parent.spawn((Replicated, ParentSync::default()));
+/// });
+/// ```
 #[derive(Component, Default, Reflect, Clone, Copy, Serialize, Deserialize)]
 #[reflect(Component, MapEntities)]
 pub struct ParentSync(Option<Entity>);
