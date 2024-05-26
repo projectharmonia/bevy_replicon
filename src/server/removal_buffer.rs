@@ -13,7 +13,7 @@ use bevy::{
 
 use super::{ServerPlugin, ServerSet};
 use crate::core::{
-    common_conditions::server_running, replication_fns::FnsInfo,
+    common_conditions::server_running, replication_registry::FnsInfo,
     replication_rules::ReplicationRules, Replicated,
 };
 
@@ -210,7 +210,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        core::{replication_fns::ReplicationFns, replication_rules::AppRuleExt, Replicated},
+        core::{
+            replication_registry::ReplicationRegistry, replication_rules::AppRuleExt, Replicated,
+        },
         server::replicon_server::RepliconServer,
     };
 
@@ -219,7 +221,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(RemovalBufferPlugin)
             .init_resource::<RepliconServer>()
-            .init_resource::<ReplicationFns>()
+            .init_resource::<ReplicationRegistry>()
             .init_resource::<ReplicationRules>();
 
         app.world.resource_mut::<RepliconServer>().set_running(true);
@@ -241,7 +243,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(RemovalBufferPlugin)
             .init_resource::<RepliconServer>()
-            .init_resource::<ReplicationFns>()
+            .init_resource::<ReplicationRegistry>()
             .init_resource::<ReplicationRules>()
             .replicate::<ComponentA>();
 
@@ -267,7 +269,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(RemovalBufferPlugin)
             .init_resource::<RepliconServer>()
-            .init_resource::<ReplicationFns>()
+            .init_resource::<ReplicationRegistry>()
             .init_resource::<ReplicationRules>()
             .replicate_group::<(ComponentA, ComponentB)>();
 
@@ -293,7 +295,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(RemovalBufferPlugin)
             .init_resource::<RepliconServer>()
-            .init_resource::<ReplicationFns>()
+            .init_resource::<ReplicationRegistry>()
             .init_resource::<ReplicationRules>()
             .replicate_group::<(ComponentA, ComponentB)>();
 
@@ -319,7 +321,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(RemovalBufferPlugin)
             .init_resource::<RepliconServer>()
-            .init_resource::<ReplicationFns>()
+            .init_resource::<ReplicationRegistry>()
             .init_resource::<ReplicationRules>()
             .replicate::<ComponentA>()
             .replicate_group::<(ComponentA, ComponentB)>();
@@ -346,7 +348,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(RemovalBufferPlugin)
             .init_resource::<RepliconServer>()
-            .init_resource::<ReplicationFns>()
+            .init_resource::<ReplicationRegistry>()
             .init_resource::<ReplicationRules>()
             .replicate::<ComponentA>()
             .replicate_group::<(ComponentA, ComponentB)>();
@@ -373,7 +375,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(RemovalBufferPlugin)
             .init_resource::<RepliconServer>()
-            .init_resource::<ReplicationFns>()
+            .init_resource::<ReplicationRegistry>()
             .init_resource::<ReplicationRules>()
             .replicate::<ComponentA>();
 

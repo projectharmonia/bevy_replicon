@@ -10,7 +10,7 @@ use bevy::{
     utils::tracing::enabled,
 };
 
-use crate::core::{replication_fns::FnsId, replication_rules::ReplicationRules, Replicated};
+use crate::core::{replication_registry::FnsId, replication_rules::ReplicationRules, Replicated};
 
 /// Cached information about all replicated archetypes.
 #[derive(Deref)]
@@ -132,7 +132,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::{core::replication_fns::ReplicationFns, AppRuleExt};
+    use crate::{core::replication_registry::ReplicationRegistry, AppRuleExt};
 
     #[test]
     fn empty() {
@@ -163,7 +163,7 @@ mod tests {
     fn not_replicated() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
-            .init_resource::<ReplicationFns>()
+            .init_resource::<ReplicationRegistry>()
             .replicate::<ComponentA>();
 
         app.world.spawn((Replicated, ComponentB));
@@ -177,7 +177,7 @@ mod tests {
     fn component() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
-            .init_resource::<ReplicationFns>()
+            .init_resource::<ReplicationRegistry>()
             .replicate::<ComponentA>();
 
         app.world.spawn((Replicated, ComponentA));
@@ -191,7 +191,7 @@ mod tests {
     fn group() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
-            .init_resource::<ReplicationFns>()
+            .init_resource::<ReplicationRegistry>()
             .replicate_group::<(ComponentA, ComponentB)>();
 
         app.world.spawn((Replicated, ComponentA, ComponentB));
@@ -205,7 +205,7 @@ mod tests {
     fn part_of_group() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
-            .init_resource::<ReplicationFns>()
+            .init_resource::<ReplicationRegistry>()
             .replicate_group::<(ComponentA, ComponentB)>();
 
         app.world.spawn((Replicated, ComponentA));
@@ -219,7 +219,7 @@ mod tests {
     fn grup_with_subset() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
-            .init_resource::<ReplicationFns>()
+            .init_resource::<ReplicationRegistry>()
             .replicate::<ComponentA>()
             .replicate_group::<(ComponentA, ComponentB)>();
 
@@ -234,7 +234,7 @@ mod tests {
     fn group_with_multiple_subsets() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
-            .init_resource::<ReplicationFns>()
+            .init_resource::<ReplicationRegistry>()
             .replicate::<ComponentA>()
             .replicate::<ComponentB>()
             .replicate_group::<(ComponentA, ComponentB)>();
@@ -250,7 +250,7 @@ mod tests {
     fn groups_with_overlap() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
-            .init_resource::<ReplicationFns>()
+            .init_resource::<ReplicationRegistry>()
             .replicate_group::<(ComponentA, ComponentC)>()
             .replicate_group::<(ComponentA, ComponentB)>();
 

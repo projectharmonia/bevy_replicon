@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `ClientEventsPlugin` and `ServerEventsPlugin` that are required for events (available from the `RepliconPlugins` group). Can be disabled if you don't use them.
+
 ### Fixed
 
 - `bevy_replicon_renet` now properly sets `RepliconClientStatus::Connecting` when `RenetClient` is connecting.
@@ -18,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rename `ConnectedClient::change_tick` into `ConnectedClient::init_tick`.
 - Rename `ConnectedClient::get_change_limit` into `ConnectedClient::get_change_tick`.
 - Rename `Confirmed` into `ConfirmHistory`.
+- Rename `replicon_channels` module into `channels`.
+- Rename `replication_fns` and `ReplicationFns` into `replication_registry` and `ReplicationRegistry`.
 - Rename "packets" into "messages" in client diagnostics.
 
 ## [0.25.3] - 2024-05-24

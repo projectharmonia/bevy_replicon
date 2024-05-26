@@ -1,4 +1,4 @@
-mod server_event_data;
+mod event_data;
 
 use std::io::Cursor;
 
@@ -7,24 +7,23 @@ use bincode::{DefaultOptions, Options};
 use ordered_multimap::ListOrderedMultimap;
 use serde::{de::DeserializeOwned, Serialize};
 
+use super::{
+    connected_clients::ConnectedClients, replicon_server::RepliconServer, ServerPlugin, ServerSet,
+};
 use crate::{
     client::{
         replicon_client::RepliconClient, server_entity_map::ServerEntityMap, ClientPlugin,
         ClientSet, ServerInitTick,
     },
     core::{
+        channels::{RepliconChannel, RepliconChannels},
         common_conditions::*,
         ctx::{ClientReceiveCtx, ServerSendCtx},
-        replicon_channels::{RepliconChannel, RepliconChannels},
         replicon_tick::RepliconTick,
         ClientId,
     },
-    server::{
-        connected_clients::ConnectedClients, replicon_server::RepliconServer, ServerPlugin,
-        ServerSet,
-    },
 };
-use server_event_data::ServerEventData;
+use event_data::ServerEventData;
 
 /// An extension trait for [`App`] for creating client events.
 pub trait ServerEventAppExt {
@@ -151,9 +150,12 @@ impl ServerEventAppExt for App {
     }
 }
 
-pub struct ServerEventPlugin;
+/// Sending events from the server to clients.
+///
+/// Requires [`ServerPlugin`] for the server and [`ClientPlugin`] for clients.
+pub struct ServerEventsPlugin;
 
-impl Plugin for ServerEventPlugin {
+impl Plugin for ServerEventsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ServerEventRegistry>()
             .add_systems(
@@ -179,7 +181,7 @@ impl Plugin for ServerEventPlugin {
     }
 }
 
-impl ServerEventPlugin {
+impl ServerEventsPlugin {
     fn send(world: &mut World) {
         world.resource_scope(|world, mut server: Mut<RepliconServer>| {
             world.resource_scope(|world, registry: Mut<AppTypeRegistry>| {

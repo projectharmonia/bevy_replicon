@@ -2,8 +2,8 @@ use std::cmp::Reverse;
 
 use bevy::{ecs::component::ComponentId, prelude::*};
 
-use super::replication_fns::command_fns::{RemoveFn, WriteFn};
-use crate::core::replication_fns::ReplicationFns;
+use super::replication_registry::command_fns::{RemoveFn, WriteFn};
+use crate::core::replication_registry::ReplicationRegistry;
 
 /// Marker-based functions for [`App`].
 ///
@@ -32,8 +32,8 @@ pub trait AppMarkerExt {
 
     If this marker is present on an entity and its priority is the highest,
     then these functions will be called for this component during replication
-    instead of [`default_write`](super::replication_fns::command_fns::default_write) and
-    [`default_remove`](super::replication_fns::command_fns::default_remove).
+    instead of [`default_write`](super::replication_registry::command_fns::default_write) and
+    [`default_remove`](super::replication_registry::command_fns::default_remove).
     See also [`Self::set_command_fns`].
 
     # Examples
@@ -52,7 +52,7 @@ pub trait AppMarkerExt {
         core::{
             command_markers::MarkerConfig,
             ctx::{RemoveCtx, WriteCtx},
-            replication_fns::rule_fns::RuleFns,
+            replication_registry::rule_fns::RuleFns,
             replicon_tick::RepliconTick,
         },
         prelude::*,
@@ -113,8 +113,8 @@ pub trait AppMarkerExt {
     ///
     /// If there are no markers present on an entity, then these functions will
     /// be called for this component during replication instead of
-    /// [`default_write`](super::replication_fns::command_fns::default_write) and
-    /// [`default_remove`](super::replication_fns::command_fns::default_remove).
+    /// [`default_write`](super::replication_registry::command_fns::default_write) and
+    /// [`default_remove`](super::replication_registry::command_fns::default_remove).
     /// See also [`Self::set_marker_fns`].
     fn set_command_fns<C: Component>(&mut self, write: WriteFn<C>, remove: RemoveFn) -> &mut Self;
 }
@@ -132,7 +132,7 @@ impl AppMarkerExt for App {
             config,
         });
 
-        let mut replicaton_fns = self.world.resource_mut::<ReplicationFns>();
+        let mut replicaton_fns = self.world.resource_mut::<ReplicationRegistry>();
         replicaton_fns.register_marker(marker_id);
 
         self
@@ -147,8 +147,8 @@ impl AppMarkerExt for App {
         let command_markers = self.world.resource::<CommandMarkers>();
         let marker_id = command_markers.marker_id(component_id);
         self.world
-            .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| {
-                replication_fns.set_marker_fns::<C>(world, marker_id, write, remove);
+            .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
+                registry.set_marker_fns::<C>(world, marker_id, write, remove);
             });
 
         self
@@ -156,8 +156,8 @@ impl AppMarkerExt for App {
 
     fn set_command_fns<C: Component>(&mut self, write: WriteFn<C>, remove: RemoveFn) -> &mut Self {
         self.world
-            .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| {
-                replication_fns.set_command_fns::<C>(world, write, remove);
+            .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
+                registry.set_command_fns::<C>(world, write, remove);
             });
 
         self
@@ -226,7 +226,7 @@ pub struct MarkerConfig {
 
     /// Represents whether a marker needs to process old updates.
     ///
-    /// Since updates use [`ChannelKind::Unreliable`](crate::core::replicon_channels::ChannelKind),
+    /// Since updates use [`ChannelKind::Unreliable`](crate::core::channels::ChannelKind),
     /// a client may receive an older update for an entity. By default these updates are discarded,
     /// but some markers may need them. If this field is set to `true`, old component updates will
     /// be passed to the writing function for this marker.
@@ -294,14 +294,14 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::core::replication_fns::{command_fns, ReplicationFns};
+    use crate::core::replication_registry::{command_fns, ReplicationRegistry};
 
     #[test]
     #[should_panic]
     fn non_registered_marker() {
         let mut app = App::new();
         app.init_resource::<CommandMarkers>()
-            .init_resource::<ReplicationFns>()
+            .init_resource::<ReplicationRegistry>()
             .set_marker_fns::<DummyMarkerA, DummyComponent>(
                 command_fns::default_write,
                 command_fns::default_remove::<DummyComponent>,
@@ -312,7 +312,7 @@ mod tests {
     fn sorting() {
         let mut app = App::new();
         app.init_resource::<CommandMarkers>()
-            .init_resource::<ReplicationFns>()
+            .init_resource::<ReplicationRegistry>()
             .register_marker::<DummyMarkerA>()
             .register_marker_with::<DummyMarkerB>(MarkerConfig {
                 priority: 2,

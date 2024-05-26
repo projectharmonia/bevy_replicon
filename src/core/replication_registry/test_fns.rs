@@ -2,7 +2,7 @@ use std::io::Cursor;
 
 use bevy::{ecs::system::CommandQueue, prelude::*};
 
-use super::{FnsInfo, ReplicationFns};
+use super::{FnsInfo, ReplicationRegistry};
 use crate::{
     client::server_entity_map::ServerEntityMap,
     core::{
@@ -16,7 +16,7 @@ use crate::{
 /**
 Extension for [`EntityWorldMut`] to call registered replication functions for [`FnsInfo`].
 
-See also [`ReplicationFns::register_rule_fns`].
+See also [`ReplicationRegistry::register_rule_fns`].
 
 # Example
 
@@ -25,7 +25,7 @@ This example shows how to call registered functions on an entity:
 ```
 use bevy::prelude::*;
 use bevy_replicon::{
-    core::replication_fns::{rule_fns::RuleFns, test_fns::TestFnsEntityExt, ReplicationFns},
+    core::replication_registry::{rule_fns::RuleFns, test_fns::TestFnsEntityExt, ReplicationRegistry},
     prelude::*,
     server::server_tick::ServerTick,
 };
@@ -39,8 +39,8 @@ let tick = **app.world.resource::<ServerTick>();
 // Register rule functions manually to obtain `FnsInfo`.
 let fns_info = app
     .world
-    .resource_scope(|world, mut replication_fns: Mut<ReplicationFns>| {
-        replication_fns.register_rule_fns(world, RuleFns::<DummyComponent>::default())
+    .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
+        registry.register_rule_fns(world, RuleFns::<DummyComponent>::default())
     });
 
 let mut entity = app.world.spawn(DummyComponent);
@@ -63,7 +63,7 @@ struct DummyComponent;
 pub trait TestFnsEntityExt {
     /// Returns a component serialized using a registered function for it.
     ///
-    /// See also [`ReplicationFns::register_rule_fns`].
+    /// See also [`ReplicationRegistry::register_rule_fns`].
     #[must_use]
     fn serialize(&mut self, fns_info: FnsInfo) -> Vec<u8>;
 
@@ -83,14 +83,14 @@ pub trait TestFnsEntityExt {
     /// See also [`AppMarkerExt`](crate::core::command_markers::AppMarkerExt).
     fn apply_remove(&mut self, fns_info: FnsInfo, message_tick: RepliconTick) -> &mut Self;
 
-    /// Despawns an entity using [`ReplicationFns::despawn`].
+    /// Despawns an entity using [`ReplicationRegistry::despawn`].
     fn apply_despawn(self, message_tick: RepliconTick);
 }
 
 impl TestFnsEntityExt for EntityWorldMut<'_> {
     fn serialize(&mut self, fns_info: FnsInfo) -> Vec<u8> {
-        let replication_fns = self.world().resource::<ReplicationFns>();
-        let (component_fns, rule_fns) = replication_fns.get(fns_info.fns_id());
+        let registry = self.world().resource::<ReplicationRegistry>();
+        let (component_fns, rule_fns) = registry.get(fns_info.fns_id());
         let server_tick = **self.world().resource::<ServerTick>();
         let mut cursor = Cursor::default();
         let ctx = SerializeCtx { server_tick };
@@ -124,7 +124,7 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
         let entity = self.id();
         self.world_scope(|world| {
             world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
-                world.resource_scope(|world, replication_fns: Mut<ReplicationFns>| {
+                world.resource_scope(|world, registry: Mut<ReplicationRegistry>| {
                     let world_cell = world.as_unsafe_world_cell();
                     // SAFETY: access is unique and used to obtain `EntityMut`, which is just a wrapper over `UnsafeEntityCell`.
                     let mut entity: EntityMut =
@@ -133,7 +133,7 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
                     let mut commands =
                         Commands::new_from_entities(&mut queue, world_cell.entities());
 
-                    let (component_fns, rule_fns) = replication_fns.get(fns_info.fns_id());
+                    let (component_fns, rule_fns) = registry.get(fns_info.fns_id());
                     let mut cursor = Cursor::new(data);
                     let mut ctx = WriteCtx::new(&mut commands, &mut entity_map, message_tick);
 
@@ -164,7 +164,7 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
 
         let entity = self.id();
         self.world_scope(|world| {
-            world.resource_scope(|world, replication_fns: Mut<ReplicationFns>| {
+            world.resource_scope(|world, registry: Mut<ReplicationRegistry>| {
                 let world_cell = world.as_unsafe_world_cell();
                 // SAFETY: access is unique and used to obtain `EntityMut`, which is just a wrapper over `UnsafeEntityCell`.
                 let mut entity: EntityMut =
@@ -172,7 +172,7 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
                 let mut queue = CommandQueue::default();
                 let mut commands = Commands::new_from_entities(&mut queue, world_cell.entities());
 
-                let (component_fns, _) = replication_fns.get(fns_info.fns_id());
+                let (component_fns, _) = registry.get(fns_info.fns_id());
                 let mut ctx = RemoveCtx::new(&mut commands, message_tick);
 
                 component_fns.remove(&mut ctx, &entity_markers, &mut entity);
@@ -185,8 +185,8 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
     }
 
     fn apply_despawn(self, message_tick: RepliconTick) {
-        let replication_fns = self.world().resource::<ReplicationFns>();
+        let registry = self.world().resource::<ReplicationRegistry>();
         let ctx = DespawnCtx { message_tick };
-        (replication_fns.despawn)(&ctx, self);
+        (registry.despawn)(&ctx, self);
     }
 }

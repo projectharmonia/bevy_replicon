@@ -1,4 +1,4 @@
-mod client_event_data;
+mod event_data;
 
 use std::io::Cursor;
 
@@ -9,17 +9,17 @@ use bevy::{
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Serialize};
 
+use super::{replicon_client::RepliconClient, server_entity_map::ServerEntityMap, ClientSet};
 use crate::{
-    client::{replicon_client::RepliconClient, server_entity_map::ServerEntityMap, ClientSet},
     core::{
+        channels::{RepliconChannel, RepliconChannels},
         common_conditions::*,
         ctx::{ClientSendCtx, ServerReceiveCtx},
-        replicon_channels::{RepliconChannel, RepliconChannels},
         ClientId,
     },
     server::{replicon_server::RepliconServer, ServerSet},
 };
-use client_event_data::ClientEventData;
+use event_data::ClientEventData;
 
 /// An extension trait for [`App`] for creating client events.
 pub trait ClientEventAppExt {
@@ -148,9 +148,13 @@ impl ClientEventAppExt for App {
     }
 }
 
-pub struct ClientEventPlugin;
+/// Sending events from a client to the server.
+///
+/// Requires [`ClientPlugin`](super::ClientPlugin) for clients
+/// and [`ServerPlugin`](crate::server::ServerPlugin) for the server.
+pub struct ClientEventsPlugin;
 
-impl Plugin for ClientEventPlugin {
+impl Plugin for ClientEventsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ClientEventRegistry>()
             .add_systems(
@@ -174,7 +178,7 @@ impl Plugin for ClientEventPlugin {
     }
 }
 
-impl ClientEventPlugin {
+impl ClientEventsPlugin {
     fn send(world: &mut World) {
         world.resource_scope(|world, mut client: Mut<RepliconClient>| {
             world.resource_scope(|world, registry: Mut<AppTypeRegistry>| {

@@ -1,5 +1,6 @@
 pub mod confirm_history;
 pub mod diagnostics;
+pub mod events;
 pub mod replicon_client;
 pub mod server_entity_map;
 
@@ -11,11 +12,11 @@ use bytes::Bytes;
 use varint_rs::VarintReader;
 
 use crate::core::{
+    channels::{ReplicationChannel, RepliconChannels},
     command_markers::{CommandMarkers, EntityMarkers},
     common_conditions::{client_connected, client_just_connected, client_just_disconnected},
     ctx::{DespawnCtx, RemoveCtx, WriteCtx},
-    replication_fns::ReplicationFns,
-    replicon_channels::{ReplicationChannel, RepliconChannels},
+    replication_registry::ReplicationRegistry,
     replicon_tick::RepliconTick,
     Replicated,
 };
@@ -24,6 +25,9 @@ use diagnostics::ClientStats;
 use replicon_client::RepliconClient;
 use server_entity_map::ServerEntityMap;
 
+/// Client functionality and replication receiving.
+///
+/// Can be disabled for server-only apps.
 pub struct ClientPlugin;
 
 impl Plugin for ClientPlugin {
@@ -90,7 +94,7 @@ impl ClientPlugin {
             world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
                 world.resource_scope(|world, mut buffered_updates: Mut<BufferedUpdates>| {
                     world.resource_scope(|world, command_markers: Mut<CommandMarkers>| {
-                        world.resource_scope(|world, replication_fns: Mut<ReplicationFns>| {
+                        world.resource_scope(|world, registry: Mut<ReplicationRegistry>| {
                             let mut stats = world.remove_resource::<ClientStats>();
                             let mut params = ReceiveParams {
                                 queue: &mut queue,
@@ -98,7 +102,7 @@ impl ClientPlugin {
                                 entity_map: &mut entity_map,
                                 stats: stats.as_mut(),
                                 command_markers: &command_markers,
-                                replication_fns: &replication_fns,
+                                registry: &registry,
                             };
 
                             apply_replication(
@@ -333,7 +337,7 @@ fn apply_init_components(
         let mut components_len = 0u32;
         while cursor.position() < end_pos {
             let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
-            let (component_fns, rule_fns) = params.replication_fns.get(fns_id);
+            let (component_fns, rule_fns) = params.registry.get(fns_id);
             match components_kind {
                 ComponentsKind::Insert => {
                     let mut ctx = WriteCtx::new(&mut commands, params.entity_map, message_tick);
@@ -390,7 +394,7 @@ fn apply_despawns(
             .and_then(|entity| world.get_entity_mut(entity))
         {
             let ctx = DespawnCtx { message_tick };
-            (params.replication_fns.despawn)(&ctx, client_entity);
+            (params.registry.despawn)(&ctx, client_entity);
         }
     }
 
@@ -460,7 +464,7 @@ fn apply_update_components(
         let mut components_count = 0u32;
         while cursor.position() < end_pos {
             let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
-            let (component_fns, rule_fns) = params.replication_fns.get(fns_id);
+            let (component_fns, rule_fns) = params.registry.get(fns_id);
             let mut ctx = WriteCtx::new(&mut commands, params.entity_map, message_tick);
 
             // SAFETY: `rule_fns` and `component_fns` were created for the same type.
@@ -526,7 +530,7 @@ struct ReceiveParams<'a> {
     entity_map: &'a mut ServerEntityMap,
     stats: Option<&'a mut ClientStats>,
     command_markers: &'a CommandMarkers,
-    replication_fns: &'a ReplicationFns,
+    registry: &'a ReplicationRegistry,
 }
 
 /// Type of components replication.

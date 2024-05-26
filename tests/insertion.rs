@@ -5,7 +5,7 @@ use bevy_replicon::{
     client::server_entity_map::ServerEntityMap,
     core::{
         ctx::WriteCtx,
-        replication_fns::{command_fns, rule_fns::RuleFns},
+        replication_registry::{command_fns, rule_fns::RuleFns},
     },
     prelude::*,
     test_app::ServerTestAppExt,
