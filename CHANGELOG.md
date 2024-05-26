@@ -11,10 +11,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `ClientEventsPlugin` and `ServerEventsPlugin` that are required for events (available from the `RepliconPlugins` group). Can be disabled if you don't use them.
 
-### Fixed
-
-- `bevy_replicon_renet` now properly sets `RepliconClientStatus::Connecting` when `RenetClient` is connecting.
-
 ### Changed
 
 - Custom events are now registered with serialization and deserialization functions instead of systems. This makes the API more convenient since the purpose of custom systems was to customize serialization.
@@ -25,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rename `replicon_channels` module into `channels`.
 - Rename `replication_fns` and `ReplicationFns` into `replication_registry` and `ReplicationRegistry`.
 - Rename "packets" into "messages" in client diagnostics.
+
+### Fixed
+
+- `bevy_replicon_renet` now properly sets `RepliconClientStatus::Connecting` when `RenetClient` is connecting.
 
 ## [0.25.3] - 2024-05-24
 
@@ -54,10 +54,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - More tracing.
 - `Debug` impl for `RepliconClientStatus`.
 
-### Fixed
-
-- Reversed order of the received messages from `RepliconClient`.
-
 ### Changed
 
 - `SerializeFn` now accepts regular `C` instead of `Ptr`.
@@ -82,6 +78,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - `dont_replicate` module. Use the newly added `AppRuleExt::replicate_group` or newtypes.
+
+### Fixed
+
+- Reversed order of the received messages from `RepliconClient`.
 
 ## [0.24.1] - 2024-03-07
 
@@ -174,10 +174,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.20.0] - 2024-01-13
 
-### Fixed
-
-- Don't panic when handling client acks if the ack references a despawned entity.
-
 ### Changed
 
 - API for custom server messages now uses `server_event::serialize_with` and `server_event::deserialize_with`. For more details see the example in the docs.
@@ -190,6 +186,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - `LastChangeTick` resource, `ClientsInfo` should be used instead.
+
+### Fixed
+
+- Don't panic when handling client acks if the ack references a despawned entity.
 
 ## [0.19.0] - 2024-01-07
 
@@ -214,21 +214,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.18.1] - 2023-12-21
 
+### Changed
+
+- Cache replicated archetypes for faster iteration.
+
 ### Fixed
 
 - Fix crash caused by registering the same type for client and server events.
 - Fix replication for entities when `Replication` component is added after spawn.
 
-### Changed
-
-- Cache replicated archetypes for faster iteration.
-
 ## [0.18.0] - 2023-12-19
-
-### Fixed
-
-- Fix missing reset of `RepliconTick` on server disconnect.
-- Fix replication of removals that happened after replication on the same frame.
 
 ### Changed
 
@@ -250,6 +245,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `AckedTicks` resource.
 - `TicksMap` resource.
+
+### Fixed
+
+- Fix missing reset of `RepliconTick` on server disconnect.
+- Fix replication of removals that happened after replication on the same frame.
 
 ## [0.17.0] - 2023-11-13
 
@@ -316,11 +316,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The ability to set custom despawn and component removal functions.
 - `TickPolicy::EveryFrame` to update `RepliconTick` every frame.
 
-### Fixed
-
-- Fix the entire world was always sent instead of changes.
-- Fix crash with several entities spawned and updated.
-
 ### Changed
 
 - Use more compact varint encoding for entities.
@@ -331,6 +326,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - `derive_more` dependency.
+
+### Fixed
+
+- Fix the entire world was always sent instead of changes.
+- Fix crash with several entities spawned and updated.
 
 ## [0.12.0] - 2023-10-01
 
@@ -434,14 +434,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `ServerSet::ReceiveEvent` and `ServerSet::SendEvent` for more fine-grained control of scheduling for event handling.
 
+### Changed
+
+- Update server to use `TickPolicy` instead of requiring a tick rate.
+
 ### Fixed
 
 - Unspecified system ordering could cause tick acks to be ordered on the wrong side of world diff handling.
 - Crash after adding events without `ServerPlugin` or `ClientPlugin`.
-
-### Changed
-
-- Update server to use `TickPolicy` instead of requiring a tick rate.
 
 ## [0.4.0] - 2023-05-26
 
