@@ -326,13 +326,13 @@ unsafe fn resend_locally<E: Event>(server_events: PtrMut, events: PtrMut) {
 /// The caller must ensure that `queue` is [`Events<E>`].
 unsafe fn reset<E: Event>(queue: PtrMut) {
     let queue: &mut ServerEventQueue<E> = queue.deref_mut();
-    if !queue.0.is_empty() {
+    if !queue.is_empty() {
         warn!(
             "discarding {} queued server events due to a disconnect",
-            queue.0.values_len()
+            queue.values_len()
         );
     }
-    queue.0.clear();
+    queue.clear();
 }
 
 /// Sends event `E` based on a mode.

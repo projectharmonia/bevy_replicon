@@ -347,17 +347,10 @@ pub enum SendMode {
 ///
 /// Stores data sorted by ticks and maintains order of arrival.
 /// Needed to ensure that when an event is triggered, all the data that it affects or references already exists.
-#[derive(Resource)]
+#[derive(Resource, Deref, DerefMut)]
 struct ServerEventQueue<T>(ListOrderedMultimap<RepliconTick, T>);
 
 impl<T> ServerEventQueue<T> {
-    /// Inserts a new event.
-    ///
-    /// The event will be queued until [`RepliconTick`] is bigger or equal to the tick specified here.
-    fn insert(&mut self, tick: RepliconTick, event: T) {
-        self.0.insert(tick, event);
-    }
-
     /// Pops the next event that is at least as old as the specified replicon tick.
     fn pop_if_le(&mut self, init_tick: RepliconTick) -> Option<(RepliconTick, T)> {
         let (tick, _) = self.0.front()?;
