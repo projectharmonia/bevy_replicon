@@ -279,12 +279,12 @@ impl ServerEventsPlugin {
     fn reset(world: &mut World) {
         world.resource_scope(|world, event_registry: Mut<ServerEventRegistry>| {
             for event_data in &event_registry.0 {
-                let events = world
-                    .get_resource_mut_by_id(event_data.events_id())
-                    .expect("events shouldn't be removed");
+                let queue = world
+                    .get_resource_mut_by_id(event_data.queue_id())
+                    .expect("event queue shouldn't be removed");
 
                 // SAFETY: passed pointer was obtained using this event data.
-                unsafe { event_data.reset(events.into_inner()) };
+                unsafe { event_data.reset(queue.into_inner()) };
             }
         });
     }
