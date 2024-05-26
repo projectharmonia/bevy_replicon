@@ -315,8 +315,10 @@ impl MapEntities for MappedEvent {
 
 As shown above, mapped client events must also implement [`Clone`].
 
-There is also [`ClientEventAppExt::add_client_event_with()`] to register an event with special sending and receiving functions.
-This could be used for sending events that contain [`Box<dyn Reflect>`], which require access to the [`AppTypeRegistry`] resource.
+There is also [`ClientEventAppExt::add_client_event_with()`] to register an event with special serialization and
+deserialization functions. This could be used for sending events that contain [`Box<dyn Reflect>`], which
+require access to the [`AppTypeRegistry`] resource.
+
 Don't forget to validate the contents of every [`Box<dyn Reflect>`] from a client, it could be anything!
 
 ### From server to client
@@ -360,7 +362,7 @@ struct DummyEvent;
 Just like with client events, if the event contains an entity, then
 [`ServerEventAppExt::add_mapped_server_event()`] should be used instead.
 
-For events that require special sending and receiving functions you can use
+For events that require special serialization and deserialization functions you can use
 [`ServerEventAppExt::add_server_event_with()`].
 
 ## Client visibility
