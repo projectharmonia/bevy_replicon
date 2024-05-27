@@ -279,12 +279,12 @@ impl ServerEventsPlugin {
     fn reset(world: &mut World) {
         world.resource_scope(|world, event_registry: Mut<ServerEventRegistry>| {
             for event_data in &event_registry.0 {
-                let events = world
-                    .get_resource_mut_by_id(event_data.events_id())
-                    .expect("events shouldn't be removed");
+                let queue = world
+                    .get_resource_mut_by_id(event_data.queue_id())
+                    .expect("event queue shouldn't be removed");
 
                 // SAFETY: passed pointer was obtained using this event data.
-                unsafe { event_data.reset(events.into_inner()) };
+                unsafe { event_data.reset(queue.into_inner()) };
             }
         });
     }
@@ -347,17 +347,10 @@ pub enum SendMode {
 ///
 /// Stores data sorted by ticks and maintains order of arrival.
 /// Needed to ensure that when an event is triggered, all the data that it affects or references already exists.
-#[derive(Resource)]
+#[derive(Resource, Deref, DerefMut)]
 struct ServerEventQueue<T>(ListOrderedMultimap<RepliconTick, T>);
 
 impl<T> ServerEventQueue<T> {
-    /// Inserts a new event.
-    ///
-    /// The event will be queued until [`RepliconTick`] is bigger or equal to the tick specified here.
-    fn insert(&mut self, tick: RepliconTick, event: T) {
-        self.0.insert(tick, event);
-    }
-
     /// Pops the next event that is at least as old as the specified replicon tick.
     fn pop_if_le(&mut self, init_tick: RepliconTick) -> Option<(RepliconTick, T)> {
         let (tick, _) = self.0.front()?;

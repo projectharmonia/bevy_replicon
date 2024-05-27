@@ -155,14 +155,16 @@ impl ServerEventData {
         (self.resend_locally)(server_events, events);
     }
 
-    /// Drains all events.
+    /// Clears queued events.
+    ///
+    /// We clear events while waiting for a connection to ensure clean reconnects.
     ///
     /// # Safety
     ///
-    /// The caller must ensure that `events` is [`Events<E>`]
+    /// The caller must ensure that `queue` is [`Events<E>`]
     /// and this instance was created for `E`.
-    pub(super) unsafe fn reset(&self, events: PtrMut) {
-        (self.reset)(events);
+    pub(super) unsafe fn reset(&self, queue: PtrMut) {
+        (self.reset)(queue);
     }
 
     /// Serializes an event into a cursor.
@@ -321,13 +323,16 @@ unsafe fn resend_locally<E: Event>(server_events: PtrMut, events: PtrMut) {
 ///
 /// # Safety
 ///
-/// The caller must ensure that `events` is [`Events<E>`].
-unsafe fn reset<E: Event>(events: PtrMut) {
-    let events: &mut Events<E> = events.deref_mut();
-    let drained_count = events.drain().count();
-    if drained_count > 0 {
-        warn!("discarded {drained_count} client events due to a disconnect");
+/// The caller must ensure that `queue` is [`Events<E>`].
+unsafe fn reset<E: Event>(queue: PtrMut) {
+    let queue: &mut ServerEventQueue<E> = queue.deref_mut();
+    if !queue.is_empty() {
+        warn!(
+            "discarding {} queued server events due to a disconnect",
+            queue.values_len()
+        );
     }
+    queue.clear();
 }
 
 /// Sends event `E` based on a mode.
