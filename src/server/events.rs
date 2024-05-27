@@ -83,7 +83,7 @@ pub trait ServerEventAppExt {
 
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, RepliconPlugins));
-    app.add_server_event_with::<ReflectEvent>(
+    app.add_server_event_with(
         ChannelKind::Ordered,
         serialize_reflect,
         deserialize_reflect,

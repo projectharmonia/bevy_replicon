@@ -81,7 +81,7 @@ pub trait ClientEventAppExt {
 
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, RepliconPlugins));
-    app.add_client_event_with::<ReflectEvent>(
+    app.add_client_event_with(
         ChannelKind::Ordered,
         serialize_reflect,
         deserialize_reflect,
