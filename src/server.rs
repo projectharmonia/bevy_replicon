@@ -572,6 +572,7 @@ pub enum ServerSet {
 ///
 /// Note that component updates are replicated over the unreliable channel, so if a component update packet is lost
 /// then component updates won't be resent until the server's replication system runs again.
+#[derive(Debug, Copy, Clone)]
 pub enum TickPolicy {
     /// The replicon tick is incremented at most max ticks per second. In practice the tick rate may be lower if the
     /// app's update cycle duration is too long.
@@ -600,7 +601,7 @@ pub enum VisibilityPolicy {
 /// Connection and disconnection events on the server.
 ///
 /// The messaging backend is responsible for emitting these in [`ServerSet::SendEvents`].
-#[derive(Event)]
+#[derive(Event, Debug, Clone)]
 pub enum ServerEvent {
     ClientConnected { client_id: ClientId },
     ClientDisconnected { client_id: ClientId, reason: String },
