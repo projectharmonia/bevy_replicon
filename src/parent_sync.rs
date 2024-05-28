@@ -25,7 +25,10 @@ impl Plugin for ParentSyncPlugin {
         app.register_type::<Option<Entity>>()
             .register_type::<ParentSync>()
             .replicate_mapped::<ParentSync>()
-            .add_systems(PreUpdate, Self::sync_hierarchy.after(ClientSet::Receive))
+            .add_systems(
+                PreUpdate,
+                Self::sync_hierarchy.in_set(ClientSet::SyncHierarchy),
+            )
             .add_systems(
                 PostUpdate,
                 (Self::store_changes, Self::store_removals)
