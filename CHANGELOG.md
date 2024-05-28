@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `Debug`/`Clone` derives to `ServerEvent`.
 - `Debug`/`Copy`/`Clone` derives to `TickPolicy`.
+- `ClientSet::SyncHierarchy` for `ParentSync` updates.
 
 ## [0.26.1] - 2024-05-27
 
