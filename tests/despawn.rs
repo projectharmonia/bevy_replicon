@@ -20,23 +20,23 @@ fn single() {
 
     server_app.connect_client(&mut client_app);
 
-    let server_entity = server_app.world.spawn(Replicated).id();
-    let client_entity = client_app.world.spawn(Replicated).id();
+    let server_entity = server_app.world_mut().spawn(Replicated).id();
+    let client_entity = client_app.world_mut().spawn(Replicated).id();
 
     client_app
-        .world
+        .world_mut()
         .resource_mut::<ServerEntityMap>()
         .insert(server_entity, client_entity);
 
-    server_app.world.despawn(server_entity);
+    server_app.world_mut().despawn(server_entity);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert!(client_app.world.entities().is_empty());
+    assert!(client_app.world().entities().is_empty());
 
-    let entity_map = client_app.world.resource::<ServerEntityMap>();
+    let entity_map = client_app.world().resource::<ServerEntityMap>();
     assert!(entity_map.to_client().is_empty());
     assert!(entity_map.to_server().is_empty());
 }
@@ -57,35 +57,35 @@ fn with_heirarchy() {
 
     server_app.connect_client(&mut client_app);
 
-    let server_child_entity = server_app.world.spawn(Replicated).id();
+    let server_child_entity = server_app.world_mut().spawn(Replicated).id();
     let server_entity = server_app
-        .world
+        .world_mut()
         .spawn(Replicated)
         .push_children(&[server_child_entity])
         .id();
 
-    let client_child_entity = client_app.world.spawn(Replicated).id();
+    let client_child_entity = client_app.world_mut().spawn(Replicated).id();
     let client_entity = client_app
-        .world
+        .world_mut()
         .spawn(Replicated)
         .push_children(&[client_child_entity])
         .id();
 
-    let mut entity_map = client_app.world.resource_mut::<ServerEntityMap>();
+    let mut entity_map = client_app.world_mut().resource_mut::<ServerEntityMap>();
     entity_map.insert(server_entity, client_entity);
     entity_map.insert(server_child_entity, client_child_entity);
 
-    server_app.world.despawn(server_entity);
-    server_app.world.despawn(server_child_entity);
+    server_app.world_mut().despawn(server_entity);
+    server_app.world_mut().despawn(server_child_entity);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    server_app.world.despawn(server_entity);
-    server_app.world.despawn(server_child_entity);
+    server_app.world_mut().despawn(server_entity);
+    server_app.world_mut().despawn(server_child_entity);
 
-    assert!(client_app.world.entities().is_empty());
+    assert!(client_app.world().entities().is_empty());
 }
 
 #[test]
@@ -107,7 +107,7 @@ fn after_spawn() {
 
     // Insert and remove `Replicated` to trigger spawn and despawn for client at the same time.
     server_app
-        .world
+        .world_mut()
         .spawn((Replicated, DummyComponent))
         .remove::<Replicated>();
 
@@ -115,7 +115,7 @@ fn after_spawn() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert!(client_app.world.entities().is_empty());
+    assert!(client_app.world().entities().is_empty());
 }
 
 #[derive(Component, Deserialize, Serialize)]

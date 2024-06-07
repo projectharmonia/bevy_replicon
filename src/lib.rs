@@ -178,7 +178,7 @@ necessary components after replication. To avoid one frame delay, put
 your initialization systems in [`ClientSet::Receive`]:
 
 ```
-# use bevy::{prelude::*, sprite::Mesh2dHandle};
+# use bevy::{color::palettes::css::AZURE, prelude::*, sprite::Mesh2dHandle};
 # use bevy_replicon::prelude::*;
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
@@ -199,7 +199,7 @@ fn init_player(
             GlobalTransform::default(),
             VisibilityBundle::default(),
             Mesh2dHandle(meshes.add(Capsule2d::default())),
-            materials.add(Color::AZURE),
+            materials.add(Color::from(AZURE)),
         ));
     }
 }

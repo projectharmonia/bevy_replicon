@@ -72,7 +72,7 @@ pub trait ServerEventAppExt {
 
     use bevy::{
         prelude::*,
-        reflect::serde::{ReflectSerializer, UntypedReflectDeserializer},
+        reflect::serde::{ReflectSerializer, ReflectDeserializer},
     };
     use bevy_replicon::{
         core::ctx::{ClientReceiveCtx, ServerSendCtx},
@@ -103,8 +103,7 @@ pub trait ServerEventAppExt {
         cursor: &mut Cursor<&[u8]>,
     ) -> bincode::Result<ReflectEvent> {
         let mut deserializer = bincode::Deserializer::with_reader(cursor, DefaultOptions::new());
-        let reflect =
-            UntypedReflectDeserializer::new(ctx.registry).deserialize(&mut deserializer)?;
+        let reflect = ReflectDeserializer ::new(ctx.registry).deserialize(&mut deserializer)?;
         Ok(ReflectEvent(reflect))
     }
 
@@ -132,11 +131,11 @@ impl ServerEventAppExt for App {
             .init_resource::<ServerEventQueue<E>>();
 
         let channel_id = self
-            .world
+            .world_mut()
             .resource_mut::<RepliconChannels>()
             .create_server_channel(channel.into());
 
-        self.world
+        self.world_mut()
             .resource_scope(|world, mut event_registry: Mut<ServerEventRegistry>| {
                 event_registry.0.push(ServerEventData::new(
                     world.components(),
