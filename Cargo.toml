@@ -48,5 +48,6 @@ too_many_arguments = "allow"
 name = "replication"
 harness = false
 
-[workspace]
-members = ["bevy_replicon_renet"]
+# Removed until `bevy_renet` supports 0.14.0-rc.2.
+# [workspace]
+# members = ["bevy_replicon_renet"]
