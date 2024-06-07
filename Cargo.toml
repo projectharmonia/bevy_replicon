@@ -21,7 +21,9 @@ license = "MIT OR Apache-2.0"
 include = ["/benches", "/src", "/tests", "/LICENSE*"]
 
 [dependencies]
-bevy = { version = "0.13", default-features = false, features = ["bevy_scene"] }
+bevy = { version = "0.14.0-rc.2", default-features = false, features = [
+  "bevy_scene",
+] }
 bytes = "1.5"
 bincode = "1.3"
 serde = "1.0"
@@ -29,7 +31,7 @@ varint-rs = "2.2"
 ordered-multimap = "0.7"
 
 [dev-dependencies]
-bevy = { version = "0.13", default-features = false, features = [
+bevy = { version = "0.14.0-rc.2", default-features = false, features = [
   "serialize",
   "bevy_asset",
   "bevy_sprite",

@@ -20,13 +20,13 @@ fn serialize_missing_component() {
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, RepliconPlugins));
 
-    let fns_info = app
-        .world
-        .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
-            registry.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
-        });
+    let fns_info =
+        app.world_mut()
+            .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
+                registry.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
+            });
 
-    let mut entity = app.world.spawn_empty();
+    let mut entity = app.world_mut().spawn_empty();
     let _ = entity.serialize(fns_info);
 }
 
@@ -35,14 +35,14 @@ fn write() {
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, RepliconPlugins));
 
-    let tick = **app.world.resource::<ServerTick>();
-    let fns_info = app
-        .world
-        .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
-            registry.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
-        });
+    let tick = **app.world().resource::<ServerTick>();
+    let fns_info =
+        app.world_mut()
+            .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
+                registry.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
+            });
 
-    let mut entity = app.world.spawn(OriginalComponent);
+    let mut entity = app.world_mut().spawn(OriginalComponent);
     let data = entity.serialize(fns_info);
     entity.remove::<OriginalComponent>();
     entity.apply_write(&data, fns_info, tick);
@@ -54,14 +54,14 @@ fn remove() {
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, RepliconPlugins));
 
-    let tick = **app.world.resource::<ServerTick>();
-    let fns_info = app
-        .world
-        .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
-            registry.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
-        });
+    let tick = **app.world().resource::<ServerTick>();
+    let fns_info =
+        app.world_mut()
+            .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
+                registry.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
+            });
 
-    let mut entity = app.world.spawn(OriginalComponent);
+    let mut entity = app.world_mut().spawn(OriginalComponent);
     entity.apply_remove(fns_info, tick);
     assert!(!entity.contains::<OriginalComponent>());
 }
@@ -72,14 +72,14 @@ fn write_with_command() {
     app.add_plugins((MinimalPlugins, RepliconPlugins))
         .set_command_fns(replace, command_fns::default_remove::<ReplacedComponent>);
 
-    let tick = **app.world.resource::<ServerTick>();
-    let fns_info = app
-        .world
-        .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
-            registry.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
-        });
+    let tick = **app.world().resource::<ServerTick>();
+    let fns_info =
+        app.world_mut()
+            .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
+                registry.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
+            });
 
-    let mut entity = app.world.spawn(OriginalComponent);
+    let mut entity = app.world_mut().spawn(OriginalComponent);
     let data = entity.serialize(fns_info);
     entity.apply_write(&data, fns_info, tick);
     assert!(entity.contains::<ReplacedComponent>());
@@ -91,14 +91,14 @@ fn remove_with_command() {
     app.add_plugins((MinimalPlugins, RepliconPlugins))
         .set_command_fns(replace, command_fns::default_remove::<ReplacedComponent>);
 
-    let tick = **app.world.resource::<ServerTick>();
-    let fns_info = app
-        .world
-        .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
-            registry.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
-        });
+    let tick = **app.world().resource::<ServerTick>();
+    let fns_info =
+        app.world_mut()
+            .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
+                registry.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
+            });
 
-    let mut entity = app.world.spawn(ReplacedComponent);
+    let mut entity = app.world_mut().spawn(ReplacedComponent);
     entity.apply_remove(fns_info, tick);
     assert!(!entity.contains::<ReplacedComponent>());
 }
@@ -113,14 +113,14 @@ fn write_without_marker() {
             command_fns::default_remove::<ReplacedComponent>,
         );
 
-    let tick = **app.world.resource::<ServerTick>();
-    let fns_info = app
-        .world
-        .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
-            registry.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
-        });
+    let tick = **app.world().resource::<ServerTick>();
+    let fns_info =
+        app.world_mut()
+            .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
+                registry.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
+            });
 
-    let mut entity = app.world.spawn(OriginalComponent);
+    let mut entity = app.world_mut().spawn(OriginalComponent);
     let data = entity.serialize(fns_info);
     entity.remove::<OriginalComponent>();
     entity.apply_write(&data, fns_info, tick);
@@ -137,14 +137,14 @@ fn remove_without_marker() {
             command_fns::default_remove::<ReplacedComponent>,
         );
 
-    let tick = **app.world.resource::<ServerTick>();
-    let fns_info = app
-        .world
-        .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
-            registry.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
-        });
+    let tick = **app.world().resource::<ServerTick>();
+    let fns_info =
+        app.world_mut()
+            .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
+                registry.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
+            });
 
-    let mut entity = app.world.spawn(OriginalComponent);
+    let mut entity = app.world_mut().spawn(OriginalComponent);
     entity.apply_remove(fns_info, tick);
     assert!(!entity.contains::<OriginalComponent>());
 }
@@ -159,14 +159,14 @@ fn write_with_marker() {
             command_fns::default_remove::<ReplacedComponent>,
         );
 
-    let tick = **app.world.resource::<ServerTick>();
-    let fns_info = app
-        .world
-        .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
-            registry.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
-        });
+    let tick = **app.world().resource::<ServerTick>();
+    let fns_info =
+        app.world_mut()
+            .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
+                registry.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
+            });
 
-    let mut entity = app.world.spawn((OriginalComponent, ReplaceMarker));
+    let mut entity = app.world_mut().spawn((OriginalComponent, ReplaceMarker));
     let data = entity.serialize(fns_info);
     entity.apply_write(&data, fns_info, tick);
     assert!(entity.contains::<ReplacedComponent>());
@@ -182,14 +182,14 @@ fn remove_with_marker() {
             command_fns::default_remove::<ReplacedComponent>,
         );
 
-    let tick = **app.world.resource::<ServerTick>();
-    let fns_info = app
-        .world
-        .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
-            registry.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
-        });
+    let tick = **app.world().resource::<ServerTick>();
+    let fns_info =
+        app.world_mut()
+            .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
+                registry.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
+            });
 
-    let mut entity = app.world.spawn((ReplacedComponent, ReplaceMarker));
+    let mut entity = app.world_mut().spawn((ReplacedComponent, ReplaceMarker));
     entity.apply_remove(fns_info, tick);
     assert!(!entity.contains::<ReplacedComponent>());
 }
@@ -209,15 +209,15 @@ fn write_with_multiple_markers() {
             command_fns::default_remove::<OriginalComponent>,
         );
 
-    let tick = **app.world.resource::<ServerTick>();
-    let fns_info = app
-        .world
-        .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
-            registry.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
-        });
+    let tick = **app.world().resource::<ServerTick>();
+    let fns_info =
+        app.world_mut()
+            .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
+                registry.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
+            });
 
     let mut entity = app
-        .world
+        .world_mut()
         .spawn((OriginalComponent, ReplaceMarker, DummyMarker));
     let data = entity.serialize(fns_info);
     entity.apply_write(&data, fns_info, tick);
@@ -242,15 +242,15 @@ fn remove_with_mutltiple_markers() {
             command_fns::default_remove::<OriginalComponent>,
         );
 
-    let tick = **app.world.resource::<ServerTick>();
-    let fns_info = app
-        .world
-        .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
-            registry.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
-        });
+    let tick = **app.world().resource::<ServerTick>();
+    let fns_info =
+        app.world_mut()
+            .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
+                registry.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
+            });
 
     let mut entity = app
-        .world
+        .world_mut()
         .spawn((ReplacedComponent, ReplaceMarker, DummyMarker));
     entity.apply_remove(fns_info, tick);
     assert!(
@@ -277,15 +277,15 @@ fn write_with_priority_marker() {
             command_fns::default_remove::<OriginalComponent>,
         );
 
-    let tick = **app.world.resource::<ServerTick>();
-    let fns_info = app
-        .world
-        .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
-            registry.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
-        });
+    let tick = **app.world().resource::<ServerTick>();
+    let fns_info =
+        app.world_mut()
+            .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
+                registry.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
+            });
 
     let mut entity = app
-        .world
+        .world_mut()
         .spawn((OriginalComponent, ReplaceMarker, DummyMarker));
     let data = entity.serialize(fns_info);
     entity.apply_write(&data, fns_info, tick);
@@ -310,15 +310,15 @@ fn remove_with_priority_marker() {
             command_fns::default_remove::<OriginalComponent>,
         );
 
-    let tick = **app.world.resource::<ServerTick>();
-    let fns_info = app
-        .world
-        .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
-            registry.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
-        });
+    let tick = **app.world().resource::<ServerTick>();
+    let fns_info =
+        app.world_mut()
+            .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
+                registry.register_rule_fns(world, RuleFns::<OriginalComponent>::default())
+            });
 
     let mut entity = app
-        .world
+        .world_mut()
         .spawn((ReplacedComponent, ReplaceMarker, DummyMarker));
     entity.apply_remove(fns_info, tick);
     assert!(!entity.contains::<ReplacedComponent>());
@@ -329,14 +329,14 @@ fn despawn() {
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, RepliconPlugins));
 
-    let mut registry = app.world.resource_mut::<ReplicationRegistry>();
+    let mut registry = app.world_mut().resource_mut::<ReplicationRegistry>();
     registry.despawn = mark_despawned;
 
-    let tick = **app.world.resource::<ServerTick>();
-    let entity = app.world.spawn_empty();
+    let tick = **app.world().resource::<ServerTick>();
+    let entity = app.world_mut().spawn_empty();
     let id = entity.id(); // Take ID since despawn function consumes entity.
     entity.apply_despawn(tick);
-    assert!(app.world.get::<Despawned>(id).is_some());
+    assert!(app.world().get::<Despawned>(id).is_some());
 }
 
 #[derive(Component, Deserialize, Serialize)]

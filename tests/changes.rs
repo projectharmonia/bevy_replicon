@@ -32,7 +32,7 @@ fn small_component() {
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
-        .world
+        .world_mut()
         .spawn((Replicated, BoolComponent(false)))
         .id();
 
@@ -43,7 +43,7 @@ fn small_component() {
 
     // Change value.
     let mut component = server_app
-        .world
+        .world_mut()
         .get_mut::<BoolComponent>(server_entity)
         .unwrap();
     component.0 = true;
@@ -53,9 +53,9 @@ fn small_component() {
     client_app.update();
 
     let component = client_app
-        .world
+        .world_mut()
         .query::<&BoolComponent>()
-        .single(&client_app.world);
+        .single(client_app.world());
     assert!(component.0, "changed value should be updated on client");
 }
 
@@ -82,7 +82,7 @@ fn package_size_component() {
     server_app.exchange_with_client(&mut client_app);
 
     let server_entity = server_app
-        .world
+        .world_mut()
         .spawn((Replicated, VecComponent::default()))
         .id();
 
@@ -94,7 +94,7 @@ fn package_size_component() {
     // To exceed packed size.
     const BIG_DATA: &[u8] = &[0; 1200];
     let mut component = server_app
-        .world
+        .world_mut()
         .get_mut::<VecComponent>(server_entity)
         .unwrap();
     component.0 = BIG_DATA.to_vec();
@@ -104,9 +104,9 @@ fn package_size_component() {
     client_app.update();
 
     let component = client_app
-        .world
+        .world_mut()
         .query::<&VecComponent>()
-        .single(&client_app.world);
+        .single(client_app.world());
     assert_eq!(component.0, BIG_DATA);
 }
 
@@ -129,7 +129,7 @@ fn command_fns() {
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
-        .world
+        .world_mut()
         .spawn((Replicated, OriginalComponent(false)))
         .id();
 
@@ -139,13 +139,13 @@ fn command_fns() {
     server_app.exchange_with_client(&mut client_app);
 
     let client_entity = client_app
-        .world
+        .world_mut()
         .query_filtered::<Entity, With<ReplacedComponent>>()
-        .single(&client_app.world);
+        .single(client_app.world());
 
     // Change value.
     let mut component = server_app
-        .world
+        .world_mut()
         .get_mut::<OriginalComponent>(server_entity)
         .unwrap();
     component.0 = true;
@@ -154,7 +154,7 @@ fn command_fns() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let client_entity = client_app.world.entity(client_entity);
+    let client_entity = client_app.world().entity(client_entity);
     assert!(!client_entity.contains::<OriginalComponent>());
 
     let component = client_entity.get::<ReplacedComponent>().unwrap();
@@ -184,16 +184,16 @@ fn marker() {
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
-        .world
+        .world_mut()
         .spawn((Replicated, OriginalComponent(false)))
         .id();
 
-    let client_entity = client_app.world.spawn(ReplaceMarker).id();
+    let client_entity = client_app.world_mut().spawn(ReplaceMarker).id();
 
-    let client = client_app.world.resource::<RepliconClient>();
+    let client = client_app.world().resource::<RepliconClient>();
     let client_id = client.id().unwrap();
 
-    let mut entity_map = server_app.world.resource_mut::<ClientEntityMap>();
+    let mut entity_map = server_app.world_mut().resource_mut::<ClientEntityMap>();
     entity_map.insert(
         client_id,
         ClientMapping {
@@ -209,7 +209,7 @@ fn marker() {
 
     // Change value.
     let mut component = server_app
-        .world
+        .world_mut()
         .get_mut::<OriginalComponent>(server_entity)
         .unwrap();
     component.0 = true;
@@ -218,7 +218,7 @@ fn marker() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let client_entity = client_app.world.entity(client_entity);
+    let client_entity = client_app.world().entity(client_entity);
     assert!(!client_entity.contains::<OriginalComponent>());
 
     let component = client_entity.get::<ReplacedComponent>().unwrap();
@@ -251,16 +251,16 @@ fn marker_with_history() {
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
-        .world
+        .world_mut()
         .spawn((Replicated, BoolComponent(false)))
         .id();
 
-    let client_entity = client_app.world.spawn(HistoryMarker).id();
+    let client_entity = client_app.world_mut().spawn(HistoryMarker).id();
 
-    let client = client_app.world.resource::<RepliconClient>();
+    let client = client_app.world().resource::<RepliconClient>();
     let client_id = client.id().unwrap();
 
-    let mut entity_map = server_app.world.resource_mut::<ClientEntityMap>();
+    let mut entity_map = server_app.world_mut().resource_mut::<ClientEntityMap>();
     entity_map.insert(
         client_id,
         ClientMapping {
@@ -276,7 +276,7 @@ fn marker_with_history() {
 
     // Change value, but don't process it on client.
     let mut component = server_app
-        .world
+        .world_mut()
         .get_mut::<BoolComponent>(server_entity)
         .unwrap();
     component.0 = true;
@@ -286,7 +286,7 @@ fn marker_with_history() {
 
     // Change value again to generate another update.
     let mut component = server_app
-        .world
+        .world_mut()
         .get_mut::<BoolComponent>(server_entity)
         .unwrap();
     component.0 = false;
@@ -295,7 +295,7 @@ fn marker_with_history() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let client_entity = client_app.world.entity(client_entity);
+    let client_entity = client_app.world().entity(client_entity);
     let history = client_entity.get::<BoolHistory>().unwrap();
     assert_eq!(
         history.0,
@@ -331,9 +331,9 @@ fn marker_with_history_consume() {
 
     server_app.connect_client(&mut client_app);
 
-    let server_map_entity = server_app.world.spawn_empty().id();
+    let server_map_entity = server_app.world_mut().spawn_empty().id();
     let server_entity = server_app
-        .world
+        .world_mut()
         .spawn((
             Replicated,
             BoolComponent(false),
@@ -341,12 +341,12 @@ fn marker_with_history_consume() {
         ))
         .id();
 
-    let client_entity = client_app.world.spawn(HistoryMarker).id();
+    let client_entity = client_app.world_mut().spawn(HistoryMarker).id();
 
-    let client = client_app.world.resource::<RepliconClient>();
+    let client = client_app.world().resource::<RepliconClient>();
     let client_id = client.id().unwrap();
 
-    let mut entity_map = server_app.world.resource_mut::<ClientEntityMap>();
+    let mut entity_map = server_app.world_mut().resource_mut::<ClientEntityMap>();
     entity_map.insert(
         client_id,
         ClientMapping {
@@ -361,9 +361,9 @@ fn marker_with_history_consume() {
     server_app.exchange_with_client(&mut client_app);
 
     // Change value, but don't process it on client.
-    let update_entity1 = server_app.world.spawn_empty().id();
+    let update_entity1 = server_app.world_mut().spawn_empty().id();
     let mut component = server_app
-        .world
+        .world_mut()
         .get_mut::<MappedComponent>(server_entity)
         .unwrap();
     component.0 = update_entity1;
@@ -372,9 +372,9 @@ fn marker_with_history_consume() {
     server_app.exchange_with_client(&mut client_app);
 
     // Change value again to generate another update.
-    let update_entity2 = server_app.world.spawn_empty().id();
+    let update_entity2 = server_app.world_mut().spawn_empty().id();
     let mut component = server_app
-        .world
+        .world_mut()
         .get_mut::<MappedComponent>(server_entity)
         .unwrap();
     component.0 = update_entity2;
@@ -383,14 +383,14 @@ fn marker_with_history_consume() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let entity_map = client_app.world.resource::<ServerEntityMap>();
+    let entity_map = client_app.world().resource::<ServerEntityMap>();
     assert!(entity_map.to_client().contains_key(&update_entity2));
     assert!(
         !entity_map.to_client().contains_key(&update_entity1),
         "client should consume older update for other components with marker that requested history"
     );
     assert_eq!(
-        client_app.world.entities().len(),
+        client_app.world().entities().len(),
         3,
         "client should have 2 initial entities and 1 from update"
     );
@@ -422,16 +422,16 @@ fn marker_with_history_old_update() {
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
-        .world
+        .world_mut()
         .spawn((Replicated, BoolComponent(false)))
         .id();
 
-    let client_entity = client_app.world.spawn(HistoryMarker).id();
+    let client_entity = client_app.world_mut().spawn(HistoryMarker).id();
 
-    let client = client_app.world.resource::<RepliconClient>();
+    let client = client_app.world().resource::<RepliconClient>();
     let client_id = client.id().unwrap();
 
-    let mut entity_map = server_app.world.resource_mut::<ClientEntityMap>();
+    let mut entity_map = server_app.world_mut().resource_mut::<ClientEntityMap>();
     entity_map.insert(
         client_id,
         ClientMapping {
@@ -447,16 +447,16 @@ fn marker_with_history_old_update() {
 
     // Artificially make the last confirmed tick too large
     // so that the next update for this entity is discarded.
-    let mut tick = **server_app.world.resource::<ServerTick>();
+    let mut tick = **server_app.world().resource::<ServerTick>();
     tick += u64::BITS + 1;
     let mut history = client_app
-        .world
+        .world_mut()
         .get_mut::<ConfirmHistory>(client_entity)
         .unwrap();
     history.confirm(tick);
 
     let mut component = server_app
-        .world
+        .world_mut()
         .get_mut::<BoolComponent>(server_entity)
         .unwrap();
     component.0 = true;
@@ -465,7 +465,10 @@ fn marker_with_history_old_update() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let history = client_app.world.get::<BoolHistory>(client_entity).unwrap();
+    let history = client_app
+        .world()
+        .get::<BoolHistory>(client_entity)
+        .unwrap();
     assert_eq!(
         history.0,
         [false],
@@ -493,7 +496,7 @@ fn many_entities() {
     // Spawn many entities to cover message splitting.
     const ENTITIES_COUNT: u32 = 300;
     server_app
-        .world
+        .world_mut()
         .spawn_batch([(Replicated, BoolComponent(false)); ENTITIES_COUNT as usize]);
 
     server_app.update();
@@ -501,12 +504,12 @@ fn many_entities() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    assert_eq!(client_app.world.entities().len(), ENTITIES_COUNT);
+    assert_eq!(client_app.world().entities().len(), ENTITIES_COUNT);
 
     for mut component in server_app
-        .world
+        .world_mut()
         .query::<&mut BoolComponent>()
-        .iter_mut(&mut server_app.world)
+        .iter_mut(server_app.world_mut())
     {
         component.0 = true;
     }
@@ -516,9 +519,9 @@ fn many_entities() {
     client_app.update();
 
     for component in client_app
-        .world
+        .world_mut()
         .query::<&BoolComponent>()
-        .iter(&client_app.world)
+        .iter(client_app.world())
     {
         assert!(component.0);
     }
@@ -543,7 +546,7 @@ fn with_insertion() {
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
-        .world
+        .world_mut()
         .spawn((Replicated, BoolComponent(false)))
         .id();
 
@@ -552,7 +555,7 @@ fn with_insertion() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    let mut server_entity = server_app.world.entity_mut(server_entity);
+    let mut server_entity = server_app.world_mut().entity_mut(server_entity);
     server_entity.get_mut::<BoolComponent>().unwrap().0 = true;
     server_entity.insert(DummyComponent);
 
@@ -561,9 +564,9 @@ fn with_insertion() {
     client_app.update();
 
     let component = client_app
-        .world
+        .world_mut()
         .query_filtered::<&BoolComponent, With<DummyComponent>>()
-        .single(&client_app.world);
+        .single(client_app.world());
     assert!(component.0);
 }
 
@@ -586,7 +589,7 @@ fn with_removal() {
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
-        .world
+        .world_mut()
         .spawn((Replicated, BoolComponent(false), DummyComponent))
         .id();
 
@@ -595,7 +598,7 @@ fn with_removal() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    let mut server_entity = server_app.world.entity_mut(server_entity);
+    let mut server_entity = server_app.world_mut().entity_mut(server_entity);
     server_entity.get_mut::<BoolComponent>().unwrap().0 = true;
     server_entity.remove::<DummyComponent>();
 
@@ -604,9 +607,9 @@ fn with_removal() {
     client_app.update();
 
     let component = client_app
-        .world
+        .world_mut()
         .query_filtered::<&BoolComponent, Without<DummyComponent>>()
-        .single(&client_app.world);
+        .single(client_app.world());
     assert!(component.0);
 }
 
@@ -628,7 +631,7 @@ fn with_despawn() {
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
-        .world
+        .world_mut()
         .spawn((Replicated, BoolComponent(false)))
         .id();
 
@@ -638,7 +641,7 @@ fn with_despawn() {
     server_app.exchange_with_client(&mut client_app);
 
     let mut component = server_app
-        .world
+        .world_mut()
         .get_mut::<BoolComponent>(server_entity)
         .unwrap();
     component.0 = true;
@@ -646,7 +649,7 @@ fn with_despawn() {
     // Update without client to send update message.
     server_app.update();
 
-    server_app.world.despawn(server_entity);
+    server_app.world_mut().despawn(server_entity);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -654,7 +657,7 @@ fn with_despawn() {
     server_app.exchange_with_client(&mut client_app);
     server_app.update(); // Let server receive an update to trigger acknowledgment.
 
-    assert!(client_app.world.entities().is_empty());
+    assert!(client_app.world().entities().is_empty());
 }
 
 #[test]
@@ -675,7 +678,7 @@ fn buffering() {
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
-        .world
+        .world_mut()
         .spawn((Replicated, BoolComponent(false)))
         .id();
 
@@ -685,11 +688,11 @@ fn buffering() {
     server_app.exchange_with_client(&mut client_app);
 
     // Artificially reset the init tick to force the next received update to be buffered.
-    let mut init_tick = client_app.world.resource_mut::<ServerInitTick>();
+    let mut init_tick = client_app.world_mut().resource_mut::<ServerInitTick>();
     let previous_tick = *init_tick;
     *init_tick = Default::default();
     let mut component = server_app
-        .world
+        .world_mut()
         .get_mut::<BoolComponent>(server_entity)
         .unwrap();
     component.0 = true;
@@ -700,22 +703,22 @@ fn buffering() {
     server_app.exchange_with_client(&mut client_app);
 
     let component = client_app
-        .world
+        .world_mut()
         .query::<&BoolComponent>()
-        .single(&client_app.world);
+        .single(client_app.world());
     assert!(!component.0, "client should buffer the update");
 
     // Restore the init tick to let the buffered update apply
-    *client_app.world.resource_mut::<ServerInitTick>() = previous_tick;
+    *client_app.world_mut().resource_mut::<ServerInitTick>() = previous_tick;
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let component = client_app
-        .world
+        .world_mut()
         .query::<&BoolComponent>()
-        .single(&client_app.world);
+        .single(client_app.world());
     assert!(component.0, "buffered update should be applied");
 }
 
@@ -736,9 +739,9 @@ fn old_ignored() {
 
     server_app.connect_client(&mut client_app);
 
-    let server_map_entity = server_app.world.spawn_empty().id();
+    let server_map_entity = server_app.world_mut().spawn_empty().id();
     let server_entity = server_app
-        .world
+        .world_mut()
         .spawn((Replicated, MappedComponent(server_map_entity)))
         .id();
 
@@ -748,9 +751,9 @@ fn old_ignored() {
     server_app.exchange_with_client(&mut client_app);
 
     // Change the value, but don't process it on client.
-    let update_entity1 = server_app.world.spawn_empty().id();
+    let update_entity1 = server_app.world_mut().spawn_empty().id();
     let mut component = server_app
-        .world
+        .world_mut()
         .get_mut::<MappedComponent>(server_entity)
         .unwrap();
     component.0 = update_entity1;
@@ -759,9 +762,9 @@ fn old_ignored() {
     server_app.exchange_with_client(&mut client_app);
 
     // Change the value again to generate another update.
-    let update_entity2 = server_app.world.spawn_empty().id();
+    let update_entity2 = server_app.world_mut().spawn_empty().id();
     let mut component = server_app
-        .world
+        .world_mut()
         .get_mut::<MappedComponent>(server_entity)
         .unwrap();
     component.0 = update_entity2;
@@ -770,13 +773,13 @@ fn old_ignored() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let entity_map = client_app.world.resource::<ServerEntityMap>();
+    let entity_map = client_app.world().resource::<ServerEntityMap>();
     assert!(
         !entity_map.to_client().contains_key(&update_entity1),
         "client should ignore older update"
     );
     assert_eq!(
-        client_app.world.entities().len(),
+        client_app.world().entities().len(),
         3,
         "client should have 2 initial entities and 1 from update"
     );
@@ -801,7 +804,7 @@ fn acknowledgment() {
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
-        .world
+        .world_mut()
         .spawn((Replicated, BoolComponent(false)))
         .id();
 
@@ -811,7 +814,7 @@ fn acknowledgment() {
     server_app.exchange_with_client(&mut client_app);
 
     let mut component = server_app
-        .world
+        .world_mut()
         .get_mut::<BoolComponent>(server_entity)
         .unwrap();
     component.0 = true;
@@ -821,13 +824,13 @@ fn acknowledgment() {
     client_app.update();
 
     let component = client_app
-        .world
+        .world_mut()
         .query::<Ref<BoolComponent>>()
-        .single(&client_app.world);
+        .single(client_app.world());
     let tick1 = component.last_changed();
 
     // Take and drop ack message.
-    let mut client = client_app.world.resource_mut::<RepliconClient>();
+    let mut client = client_app.world_mut().resource_mut::<RepliconClient>();
     assert_eq!(client.drain_sent().count(), 1);
 
     server_app.update();
@@ -836,9 +839,9 @@ fn acknowledgment() {
     server_app.exchange_with_client(&mut client_app);
 
     let component = client_app
-        .world
+        .world_mut()
         .query::<Ref<BoolComponent>>()
-        .single(&client_app.world);
+        .single(client_app.world());
     let tick2 = component.last_changed();
 
     assert!(
@@ -851,9 +854,9 @@ fn acknowledgment() {
     client_app.update();
 
     let component = client_app
-        .world
+        .world_mut()
         .query::<Ref<BoolComponent>>()
-        .single(&client_app.world);
+        .single(client_app.world());
     let tick3 = component.last_changed();
 
     assert_eq!(

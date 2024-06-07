@@ -6,7 +6,7 @@ pub mod server_entity_map;
 
 use std::{io::Cursor, mem};
 
-use bevy::{ecs::system::CommandQueue, prelude::*};
+use bevy::{ecs::world::CommandQueue, prelude::*};
 use bincode::{DefaultOptions, Options};
 use bytes::Bytes;
 use varint_rs::VarintReader;
