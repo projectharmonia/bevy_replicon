@@ -128,6 +128,7 @@ fn marker() {
         .world_mut()
         .spawn((Replicated, OriginalComponent))
         .id();
+
     let client_entity = client_app.world_mut().spawn(ReplaceMarker).id();
 
     let client = client_app.world().resource::<RepliconClient>();

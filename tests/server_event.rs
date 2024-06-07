@@ -198,10 +198,8 @@ fn event_queue() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert!(client_app
-        .world()
-        .resource::<Events<DummyEvent>>()
-        .is_empty());
+    let events = client_app.world().resource::<Events<DummyEvent>>();
+    assert!(events.is_empty());
 
     // Restore the init tick to receive the event.
     *client_app.world_mut().resource_mut::<ServerInitTick>() = previous_tick;
