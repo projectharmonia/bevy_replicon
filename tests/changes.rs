@@ -469,6 +469,7 @@ fn marker_with_history_old_update() {
         .world()
         .get::<BoolHistory>(client_entity)
         .unwrap();
+
     assert_eq!(
         history.0,
         [false],

@@ -174,6 +174,7 @@ impl AppRuleExt for App {
         self.world_mut()
             .resource_mut::<ReplicationRules>()
             .insert(rule);
+
         self
     }
 
@@ -187,6 +188,7 @@ impl AppRuleExt for App {
         self.world_mut()
             .resource_mut::<ReplicationRules>()
             .insert(rule);
+
         self
     }
 }
