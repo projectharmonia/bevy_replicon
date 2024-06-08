@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Logging for sending and receiving messages.
+
+### Changed
+
+- Do not send empty ack messages from client.
+
 ## [0.26.2] - 2024-06-05
 
 ### Added
