@@ -63,6 +63,11 @@ impl RepliconClient {
             .get_mut(channel_id as usize)
             .unwrap_or_else(|| panic!("client should have a receive channel with id {channel_id}"));
 
+        trace!(
+            "received {} message(s) from channel {channel_id}",
+            channel_messages.len()
+        );
+
         channel_messages.drain(..)
     }
 
@@ -73,7 +78,12 @@ impl RepliconClient {
             return;
         }
 
-        self.sent_messages.push((channel_id.into(), message.into()));
+        let channel_id: u8 = channel_id.into();
+        let message: Bytes = message.into();
+
+        trace!("sending {} bytes over channel {channel_id}", message.len());
+
+        self.sent_messages.push((channel_id, message));
     }
 
     /// Sets the client connection status.
