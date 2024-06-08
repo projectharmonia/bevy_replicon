@@ -73,7 +73,12 @@ impl RepliconClient {
             return;
         }
 
-        self.sent_messages.push((channel_id.into(), message.into()));
+        let channel_id: u8 = channel_id.into();
+        let message: Bytes = message.into();
+
+        info!("sending {} bytes over channel {channel_id}", message.len());
+
+        self.sent_messages.push((channel_id, message));
     }
 
     /// Sets the client connection status.
