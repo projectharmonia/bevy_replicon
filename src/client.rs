@@ -6,7 +6,7 @@ pub mod server_entity_map;
 
 use std::{io::Cursor, mem};
 
-use bevy::{ecs::system::CommandQueue, prelude::*};
+use bevy::{ecs::world::CommandQueue, prelude::*};
 use bincode::{DefaultOptions, Options};
 use bytes::Bytes;
 use varint_rs::VarintReader;
@@ -156,14 +156,12 @@ fn apply_replication(
     // (unless user requested history via marker).
     let init_tick = *world.resource::<ServerInitTick>();
     let acks_size = mem::size_of::<u16>() * client.received_count(ReplicationChannel::Update);
-    if acks_size != 0 {
-        let mut acks = Vec::with_capacity(acks_size);
-        for message in client.receive(ReplicationChannel::Update) {
-            let update_index = read_update_message(params, buffered_updates, message)?;
-            bincode::serialize_into(&mut acks, &update_index)?;
-        }
-        client.send(ReplicationChannel::Init, acks);
+    let mut acks = Vec::with_capacity(acks_size);
+    for message in client.receive(ReplicationChannel::Update) {
+        let update_index = read_update_message(params, buffered_updates, message)?;
+        bincode::serialize_into(&mut acks, &update_index)?;
     }
+    client.send(ReplicationChannel::Init, acks);
 
     apply_update_messages(world, params, buffered_updates, init_tick)
 }

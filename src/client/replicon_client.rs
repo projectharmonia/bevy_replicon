@@ -80,6 +80,9 @@ impl RepliconClient {
 
         let channel_id: u8 = channel_id.into();
         let message: Bytes = message.into();
+        if message.is_empty() {
+            return;
+        }
 
         trace!("sending {} bytes over channel {channel_id}", message.len());
 
