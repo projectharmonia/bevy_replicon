@@ -39,7 +39,7 @@ See also [What kind of networking should X game use?](https://github.com/bevyeng
 
 Check out the [quick start guide](https://docs.rs/bevy_replicon).
 
-See also [examples](bevy_replicon_renet/examples) with [`bevy_replicon_renet`](bevy_replicon_renet) as a messaging backed.
+See also [examples](bevy_replicon_renet/examples) with [`bevy_replicon_renet`](bevy_replicon_renet) as a messaging backend.
 
 Have any questions? Feel free to ask in the dedicated [`bevy_replicon` channel](https://discord.com/channels/691052431525675048/1090432346907492443) in Bevy's Discord server.
 
