@@ -279,7 +279,7 @@ fn send_events(mut dummy_events: EventWriter<DummyEvent>) {
     dummy_events.send_default();
 }
 
-/// Receives event on server and single-player.
+/// Receives events on server or single-player.
 fn receive_events(mut dummy_events: EventReader<FromClient<DummyEvent>>) {
     for FromClient { client_id, event } in dummy_events.read() {
         info!("received event {event:?} from {client_id:?}");
@@ -338,7 +338,7 @@ from the send list):
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
 app.add_server_event::<DummyEvent>(ChannelKind::Ordered)
-    .add_systems(Update, (send_events, receive_events.run_if(has_authority)));
+    .add_systems(Update, (send_events.run_if(has_authority), receive_events));
 
 /// Sends an event from server or single-player.
 fn send_events(mut dummy_events: EventWriter<ToClients<DummyEvent>>) {
@@ -348,7 +348,7 @@ fn send_events(mut dummy_events: EventWriter<ToClients<DummyEvent>>) {
     });
 }
 
-/// Receives event on client and single-player.
+/// Receives events on client or listen server.
 fn receive_events(mut dummy_events: EventReader<DummyEvent>) {
     for event in dummy_events.read() {
         info!("received event {event:?} from server");
