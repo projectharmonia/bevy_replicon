@@ -63,6 +63,11 @@ impl RepliconClient {
             .get_mut(channel_id as usize)
             .unwrap_or_else(|| panic!("client should have a receive channel with id {channel_id}"));
 
+        trace!(
+            "received {} messages over channel {channel_id}",
+            channel_messages.len()
+        );
+
         channel_messages.drain(..)
     }
 
@@ -76,7 +81,7 @@ impl RepliconClient {
         let channel_id: u8 = channel_id.into();
         let message: Bytes = message.into();
 
-        info!("sending {} bytes over channel {channel_id}", message.len());
+        trace!("sending {} bytes over channel {channel_id}", message.len());
 
         self.sent_messages.push((channel_id, message));
     }
