@@ -1,6 +1,6 @@
 [package]
 name = "bevy_replicon"
-version = "0.27.0-rc.1"
+version = "0.27.0-rc.2"
 authors = [
   "Hennadii Chernyshchyk <genaloner@gmail.com>",
   "koe <ukoe@protonmail.com>",
@@ -21,7 +21,7 @@ license = "MIT OR Apache-2.0"
 include = ["/benches", "/src", "/tests", "/LICENSE*"]
 
 [dependencies]
-bevy = { version = "0.14.0-rc.2", default-features = false, features = [
+bevy = { version = "0.14.0-rc.3", default-features = false, features = [
   "bevy_scene",
 ] }
 bytes = "1.5"
@@ -31,7 +31,7 @@ varint-rs = "2.2"
 ordered-multimap = "0.7"
 
 [dev-dependencies]
-bevy = { version = "0.14.0-rc.2", default-features = false, features = [
+bevy = { version = "0.14.0-rc.3", default-features = false, features = [
   "serialize",
   "bevy_asset",
   "bevy_sprite",
@@ -48,6 +48,6 @@ too_many_arguments = "allow"
 name = "replication"
 harness = false
 
-# Removed until `bevy_renet` supports 0.14.0-rc.2.
+# Removed until `bevy_renet` supports 0.14.0-rc.3.
 # [workspace]
 # members = ["bevy_replicon_renet"]
