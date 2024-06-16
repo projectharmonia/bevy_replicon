@@ -39,10 +39,14 @@ impl UntypedRuleFns {
         );
 
         RuleFns {
-            serialize: unsafe { mem::transmute(self.serialize) },
-            deserialize: unsafe { mem::transmute(self.deserialize) },
-            deserialize_in_place: unsafe { mem::transmute(self.deserialize_in_place) },
-            consume: unsafe { mem::transmute(self.consume) },
+            serialize: unsafe { mem::transmute::<unsafe fn(), SerializeFn<C>>(self.serialize) },
+            deserialize: unsafe {
+                mem::transmute::<unsafe fn(), DeserializeFn<C>>(self.deserialize)
+            },
+            deserialize_in_place: unsafe {
+                mem::transmute::<unsafe fn(), DeserializeInPlaceFn<C>>(self.deserialize_in_place)
+            },
+            consume: unsafe { mem::transmute::<unsafe fn(), ConsumeFn<C>>(self.consume) },
         }
     }
 }
@@ -53,10 +57,14 @@ impl<C: Component> From<RuleFns<C>> for UntypedRuleFns {
         Self {
             type_id: TypeId::of::<C>(),
             type_name: any::type_name::<C>(),
-            serialize: unsafe { mem::transmute(value.serialize) },
-            deserialize: unsafe { mem::transmute(value.deserialize) },
-            deserialize_in_place: unsafe { mem::transmute(value.deserialize_in_place) },
-            consume: unsafe { mem::transmute(value.consume) },
+            serialize: unsafe { mem::transmute::<SerializeFn<C>, unsafe fn()>(value.serialize) },
+            deserialize: unsafe {
+                mem::transmute::<DeserializeFn<C>, unsafe fn()>(value.deserialize)
+            },
+            deserialize_in_place: unsafe {
+                mem::transmute::<DeserializeInPlaceFn<C>, unsafe fn()>(value.deserialize_in_place)
+            },
+            consume: unsafe { mem::transmute::<ConsumeFn<C>, unsafe fn()>(value.consume) },
         }
     }
 }

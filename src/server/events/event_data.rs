@@ -95,8 +95,8 @@ impl ServerEventData {
             receive: receive::<E>,
             resend_locally: resend_locally::<E>,
             reset: reset::<E>,
-            serialize: unsafe { mem::transmute(serialize) },
-            deserialize: unsafe { mem::transmute(deserialize) },
+            serialize: unsafe { mem::transmute::<SerializeFn<E>, unsafe fn()>(serialize) },
+            deserialize: unsafe { mem::transmute::<DeserializeFn<E>, unsafe fn()>(deserialize) },
         }
     }
 
