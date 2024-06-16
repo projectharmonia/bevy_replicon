@@ -56,12 +56,17 @@ impl RepliconServer {
         }
 
         let channel_id = channel_id.into();
-        let receive_channel = self
+        let channel_messages = self
             .received_messages
             .get_mut(channel_id as usize)
             .unwrap_or_else(|| panic!("server should have a receive channel with id {channel_id}"));
 
-        receive_channel.drain(..)
+        trace!(
+            "received {} message(s) from channel {channel_id}",
+            channel_messages.len()
+        );
+
+        channel_messages.drain(..)
     }
 
     /// Sends a message to a client over a channel.
@@ -76,8 +81,12 @@ impl RepliconServer {
             return;
         }
 
-        self.sent_messages
-            .push((client_id, channel_id.into(), message.into()));
+        let channel_id: u8 = channel_id.into();
+        let message: Bytes = message.into();
+
+        trace!("sending {} bytes over channel {channel_id}", message.len());
+
+        self.sent_messages.push((client_id, channel_id, message));
     }
 
     /// Marks the server as running or stopped.

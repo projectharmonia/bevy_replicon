@@ -89,14 +89,13 @@ impl SimpleBoxPlugin {
                 });
 
                 let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?;
-                let public_addr = SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port);
-                let socket = UdpSocket::bind(public_addr)?;
+                let socket = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, port))?;
                 let server_config = ServerConfig {
                     current_time,
                     max_clients: 10,
                     protocol_id: PROTOCOL_ID,
                     authentication: ServerAuthentication::Unsecure,
-                    public_addresses: vec![public_addr],
+                    public_addresses: Default::default(),
                 };
                 let transport = NetcodeServerTransport::new(server_config, socket)?;
 
@@ -130,7 +129,7 @@ impl SimpleBoxPlugin {
                 let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?;
                 let client_id = current_time.as_millis() as u64;
                 let server_addr = SocketAddr::new(ip, port);
-                let socket = UdpSocket::bind((ip, 0))?;
+                let socket = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0))?;
                 let authentication = ClientAuthentication::Unsecure {
                     client_id,
                     protocol_id: PROTOCOL_ID,

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.26.3] - 2024-06-09
+
+### Added
+
+- Logging for sending and receiving messages.
+
+### Changed
+
+- Do not send empty ack messages from client.
+
 ## [0.27.0-rc.1] - 2024-06-07
 
 ### Changed
@@ -516,6 +526,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Initial release after separation from [Project Harmonia](https://github.com/projectharmonia/project_harmonia).
 
 [unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.27.0-rc.1...HEAD
+[0.26.3]: https://github.com/projectharmonia/bevy_replicon/compare/v0.26.2...v0.26.3
 [0.27.0-rc.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.26.2...v0.27.0-rc.1
 [0.26.2]: https://github.com/projectharmonia/bevy_replicon/compare/v0.26.1...v0.26.2
 [0.26.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.26.0...v0.26.1
