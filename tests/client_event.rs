@@ -9,28 +9,6 @@ use bevy_replicon::{
 use serde::{Deserialize, Serialize};
 
 #[test]
-fn without_server_plugin() {
-    let mut app = App::new();
-    app.add_plugins((
-        MinimalPlugins,
-        RepliconPlugins.build().disable::<ServerPlugin>(),
-    ))
-    .add_client_event::<DummyEvent>(ChannelKind::Ordered)
-    .update();
-}
-
-#[test]
-fn without_client_plugin() {
-    let mut app = App::new();
-    app.add_plugins((
-        MinimalPlugins,
-        RepliconPlugins.build().disable::<ClientPlugin>(),
-    ))
-    .add_client_event::<DummyEvent>(ChannelKind::Ordered)
-    .update();
-}
-
-#[test]
 fn sending_receiving() {
     let mut server_app = App::new();
     let mut client_app = App::new();
@@ -86,6 +64,43 @@ fn mapping_and_sending_receiving() {
         .map(|event| event.event.0)
         .collect();
     assert_eq!(mapped_entities, [server_entity]);
+}
+
+#[test]
+fn sending_receiving_without_plugins() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    server_app
+        .add_plugins((
+            MinimalPlugins,
+            RepliconPlugins
+                .build()
+                .disable::<ClientPlugin>()
+                .disable::<ClientEventsPlugin>(),
+        ))
+        .add_client_event::<DummyEvent>(ChannelKind::Ordered);
+    client_app
+        .add_plugins((
+            MinimalPlugins,
+            RepliconPlugins
+                .build()
+                .disable::<ServerPlugin>()
+                .disable::<ServerEventsPlugin>(),
+        ))
+        .add_client_event::<DummyEvent>(ChannelKind::Ordered);
+
+    server_app.connect_client(&mut client_app);
+
+    client_app.world_mut().send_event(DummyEvent);
+
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    server_app.update();
+
+    let client_events = server_app
+        .world()
+        .resource::<Events<FromClient<DummyEvent>>>();
+    assert_eq!(client_events.len(), 1);
 }
 
 #[test]
