@@ -31,7 +31,7 @@ impl UntypedCommandFns {
             type_id: TypeId::of::<C>(),
             type_name: any::type_name::<C>(),
             // SAFETY: the function won't be called until the type is restored.
-            write: unsafe { mem::transmute(write) },
+            write: unsafe { mem::transmute::<WriteFn<C>, unsafe fn()>(write) },
             remove,
         }
     }
