@@ -454,7 +454,7 @@ pub mod prelude {
     pub use super::{
         client::{
             diagnostics::{ClientDiagnosticsPlugin, ClientStats},
-            events::{ClientEventAppExt, ClientEventsPlugin, FromClient},
+            events::ClientEventsPlugin,
             replicon_client::{RepliconClient, RepliconClientStatus},
             ClientPlugin, ClientSet,
         },
@@ -462,6 +462,10 @@ pub mod prelude {
             channels::{ChannelKind, RepliconChannel, RepliconChannels},
             command_markers::AppMarkerExt,
             common_conditions::*,
+            event_registry::{
+                client_event::{ClientEventAppExt, FromClient},
+                server_event::{SendMode, ServerEventAppExt, ToClients},
+            },
             replication_rules::AppRuleExt,
             ClientId, Replicated, RepliconCorePlugin,
         },
@@ -471,7 +475,7 @@ pub mod prelude {
             connected_clients::{
                 client_visibility::ClientVisibility, ConnectedClient, ConnectedClients,
             },
-            events::{SendMode, ServerEventAppExt, ServerEventsPlugin, ToClients},
+            events::ServerEventsPlugin,
             replicon_server::RepliconServer,
             ServerEvent, ServerPlugin, ServerSet, TickPolicy, VisibilityPolicy,
         },

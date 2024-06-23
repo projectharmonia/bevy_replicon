@@ -11,28 +11,6 @@ use bevy_replicon::{
 use serde::{Deserialize, Serialize};
 
 #[test]
-fn without_server_plugin() {
-    let mut app = App::new();
-    app.add_plugins((
-        MinimalPlugins,
-        RepliconPlugins.build().disable::<ServerPlugin>(),
-    ))
-    .add_server_event::<DummyEvent>(ChannelKind::Ordered)
-    .update();
-}
-
-#[test]
-fn without_client_plugin() {
-    let mut app = App::new();
-    app.add_plugins((
-        MinimalPlugins,
-        RepliconPlugins.build().disable::<ClientPlugin>(),
-    ))
-    .add_server_event::<DummyEvent>(ChannelKind::Ordered)
-    .update();
-}
-
-#[test]
 fn sending_receiving() {
     let mut server_app = App::new();
     let mut client_app = App::new();
@@ -118,6 +96,64 @@ fn sending_receiving_and_mapping() {
         .map(|event| event.0)
         .collect();
     assert_eq!(mapped_entities, [client_entity]);
+}
+
+#[test]
+fn sending_receiving_without_plugins() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    server_app
+        .add_plugins((
+            MinimalPlugins,
+            RepliconPlugins
+                .build()
+                .set(ServerPlugin {
+                    tick_policy: TickPolicy::EveryFrame,
+                    ..Default::default()
+                })
+                .disable::<ClientPlugin>()
+                .disable::<ClientEventsPlugin>(),
+        ))
+        .add_server_event::<DummyEvent>(ChannelKind::Ordered);
+    client_app
+        .add_plugins((
+            MinimalPlugins,
+            RepliconPlugins
+                .build()
+                .disable::<ServerPlugin>()
+                .disable::<ServerEventsPlugin>(),
+        ))
+        .add_server_event::<DummyEvent>(ChannelKind::Ordered);
+
+    server_app.connect_client(&mut client_app);
+
+    let client = client_app.world().resource::<RepliconClient>();
+    let client_id = client.id().unwrap();
+
+    for (mode, events_count) in [
+        (SendMode::Broadcast, 1),
+        (SendMode::Direct(ClientId::SERVER), 0),
+        (SendMode::Direct(client_id), 1),
+        (SendMode::BroadcastExcept(ClientId::SERVER), 1),
+        (SendMode::BroadcastExcept(client_id), 0),
+    ] {
+        server_app.world_mut().send_event(ToClients {
+            mode,
+            event: DummyEvent,
+        });
+
+        server_app.update();
+        server_app.exchange_with_client(&mut client_app);
+        client_app.update();
+        server_app.exchange_with_client(&mut client_app);
+
+        let mut dummy_events = client_app.world_mut().resource_mut::<Events<DummyEvent>>();
+        assert_eq!(
+            dummy_events.drain().count(),
+            events_count,
+            "event should be emited {events_count} times for {mode:?}"
+        );
+    }
 }
 
 #[test]
