@@ -90,41 +90,11 @@ impl ClientDiagnosticsPlugin {
     pub const DIAGNOSTIC_HISTORY_LEN: usize = 60;
 
     fn add_measurements(mut stats: ResMut<ClientStats>, mut diagnostics: Diagnostics) {
-        diagnostics.add_measurement(&Self::ENTITY_CHANGES, || {
-            if stats.messages == 0 {
-                0_f64
-            } else {
-                stats.entities_changed as f64 / stats.messages as f64
-            }
-        });
-        diagnostics.add_measurement(&Self::COMPONENT_CHANGES, || {
-            if stats.messages == 0 {
-                0_f64
-            } else {
-                stats.components_changed as f64 / stats.messages as f64
-            }
-        });
-        diagnostics.add_measurement(&Self::MAPPINGS, || {
-            if stats.messages == 0 {
-                0_f64
-            } else {
-                stats.mappings as f64 / stats.messages as f64
-            }
-        });
-        diagnostics.add_measurement(&Self::DESPAWNS, || {
-            if stats.messages == 0 {
-                0_f64
-            } else {
-                stats.despawns as f64 / stats.messages as f64
-            }
-        });
-        diagnostics.add_measurement(&Self::BYTES, || {
-            if stats.messages == 0 {
-                0_f64
-            } else {
-                stats.bytes as f64 / stats.messages as f64
-            }
-        });
+        diagnostics.add_measurement(&Self::ENTITY_CHANGES, || stats.entities_changed as f64);
+        diagnostics.add_measurement(&Self::COMPONENT_CHANGES, || stats.components_changed as f64);
+        diagnostics.add_measurement(&Self::MAPPINGS, || stats.mappings as f64);
+        diagnostics.add_measurement(&Self::DESPAWNS, || stats.despawns as f64);
+        diagnostics.add_measurement(&Self::BYTES, || stats.bytes as f64);
         diagnostics.add_measurement(&Self::MESSAGES, || stats.messages as f64);
         *stats = ClientStats::default();
     }

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `ServerEventsPlugin` and `ClientEventsPlugin` can be disabled on client-only and server-only apps respectively.
+- Do not divide values per seconds by the number of messages.
 - Move `server::events::event_data` module to `core::event_registry::server_event`.
 - Move `client::events::event_data` module to `core::event_registry::client_event`.
 - Move `ClientEventAppExt`, `client::events::SerializeFn`, `client::events::DeserializeFn`, `default_serialize`, `default_serialize_mapped`, `default_deserialize` and `FromClient` to `core::event_registry::client_event`.
