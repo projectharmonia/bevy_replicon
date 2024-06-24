@@ -45,6 +45,8 @@ criterion = { version = "0.5", default-features = false, features = [
 
 [features]
 default = []
+
+# Plugin for integration with Bevy diagnostics.
 diagnostics = []
 
 [lints.clippy]
