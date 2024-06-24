@@ -98,7 +98,7 @@ impl ParentSyncPlugin {
 ///     parent.spawn((Replicated, ParentSync::default()));
 /// });
 /// ```
-#[derive(Component, Default, Reflect, Clone, Copy, Serialize, Deserialize)]
+#[derive(Component, Default, Reflect, Clone, Copy, Debug, Serialize, Deserialize)]
 #[reflect(Component, MapEntities)]
 pub struct ParentSync(Option<Entity>);
 
