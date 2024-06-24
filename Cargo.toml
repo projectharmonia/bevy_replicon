@@ -20,6 +20,9 @@ categories = ["game-development", "network-programming"]
 license = "MIT OR Apache-2.0"
 include = ["/benches", "/src", "/tests", "/LICENSE*"]
 
+[package.metadata.docs.rs]
+all-features = true
+
 [dependencies]
 bevy = { version = "0.14.0-rc.3", default-features = false, features = [
   "bevy_scene",
@@ -39,6 +42,10 @@ bevy = { version = "0.14.0-rc.3", default-features = false, features = [
 criterion = { version = "0.5", default-features = false, features = [
   "cargo_bench_support",
 ] }
+
+[features]
+default = []
+diagnostics = []
 
 [lints.clippy]
 type_complexity = "allow"

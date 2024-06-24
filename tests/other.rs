@@ -205,7 +205,7 @@ fn server_inactive() {
 }
 
 #[test]
-fn diagnostics() {
+fn client_stats() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
@@ -218,7 +218,6 @@ fn diagnostics() {
         ))
         .replicate::<DummyComponent>();
     }
-    client_app.add_plugins(ClientDiagnosticsPlugin);
 
     server_app.connect_client(&mut client_app);
 
