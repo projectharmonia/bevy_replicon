@@ -1,8 +1,5 @@
 use bevy::prelude::*;
-use bevy_replicon::{
-    prelude::*,
-    test_app::ServerTestAppExt,
-};
+use bevy_replicon::{prelude::*, test_app::ServerTestAppExt};
 use serde::{Deserialize, Serialize};
 
 #[test]
