@@ -49,13 +49,17 @@ default = []
 # Plugin for integration with Bevy diagnostics.
 diagnostics = []
 
-[lints.clippy]
-type_complexity = "allow"
-too_many_arguments = "allow"
-
 [[bench]]
 name = "replication"
 harness = false
+
+[[test]]
+name = "stats"
+required-features = ["diagnostics"]
+
+[lints.clippy]
+type_complexity = "allow"
+too_many_arguments = "allow"
 
 # Removed until `bevy_renet` supports 0.14.0-rc.3.
 # [workspace]
