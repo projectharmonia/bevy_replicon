@@ -645,6 +645,9 @@ pub(super) struct BufferedUpdate {
 ///
 /// Statistic will be collected only if the resource is present.
 /// The resource is not added by default.
+///
+/// See also [`ClientDiagnosticsPlugin`](diagnostics::ClientDiagnosticsPlugin)
+/// for automatic integration with Bevy diagnostics.
 #[derive(Default, Resource, Debug)]
 pub struct ClientStats {
     /// Incremented per entity that changes.
