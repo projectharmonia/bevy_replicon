@@ -439,6 +439,7 @@ To reduce packet size there are the following limits per replication update:
 - Up to [`u16::MAX`] entities that have removed components with up to [`u16::MAX`] bytes of component data.
 - Up to [`u16::MAX`] entities that were despawned.
 */
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 pub mod client;
 pub mod core;
