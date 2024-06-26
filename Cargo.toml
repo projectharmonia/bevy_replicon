@@ -20,6 +20,10 @@ categories = ["game-development", "network-programming"]
 license = "MIT OR Apache-2.0"
 include = ["/benches", "/src", "/tests", "/LICENSE*"]
 
+[package.metadata.docs.rs]
+rustdoc-args = ["-Zunstable-options", "--cfg", "docsrs"]
+all-features = true
+
 [dependencies]
 bevy = { version = "0.14.0-rc.3", default-features = false, features = [
   "bevy_scene",
@@ -40,13 +44,23 @@ criterion = { version = "0.5", default-features = false, features = [
   "cargo_bench_support",
 ] }
 
-[lints.clippy]
-type_complexity = "allow"
-too_many_arguments = "allow"
+[features]
+default = []
+
+# Plugin for integration with Bevy diagnostics.
+diagnostics = []
 
 [[bench]]
 name = "replication"
 harness = false
+
+[[test]]
+name = "stats"
+required-features = ["diagnostics"]
+
+[lints.clippy]
+type_complexity = "allow"
+too_many_arguments = "allow"
 
 # Removed until `bevy_renet` supports 0.14.0-rc.3.
 # [workspace]

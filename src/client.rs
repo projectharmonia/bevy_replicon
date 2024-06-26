@@ -1,4 +1,5 @@
 pub mod confirm_history;
+#[cfg(feature = "diagnostics")]
 pub mod diagnostics;
 pub mod events;
 pub mod replicon_client;
@@ -21,7 +22,6 @@ use crate::core::{
     Replicated,
 };
 use confirm_history::ConfirmHistory;
-use diagnostics::ClientStats;
 use replicon_client::RepliconClient;
 use server_entity_map::ServerEntityMap;
 
@@ -639,4 +639,27 @@ pub(super) struct BufferedUpdate {
 
     /// Update data.
     message: Bytes,
+}
+
+/// Replication stats during message processing.
+///
+/// Statistic will be collected only if the resource is present.
+/// The resource is not added by default.
+///
+/// See also [`ClientDiagnosticsPlugin`](diagnostics::ClientDiagnosticsPlugin)
+/// for automatic integration with Bevy diagnostics.
+#[derive(Default, Resource, Debug)]
+pub struct ClientStats {
+    /// Incremented per entity that changes.
+    pub entities_changed: u32,
+    /// Incremented for every component that changes.
+    pub components_changed: u32,
+    /// Incremented per client mapping added.
+    pub mappings: u32,
+    /// Incremented per entity despawn.
+    pub despawns: u32,
+    /// Replication messages received.
+    pub messages: u32,
+    /// Replication bytes received in message payloads (without internal messaging plugin data).
+    pub bytes: u64,
 }

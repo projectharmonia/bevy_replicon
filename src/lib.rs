@@ -439,6 +439,7 @@ To reduce packet size there are the following limits per replication update:
 - Up to [`u16::MAX`] entities that have removed components with up to [`u16::MAX`] bytes of component data.
 - Up to [`u16::MAX`] entities that were despawned.
 */
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 pub mod client;
 pub mod core;
@@ -453,10 +454,9 @@ pub mod prelude {
 
     pub use super::{
         client::{
-            diagnostics::{ClientDiagnosticsPlugin, ClientStats},
             events::ClientEventsPlugin,
             replicon_client::{RepliconClient, RepliconClientStatus},
-            ClientPlugin, ClientSet,
+            ClientPlugin, ClientSet, ClientStats,
         },
         core::{
             channels::{ChannelKind, RepliconChannel, RepliconChannels},
@@ -481,6 +481,9 @@ pub mod prelude {
         },
         RepliconPlugins,
     };
+
+    #[cfg(feature = "diagnostics")]
+    pub use super::client::diagnostics::ClientDiagnosticsPlugin;
 }
 
 pub use bincode;
@@ -493,12 +496,20 @@ pub struct RepliconPlugins;
 
 impl PluginGroup for RepliconPlugins {
     fn build(self) -> PluginGroupBuilder {
-        PluginGroupBuilder::start::<Self>()
+        let mut group = PluginGroupBuilder::start::<Self>();
+        group = group
             .add(RepliconCorePlugin)
             .add(ParentSyncPlugin)
             .add(ClientPlugin)
             .add(ServerPlugin::default())
             .add(ClientEventsPlugin)
-            .add(ServerEventsPlugin)
+            .add(ServerEventsPlugin);
+
+        #[cfg(feature = "diagnostics")]
+        {
+            group = group.add(ClientDiagnosticsPlugin);
+        }
+
+        group
     }
 }
