@@ -444,6 +444,7 @@ To reduce packet size there are the following limits per replication update:
 pub mod client;
 pub mod core;
 pub mod parent_sync;
+#[cfg(feature = "scene")]
 pub mod scene;
 pub mod server;
 pub mod test_app;
