@@ -369,7 +369,7 @@ struct UpdateInfo {
     entities: Vec<Entity>,
 }
 
-/// Controls how visibility will be managed via [`ClientVisibility`](connected_clients::client_visibility::ClientVisibility).
+/// Controls how visibility will be managed via [`ClientVisibility`].
 #[derive(Default, Debug, Clone, Copy)]
 pub enum VisibilityPolicy {
     /// All entities are visible by default and visibility can't be changed.

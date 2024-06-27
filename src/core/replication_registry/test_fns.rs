@@ -22,7 +22,12 @@ This example shows how to call registered functions on an entity:
 ```
 use bevy::prelude::*;
 use bevy_replicon::{
-    core::replication_registry::{rule_fns::RuleFns, test_fns::TestFnsEntityExt, ReplicationRegistry},
+    core::{
+        replication_registry::{
+            rule_fns::RuleFns, test_fns::TestFnsEntityExt, ReplicationRegistry,
+        },
+        replicon_tick::RepliconTick,
+    },
     prelude::*,
 };
 use serde::{Deserialize, Serialize};

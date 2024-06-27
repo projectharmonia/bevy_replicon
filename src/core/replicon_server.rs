@@ -8,9 +8,9 @@ use crate::core::ClientId;
 /// The messaging backend is responsible for updating this resource:
 /// - When the server is started or stopped, [`Self::set_running`] should be used to reflect this.
 /// - For receiving messages, [`Self::insert_received`] should be used.
-/// A system to forward messages from the backend to Replicon should run in [`ServerSet::ReceivePackets`](super::ServerSet::ReceivePackets).
+/// A system to forward messages from the backend to Replicon should run in [`ServerSet::ReceivePackets`](crate::server::ServerSet::ReceivePackets).
 /// - For sending messages, [`Self::drain_sent`] should be used to drain all sent messages.
-/// A system to forward messages from Replicon to the backend should run in [`ServerSet::SendPackets`](super::ServerSet::SendPackets).
+/// A system to forward messages from Replicon to the backend should run in [`ServerSet::SendPackets`](crate::server::ServerSet::SendPackets).
 ///
 /// Inserted as resource by [`ServerPlugin`](crate::server::ServerPlugin).
 #[derive(Resource, Default)]

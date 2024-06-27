@@ -10,10 +10,10 @@ use crate::core::ClientId;
 /// [`Self::set_status`] should be used to reflect this.
 /// - For receiving messages, [`Self::insert_received`] should be to used.
 /// A system to forward backend messages to Replicon should run in
-/// [`ClientSet::ReceivePackets`](super::ClientSet::ReceivePackets).
+/// [`ClientSet::ReceivePackets`](crate::client::ClientSet::ReceivePackets).
 /// - For sending messages, [`Self::drain_sent`] should be used to drain all sent messages.
 /// A system to forward Replicon messages to the backend should run in
-/// [`ClientSet::SendPackets`](super::ClientSet::SendPackets).
+/// [`ClientSet::SendPackets`](crate::client::ClientSet::SendPackets).
 ///
 /// Inserted as resource by [`ClientPlugin`](crate::client::ClientPlugin).
 #[derive(Resource, Default)]
