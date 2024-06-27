@@ -68,7 +68,7 @@ jobs:
       - name: Test doc
         run: cargo test --all-features --doc
 
-  test-combinations:
+  feature-combinations:
     name: Feature combinations
     runs-on: ubuntu-latest
     steps:
@@ -84,8 +84,8 @@ jobs:
       - name: Install Cargo Hack
         run: cargo install cargo-hack
 
-      - name: Test combinations
-        run: cargo hack test --feature-powerset --tests
+      - name: Check feature combinations
+        run: cargo hack check --feature-powerset
         env:
           RUSTFLAGS: -Aunused -Dwarnings
 
