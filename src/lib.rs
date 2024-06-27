@@ -45,6 +45,8 @@ If you are planning to separate client and server you can use
 [`PluginGroupBuilder::disable()`] to disable [`ClientPlugin`] or [`ServerPlugin`] on [`RepliconPlugins`].
 You will need to disable similar plugins on your messaing library of choice too.
 
+You can also use `client` or `server` features to control these plugins at compile time.
+
 Typically updates are not sent every frame. Instead, they are sent at a certain interval
 to save traffic. You can change the defaults with [`TickPolicy`] in the [`ServerPlugin`]:
 
