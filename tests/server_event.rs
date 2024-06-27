@@ -4,8 +4,7 @@ use bevy::{
     time::TimePlugin,
 };
 use bevy_replicon::{
-    client::{server_entity_map::ServerEntityMap, ServerInitTick},
-    prelude::*,
+    client::ServerInitTick, core::server_entity_map::ServerEntityMap, prelude::*,
     test_app::ServerTestAppExt,
 };
 use serde::{Deserialize, Serialize};

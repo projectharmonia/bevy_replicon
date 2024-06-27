@@ -1,9 +1,7 @@
 pub mod confirm_history;
-#[cfg(feature = "diagnostics")]
+#[cfg(feature = "client_diagnostics")]
 pub mod diagnostics;
 pub mod events;
-pub mod replicon_client;
-pub mod server_entity_map;
 
 use std::{io::Cursor, mem};
 
@@ -18,12 +16,12 @@ use crate::core::{
     common_conditions::{client_connected, client_just_connected, client_just_disconnected},
     ctx::{DespawnCtx, RemoveCtx, WriteCtx},
     replication_registry::ReplicationRegistry,
+    replicon_client::RepliconClient,
     replicon_tick::RepliconTick,
+    server_entity_map::ServerEntityMap,
     Replicated,
 };
 use confirm_history::ConfirmHistory;
-use replicon_client::RepliconClient;
-use server_entity_map::ServerEntityMap;
 
 /// Client functionality and replication receiving.
 ///

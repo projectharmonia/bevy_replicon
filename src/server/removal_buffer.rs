@@ -209,11 +209,9 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::{
-        core::{
-            replication_registry::ReplicationRegistry, replication_rules::AppRuleExt, Replicated,
-        },
-        server::replicon_server::RepliconServer,
+    use crate::core::{
+        replication_registry::ReplicationRegistry, replication_rules::AppRuleExt,
+        replicon_server::RepliconServer, Replicated,
     };
 
     #[test]

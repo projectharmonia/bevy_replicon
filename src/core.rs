@@ -1,11 +1,15 @@
 pub mod channels;
 pub mod command_markers;
 pub mod common_conditions;
+pub mod connected_clients;
 pub mod ctx;
 pub mod event_registry;
 pub mod replication_registry;
 pub mod replication_rules;
+pub mod replicon_client;
+pub mod replicon_server;
 pub mod replicon_tick;
+pub mod server_entity_map;
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};

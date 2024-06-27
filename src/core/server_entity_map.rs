@@ -4,6 +4,8 @@ use bevy::{ecs::entity::EntityHashMap, prelude::*, utils::hashbrown::hash_map::E
 ///
 /// If [`ClientSet::Reset`](crate::client::ClientSet) is disabled, then this needs to be cleaned up manually
 /// via [`Self::remove_by_client`] or [`Self::clear`].
+///
+/// Inserted as resource by [`ClientPlugin`](crate::client::ClientPlugin).
 #[derive(Default, Resource)]
 pub struct ServerEntityMap {
     server_to_client: EntityHashMap<Entity>,
@@ -58,11 +60,11 @@ impl ServerEntityMap {
         }
     }
 
-    pub(super) fn get_by_server(&mut self, server_entity: Entity) -> Option<Entity> {
+    pub(crate) fn get_by_server(&mut self, server_entity: Entity) -> Option<Entity> {
         self.server_to_client.get(&server_entity).copied()
     }
 
-    pub(super) fn remove_by_server(&mut self, server_entity: Entity) -> Option<Entity> {
+    pub(crate) fn remove_by_server(&mut self, server_entity: Entity) -> Option<Entity> {
         let client_entity = self.server_to_client.remove(&server_entity);
         if let Some(client_entity) = client_entity {
             self.client_to_server.remove(&client_entity);

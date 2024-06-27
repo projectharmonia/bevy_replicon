@@ -2,7 +2,7 @@ use std::io::Cursor;
 
 use bevy::{ecs::entity::MapEntities, prelude::*};
 use bevy_replicon::{
-    client::server_entity_map::ServerEntityMap,
+    core::server_entity_map::ServerEntityMap,
     core::{
         ctx::WriteCtx,
         replication_registry::{command_fns, rule_fns::RuleFns},

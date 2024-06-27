@@ -2,11 +2,12 @@ use std::io::Cursor;
 
 use bevy::{ecs::entity::MapEntities, prelude::*, utils::Duration};
 use bevy_replicon::{
-    client::{confirm_history::ConfirmHistory, server_entity_map::ServerEntityMap, ServerInitTick},
+    client::{confirm_history::ConfirmHistory, ServerInitTick},
     core::{
         command_markers::MarkerConfig,
         ctx::WriteCtx,
         replication_registry::{command_fns, rule_fns::RuleFns},
+        server_entity_map::ServerEntityMap,
     },
     prelude::*,
     server::server_tick::ServerTick,

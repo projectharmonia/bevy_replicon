@@ -8,13 +8,12 @@ use bevy::{
     utils::{Duration, HashMap},
 };
 
-use crate::{
-    core::{replicon_tick::RepliconTick, ClientId},
-    server::VisibilityPolicy,
-};
+use crate::core::{replicon_tick::RepliconTick, ClientId};
 use client_visibility::ClientVisibility;
 
 /// Stores information about connected clients.
+///
+/// Inserted as resource by [`ServerPlugin`](crate::server::ServerPlugin).
 #[derive(Resource, Default)]
 pub struct ConnectedClients {
     clients: Vec<ConnectedClient>,
@@ -22,7 +21,7 @@ pub struct ConnectedClients {
 }
 
 impl ConnectedClients {
-    pub(super) fn new(policy: VisibilityPolicy) -> Self {
+    pub(crate) fn new(policy: VisibilityPolicy) -> Self {
         Self {
             clients: Default::default(),
             policy,
@@ -106,7 +105,7 @@ impl ConnectedClients {
     /// Initializes a new [`ConnectedClient`] for this client.
     ///
     /// Reuses the memory from the buffers if available.
-    pub(super) fn add(&mut self, client_buffers: &mut ClientBuffers, client_id: ClientId) {
+    pub(crate) fn add(&mut self, client_buffers: &mut ClientBuffers, client_id: ClientId) {
         debug!("adding connected `{client_id:?}`");
 
         let client = if let Some(mut client) = client_buffers.clients.pop() {
@@ -122,7 +121,7 @@ impl ConnectedClients {
     /// Removes a connected client.
     ///
     /// Keeps allocated memory in the buffers for reuse.
-    pub(super) fn remove(&mut self, client_buffers: &mut ClientBuffers, client_id: ClientId) {
+    pub(crate) fn remove(&mut self, client_buffers: &mut ClientBuffers, client_id: ClientId) {
         debug!("removing disconnected `{client_id:?}`");
 
         let index = self
@@ -138,7 +137,7 @@ impl ConnectedClients {
     /// Clears all clients.
     ///
     /// Keeps allocated memory in the buffers for reuse.
-    pub(super) fn clear(&mut self, client_buffers: &mut ClientBuffers) {
+    pub(crate) fn clear(&mut self, client_buffers: &mut ClientBuffers) {
         for mut client in self.clients.drain(..) {
             client_buffers.entities.extend(client.drain_entities());
             client_buffers.clients.push(client);
@@ -200,7 +199,7 @@ impl ConnectedClient {
     }
 
     /// Sets the client's init tick.
-    pub(super) fn set_init_tick(&mut self, tick: RepliconTick) {
+    pub(crate) fn set_init_tick(&mut self, tick: RepliconTick) {
         self.init_tick = tick;
     }
 
@@ -234,7 +233,7 @@ impl ConnectedClient {
     ///
     /// Used later to acknowledge updated entities.
     #[must_use]
-    pub(super) fn register_update(
+    pub(crate) fn register_update(
         &mut self,
         client_buffers: &mut ClientBuffers,
         tick: Tick,
@@ -263,7 +262,7 @@ impl ConnectedClient {
     ///
     /// The change tick is the reference point for determining if components on an entity have changed and
     /// need to be replicated. Component changes older than the change limit are assumed to be acked by the client.
-    pub(super) fn set_change_tick(&mut self, entity: Entity, tick: Tick) {
+    pub(crate) fn set_change_tick(&mut self, entity: Entity, tick: Tick) {
         self.change_ticks.insert(entity, tick);
     }
 
@@ -277,7 +276,7 @@ impl ConnectedClient {
     /// Change limits for all entities from this update will be set to the update's tick if it's higher.
     ///
     /// Keeps allocated memory in the buffers for reuse.
-    pub(super) fn acknowledge(
+    pub(crate) fn acknowledge(
         &mut self,
         client_buffers: &mut ClientBuffers,
         tick: Tick,
@@ -323,7 +322,7 @@ impl ConnectedClient {
     /// Drains all entities for which visibility was lost during this tick.
     ///
     /// Internal cleanup happens lazily during the iteration.
-    pub(super) fn drain_lost_visibility(&mut self) -> impl Iterator<Item = Entity> + '_ {
+    pub(crate) fn drain_lost_visibility(&mut self) -> impl Iterator<Item = Entity> + '_ {
         self.visibility.drain_lost_visibility().inspect(|entity| {
             self.change_ticks.remove(entity);
         })
@@ -332,7 +331,7 @@ impl ConnectedClient {
     /// Removes all updates older then `min_timestamp`.
     ///
     /// Keeps allocated memory in the buffers for reuse.
-    pub(super) fn remove_older_updates(
+    pub(crate) fn remove_older_updates(
         &mut self,
         client_buffers: &mut ClientBuffers,
         min_timestamp: Duration,
@@ -368,4 +367,16 @@ struct UpdateInfo {
     tick: Tick,
     timestamp: Duration,
     entities: Vec<Entity>,
+}
+
+/// Controls how visibility will be managed via [`ClientVisibility`](connected_clients::client_visibility::ClientVisibility).
+#[derive(Default, Debug, Clone, Copy)]
+pub enum VisibilityPolicy {
+    /// All entities are visible by default and visibility can't be changed.
+    #[default]
+    All,
+    /// All entities are visible by default and should be explicitly registered to be hidden.
+    Blacklist,
+    /// All entities are hidden by default and should be explicitly registered to be visible.
+    Whitelist,
 }

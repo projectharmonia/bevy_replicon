@@ -46,10 +46,16 @@ criterion = { version = "0.5", default-features = false, features = [
 ] }
 
 [features]
-default = ["scene", "parent_sync"]
+default = ["scene", "parent_sync", "client", "server"]
 
-# Integration with Bevy diagnostics.
-diagnostics = []
+# Client-related logic.
+client = []
+
+# Server-related logic.
+server = []
+
+# Integration with Bevy diagnostics for client.
+client_diagnostics = ["client"]
 
 # Replication into a scene.
 scene = ["bevy/bevy_scene"]
@@ -62,12 +68,52 @@ name = "replication"
 harness = false
 
 [[test]]
-name = "stats"
-required-features = ["diagnostics"]
+name = "changes"
+required-features = ["client", "server"]
+
+[[test]]
+name = "client_event"
+required-features = ["client", "server"]
+
+[[test]]
+name = "connection"
+required-features = ["client", "server"]
+
+[[test]]
+name = "despawn"
+required-features = ["client", "server"]
+
+[[test]]
+name = "fns"
+required-features = ["client"]
+
+[[test]]
+name = "insertion"
+required-features = ["client", "server"]
+
+[[test]]
+name = "removal"
+required-features = ["client", "server"]
 
 [[test]]
 name = "scene"
 required-features = ["scene"]
+
+[[test]]
+name = "server_event"
+required-features = ["client", "server"]
+
+[[test]]
+name = "spawn"
+required-features = ["client", "server"]
+
+[[test]]
+name = "stats"
+required-features = ["client_diagnostics", "client", "server"]
+
+[[test]]
+name = "visibility"
+required-features = ["client", "server"]
 
 [lints.clippy]
 type_complexity = "allow"

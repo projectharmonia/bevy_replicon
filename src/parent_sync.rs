@@ -7,11 +7,11 @@ use bevy::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    client::ClientSet,
-    core::{common_conditions::has_authority, replication_rules::AppRuleExt},
-    server::ServerSet,
-};
+#[cfg(feature = "client")]
+use crate::client::ClientSet;
+use crate::core::{common_conditions::has_authority, replication_rules::AppRuleExt};
+#[cfg(feature = "server")]
+use crate::server::ServerSet;
 
 pub struct ParentSyncPlugin;
 
@@ -27,17 +27,21 @@ pub struct ParentSyncPlugin;
 impl Plugin for ParentSyncPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<ParentSync>()
-            .replicate_mapped::<ParentSync>()
-            .add_systems(
-                PreUpdate,
-                Self::sync_hierarchy.in_set(ClientSet::SyncHierarchy),
-            )
-            .add_systems(
-                PostUpdate,
-                (Self::store_changes, Self::store_removals)
-                    .run_if(has_authority)
-                    .in_set(ServerSet::StoreHierarchy),
-            );
+            .replicate_mapped::<ParentSync>();
+
+        #[cfg(feature = "client")]
+        app.add_systems(
+            PreUpdate,
+            Self::sync_hierarchy.in_set(ClientSet::SyncHierarchy),
+        );
+
+        #[cfg(feature = "server")]
+        app.add_systems(
+            PostUpdate,
+            (Self::store_changes, Self::store_removals)
+                .run_if(has_authority)
+                .in_set(ServerSet::StoreHierarchy),
+        );
     }
 }
 
@@ -45,6 +49,7 @@ impl ParentSyncPlugin {
     /// Synchronizes hierarchy if [`ParentSync`] changes.
     ///
     /// Runs not only on clients, but also on server in order to update the hierarchy when the server state is deserialized.
+    #[cfg(feature = "client")]
     fn sync_hierarchy(
         mut commands: Commands,
         hierarchy: Query<(Entity, &ParentSync, Option<&Parent>), Changed<ParentSync>>,
@@ -60,12 +65,14 @@ impl ParentSyncPlugin {
         }
     }
 
+    #[cfg(feature = "server")]
     fn store_changes(mut hierarchy: Query<(&Parent, &mut ParentSync), Changed<Parent>>) {
         for (parent, mut parent_sync) in &mut hierarchy {
             parent_sync.0 = Some(**parent);
         }
     }
 
+    #[cfg(feature = "server")]
     fn store_removals(
         mut removed_parents: RemovedComponents<Parent>,
         mut hierarchy: Query<&mut ParentSync>,
@@ -109,7 +116,7 @@ impl MapEntities for ParentSync {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "server", feature = "client"))]
 mod tests {
     use bevy::scene::ScenePlugin;
 

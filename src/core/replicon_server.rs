@@ -11,6 +11,8 @@ use crate::core::ClientId;
 /// A system to forward messages from the backend to Replicon should run in [`ServerSet::ReceivePackets`](super::ServerSet::ReceivePackets).
 /// - For sending messages, [`Self::drain_sent`] should be used to drain all sent messages.
 /// A system to forward messages from Replicon to the backend should run in [`ServerSet::SendPackets`](super::ServerSet::SendPackets).
+///
+/// Inserted as resource by [`ServerPlugin`](crate::server::ServerPlugin).
 #[derive(Resource, Default)]
 pub struct RepliconServer {
     /// Indicates if the server is open for connections.
@@ -30,12 +32,12 @@ pub struct RepliconServer {
 
 impl RepliconServer {
     /// Changes the size of the receive messages storage according to the number of client channels.
-    pub(super) fn setup_client_channels(&mut self, channels_count: usize) {
+    pub(crate) fn setup_client_channels(&mut self, channels_count: usize) {
         self.received_messages.resize(channels_count, Vec::new());
     }
 
     /// Removes a disconnected client.
-    pub(super) fn remove_client(&mut self, client_id: ClientId) {
+    pub(crate) fn remove_client(&mut self, client_id: ClientId) {
         for receive_channel in &mut self.received_messages {
             receive_channel.retain(|&(sender_id, _)| sender_id != client_id);
         }

@@ -17,14 +17,12 @@ use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Serialize};
 
 use super::EventRegistry;
-use crate::{
-    client::replicon_client::RepliconClient,
-    core::{
-        channels::{RepliconChannel, RepliconChannels},
-        ctx::{ClientSendCtx, ServerReceiveCtx},
-        ClientId,
-    },
-    server::replicon_server::RepliconServer,
+use crate::core::{
+    channels::{RepliconChannel, RepliconChannels},
+    ctx::{ClientSendCtx, ServerReceiveCtx},
+    replicon_client::RepliconClient,
+    replicon_server::RepliconServer,
+    ClientId,
 };
 
 /// An extension trait for [`App`] for creating client events.

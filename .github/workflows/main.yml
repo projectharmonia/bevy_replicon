@@ -68,6 +68,27 @@ jobs:
       - name: Test doc
         run: cargo test --all-features --doc
 
+  test-combinations:
+    name: Feature combinations
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repo
+        uses: actions/checkout@v4
+
+      - name: Instal stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache crates
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Cargo Hack
+        run: cargo install cargo-hack
+
+      - name: Test combinations
+        run: cargo hack test --feature-powerset --tests
+        env:
+          RUSTFLAGS: -Aunused -Dwarnings
+
   test:
     name: Test
     runs-on: ubuntu-latest

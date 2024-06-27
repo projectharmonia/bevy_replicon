@@ -1,11 +1,10 @@
-use super::{
-    replicon_client::RepliconClient, server_entity_map::ServerEntityMap, ClientPlugin, ClientSet,
-    ServerInitTick,
-};
+use super::{ClientPlugin, ClientSet, ServerInitTick};
 use crate::core::{
     common_conditions::*,
     ctx::{ClientReceiveCtx, ClientSendCtx},
     event_registry::EventRegistry,
+    replicon_client::RepliconClient,
+    server_entity_map::ServerEntityMap,
 };
 use bevy::prelude::*;
 
