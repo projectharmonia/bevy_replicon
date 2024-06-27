@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ServerEventsPlugin` and `ClientEventsPlugin` can be disabled on client-only and server-only apps respectively.
 - Put `ClientDiagnosticsPlugin` under `diagnostics` feature (disabled by default) and make it part of the `RepliconPlugins` group.
 - Put `scene` module under `scene` feature (enabled by default).
+- Put `parent_sync` module under `parent_sync` feature (enabled by default).
 - Do not divide values per seconds by the number of messages for `ClientDiagnosticsPlugin`.
 - Move `server::events::event_data` module to `core::event_registry::server_event`.
 - Move `client::events::event_data` module to `core::event_registry::client_event`.

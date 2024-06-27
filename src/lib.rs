@@ -443,6 +443,7 @@ To reduce packet size there are the following limits per replication update:
 
 pub mod client;
 pub mod core;
+#[cfg(feature = "parent_sync")]
 pub mod parent_sync;
 #[cfg(feature = "scene")]
 pub mod scene;
@@ -470,7 +471,6 @@ pub mod prelude {
             replication_rules::AppRuleExt,
             ClientId, Replicated, RepliconCorePlugin,
         },
-        parent_sync::{ParentSync, ParentSyncPlugin},
         server::{
             client_entity_map::{ClientEntityMap, ClientMapping},
             connected_clients::{
@@ -485,6 +485,8 @@ pub mod prelude {
 
     #[cfg(feature = "diagnostics")]
     pub use super::client::diagnostics::ClientDiagnosticsPlugin;
+    #[cfg(feature = "parent_sync")]
+    pub use super::parent_sync::{ParentSync, ParentSyncPlugin};
 }
 
 pub use bincode;
@@ -500,11 +502,15 @@ impl PluginGroup for RepliconPlugins {
         let mut group = PluginGroupBuilder::start::<Self>();
         group = group
             .add(RepliconCorePlugin)
-            .add(ParentSyncPlugin)
             .add(ClientPlugin)
             .add(ServerPlugin::default())
             .add(ClientEventsPlugin)
             .add(ServerEventsPlugin);
+
+        #[cfg(feature = "parent_sync")]
+        {
+            group = group.add(ParentSyncPlugin);
+        }
 
         #[cfg(feature = "diagnostics")]
         {
