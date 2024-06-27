@@ -46,13 +46,16 @@ criterion = { version = "0.5", default-features = false, features = [
 ] }
 
 [features]
-default = ["scene"]
+default = ["scene", "parent_sync"]
 
 # Integration with Bevy diagnostics.
 diagnostics = []
 
 # Replication into a scene.
 scene = ["bevy/bevy_scene"]
+
+# Hierarchy synchronization.
+parent_sync = []
 
 [[bench]]
 name = "replication"
