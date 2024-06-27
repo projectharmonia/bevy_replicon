@@ -47,10 +47,12 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Clippy
-        run: cargo clippy --benches --tests -- -D warnings
+        run: cargo clippy --workspace --benches --tests -- -D warnings
 
       - name: Rustdoc
-        run: cargo rustdoc --all-features -- -D warnings
+        run: |
+          cargo rustdoc --all-features -- -D warnings
+          cargo rustdoc -p bevy_replicon_renet -- -D warnings
 
   doctest:
     name: Doctest
@@ -66,7 +68,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Test doc
-        run: cargo test --all-features --doc
+        run: cargo test --workspace --all-features --doc
 
   feature-combinations:
     name: Feature combinations
@@ -109,7 +111,7 @@ jobs:
         run: cargo install cargo-tarpaulin
 
       - name: Test
-        run: cargo tarpaulin --all-features --engine llvm --out lcov --exclude-files benches/* --exclude-files bevy_replicon_renet/*
+        run: cargo tarpaulin --all-features --workspace --engine llvm --out lcov --exclude-files benches/*
 
       - name: Upload code coverage results
         if: github.actor != 'dependabot[bot]'
