@@ -1,11 +1,9 @@
 pub mod client_entity_map;
-pub mod connected_clients;
 pub(super) mod despawn_buffer;
 pub mod events;
 pub(super) mod removal_buffer;
 pub(super) mod replicated_archetypes;
 pub(super) mod replication_messages;
-pub mod replicon_server;
 pub mod server_tick;
 
 use std::{io::Cursor, mem, time::Duration};
@@ -26,21 +24,22 @@ use bevy::{
 use crate::core::{
     channels::{ReplicationChannel, RepliconChannels},
     common_conditions::{server_just_stopped, server_running},
+    connected_clients::{
+        client_visibility::Visibility, ClientBuffers, ConnectedClient, ConnectedClients,
+        VisibilityPolicy,
+    },
     ctx::SerializeCtx,
     replication_registry::ReplicationRegistry,
     replication_rules::ReplicationRules,
+    replicon_server::RepliconServer,
     replicon_tick::RepliconTick,
     ClientId,
 };
 use client_entity_map::ClientEntityMap;
-use connected_clients::{
-    client_visibility::Visibility, ClientBuffers, ConnectedClient, ConnectedClients,
-};
 use despawn_buffer::{DespawnBuffer, DespawnBufferPlugin};
 use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
 use replicated_archetypes::ReplicatedArchetypes;
 use replication_messages::ReplicationMessages;
-use replicon_server::RepliconServer;
 use server_tick::ServerTick;
 
 pub struct ServerPlugin {
@@ -584,18 +583,6 @@ pub enum TickPolicy {
     /// The user should manually configure [`ServerPlugin::increment_tick`] or manually increment
     /// [`RepliconTick`].
     Manual,
-}
-
-/// Controls how visibility will be managed via [`ClientVisibility`](connected_clients::client_visibility::ClientVisibility).
-#[derive(Default, Debug, Clone, Copy)]
-pub enum VisibilityPolicy {
-    /// All entities are visible by default and visibility can't be changed.
-    #[default]
-    All,
-    /// All entities are visible by default and should be explicitly registered to be hidden.
-    Blacklist,
-    /// All entities are hidden by default and should be explicitly registered to be visible.
-    Whitelist,
 }
 
 /// Connection and disconnection events on the server.

@@ -18,18 +18,14 @@ use ordered_multimap::ListOrderedMultimap;
 use serde::{de::DeserializeOwned, Serialize};
 
 use super::EventRegistry;
-use crate::{
-    client::replicon_client::RepliconClient,
-    core::{
-        channels::{RepliconChannel, RepliconChannels},
-        ctx::{ClientReceiveCtx, ServerSendCtx},
-        replicon_tick::RepliconTick,
-        ClientId,
-    },
-    server::{
-        connected_clients::{ConnectedClient, ConnectedClients},
-        replicon_server::RepliconServer,
-    },
+use crate::core::{
+    channels::{RepliconChannel, RepliconChannels},
+    connected_clients::{ConnectedClient, ConnectedClients},
+    ctx::{ClientReceiveCtx, ServerSendCtx},
+    replicon_client::RepliconClient,
+    replicon_server::RepliconServer,
+    replicon_tick::RepliconTick,
+    ClientId,
 };
 
 /// An extension trait for [`App`] for creating client events.

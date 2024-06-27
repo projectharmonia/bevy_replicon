@@ -3,14 +3,11 @@ use std::io::Cursor;
 use bevy::{ecs::world::CommandQueue, prelude::*};
 
 use super::{FnsInfo, ReplicationRegistry};
-use crate::{
-    client::server_entity_map::ServerEntityMap,
-    core::{
-        command_markers::{CommandMarkers, EntityMarkers},
-        ctx::{DespawnCtx, RemoveCtx, SerializeCtx, WriteCtx},
-        replicon_tick::RepliconTick,
-    },
-    server::server_tick::ServerTick,
+use crate::core::{
+    command_markers::{CommandMarkers, EntityMarkers},
+    ctx::{DespawnCtx, RemoveCtx, SerializeCtx, WriteCtx},
+    replicon_tick::RepliconTick,
+    server_entity_map::ServerEntityMap,
 };
 
 /**
@@ -25,16 +22,20 @@ This example shows how to call registered functions on an entity:
 ```
 use bevy::prelude::*;
 use bevy_replicon::{
-    core::replication_registry::{rule_fns::RuleFns, test_fns::TestFnsEntityExt, ReplicationRegistry},
+    core::{
+        replication_registry::{
+            rule_fns::RuleFns, test_fns::TestFnsEntityExt, ReplicationRegistry,
+        },
+        replicon_tick::RepliconTick,
+    },
     prelude::*,
-    server::server_tick::ServerTick,
 };
 use serde::{Deserialize, Serialize};
 
 let mut app = App::new();
 app.add_plugins((MinimalPlugins, RepliconPlugins));
 
-let tick = **app.world().resource::<ServerTick>();
+let tick = RepliconTick::default();
 
 // Register rule functions manually to obtain `FnsInfo`.
 let fns_info = app
@@ -44,7 +45,7 @@ let fns_info = app
     });
 
 let mut entity = app.world_mut().spawn(DummyComponent);
-let data = entity.serialize(fns_info);
+let data = entity.serialize(fns_info, tick);
 entity.remove::<DummyComponent>();
 
 entity.apply_write(&data, fns_info, tick);
@@ -65,7 +66,7 @@ pub trait TestFnsEntityExt {
     ///
     /// See also [`ReplicationRegistry::register_rule_fns`].
     #[must_use]
-    fn serialize(&mut self, fns_info: FnsInfo) -> Vec<u8>;
+    fn serialize(&mut self, fns_info: FnsInfo, server_tick: RepliconTick) -> Vec<u8>;
 
     /// Deserializes a component using a registered function for it and
     /// writes it into an entity using a write function based on markers.
@@ -88,10 +89,9 @@ pub trait TestFnsEntityExt {
 }
 
 impl TestFnsEntityExt for EntityWorldMut<'_> {
-    fn serialize(&mut self, fns_info: FnsInfo) -> Vec<u8> {
+    fn serialize(&mut self, fns_info: FnsInfo, server_tick: RepliconTick) -> Vec<u8> {
         let registry = self.world().resource::<ReplicationRegistry>();
         let (component_fns, rule_fns) = registry.get(fns_info.fns_id());
-        let server_tick = **self.world().resource::<ServerTick>();
         let mut cursor = Cursor::default();
         let ctx = SerializeCtx { server_tick };
         let ptr = self.get_by_id(fns_info.component_id()).unwrap_or_else(|| {

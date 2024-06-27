@@ -45,6 +45,8 @@ If you are planning to separate client and server you can use
 [`PluginGroupBuilder::disable()`] to disable [`ClientPlugin`] or [`ServerPlugin`] on [`RepliconPlugins`].
 You will need to disable similar plugins on your messaing library of choice too.
 
+You can also use `client` or `server` features to control these plugins at compile time.
+
 Typically updates are not sent every frame. Instead, they are sent at a certain interval
 to save traffic. You can change the defaults with [`TickPolicy`] in the [`ServerPlugin`]:
 
@@ -441,13 +443,16 @@ To reduce packet size there are the following limits per replication update:
 */
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
+#[cfg(feature = "client")]
 pub mod client;
 pub mod core;
 #[cfg(feature = "parent_sync")]
 pub mod parent_sync;
 #[cfg(feature = "scene")]
 pub mod scene;
+#[cfg(feature = "server")]
 pub mod server;
+#[cfg(all(feature = "server", feature = "client"))]
 pub mod test_app;
 
 pub mod prelude {
@@ -455,35 +460,37 @@ pub mod prelude {
     pub use super::core::Replication;
 
     pub use super::{
-        client::{
-            events::ClientEventsPlugin,
-            replicon_client::{RepliconClient, RepliconClientStatus},
-            ClientPlugin, ClientSet, ClientStats,
-        },
         core::{
             channels::{ChannelKind, RepliconChannel, RepliconChannels},
             command_markers::AppMarkerExt,
             common_conditions::*,
+            connected_clients::{
+                client_visibility::ClientVisibility, ConnectedClient, ConnectedClients,
+                VisibilityPolicy,
+            },
             event_registry::{
                 client_event::{ClientEventAppExt, FromClient},
                 server_event::{SendMode, ServerEventAppExt, ToClients},
             },
             replication_rules::AppRuleExt,
-            ClientId, Replicated, RepliconCorePlugin,
-        },
-        server::{
-            client_entity_map::{ClientEntityMap, ClientMapping},
-            connected_clients::{
-                client_visibility::ClientVisibility, ConnectedClient, ConnectedClients,
-            },
-            events::ServerEventsPlugin,
+            replicon_client::{RepliconClient, RepliconClientStatus},
             replicon_server::RepliconServer,
-            ServerEvent, ServerPlugin, ServerSet, TickPolicy, VisibilityPolicy,
+            ClientId, Replicated, RepliconCorePlugin,
         },
         RepliconPlugins,
     };
 
-    #[cfg(feature = "diagnostics")]
+    #[cfg(feature = "client")]
+    pub use super::client::{events::ClientEventsPlugin, ClientPlugin, ClientSet, ClientStats};
+
+    #[cfg(feature = "server")]
+    pub use super::server::{
+        client_entity_map::{ClientEntityMap, ClientMapping},
+        events::ServerEventsPlugin,
+        ServerEvent, ServerPlugin, ServerSet, TickPolicy,
+    };
+
+    #[cfg(feature = "client_diagnostics")]
     pub use super::client::diagnostics::ClientDiagnosticsPlugin;
     #[cfg(feature = "parent_sync")]
     pub use super::parent_sync::{ParentSync, ParentSyncPlugin};
@@ -500,19 +507,24 @@ pub struct RepliconPlugins;
 impl PluginGroup for RepliconPlugins {
     fn build(self) -> PluginGroupBuilder {
         let mut group = PluginGroupBuilder::start::<Self>();
-        group = group
-            .add(RepliconCorePlugin)
-            .add(ClientPlugin)
-            .add(ServerPlugin::default())
-            .add(ClientEventsPlugin)
-            .add(ServerEventsPlugin);
+        group = group.add(RepliconCorePlugin);
+
+        #[cfg(feature = "server")]
+        {
+            group = group.add(ServerPlugin::default()).add(ServerEventsPlugin);
+        }
+
+        #[cfg(feature = "client")]
+        {
+            group = group.add(ClientPlugin).add(ClientEventsPlugin);
+        }
 
         #[cfg(feature = "parent_sync")]
         {
             group = group.add(ParentSyncPlugin);
         }
 
-        #[cfg(feature = "diagnostics")]
+        #[cfg(feature = "client_diagnostics")]
         {
             group = group.add(ClientDiagnosticsPlugin);
         }

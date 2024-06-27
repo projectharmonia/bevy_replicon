@@ -40,7 +40,7 @@ pub(crate) struct DespawnBuffer(Vec<Entity>);
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::server::replicon_server::RepliconServer;
+    use crate::core::replicon_server::RepliconServer;
 
     #[test]
     fn despawns() {

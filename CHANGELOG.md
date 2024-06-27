@@ -10,9 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `ServerEventsPlugin` and `ClientEventsPlugin` can be disabled on client-only and server-only apps respectively.
-- Put `ClientDiagnosticsPlugin` under `diagnostics` feature (disabled by default) and make it part of the `RepliconPlugins` group.
+- Put `ClientDiagnosticsPlugin` under `client_diagnostics` feature (disabled by default) and make it part of the `RepliconPlugins` group.
 - Put `scene` module under `scene` feature (enabled by default).
 - Put `parent_sync` module under `parent_sync` feature (enabled by default).
+- Put `client` module under `client` feature (enabled by default).
+- Put `server` module under `server` feature (enabled by default).
+- `TestFnsEntityExt::serialize` now accepts `RepliconTick` for server tick instead of using `ServerTick` resource internally.
+- Move `replicon_client`, `server_entity_map`, `replicon_server`, `connected_clients` under `core` module. These modules are needed for both client and server.
+- Move `VisibilityPolicy` to `connected_clients` module.
 - Do not divide values per seconds by the number of messages for `ClientDiagnosticsPlugin`.
 - Move `server::events::event_data` module to `core::event_registry::server_event`.
 - Move `client::events::event_data` module to `core::event_registry::client_event`.
