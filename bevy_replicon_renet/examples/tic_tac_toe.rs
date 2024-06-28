@@ -11,12 +11,12 @@ use std::{
 use bevy::prelude::*;
 use bevy_replicon::prelude::*;
 use bevy_replicon_renet::{
+    bevy_renet::wrappers::{
+        NetcodeClientTransport, NetcodeServerTransport, RenetClient, RenetServer,
+    },
     renet::{
-        transport::{
-            ClientAuthentication, NetcodeClientTransport, NetcodeServerTransport,
-            ServerAuthentication, ServerConfig,
-        },
-        ConnectionConfig, RenetClient, RenetServer,
+        transport::{ClientAuthentication, ServerAuthentication, ServerConfig},
+        ConnectionConfig,
     },
     RenetChannelsExt, RepliconRenetPlugins,
 };
@@ -55,7 +55,7 @@ impl Plugin for TicTacToePlugin {
             .add_client_event::<CellPick>(ChannelKind::Ordered)
             .insert_resource(ClearColor(BACKGROUND_COLOR))
             .add_systems(
-                Startup,
+                PostStartup,
                 (Self::setup_ui, Self::read_cli.map(Result::unwrap)),
             )
             .add_systems(
@@ -92,7 +92,7 @@ impl Plugin for TicTacToePlugin {
 
 const GRID_SIZE: usize = 3;
 
-const BACKGROUND_COLOR: Color = Color::rgb(0.9, 0.9, 0.9);
+const BACKGROUND_COLOR: Color = Color::srgb(0.9, 0.9, 0.9);
 
 const PROTOCOL_ID: u64 = 0;
 
@@ -110,7 +110,7 @@ impl TicTacToePlugin {
         const LINE_THICKNESS: f32 = 10.0;
         const BOARD_SIZE: f32 = CELL_SIZE * GRID_SIZE as f32 + LINES_COUNT as f32 * LINE_THICKNESS;
 
-        const BOARD_COLOR: Color = Color::rgb(0.8, 0.8, 0.8);
+        const BOARD_COLOR: Color = Color::srgb(0.8, 0.8, 0.8);
 
         for line in 0..LINES_COUNT {
             let position = -BOARD_SIZE / 2.0
@@ -149,7 +149,7 @@ impl TicTacToePlugin {
         const BUTTON_SIZE: f32 = CELL_SIZE / 1.2;
         const BUTTON_MARGIN: f32 = (CELL_SIZE + LINE_THICKNESS - BUTTON_SIZE) / 2.0;
 
-        const TEXT_COLOR: Color = Color::rgb(0.5, 0.5, 1.0);
+        const TEXT_COLOR: Color = Color::srgb(0.5, 0.5, 1.0);
         const FONT_SIZE: f32 = 40.0;
 
         commands
@@ -196,7 +196,7 @@ impl TicTacToePlugin {
                                             margin: UiRect::all(Val::Px(BUTTON_MARGIN)),
                                             ..Default::default()
                                         },
-                                        background_color: BACKGROUND_COLOR.into(),
+                                        image: UiImage::default().with_color(BACKGROUND_COLOR),
                                         ..Default::default()
                                     });
                                 }
@@ -378,7 +378,7 @@ impl TicTacToePlugin {
         children: Query<&Children>,
         mut pick_events: EventWriter<CellPick>,
     ) {
-        const HOVER_COLOR: Color = Color::rgb(0.85, 0.85, 0.85);
+        const HOVER_COLOR: Color = Color::srgb(0.85, 0.85, 0.85);
 
         for (button_entity, button_parent, interaction, mut background) in &mut buttons {
             match interaction {
@@ -599,8 +599,8 @@ impl Symbol {
 
     fn color(self) -> Color {
         match self {
-            Symbol::Cross => Color::rgb(1.0, 0.5, 0.5),
-            Symbol::Nought => Color::rgb(0.5, 0.5, 1.0),
+            Symbol::Cross => Color::srgb(1.0, 0.5, 0.5),
+            Symbol::Nought => Color::srgb(0.5, 0.5, 1.0),
         }
     }
 

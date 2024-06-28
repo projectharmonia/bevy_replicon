@@ -8,17 +8,18 @@ use std::{
 };
 
 use bevy::{
+    color::palettes::css::GREEN,
     prelude::*,
     winit::{UpdateMode::Continuous, WinitSettings},
 };
 use bevy_replicon::prelude::*;
 use bevy_replicon_renet::{
+    bevy_renet::wrappers::{
+        NetcodeClientTransport, NetcodeServerTransport, RenetClient, RenetServer,
+    },
     renet::{
-        transport::{
-            ClientAuthentication, NetcodeClientTransport, NetcodeServerTransport,
-            ServerAuthentication, ServerConfig,
-        },
-        ConnectionConfig, RenetClient, RenetServer,
+        transport::{ClientAuthentication, ServerAuthentication, ServerConfig},
+        ConnectionConfig,
     },
     RenetChannelsExt, RepliconRenetPlugins,
 };
@@ -75,7 +76,7 @@ impl SimpleBoxPlugin {
                 commands.spawn(PlayerBundle::new(
                     ClientId::SERVER,
                     Vec2::ZERO,
-                    Color::GREEN,
+                    Color::from(GREEN),
                 ));
             }
             Cli::Server { port } => {
@@ -113,7 +114,7 @@ impl SimpleBoxPlugin {
                 commands.spawn(PlayerBundle::new(
                     ClientId::SERVER,
                     Vec2::ZERO,
-                    Color::GREEN,
+                    Color::from(GREEN),
                 ));
             }
             Cli::Client { port, ip } => {
@@ -172,7 +173,7 @@ impl SimpleBoxPlugin {
                     commands.spawn(PlayerBundle::new(
                         *client_id,
                         Vec2::ZERO,
-                        Color::rgb(r, g, b),
+                        Color::srgb(r, g, b),
                     ));
                 }
                 ServerEvent::ClientDisconnected { client_id, reason } => {

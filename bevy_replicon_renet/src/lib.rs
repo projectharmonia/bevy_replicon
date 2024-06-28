@@ -46,7 +46,7 @@ use bevy_replicon_renet::{renet::ConnectionConfig, RenetChannelsExt, RepliconRen
 
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
-let channels = app.world.resource::<RepliconChannels>();
+let channels = app.world().resource::<RepliconChannels>();
 let connection_config = ConnectionConfig {
     server_channels_config: channels.get_server_configs(),
     client_channels_config: channels.get_client_configs(),
@@ -58,18 +58,22 @@ For a full example of how to initialize a server or client see the example in th
 repository.
 */
 
-pub use bevy_renet::renet;
-#[cfg(feature = "renet_transport")]
-pub use bevy_renet::transport;
+pub mod bevy_renet;
+
+pub use renet;
 
 use bevy::{app::PluginGroupBuilder, prelude::*};
-use bevy_renet::{RenetClientPlugin, RenetReceive, RenetSend, RenetServerPlugin};
 use bevy_replicon::prelude::*;
-use renet::{ChannelConfig, RenetClient, RenetServer, SendType};
+use renet::{ChannelConfig, SendType};
+
 #[cfg(feature = "renet_transport")]
-use {
-    renet::transport::NetcodeClientTransport,
+use bevy_renet::{
     transport::{NetcodeClientPlugin, NetcodeServerPlugin},
+    wrappers::NetcodeClientTransport,
+};
+use bevy_renet::{
+    wrappers::{RenetClient, RenetServer, ServerEvent as RenetServerEvent},
+    RenetClientPlugin, RenetReceive, RenetSend, RenetServerPlugin,
 };
 
 pub struct RepliconRenetServerPlugin;
@@ -114,15 +118,15 @@ impl RepliconRenetServerPlugin {
     }
 
     fn forward_server_events(
-        mut renet_server_events: EventReader<renet::ServerEvent>,
+        mut renet_server_events: EventReader<RenetServerEvent>,
         mut server_events: EventWriter<ServerEvent>,
     ) {
         for event in renet_server_events.read() {
             let replicon_event = match event {
-                renet::ServerEvent::ClientConnected { client_id } => ServerEvent::ClientConnected {
+                RenetServerEvent::ClientConnected { client_id } => ServerEvent::ClientConnected {
                     client_id: ClientId::new(client_id.raw()),
                 },
-                renet::ServerEvent::ClientDisconnected { client_id, reason } => {
+                RenetServerEvent::ClientDisconnected { client_id, reason } => {
                     ServerEvent::ClientDisconnected {
                         client_id: ClientId::new(client_id.raw()),
                         reason: reason.to_string(),

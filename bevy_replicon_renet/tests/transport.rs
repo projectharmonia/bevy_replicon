@@ -4,15 +4,17 @@ use std::{
 };
 
 use bevy::prelude::*;
-use bevy_renet::renet::{
-    transport::{
-        ClientAuthentication, NetcodeClientTransport, NetcodeServerTransport, ServerAuthentication,
-        ServerConfig,
-    },
-    ConnectionConfig, RenetClient, RenetServer,
-};
 use bevy_replicon::prelude::*;
-use bevy_replicon_renet::{RenetChannelsExt, RepliconRenetPlugins};
+use bevy_replicon_renet::{
+    bevy_renet::wrappers::{
+        NetcodeClientTransport, NetcodeServerTransport, RenetClient, RenetServer,
+    },
+    renet::{
+        transport::{ClientAuthentication, ServerAuthentication, ServerConfig},
+        ConnectionConfig,
+    },
+    RenetChannelsExt, RepliconRenetPlugins,
+};
 use serde::{Deserialize, Serialize};
 
 #[test]
@@ -32,20 +34,20 @@ fn connect_disconnect() {
 
     setup(&mut server_app, &mut client_app);
 
-    let mut renet_client = client_app.world.resource_mut::<RenetClient>();
+    let mut renet_client = client_app.world_mut().resource_mut::<RenetClient>();
     assert!(renet_client.is_connected());
     renet_client.disconnect();
 
     client_app.update();
     server_app.update();
 
-    let renet_server = server_app.world.resource::<RenetServer>();
+    let renet_server = server_app.world().resource::<RenetServer>();
     assert_eq!(renet_server.connected_clients(), 0);
 
-    let connected_clients = server_app.world.resource::<ConnectedClients>();
+    let connected_clients = server_app.world().resource::<ConnectedClients>();
     assert_eq!(connected_clients.len(), 0);
 
-    let replicon_client = client_app.world.resource_mut::<RepliconClient>();
+    let replicon_client = client_app.world_mut().resource_mut::<RepliconClient>();
     assert!(replicon_client.is_disconnected());
 }
 
@@ -66,12 +68,12 @@ fn replication() {
 
     setup(&mut server_app, &mut client_app);
 
-    server_app.world.spawn(Replicated);
+    server_app.world_mut().spawn(Replicated);
 
     server_app.update();
     client_app.update();
 
-    assert_eq!(client_app.world.entities().len(), 1);
+    assert_eq!(client_app.world().entities().len(), 1);
 }
 
 #[test]
@@ -92,7 +94,7 @@ fn server_event() {
 
     setup(&mut server_app, &mut client_app);
 
-    server_app.world.send_event(ToClients {
+    server_app.world_mut().send_event(ToClients {
         mode: SendMode::Broadcast,
         event: DummyEvent,
     });
@@ -100,7 +102,7 @@ fn server_event() {
     server_app.update();
     client_app.update();
 
-    let dummy_events = client_app.world.resource::<Events<DummyEvent>>();
+    let dummy_events = client_app.world().resource::<Events<DummyEvent>>();
     assert_eq!(dummy_events.len(), 1);
 }
 
@@ -122,13 +124,13 @@ fn client_event() {
 
     setup(&mut server_app, &mut client_app);
 
-    client_app.world.send_event(DummyEvent);
+    client_app.world_mut().send_event(DummyEvent);
 
     client_app.update();
     server_app.update();
 
     let client_events = server_app
-        .world
+        .world()
         .resource::<Events<FromClient<DummyEvent>>>();
     assert_eq!(client_events.len(), 1);
 }
@@ -141,7 +143,7 @@ fn setup(server_app: &mut App, client_app: &mut App) {
 }
 
 fn setup_client(app: &mut App, client_id: u64, port: u16) {
-    let channels = app.world.resource::<RepliconChannels>();
+    let channels = app.world().resource::<RepliconChannels>();
 
     let server_channels_config = channels.get_server_configs();
     let client_channels_config = channels.get_client_configs();
@@ -157,7 +159,7 @@ fn setup_client(app: &mut App, client_id: u64, port: u16) {
 }
 
 fn setup_server(app: &mut App, max_clients: usize) -> u16 {
-    let channels = app.world.resource::<RepliconChannels>();
+    let channels = app.world().resource::<RepliconChannels>();
 
     let server_channels_config = channels.get_server_configs();
     let client_channels_config = channels.get_client_configs();
@@ -218,7 +220,7 @@ fn wait_for_connection(server_app: &mut App, client_app: &mut App) {
     loop {
         client_app.update();
         server_app.update();
-        if client_app.world.resource::<RenetClient>().is_connected() {
+        if client_app.world().resource::<RenetClient>().is_connected() {
             break;
         }
     }

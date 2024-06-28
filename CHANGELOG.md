@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `ServerEventsPlugin` and `ClientEventsPlugin` can be disabled on client-only and server-only apps respectively.
+- Depend on `renet` directly instead of `bevy_renet` in `bevy_replicon_renet`.
 - Put `ClientDiagnosticsPlugin` under `client_diagnostics` feature (disabled by default) and make it part of the `RepliconPlugins` group.
 - Put `scene` module under `scene` feature (enabled by default).
 - Put `parent_sync` module under `parent_sync` feature (enabled by default).
