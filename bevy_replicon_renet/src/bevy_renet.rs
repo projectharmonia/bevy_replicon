@@ -70,6 +70,7 @@ impl Plugin for RenetClientPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             PreUpdate,
+            // Note: This runs before `RenetReceive`. See `NetcodeClientPlugin`.
             Self::update_system.run_if(resource_exists::<RenetClient>),
         );
     }
