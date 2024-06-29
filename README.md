@@ -45,7 +45,8 @@ Have any questions? Feel free to ask in the dedicated [`bevy_replicon` channel](
 
 ## Related Crates
 
-**Note:** Ensure that your `bevy_replicon` version is compatible with the used crate according to semantic versioning.
+> [!WARNING]
+> Ensure that your `bevy_replicon` version is compatible with the used crate according to semantic versioning.
 
 #### Messaging backends
 
