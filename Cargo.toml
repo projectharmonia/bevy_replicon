@@ -118,7 +118,3 @@ required-features = ["client", "server"]
 [lints.clippy]
 type_complexity = "allow"
 too_many_arguments = "allow"
-
-# Removed until `bevy_renet` supports 0.14.0-rc.3.
-# [workspace]
-# members = ["bevy_replicon_renet"]
