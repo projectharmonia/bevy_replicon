@@ -41,11 +41,14 @@ app.add_plugins((MinimalPlugins, RepliconPlugins, MyMessagingPlugins));
 # }
 ```
 
-If you are planning to separate client and server you can use
-[`PluginGroupBuilder::disable()`] to disable [`ClientPlugin`] or [`ServerPlugin`] on [`RepliconPlugins`].
-You will need to disable similar plugins on your messaing library of choice too.
+If you planning to separate client and server, you can use `client` and `server` features,
+which control enabled plugins.
 
-You can also use `client` or `server` features to control these plugins at compile time.
+It's also possible to do it at runtime via [`PluginGroupBuilder::disable()`].
+For server disable [`ClientPlugin`] and [`ClientEventsPlugin`].
+For client disable [`ServerPlugin`] and [`ServerEventsPlugin`].
+
+You will need to disable similar features or plugins on your messaing library of choice too.
 
 Typically updates are not sent every frame. Instead, they are sent at a certain interval
 to save traffic. You can change the defaults with [`TickPolicy`] in the [`ServerPlugin`]:
@@ -501,7 +504,16 @@ pub use bincode;
 use bevy::{app::PluginGroupBuilder, prelude::*};
 use prelude::*;
 
-/// Plugin Group for all replicon plugins.
+/// Plugin group for all replicon plugins.
+///
+/// Contains the following:
+/// * [`RepliconCorePlugin`].
+/// * [`ServerPlugin`] - with feature `server`.
+/// * [`ServerEventsPlugin`] - with feature `server`.
+/// * [`ClientPlugin`] - with feature `client`.
+/// * [`ClientEventsPlugin`] - with feature `client`.
+/// * [`ParentSyncPlugin`] - with feature `parent_sync`.
+/// * [`ClientDiagnosticsPlugin`] - with feature `client_diagnostics`.
 pub struct RepliconPlugins;
 
 impl PluginGroup for RepliconPlugins {
