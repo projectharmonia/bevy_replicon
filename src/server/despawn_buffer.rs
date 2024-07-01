@@ -40,7 +40,7 @@ pub(crate) struct DespawnBuffer(Vec<Entity>);
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::server::replicon_server::RepliconServer;
+    use crate::core::replicon_server::RepliconServer;
 
     #[test]
     fn despawns() {
@@ -48,15 +48,17 @@ mod tests {
         app.add_plugins(DespawnBufferPlugin)
             .init_resource::<RepliconServer>();
 
-        app.world.resource_mut::<RepliconServer>().set_running(true);
+        app.world_mut()
+            .resource_mut::<RepliconServer>()
+            .set_running(true);
 
         app.update();
 
-        app.world.spawn(Replicated).despawn();
+        app.world_mut().spawn(Replicated).despawn();
 
         app.update();
 
-        let despawn_buffer = app.world.resource::<DespawnBuffer>();
+        let despawn_buffer = app.world().resource::<DespawnBuffer>();
         assert_eq!(despawn_buffer.len(), 1);
     }
 }

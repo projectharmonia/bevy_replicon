@@ -16,18 +16,19 @@ multiple-versions = "deny"
 wildcards = "allow"
 skip = [
   { name = "bitflags", version = "2.0" },
+  { name = "cfg_aliases", version = "0.1" },
   { name = "event-listener", version = "<5.0" },
   { name = "event-listener-strategy", version = "0.5" },
+  { name = "fixedbitset", version = "0.4" },
   { name = "libloading", version = "0.7" },
-  { name = "objc-sys", version = "0.2.0-beta.2" },
-  { name = "objc2", version = "0.3.0-beta.3.patch-leaks.3" },
-  { name = "objc2-encode", version = "2.0.0-pre.2" },
+  { name = "ndk-sys", version = "0.5" },
   { name = "redox_syscall", version = "<0.5" },
   { name = "regex-automata", version = "0.1" },
   { name = "regex-syntax", version = "0.6" },
   { name = "syn", version = "1.0" },
-  { name = "tracing-log", version = "0.1" },
+  { name = "toml_edit", version = "0.21" },
   { name = "windows" },
+  { name = "windows-core" },
   { name = "windows-sys" },
   { name = "windows-targets" },
   { name = "windows_aarch64_gnullvm" },
@@ -37,6 +38,7 @@ skip = [
   { name = "windows_x86_64_gnu" },
   { name = "windows_x86_64_gnullvm" },
   { name = "windows_x86_64_msvc" },
+  { name = "winnow", version = "0.5" },
 ]
 
 [sources]

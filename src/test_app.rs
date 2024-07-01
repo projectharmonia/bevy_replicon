@@ -1,9 +1,13 @@
 use bevy::prelude::*;
 
 use crate::{
-    client::replicon_client::{RepliconClient, RepliconClientStatus},
-    core::ClientId,
-    server::{connected_clients::ConnectedClients, replicon_server::RepliconServer, ServerEvent},
+    core::{
+        connected_clients::ConnectedClients,
+        replicon_client::{RepliconClient, RepliconClientStatus},
+        replicon_server::RepliconServer,
+        ClientId,
+    },
+    server::ServerEvent,
 };
 
 /**
@@ -33,7 +37,7 @@ for app in [&mut server_app, &mut client_app] {
 // - client app will be in connected state.
 server_app.connect_client(&mut client_app);
 
-server_app.world.spawn(Replicated);
+server_app.world_mut().spawn(Replicated);
 
 // Run tick for each app and trigger message exchange.
 server_app.update();
@@ -41,7 +45,7 @@ server_app.exchange_with_client(&mut client_app);
 client_app.update();
 
 assert_eq!(
-    client_app.world.entities().len(),
+    client_app.world().entities().len(),
     1,
     "client should replicate spawned entity"
 );
@@ -83,7 +87,7 @@ pub trait ServerTestAppExt {
 
 impl ServerTestAppExt for App {
     fn connect_client(&mut self, client_app: &mut App) {
-        let mut client = client_app.world.resource_mut::<RepliconClient>();
+        let mut client = client_app.world_mut().resource_mut::<RepliconClient>();
         assert!(
             client.is_disconnected(),
             "client can't be connected multiple times"
@@ -92,7 +96,7 @@ impl ServerTestAppExt for App {
         // Use client number as ID.
         // Server ID (0) will always be skipped.
         let max_id = self
-            .world
+            .world_mut()
             .resource_mut::<ConnectedClients>()
             .iter_client_ids()
             .max()
@@ -102,10 +106,10 @@ impl ServerTestAppExt for App {
             client_id: Some(client_id),
         });
 
-        let mut server = self.world.resource_mut::<RepliconServer>();
+        let mut server = self.world_mut().resource_mut::<RepliconServer>();
         server.set_running(true);
 
-        self.world
+        self.world_mut()
             .send_event(ServerEvent::ClientConnected { client_id });
 
         self.update(); // Will update `ConnectedClients`, otherwise next call will assign the same ID.
@@ -113,29 +117,30 @@ impl ServerTestAppExt for App {
     }
 
     fn disconnect_client(&mut self, client_app: &mut App) {
-        let mut client = client_app.world.resource_mut::<RepliconClient>();
+        let mut client = client_app.world_mut().resource_mut::<RepliconClient>();
         let client_id = client
             .id()
             .expect("client should have an assigned ID for disconnect");
 
         client.set_status(RepliconClientStatus::Disconnected);
 
-        self.world.send_event(ServerEvent::ClientDisconnected {
-            client_id,
-            reason: "Disconnected by server".to_string(),
-        });
+        self.world_mut()
+            .send_event(ServerEvent::ClientDisconnected {
+                client_id,
+                reason: "Disconnected by server".to_string(),
+            });
 
         self.update();
         client_app.update();
     }
 
     fn exchange_with_client(&mut self, client_app: &mut App) {
-        let mut client = client_app.world.resource_mut::<RepliconClient>();
+        let mut client = client_app.world_mut().resource_mut::<RepliconClient>();
         let client_id = client
             .id()
             .expect("client should have an assigned ID for exchanging messages");
 
-        let mut server = self.world.resource_mut::<RepliconServer>();
+        let mut server = self.world_mut().resource_mut::<RepliconServer>();
         for (channel_id, message) in client.drain_sent() {
             server.insert_received(client_id, channel_id, message)
         }

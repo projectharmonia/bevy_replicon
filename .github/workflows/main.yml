@@ -47,12 +47,10 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Clippy
-        run: cargo clippy --workspace --benches --tests -- -D warnings
+        run: cargo clippy --benches --tests -- -D warnings
 
       - name: Rustdoc
-        run: |
-          cargo rustdoc -- -D warnings
-          cargo rustdoc -p bevy_replicon_renet -- -D warnings
+        run: cargo rustdoc --all-features -- -D warnings
 
   doctest:
     name: Doctest
@@ -68,7 +66,28 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Test doc
-        run: cargo test --workspace --doc
+        run: cargo test --all-features --doc
+
+  feature-combinations:
+    name: Feature combinations
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repo
+        uses: actions/checkout@v4
+
+      - name: Instal stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache crates
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Cargo Hack
+        run: cargo install cargo-hack
+
+      - name: Check feature combinations
+        run: cargo hack check --feature-powerset
+        env:
+          RUSTFLAGS: -Aunused -Dwarnings
 
   test:
     name: Test
@@ -90,7 +109,7 @@ jobs:
         run: cargo install cargo-tarpaulin
 
       - name: Test
-        run: cargo tarpaulin --workspace --engine llvm --out lcov --exclude-files benches/*
+        run: cargo tarpaulin --all-features --engine llvm --out lcov --exclude-files benches/*
 
       - name: Upload code coverage results
         if: github.actor != 'dependabot[bot]'
