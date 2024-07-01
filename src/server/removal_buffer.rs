@@ -87,12 +87,11 @@ impl RemovalReader<'_, '_> {
     fn read(&mut self) -> impl Iterator<Item = (&Entity, &HashSet<ComponentId>)> {
         self.clear();
 
-        // TODO: Ask Bevy to provide an iterator over `RemovedComponentEvents`.
-        for &component_id in &self.components.0 {
-            let Some(component_events) = self.remove_events.get(component_id) else {
-                continue;
-            };
-
+        for (&component_id, component_events) in self
+            .remove_events
+            .iter()
+            .filter(|(component_id, _)| self.components.contains(*component_id))
+        {
             // Removed components are grouped by type, not by entity, so we need an intermediate container.
             let reader = self.readers.entry(component_id).or_default();
             for entity in reader
@@ -123,6 +122,7 @@ impl RemovalReader<'_, '_> {
     }
 }
 
+#[derive(Deref)]
 struct ReplicatedComponents(HashSet<ComponentId>);
 
 impl FromWorld for ReplicatedComponents {
