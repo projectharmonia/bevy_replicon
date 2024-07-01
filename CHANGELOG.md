@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Move `client::events::event_data` module to `core::event_registry::client_event`.
 - Move `ClientEventAppExt`, `client::events::SerializeFn`, `client::events::DeserializeFn`, `default_serialize`, `default_serialize_mapped`, `default_deserialize` and `FromClient` to `core::event_registry::client_event`.
 - Move `ServerEventAppExt`, `server::events::SerializeFn`, `server::events::DeserializeFn`, `default_serialize`, `default_serialize_mapped`, `default_deserialize`, `ToClients` and `SendMode` to `core::event_registry::server_event`.
+- Speedup removals caching.
 
 ### Fixed
 
