@@ -7,8 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.27.0-rc.3] - 2024-06-29
-
 ### Changed
 
 - Update to Bevy `0.14.0-rc.4`.
@@ -32,12 +30,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Do not divide values per seconds by the number of messages for `ClientDiagnosticsPlugin`.
 
-## [0.27.0-rc.2] - 2024-06-16
-
-### Changed
-
-- Update to Bevy `0.14.0-rc.3`.
-
 ## [0.26.3] - 2024-06-09
 
 ### Added
@@ -47,12 +39,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Do not send empty ack messages from client.
-
-## [0.27.0-rc.1] - 2024-06-07
-
-### Changed
-
-- Update to Bevy `0.14.0-rc.2`.
 
 ## [0.26.2] - 2024-06-05
 
@@ -556,11 +542,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release after separation from [Project Harmonia](https://github.com/projectharmonia/project_harmonia).
 
-[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.27.0-rc.3...HEAD
-[0.27.0-rc.3]: https://github.com/projectharmonia/bevy_replicon/compare/v0.27.0-rc.2...v0.27.0-rc.3
-[0.27.0-rc.2]: https://github.com/projectharmonia/bevy_replicon/compare/v0.27.0-rc.1...v0.27.0-rc.2
+[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.26.3...HEAD
 [0.26.3]: https://github.com/projectharmonia/bevy_replicon/compare/v0.26.2...v0.26.3
-[0.27.0-rc.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.26.2...v0.27.0-rc.1
 [0.26.2]: https://github.com/projectharmonia/bevy_replicon/compare/v0.26.1...v0.26.2
 [0.26.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.26.0...v0.26.1
 [0.26.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.25.3...v0.26.0
