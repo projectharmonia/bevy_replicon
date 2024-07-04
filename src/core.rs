@@ -1,16 +1,22 @@
 pub mod channels;
 pub mod command_markers;
 pub mod common_conditions;
+pub mod connected_clients;
 pub mod ctx;
+pub mod event_registry;
 pub mod replication_registry;
 pub mod replication_rules;
+pub mod replicon_client;
+pub mod replicon_server;
 pub mod replicon_tick;
+pub mod server_entity_map;
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use channels::RepliconChannels;
 use command_markers::CommandMarkers;
+use event_registry::EventRegistry;
 use replication_registry::ReplicationRegistry;
 use replication_rules::ReplicationRules;
 
@@ -22,7 +28,8 @@ impl Plugin for RepliconCorePlugin {
             .init_resource::<RepliconChannels>()
             .init_resource::<ReplicationRegistry>()
             .init_resource::<ReplicationRules>()
-            .init_resource::<CommandMarkers>();
+            .init_resource::<CommandMarkers>()
+            .init_resource::<EventRegistry>();
     }
 }
 

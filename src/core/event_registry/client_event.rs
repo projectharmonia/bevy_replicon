@@ -5,25 +5,156 @@ use std::{
 };
 
 use bevy::{
-    ecs::component::{ComponentId, Components},
+    ecs::{
+        component::{ComponentId, Components},
+        entity::MapEntities,
+        event::ManualEventReader,
+    },
     prelude::*,
     ptr::{Ptr, PtrMut},
 };
+use bincode::{DefaultOptions, Options};
+use serde::{de::DeserializeOwned, Serialize};
 
-use super::{ClientEventReader, DeserializeFn, FromClient, SerializeFn};
-use crate::{
-    client::replicon_client::RepliconClient,
-    core::{
-        ctx::{ClientSendCtx, ServerReceiveCtx},
-        ClientId,
-    },
-    server::replicon_server::RepliconServer,
+use super::EventRegistry;
+use crate::core::{
+    channels::{RepliconChannel, RepliconChannels},
+    ctx::{ClientSendCtx, ServerReceiveCtx},
+    replicon_client::RepliconClient,
+    replicon_server::RepliconServer,
+    ClientId,
 };
+
+/// An extension trait for [`App`] for creating client events.
+pub trait ClientEventAppExt {
+    /// Registers [`FromClient<E>`] and `E` events.
+    ///
+    /// [`FromClient<E>`] will be emitted on the server after sending `E` event on client.
+    /// In listen-server mode `E` will be drained right after sending and re-emitted as
+    /// [`FromClient<E>`] with [`ClientId::SERVER`](crate::core::ClientId::SERVER).
+    ///
+    /// Can be called for events that were registered with [add_event](bevy::app::App::add_event).
+    /// A duplicate registration for `E` won't be created.
+    /// But be careful, since on listen servers all events `E` are drained,
+    /// which could break other Bevy or third-party plugin systems that listen for `E`.
+    ///
+    /// See also [`Self::add_client_event_with`] and the [corresponding section](../index.html#from-client-to-server)
+    /// from the quick start guide.
+    fn add_client_event<E: Event + Serialize + DeserializeOwned>(
+        &mut self,
+        channel: impl Into<RepliconChannel>,
+    ) -> &mut Self {
+        self.add_client_event_with(channel, default_serialize::<E>, default_deserialize::<E>)
+    }
+
+    /// Same as [`Self::add_client_event`], but additionally maps client entities to server inside the event before sending.
+    ///
+    /// Always use it for events that contain entities.
+    /// See also [`Self::add_client_event`].
+    fn add_mapped_client_event<E: Event + Serialize + DeserializeOwned + MapEntities + Clone>(
+        &mut self,
+        channel: impl Into<RepliconChannel>,
+    ) -> &mut Self {
+        self.add_client_event_with(
+            channel,
+            default_serialize_mapped::<E>,
+            default_deserialize::<E>,
+        )
+    }
+
+    /**
+    Same as [`Self::add_client_event`], but uses the specified functions for serialization and deserialization.
+
+    # Examples
+
+    Register an event with [`Box<dyn Reflect>`]:
+
+    ```
+    use std::io::Cursor;
+
+    use bevy::{
+        prelude::*,
+        reflect::serde::{ReflectSerializer, ReflectDeserializer},
+    };
+    use bevy_replicon::{
+        core::ctx::{ClientSendCtx, ServerReceiveCtx},
+        prelude::*,
+    };
+    use bincode::{DefaultOptions, Options};
+    use serde::de::DeserializeSeed;
+
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, RepliconPlugins));
+    app.add_client_event_with(
+        ChannelKind::Ordered,
+        serialize_reflect,
+        deserialize_reflect,
+    );
+
+    fn serialize_reflect(
+        ctx: &mut ClientSendCtx,
+        event: &ReflectEvent,
+        cursor: &mut Cursor<Vec<u8>>,
+    ) -> bincode::Result<()> {
+        let serializer = ReflectSerializer::new(&*event.0, ctx.registry);
+        DefaultOptions::new().serialize_into(cursor, &serializer)
+    }
+
+    fn deserialize_reflect(
+        ctx: &mut ServerReceiveCtx,
+        cursor: &mut Cursor<&[u8]>,
+    ) -> bincode::Result<ReflectEvent> {
+        let mut deserializer = bincode::Deserializer::with_reader(cursor, DefaultOptions::new());
+        let reflect = ReflectDeserializer::new(ctx.registry).deserialize(&mut deserializer)?;
+        Ok(ReflectEvent(reflect))
+    }
+
+    #[derive(Event)]
+    struct ReflectEvent(Box<dyn Reflect>);
+    ```
+    */
+    fn add_client_event_with<E: Event>(
+        &mut self,
+        channel: impl Into<RepliconChannel>,
+        serialize: SerializeFn<E>,
+        deserialize: DeserializeFn<E>,
+    ) -> &mut Self;
+}
+
+impl ClientEventAppExt for App {
+    fn add_client_event_with<E: Event>(
+        &mut self,
+        channel: impl Into<RepliconChannel>,
+        serialize: SerializeFn<E>,
+        deserialize: DeserializeFn<E>,
+    ) -> &mut Self {
+        self.add_event::<E>()
+            .add_event::<FromClient<E>>()
+            .init_resource::<ClientEventReader<E>>();
+
+        let channel_id = self
+            .world_mut()
+            .resource_mut::<RepliconChannels>()
+            .create_client_channel(channel.into());
+
+        self.world_mut()
+            .resource_scope(|world, mut event_registry: Mut<EventRegistry>| {
+                event_registry.register_client_event(ClientEvent::new(
+                    world.components(),
+                    channel_id,
+                    serialize,
+                    deserialize,
+                ));
+            });
+
+        self
+    }
+}
 
 /// Type-erased functions and metadata for a registered client event.
 ///
 /// Needed so events of different types can be processed together.
-pub(super) struct ClientEventData {
+pub(crate) struct ClientEvent {
     type_id: TypeId,
     type_name: &'static str,
 
@@ -47,8 +178,8 @@ pub(super) struct ClientEventData {
     deserialize: unsafe fn(),
 }
 
-impl ClientEventData {
-    pub(super) fn new<E: Event>(
+impl ClientEvent {
+    fn new<E: Event>(
         components: &Components,
         channel_id: u8,
         serialize: SerializeFn<E>,
@@ -94,15 +225,15 @@ impl ClientEventData {
         }
     }
 
-    pub(super) fn events_id(&self) -> ComponentId {
+    pub(crate) fn events_id(&self) -> ComponentId {
         self.events_id
     }
 
-    pub(super) fn reader_id(&self) -> ComponentId {
+    pub(crate) fn reader_id(&self) -> ComponentId {
         self.reader_id
     }
 
-    pub(super) fn client_events_id(&self) -> ComponentId {
+    pub(crate) fn client_events_id(&self) -> ComponentId {
         self.client_events_id
     }
 
@@ -112,7 +243,7 @@ impl ClientEventData {
     ///
     /// The caller must ensure that `events` is [`Events<E>`], `reader` is [`ClientEventReader<E>`]
     /// and this instance was created for `E`.
-    pub(super) unsafe fn send(
+    pub(crate) unsafe fn send(
         &self,
         ctx: &mut ClientSendCtx,
         events: &Ptr,
@@ -128,7 +259,7 @@ impl ClientEventData {
     ///
     /// The caller must ensure that `events` is [`Events<FromClient<E>>`]
     /// and this instance was created for `E`.
-    pub(super) unsafe fn receive(
+    pub(crate) unsafe fn receive(
         &self,
         ctx: &mut ServerReceiveCtx,
         client_events: PtrMut,
@@ -143,7 +274,7 @@ impl ClientEventData {
     ///
     /// The caller must ensure that `events` is [`Events<E>`], `client_events` is [`Events<FromClient<E>>`]
     /// and this instance was created for `E`.
-    pub(super) unsafe fn resend_locally(&self, client_events: PtrMut, events: PtrMut) {
+    pub(crate) unsafe fn resend_locally(&self, client_events: PtrMut, events: PtrMut) {
         (self.resend_locally)(client_events, events);
     }
 
@@ -153,7 +284,7 @@ impl ClientEventData {
     ///
     /// The caller must ensure that `events` is [`Events<E>`]
     /// and this instance was created for `E`.
-    pub(super) unsafe fn reset(&self, events: PtrMut) {
+    pub(crate) unsafe fn reset(&self, events: PtrMut) {
         (self.reset)(events);
     }
 
@@ -162,7 +293,7 @@ impl ClientEventData {
     /// # Safety
     ///
     /// The caller must ensure that this instance was created for `E`.
-    pub(super) unsafe fn serialize<E: Event>(
+    unsafe fn serialize<E: Event>(
         &self,
         ctx: &mut ClientSendCtx,
         event: &E,
@@ -178,7 +309,7 @@ impl ClientEventData {
     /// # Safety
     ///
     /// The caller must ensure that this instance was created for `E`.
-    pub(super) unsafe fn deserialize<E: Event>(
+    unsafe fn deserialize<E: Event>(
         &self,
         ctx: &mut ServerReceiveCtx,
         cursor: &mut Cursor<&[u8]>,
@@ -199,11 +330,17 @@ impl ClientEventData {
     }
 }
 
+/// Signature of client event serialization functions.
+pub type SerializeFn<E> = fn(&mut ClientSendCtx, &E, &mut Cursor<Vec<u8>>) -> bincode::Result<()>;
+
+/// Signature of client event deserialization functions.
+pub type DeserializeFn<E> = fn(&mut ServerReceiveCtx, &mut Cursor<&[u8]>) -> bincode::Result<E>;
+
 /// Signature of client event sending functions.
-type SendFn = unsafe fn(&ClientEventData, &mut ClientSendCtx, &Ptr, PtrMut, &mut RepliconClient);
+type SendFn = unsafe fn(&ClientEvent, &mut ClientSendCtx, &Ptr, PtrMut, &mut RepliconClient);
 
 /// Signature of client event receiving functions.
-type ReceiveFn = unsafe fn(&ClientEventData, &mut ServerReceiveCtx, PtrMut, &mut RepliconServer);
+type ReceiveFn = unsafe fn(&ClientEvent, &mut ServerReceiveCtx, PtrMut, &mut RepliconServer);
 
 /// Signature of client event resending functions.
 type ResendLocallyFn = unsafe fn(PtrMut, PtrMut);
@@ -218,7 +355,7 @@ type ResetFn = unsafe fn(PtrMut);
 /// The caller must ensure that `events` is [`Events<FromClient<E>>`], `reader` is [`ClientEventReader<E>`],
 /// and `event_data` was created for `E`.
 unsafe fn send<E: Event>(
-    event_data: &ClientEventData,
+    event_data: &ClientEvent,
     ctx: &mut ClientSendCtx,
     events: &Ptr,
     reader: PtrMut,
@@ -243,7 +380,7 @@ unsafe fn send<E: Event>(
 /// The caller must ensure that `events` is [`Events<E>`]
 /// and `event_data` was created for `E`.
 unsafe fn receive<E: Event>(
-    event_data: &ClientEventData,
+    event_data: &ClientEvent,
     ctx: &mut ServerReceiveCtx,
     events: PtrMut,
     server: &mut RepliconServer,
@@ -289,4 +426,53 @@ unsafe fn reset<E: Event>(events: PtrMut) {
     if drained_count > 0 {
         warn!("discarded {drained_count} client events due to a disconnect");
     }
+}
+
+/// Tracks read events for [`ClientEventPlugin::send`].
+///
+/// Unlike with server events, we don't always drain all events in [`ClientEventPlugin::resend_locally`].
+#[derive(Resource, Deref, DerefMut)]
+struct ClientEventReader<E: Event>(ManualEventReader<E>);
+
+impl<E: Event> FromWorld for ClientEventReader<E> {
+    fn from_world(world: &mut World) -> Self {
+        let events = world.resource::<Events<E>>();
+        Self(events.get_reader())
+    }
+}
+
+/// An event indicating that a message from client was received.
+/// Emited only on server.
+#[derive(Clone, Copy, Event)]
+pub struct FromClient<T> {
+    pub client_id: ClientId,
+    pub event: T,
+}
+
+/// Default event serialization function.
+pub fn default_serialize<E: Event + Serialize>(
+    _ctx: &mut ClientSendCtx,
+    event: &E,
+    cursor: &mut Cursor<Vec<u8>>,
+) -> bincode::Result<()> {
+    DefaultOptions::new().serialize_into(cursor, event)
+}
+
+/// Like [`default_serialize`], but also maps entities.
+pub fn default_serialize_mapped<E: Event + MapEntities + Clone + Serialize>(
+    ctx: &mut ClientSendCtx,
+    event: &E,
+    cursor: &mut Cursor<Vec<u8>>,
+) -> bincode::Result<()> {
+    let mut event = event.clone();
+    event.map_entities(ctx);
+    DefaultOptions::new().serialize_into(cursor, &event)
+}
+
+/// Default event deserialization function.
+pub fn default_deserialize<E: Event + DeserializeOwned>(
+    _ctx: &mut ServerReceiveCtx,
+    cursor: &mut Cursor<&[u8]>,
+) -> bincode::Result<E> {
+    DefaultOptions::new().deserialize_from(cursor)
 }

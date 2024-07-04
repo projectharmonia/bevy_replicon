@@ -9,16 +9,13 @@ use bincode::{DefaultOptions, Options};
 use bytes::Bytes;
 use varint_rs::VarintWriter;
 
-use super::{
-    client_entity_map::ClientMapping,
-    connected_clients::{ClientBuffers, ConnectedClients},
-    replicon_server::RepliconServer,
-    ConnectedClient,
-};
+use super::{client_entity_map::ClientMapping, ConnectedClient};
 use crate::core::{
     channels::ReplicationChannel,
+    connected_clients::{ClientBuffers, ConnectedClients},
     ctx::SerializeCtx,
     replication_registry::{component_fns::ComponentFns, rule_fns::UntypedRuleFns, FnsId},
+    replicon_server::RepliconServer,
     replicon_tick::RepliconTick,
 };
 

@@ -139,9 +139,9 @@ mod tests {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>();
 
-        app.world.spawn_empty();
+        app.world_mut().spawn_empty();
 
-        let archetypes = match_archetypes(&mut app.world);
+        let archetypes = match_archetypes(app.world_mut());
         assert!(archetypes.is_empty());
     }
 
@@ -150,9 +150,9 @@ mod tests {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>();
 
-        app.world.spawn(Replicated);
+        app.world_mut().spawn(Replicated);
 
-        let archetypes = match_archetypes(&mut app.world);
+        let archetypes = match_archetypes(app.world_mut());
         assert_eq!(archetypes.len(), 1);
 
         let archetype = archetypes.first().unwrap();
@@ -166,9 +166,9 @@ mod tests {
             .init_resource::<ReplicationRegistry>()
             .replicate::<ComponentA>();
 
-        app.world.spawn((Replicated, ComponentB));
+        app.world_mut().spawn((Replicated, ComponentB));
 
-        let archetypes = match_archetypes(&mut app.world);
+        let archetypes = match_archetypes(app.world_mut());
         let archetype = archetypes.first().unwrap();
         assert!(archetype.components.is_empty());
     }
@@ -180,9 +180,9 @@ mod tests {
             .init_resource::<ReplicationRegistry>()
             .replicate::<ComponentA>();
 
-        app.world.spawn((Replicated, ComponentA));
+        app.world_mut().spawn((Replicated, ComponentA));
 
-        let archetypes = match_archetypes(&mut app.world);
+        let archetypes = match_archetypes(app.world_mut());
         let archetype = archetypes.first().unwrap();
         assert_eq!(archetype.components.len(), 1);
     }
@@ -194,9 +194,9 @@ mod tests {
             .init_resource::<ReplicationRegistry>()
             .replicate_group::<(ComponentA, ComponentB)>();
 
-        app.world.spawn((Replicated, ComponentA, ComponentB));
+        app.world_mut().spawn((Replicated, ComponentA, ComponentB));
 
-        let archetypes = match_archetypes(&mut app.world);
+        let archetypes = match_archetypes(app.world_mut());
         let archetype = archetypes.first().unwrap();
         assert_eq!(archetype.components.len(), 2);
     }
@@ -208,9 +208,9 @@ mod tests {
             .init_resource::<ReplicationRegistry>()
             .replicate_group::<(ComponentA, ComponentB)>();
 
-        app.world.spawn((Replicated, ComponentA));
+        app.world_mut().spawn((Replicated, ComponentA));
 
-        let archetypes = match_archetypes(&mut app.world);
+        let archetypes = match_archetypes(app.world_mut());
         let archetype = archetypes.first().unwrap();
         assert!(archetype.components.is_empty());
     }
@@ -223,9 +223,9 @@ mod tests {
             .replicate::<ComponentA>()
             .replicate_group::<(ComponentA, ComponentB)>();
 
-        app.world.spawn((Replicated, ComponentA, ComponentB));
+        app.world_mut().spawn((Replicated, ComponentA, ComponentB));
 
-        let archetypes = match_archetypes(&mut app.world);
+        let archetypes = match_archetypes(app.world_mut());
         let archetype = archetypes.first().unwrap();
         assert_eq!(archetype.components.len(), 2);
     }
@@ -239,9 +239,9 @@ mod tests {
             .replicate::<ComponentB>()
             .replicate_group::<(ComponentA, ComponentB)>();
 
-        app.world.spawn((Replicated, ComponentA, ComponentB));
+        app.world_mut().spawn((Replicated, ComponentA, ComponentB));
 
-        let archetypes = match_archetypes(&mut app.world);
+        let archetypes = match_archetypes(app.world_mut());
         let archetype = archetypes.first().unwrap();
         assert_eq!(archetype.components.len(), 2);
     }
@@ -254,10 +254,10 @@ mod tests {
             .replicate_group::<(ComponentA, ComponentC)>()
             .replicate_group::<(ComponentA, ComponentB)>();
 
-        app.world
+        app.world_mut()
             .spawn((Replicated, ComponentA, ComponentB, ComponentC));
 
-        let archetypes = match_archetypes(&mut app.world);
+        let archetypes = match_archetypes(app.world_mut());
         let archetype = archetypes.first().unwrap();
         assert_eq!(archetype.components.len(), 3);
     }

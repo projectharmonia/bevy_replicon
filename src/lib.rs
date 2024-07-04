@@ -41,9 +41,14 @@ app.add_plugins((MinimalPlugins, RepliconPlugins, MyMessagingPlugins));
 # }
 ```
 
-If you are planning to separate client and server you can use
-[`PluginGroupBuilder::disable()`] to disable [`ClientPlugin`] or [`ServerPlugin`] on [`RepliconPlugins`].
-You will need to disable similar plugins on your messaing library of choice too.
+If you want to separate the client and server, you can use the `client` and `server` features,
+which control enabled plugins.
+
+It's also possible to do it at runtime via [`PluginGroupBuilder::disable()`].
+For server disable [`ClientPlugin`] and [`ClientEventsPlugin`].
+For client disable [`ServerPlugin`] and [`ServerEventsPlugin`].
+
+You will need to disable similar features or plugins on your messaing library of choice too.
 
 Typically updates are not sent every frame. Instead, they are sent at a certain interval
 to save traffic. You can change the defaults with [`TickPolicy`] in the [`ServerPlugin`]:
@@ -178,7 +183,7 @@ necessary components after replication. To avoid one frame delay, put
 your initialization systems in [`ClientSet::Receive`]:
 
 ```
-# use bevy::{prelude::*, sprite::Mesh2dHandle};
+# use bevy::{color::palettes::css::AZURE, prelude::*, sprite::Mesh2dHandle};
 # use bevy_replicon::prelude::*;
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
@@ -199,7 +204,7 @@ fn init_player(
             GlobalTransform::default(),
             VisibilityBundle::default(),
             Mesh2dHandle(meshes.add(Capsule2d::default())),
-            materials.add(Color::AZURE),
+            materials.add(Color::from(AZURE)),
         ));
     }
 }
@@ -439,12 +444,18 @@ To reduce packet size there are the following limits per replication update:
 - Up to [`u16::MAX`] entities that have removed components with up to [`u16::MAX`] bytes of component data.
 - Up to [`u16::MAX`] entities that were despawned.
 */
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
+#[cfg(feature = "client")]
 pub mod client;
 pub mod core;
+#[cfg(feature = "parent_sync")]
 pub mod parent_sync;
+#[cfg(feature = "scene")]
 pub mod scene;
+#[cfg(feature = "server")]
 pub mod server;
+#[cfg(all(feature = "server", feature = "client"))]
 pub mod test_app;
 
 pub mod prelude {
@@ -452,31 +463,40 @@ pub mod prelude {
     pub use super::core::Replication;
 
     pub use super::{
-        client::{
-            diagnostics::{ClientDiagnosticsPlugin, ClientStats},
-            events::{ClientEventAppExt, ClientEventsPlugin, FromClient},
-            replicon_client::{RepliconClient, RepliconClientStatus},
-            ClientPlugin, ClientSet,
-        },
         core::{
             channels::{ChannelKind, RepliconChannel, RepliconChannels},
             command_markers::AppMarkerExt,
             common_conditions::*,
-            replication_rules::AppRuleExt,
-            ClientId, Replicated, RepliconCorePlugin,
-        },
-        parent_sync::{ParentSync, ParentSyncPlugin},
-        server::{
-            client_entity_map::{ClientEntityMap, ClientMapping},
             connected_clients::{
                 client_visibility::ClientVisibility, ConnectedClient, ConnectedClients,
+                VisibilityPolicy,
             },
-            events::{SendMode, ServerEventAppExt, ServerEventsPlugin, ToClients},
+            event_registry::{
+                client_event::{ClientEventAppExt, FromClient},
+                server_event::{SendMode, ServerEventAppExt, ToClients},
+            },
+            replication_rules::AppRuleExt,
+            replicon_client::{RepliconClient, RepliconClientStatus},
             replicon_server::RepliconServer,
-            ServerEvent, ServerPlugin, ServerSet, TickPolicy, VisibilityPolicy,
+            ClientId, Replicated, RepliconCorePlugin,
         },
         RepliconPlugins,
     };
+
+    #[cfg(feature = "client")]
+    pub use super::client::{events::ClientEventsPlugin, ClientPlugin, ClientSet, ClientStats};
+
+    #[cfg(feature = "server")]
+    pub use super::server::{
+        client_entity_map::{ClientEntityMap, ClientMapping},
+        events::ServerEventsPlugin,
+        ServerEvent, ServerPlugin, ServerSet, TickPolicy,
+    };
+
+    #[cfg(feature = "client_diagnostics")]
+    pub use super::client::diagnostics::ClientDiagnosticsPlugin;
+    #[cfg(feature = "parent_sync")]
+    pub use super::parent_sync::{ParentSync, ParentSyncPlugin};
 }
 
 pub use bincode;
@@ -484,17 +504,43 @@ pub use bincode;
 use bevy::{app::PluginGroupBuilder, prelude::*};
 use prelude::*;
 
-/// Plugin Group for all replicon plugins.
+/// Plugin group for all replicon plugins.
+///
+/// Contains the following:
+/// * [`RepliconCorePlugin`].
+/// * [`ServerPlugin`] - with feature `server`.
+/// * [`ServerEventsPlugin`] - with feature `server`.
+/// * [`ClientPlugin`] - with feature `client`.
+/// * [`ClientEventsPlugin`] - with feature `client`.
+/// * [`ParentSyncPlugin`] - with feature `parent_sync`.
+/// * [`ClientDiagnosticsPlugin`] - with feature `client_diagnostics`.
 pub struct RepliconPlugins;
 
 impl PluginGroup for RepliconPlugins {
     fn build(self) -> PluginGroupBuilder {
-        PluginGroupBuilder::start::<Self>()
-            .add(RepliconCorePlugin)
-            .add(ParentSyncPlugin)
-            .add(ClientPlugin)
-            .add(ServerPlugin::default())
-            .add(ClientEventsPlugin)
-            .add(ServerEventsPlugin)
+        let mut group = PluginGroupBuilder::start::<Self>();
+        group = group.add(RepliconCorePlugin);
+
+        #[cfg(feature = "server")]
+        {
+            group = group.add(ServerPlugin::default()).add(ServerEventsPlugin);
+        }
+
+        #[cfg(feature = "client")]
+        {
+            group = group.add(ClientPlugin).add(ClientEventsPlugin);
+        }
+
+        #[cfg(feature = "parent_sync")]
+        {
+            group = group.add(ParentSyncPlugin);
+        }
+
+        #[cfg(feature = "client_diagnostics")]
+        {
+            group = group.add(ClientDiagnosticsPlugin);
+        }
+
+        group
     }
 }

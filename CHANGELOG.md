@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Update to Bevy `0.14.0-rc.4`.
+- Move `bevy_replicon_renet` to a [dedicated repository](https://github.com/projectharmonia/bevy_replicon_renet).
+- `ServerEventsPlugin` and `ClientEventsPlugin` can be disabled on client-only and server-only apps respectively.
+- Put `ClientDiagnosticsPlugin` under `client_diagnostics` feature (disabled by default) and make it part of the `RepliconPlugins` group.
+- Put `scene` module under `scene` feature (enabled by default).
+- Put `parent_sync` module under `parent_sync` feature (enabled by default).
+- Put `client` module under `client` feature (enabled by default).
+- Put `server` module under `server` feature (enabled by default).
+- `TestFnsEntityExt::serialize` now accepts `RepliconTick` for server tick instead of using `ServerTick` resource internally.
+- Move `replicon_client`, `server_entity_map`, `replicon_server`, `connected_clients` under `core` module. These modules are needed for both client and server.
+- Move `VisibilityPolicy` to `connected_clients` module.
+- Move `server::events::event_data` module to `core::event_registry::server_event`.
+- Move `client::events::event_data` module to `core::event_registry::client_event`.
+- Move `ClientEventAppExt`, `client::events::SerializeFn`, `client::events::DeserializeFn`, `default_serialize`, `default_serialize_mapped`, `default_deserialize` and `FromClient` to `core::event_registry::client_event`.
+- Move `ServerEventAppExt`, `server::events::SerializeFn`, `server::events::DeserializeFn`, `default_serialize`, `default_serialize_mapped`, `default_deserialize`, `ToClients` and `SendMode` to `core::event_registry::server_event`.
+- Speedup removals caching.
+
+### Fixed
+
+- Do not divide values per seconds by the number of messages for `ClientDiagnosticsPlugin`.
+
 ## [0.26.3] - 2024-06-09
 
 ### Added

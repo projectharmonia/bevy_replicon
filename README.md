@@ -39,17 +39,18 @@ See also [What kind of networking should X game use?](https://github.com/bevyeng
 
 Check out the [quick start guide](https://docs.rs/bevy_replicon).
 
-See also [examples](bevy_replicon_renet/examples) with [`bevy_replicon_renet`](bevy_replicon_renet) as a messaging backend.
+For examples navigate to [messaging backends](#messaging-backends) repositories because you will need I/O in order to run them.
 
 Have any questions? Feel free to ask in the dedicated [`bevy_replicon` channel](https://discord.com/channels/691052431525675048/1090432346907492443) in Bevy's Discord server.
 
 ## Related Crates
 
-**Note:** Ensure that your `bevy_replicon` version is compatible with the used crate according to semantic versioning.
+> [!WARNING]
+> Ensure that your `bevy_replicon` version is compatible with the used crate according to semantic versioning.
 
 #### Messaging backends
 
-- [`bevy_replicon_renet`](bevy_replicon_renet) - integration for [`bevy_renet`](https://github.com/lucaspoffo/renet/tree/master/bevy_renet). Provided by this repo.
+- [`bevy_replicon_renet`](https://github.com/projectharmonia/bevy_replicon_renet) - integration for [`bevy_renet`](https://github.com/lucaspoffo/renet/tree/master/bevy_renet). Maintained by the authors of this crate.
 - [`bevy_replicon_renet2`](https://github.com/UkoeHB/renet2/tree/main/bevy_replicon_renet2) - integration for [`bevy_renet2`](https://github.com/UkoeHB/renet2/tree/main/bevy_renet2). Includes a WebTransport backend for browsers, and enables servers that can manage multi-platform clients simultaneously.
 - [`bevy_replicon_quinnet`](https://github.com/Henauxg/bevy_quinnet/tree/main/bevy_replicon_quinnet) - integration for [`bevy_quinnet`](https://github.com/Henauxg/bevy_quinnet).
 
@@ -69,10 +70,10 @@ Have any questions? Feel free to ask in the dedicated [`bevy_replicon` channel](
 
 ## Bevy compatibility
 
-| bevy   | bevy_replicon |
-| ------ | ------------- |
-| 0.13.0 | 0.23-0.26     |
-| 0.12.1 | 0.18-0.22     |
-| 0.11.0 | 0.6-0.17      |
-| 0.10.1 | 0.2-0.6       |
-| 0.10.0 | 0.1           |
+| bevy        | bevy_replicon |
+| ----------- | ------------- |
+| 0.13.0      | 0.23-0.26     |
+| 0.12.1      | 0.18-0.22     |
+| 0.11.0      | 0.6-0.17      |
+| 0.10.1      | 0.2-0.6       |
+| 0.10.0      | 0.1           |

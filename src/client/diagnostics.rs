@@ -6,67 +6,50 @@ use bevy::{
 };
 use std::time::Duration;
 
-/// Replication stats during message processing.
-///
-/// Flushed to Diagnostics system periodically.
-#[derive(Default, Resource, Debug)]
-pub struct ClientStats {
-    /// Incremented per entity that changes.
-    pub entities_changed: u32,
-    /// Incremented for every component that changes.
-    pub components_changed: u32,
-    /// Incremented per client mapping added.
-    pub mappings: u32,
-    /// Incremented per entity despawn.
-    pub despawns: u32,
-    /// Replication messages received.
-    pub messages: u32,
-    /// Replication bytes received in message payloads (without internal messaging plugin data).
-    pub bytes: u64,
-}
+use super::ClientStats;
 
-/// Plugin to write Diagnostics every second.
+/// Plugin to write [`Diagnostics`] based on [`ClientStats`] every second.
 ///
-/// Not added by default.
+/// Adds [`ClientStats`] resource and automatically resets it to get diagnostics per second.
 pub struct ClientDiagnosticsPlugin;
 
 impl Plugin for ClientDiagnosticsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            Update,
-            Self::add_measurements.run_if(on_timer(Duration::from_secs(1))),
-        )
-        .init_resource::<ClientStats>()
-        .register_diagnostic(
-            Diagnostic::new(Self::ENTITY_CHANGES)
-                .with_suffix("entities changed per second")
-                .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
-        )
-        .register_diagnostic(
-            Diagnostic::new(Self::COMPONENT_CHANGES)
-                .with_suffix("components changed per second")
-                .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
-        )
-        .register_diagnostic(
-            Diagnostic::new(Self::MAPPINGS)
-                .with_suffix("mappings added per second")
-                .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
-        )
-        .register_diagnostic(
-            Diagnostic::new(Self::DESPAWNS)
-                .with_suffix("despawns per second")
-                .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
-        )
-        .register_diagnostic(
-            Diagnostic::new(Self::MESSAGES)
-                .with_suffix("messages per second")
-                .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
-        )
-        .register_diagnostic(
-            Diagnostic::new(Self::BYTES)
-                .with_suffix("bytes per second")
-                .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
-        );
+        app.init_resource::<ClientStats>()
+            .add_systems(
+                Update,
+                Self::add_measurements.run_if(on_timer(Duration::from_secs(1))),
+            )
+            .register_diagnostic(
+                Diagnostic::new(Self::ENTITY_CHANGES)
+                    .with_suffix("entities changed per second")
+                    .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
+            )
+            .register_diagnostic(
+                Diagnostic::new(Self::COMPONENT_CHANGES)
+                    .with_suffix("components changed per second")
+                    .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
+            )
+            .register_diagnostic(
+                Diagnostic::new(Self::MAPPINGS)
+                    .with_suffix("mappings added per second")
+                    .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
+            )
+            .register_diagnostic(
+                Diagnostic::new(Self::DESPAWNS)
+                    .with_suffix("despawns per second")
+                    .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
+            )
+            .register_diagnostic(
+                Diagnostic::new(Self::MESSAGES)
+                    .with_suffix("messages per second")
+                    .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
+            )
+            .register_diagnostic(
+                Diagnostic::new(Self::BYTES)
+                    .with_suffix("bytes per second")
+                    .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
+            );
     }
 }
 
@@ -90,41 +73,11 @@ impl ClientDiagnosticsPlugin {
     pub const DIAGNOSTIC_HISTORY_LEN: usize = 60;
 
     fn add_measurements(mut stats: ResMut<ClientStats>, mut diagnostics: Diagnostics) {
-        diagnostics.add_measurement(&Self::ENTITY_CHANGES, || {
-            if stats.messages == 0 {
-                0_f64
-            } else {
-                stats.entities_changed as f64 / stats.messages as f64
-            }
-        });
-        diagnostics.add_measurement(&Self::COMPONENT_CHANGES, || {
-            if stats.messages == 0 {
-                0_f64
-            } else {
-                stats.components_changed as f64 / stats.messages as f64
-            }
-        });
-        diagnostics.add_measurement(&Self::MAPPINGS, || {
-            if stats.messages == 0 {
-                0_f64
-            } else {
-                stats.mappings as f64 / stats.messages as f64
-            }
-        });
-        diagnostics.add_measurement(&Self::DESPAWNS, || {
-            if stats.messages == 0 {
-                0_f64
-            } else {
-                stats.despawns as f64 / stats.messages as f64
-            }
-        });
-        diagnostics.add_measurement(&Self::BYTES, || {
-            if stats.messages == 0 {
-                0_f64
-            } else {
-                stats.bytes as f64 / stats.messages as f64
-            }
-        });
+        diagnostics.add_measurement(&Self::ENTITY_CHANGES, || stats.entities_changed as f64);
+        diagnostics.add_measurement(&Self::COMPONENT_CHANGES, || stats.components_changed as f64);
+        diagnostics.add_measurement(&Self::MAPPINGS, || stats.mappings as f64);
+        diagnostics.add_measurement(&Self::DESPAWNS, || stats.despawns as f64);
+        diagnostics.add_measurement(&Self::BYTES, || stats.bytes as f64);
         diagnostics.add_measurement(&Self::MESSAGES, || stats.messages as f64);
         *stats = ClientStats::default();
     }

@@ -1,12 +1,11 @@
 pub mod confirm_history;
+#[cfg(feature = "client_diagnostics")]
 pub mod diagnostics;
 pub mod events;
-pub mod replicon_client;
-pub mod server_entity_map;
 
 use std::{io::Cursor, mem};
 
-use bevy::{ecs::system::CommandQueue, prelude::*};
+use bevy::{ecs::world::CommandQueue, prelude::*};
 use bincode::{DefaultOptions, Options};
 use bytes::Bytes;
 use varint_rs::VarintReader;
@@ -17,13 +16,12 @@ use crate::core::{
     common_conditions::{client_connected, client_just_connected, client_just_disconnected},
     ctx::{DespawnCtx, RemoveCtx, WriteCtx},
     replication_registry::ReplicationRegistry,
+    replicon_client::RepliconClient,
     replicon_tick::RepliconTick,
+    server_entity_map::ServerEntityMap,
     Replicated,
 };
 use confirm_history::ConfirmHistory;
-use diagnostics::ClientStats;
-use replicon_client::RepliconClient;
-use server_entity_map::ServerEntityMap;
 
 /// Client functionality and replication receiving.
 ///
@@ -639,4 +637,27 @@ pub(super) struct BufferedUpdate {
 
     /// Update data.
     message: Bytes,
+}
+
+/// Replication stats during message processing.
+///
+/// Statistic will be collected only if the resource is present.
+/// The resource is not added by default.
+///
+/// See also [`ClientDiagnosticsPlugin`](diagnostics::ClientDiagnosticsPlugin)
+/// for automatic integration with Bevy diagnostics.
+#[derive(Default, Resource, Debug)]
+pub struct ClientStats {
+    /// Incremented per entity that changes.
+    pub entities_changed: u32,
+    /// Incremented for every component that changes.
+    pub components_changed: u32,
+    /// Incremented per client mapping added.
+    pub mappings: u32,
+    /// Incremented per entity despawn.
+    pub despawns: u32,
+    /// Replication messages received.
+    pub messages: u32,
+    /// Replication bytes received in message payloads (without internal messaging plugin data).
+    pub bytes: u64,
 }

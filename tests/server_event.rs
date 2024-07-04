@@ -4,33 +4,10 @@ use bevy::{
     time::TimePlugin,
 };
 use bevy_replicon::{
-    client::{server_entity_map::ServerEntityMap, ServerInitTick},
-    prelude::*,
+    client::ServerInitTick, core::server_entity_map::ServerEntityMap, prelude::*,
     test_app::ServerTestAppExt,
 };
 use serde::{Deserialize, Serialize};
-
-#[test]
-fn without_server_plugin() {
-    let mut app = App::new();
-    app.add_plugins((
-        MinimalPlugins,
-        RepliconPlugins.build().disable::<ServerPlugin>(),
-    ))
-    .add_server_event::<DummyEvent>(ChannelKind::Ordered)
-    .update();
-}
-
-#[test]
-fn without_client_plugin() {
-    let mut app = App::new();
-    app.add_plugins((
-        MinimalPlugins,
-        RepliconPlugins.build().disable::<ClientPlugin>(),
-    ))
-    .add_server_event::<DummyEvent>(ChannelKind::Ordered)
-    .update();
-}
 
 #[test]
 fn sending_receiving() {
@@ -49,7 +26,7 @@ fn sending_receiving() {
 
     server_app.connect_client(&mut client_app);
 
-    let client = client_app.world.resource::<RepliconClient>();
+    let client = client_app.world().resource::<RepliconClient>();
     let client_id = client.id().unwrap();
 
     for (mode, events_count) in [
@@ -59,7 +36,7 @@ fn sending_receiving() {
         (SendMode::BroadcastExcept(ClientId::SERVER), 1),
         (SendMode::BroadcastExcept(client_id), 0),
     ] {
-        server_app.world.send_event(ToClients {
+        server_app.world_mut().send_event(ToClients {
             mode,
             event: DummyEvent,
         });
@@ -69,7 +46,7 @@ fn sending_receiving() {
         client_app.update();
         server_app.exchange_with_client(&mut client_app);
 
-        let mut dummy_events = client_app.world.resource_mut::<Events<DummyEvent>>();
+        let mut dummy_events = client_app.world_mut().resource_mut::<Events<DummyEvent>>();
         assert_eq!(
             dummy_events.drain().count(),
             events_count,
@@ -98,11 +75,11 @@ fn sending_receiving_and_mapping() {
     let client_entity = Entity::from_raw(0);
     let server_entity = Entity::from_raw(client_entity.index() + 1);
     client_app
-        .world
+        .world_mut()
         .resource_mut::<ServerEntityMap>()
         .insert(server_entity, client_entity);
 
-    server_app.world.send_event(ToClients {
+    server_app.world_mut().send_event(ToClients {
         mode: SendMode::Broadcast,
         event: MappedEvent(server_entity),
     });
@@ -112,12 +89,70 @@ fn sending_receiving_and_mapping() {
     client_app.update();
 
     let mapped_entities: Vec<_> = client_app
-        .world
+        .world_mut()
         .resource_mut::<Events<MappedEvent>>()
         .drain()
         .map(|event| event.0)
         .collect();
     assert_eq!(mapped_entities, [client_entity]);
+}
+
+#[test]
+fn sending_receiving_without_plugins() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    server_app
+        .add_plugins((
+            MinimalPlugins,
+            RepliconPlugins
+                .build()
+                .set(ServerPlugin {
+                    tick_policy: TickPolicy::EveryFrame,
+                    ..Default::default()
+                })
+                .disable::<ClientPlugin>()
+                .disable::<ClientEventsPlugin>(),
+        ))
+        .add_server_event::<DummyEvent>(ChannelKind::Ordered);
+    client_app
+        .add_plugins((
+            MinimalPlugins,
+            RepliconPlugins
+                .build()
+                .disable::<ServerPlugin>()
+                .disable::<ServerEventsPlugin>(),
+        ))
+        .add_server_event::<DummyEvent>(ChannelKind::Ordered);
+
+    server_app.connect_client(&mut client_app);
+
+    let client = client_app.world().resource::<RepliconClient>();
+    let client_id = client.id().unwrap();
+
+    for (mode, events_count) in [
+        (SendMode::Broadcast, 1),
+        (SendMode::Direct(ClientId::SERVER), 0),
+        (SendMode::Direct(client_id), 1),
+        (SendMode::BroadcastExcept(ClientId::SERVER), 1),
+        (SendMode::BroadcastExcept(client_id), 0),
+    ] {
+        server_app.world_mut().send_event(ToClients {
+            mode,
+            event: DummyEvent,
+        });
+
+        server_app.update();
+        server_app.exchange_with_client(&mut client_app);
+        client_app.update();
+        server_app.exchange_with_client(&mut client_app);
+
+        let mut dummy_events = client_app.world_mut().resource_mut::<Events<DummyEvent>>();
+        assert_eq!(
+            dummy_events.drain().count(),
+            events_count,
+            "event should be emited {events_count} times for {mode:?}"
+        );
+    }
 }
 
 #[test]
@@ -140,17 +175,17 @@ fn local_resending() {
         (SendMode::BroadcastExcept(ClientId::SERVER), 0),
         (SendMode::BroadcastExcept(DUMMY_CLIENT_ID), 1),
     ] {
-        app.world.send_event(ToClients {
+        app.world_mut().send_event(ToClients {
             mode,
             event: DummyEvent,
         });
 
         app.update();
 
-        let server_events = app.world.resource::<Events<ToClients<DummyEvent>>>();
+        let server_events = app.world().resource::<Events<ToClients<DummyEvent>>>();
         assert!(server_events.is_empty());
 
-        let mut dummy_events = app.world.resource_mut::<Events<DummyEvent>>();
+        let mut dummy_events = app.world_mut().resource_mut::<Events<DummyEvent>>();
         assert_eq!(
             dummy_events.drain().count(),
             events_count,
@@ -178,7 +213,7 @@ fn event_queue() {
     server_app.connect_client(&mut client_app);
 
     // Spawn entity to trigger world change.
-    server_app.world.spawn((Replicated, DummyComponent));
+    server_app.world_mut().spawn((Replicated, DummyComponent));
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -186,10 +221,10 @@ fn event_queue() {
     server_app.exchange_with_client(&mut client_app);
 
     // Artificially reset the init tick to force the next received event to be queued.
-    let mut init_tick = client_app.world.resource_mut::<ServerInitTick>();
+    let mut init_tick = client_app.world_mut().resource_mut::<ServerInitTick>();
     let previous_tick = *init_tick;
     *init_tick = Default::default();
-    server_app.world.send_event(ToClients {
+    server_app.world_mut().send_event(ToClients {
         mode: SendMode::Broadcast,
         event: DummyEvent,
     });
@@ -198,14 +233,15 @@ fn event_queue() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert!(client_app.world.resource::<Events<DummyEvent>>().is_empty());
+    let events = client_app.world().resource::<Events<DummyEvent>>();
+    assert!(events.is_empty());
 
     // Restore the init tick to receive the event.
-    *client_app.world.resource_mut::<ServerInitTick>() = previous_tick;
+    *client_app.world_mut().resource_mut::<ServerInitTick>() = previous_tick;
 
     client_app.update();
 
-    assert_eq!(client_app.world.resource::<Events<DummyEvent>>().len(), 1);
+    assert_eq!(client_app.world().resource::<Events<DummyEvent>>().len(), 1);
 }
 
 #[test]
@@ -229,7 +265,7 @@ fn different_ticks() {
     server_app.connect_client(&mut client_app1);
 
     // Spawn entity to trigger world change.
-    server_app.world.spawn((Replicated, DummyComponent));
+    server_app.world_mut().spawn((Replicated, DummyComponent));
 
     // Update client 1 to initialize their replicon tick.
     server_app.update();
@@ -241,7 +277,7 @@ fn different_ticks() {
     // since only client 1 will recieve an init message here.
     server_app.connect_client(&mut client_app2);
 
-    server_app.world.send_event(ToClients {
+    server_app.world_mut().send_event(ToClients {
         mode: SendMode::Broadcast,
         event: DummyEvent,
     });
@@ -254,8 +290,14 @@ fn different_ticks() {
     client_app1.update();
     client_app2.update();
 
-    assert_eq!(client_app1.world.resource::<Events<DummyEvent>>().len(), 1);
-    assert_eq!(client_app2.world.resource::<Events<DummyEvent>>().len(), 1);
+    assert_eq!(
+        client_app1.world().resource::<Events<DummyEvent>>().len(),
+        1
+    );
+    assert_eq!(
+        client_app2.world().resource::<Events<DummyEvent>>().len(),
+        1
+    );
 }
 
 #[derive(Component, Serialize, Deserialize)]

@@ -23,17 +23,16 @@ use serde::de::DeserializeSeed;
 # app.add_plugins(RepliconPlugins);
 
 // Serialization
-let registry = app.world.resource::<AppTypeRegistry>();
+let registry = app.world().resource::<AppTypeRegistry>();
+let type_registry = &*registry.read();
 let mut scene = DynamicScene::default();
-scene::replicate_into(&mut scene, &app.world);
+scene::replicate_into(&mut scene, &app.world());
 let scene = scene
-    .serialize_ron(&registry)
+    .serialize(type_registry)
     .expect("scene should be serialized");
 
 // Deserialization
-let scene_deserializer = SceneDeserializer {
-    type_registry: &registry.read(),
-};
+let scene_deserializer = SceneDeserializer { type_registry };
 let mut deserializer =
     ron::Deserializer::from_str(&scene).expect("scene should be serialized as valid ron");
 let mut scene = scene_deserializer

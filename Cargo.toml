@@ -1,6 +1,6 @@
 [package]
 name = "bevy_replicon"
-version = "0.26.3"
+version = "0.27.0-rc.3"
 authors = [
   "Hennadii Chernyshchyk <genaloner@gmail.com>",
   "koe <ukoe@protonmail.com>",
@@ -20,8 +20,14 @@ categories = ["game-development", "network-programming"]
 license = "MIT OR Apache-2.0"
 include = ["/benches", "/src", "/tests", "/LICENSE*"]
 
+[package.metadata.docs.rs]
+rustdoc-args = ["-Zunstable-options", "--cfg", "docsrs"]
+all-features = true
+
 [dependencies]
-bevy = { version = "0.13", default-features = false, features = ["bevy_scene"] }
+bevy = { version = "0.14.0-rc.4", default-features = false, features = [
+  "serialize",
+] }
 bytes = "1.5"
 bincode = "1.3"
 serde = "1.0"
@@ -29,22 +35,86 @@ varint-rs = "2.2"
 ordered-multimap = "0.7"
 
 [dev-dependencies]
-bevy = { version = "0.13", default-features = false, features = [
+bevy = { version = "0.14.0-rc.4", default-features = false, features = [
   "serialize",
   "bevy_asset",
+  "bevy_scene",
   "bevy_sprite",
 ] }
 criterion = { version = "0.5", default-features = false, features = [
   "cargo_bench_support",
 ] }
 
-[lints.clippy]
-type_complexity = "allow"
-too_many_arguments = "allow"
+[features]
+default = ["scene", "parent_sync", "client", "server"]
+
+# Client-related logic.
+client = []
+
+# Server-related logic.
+server = []
+
+# Integration with Bevy diagnostics for client.
+client_diagnostics = ["client"]
+
+# Replication into a scene.
+scene = ["bevy/bevy_scene"]
+
+# Hierarchy synchronization.
+parent_sync = []
 
 [[bench]]
 name = "replication"
 harness = false
 
-[workspace]
-members = ["bevy_replicon_renet"]
+[[test]]
+name = "changes"
+required-features = ["client", "server"]
+
+[[test]]
+name = "client_event"
+required-features = ["client", "server"]
+
+[[test]]
+name = "connection"
+required-features = ["client", "server"]
+
+[[test]]
+name = "despawn"
+required-features = ["client", "server"]
+
+[[test]]
+name = "fns"
+required-features = ["client"]
+
+[[test]]
+name = "insertion"
+required-features = ["client", "server"]
+
+[[test]]
+name = "removal"
+required-features = ["client", "server"]
+
+[[test]]
+name = "scene"
+required-features = ["scene"]
+
+[[test]]
+name = "server_event"
+required-features = ["client", "server"]
+
+[[test]]
+name = "spawn"
+required-features = ["client", "server"]
+
+[[test]]
+name = "stats"
+required-features = ["client_diagnostics", "client", "server"]
+
+[[test]]
+name = "visibility"
+required-features = ["client", "server"]
+
+[lints.clippy]
+type_complexity = "allow"
+too_many_arguments = "allow"

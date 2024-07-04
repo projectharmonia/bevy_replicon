@@ -4,31 +4,9 @@ use bevy::{
     time::TimePlugin,
 };
 use bevy_replicon::{
-    client::server_entity_map::ServerEntityMap, prelude::*, test_app::ServerTestAppExt,
+    core::server_entity_map::ServerEntityMap, prelude::*, test_app::ServerTestAppExt,
 };
 use serde::{Deserialize, Serialize};
-
-#[test]
-fn without_server_plugin() {
-    let mut app = App::new();
-    app.add_plugins((
-        MinimalPlugins,
-        RepliconPlugins.build().disable::<ServerPlugin>(),
-    ))
-    .add_client_event::<DummyEvent>(ChannelKind::Ordered)
-    .update();
-}
-
-#[test]
-fn without_client_plugin() {
-    let mut app = App::new();
-    app.add_plugins((
-        MinimalPlugins,
-        RepliconPlugins.build().disable::<ClientPlugin>(),
-    ))
-    .add_client_event::<DummyEvent>(ChannelKind::Ordered)
-    .update();
-}
 
 #[test]
 fn sending_receiving() {
@@ -41,14 +19,14 @@ fn sending_receiving() {
 
     server_app.connect_client(&mut client_app);
 
-    client_app.world.send_event(DummyEvent);
+    client_app.world_mut().send_event(DummyEvent);
 
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
     server_app.update();
 
     let client_events = server_app
-        .world
+        .world()
         .resource::<Events<FromClient<DummyEvent>>>();
     assert_eq!(client_events.len(), 1);
 }
@@ -67,18 +45,20 @@ fn mapping_and_sending_receiving() {
     let client_entity = Entity::from_raw(0);
     let server_entity = Entity::from_raw(client_entity.index() + 1);
     client_app
-        .world
+        .world_mut()
         .resource_mut::<ServerEntityMap>()
         .insert(server_entity, client_entity);
 
-    client_app.world.send_event(MappedEvent(client_entity));
+    client_app
+        .world_mut()
+        .send_event(MappedEvent(client_entity));
 
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
     server_app.update();
 
     let mapped_entities: Vec<_> = server_app
-        .world
+        .world_mut()
         .resource_mut::<Events<FromClient<MappedEvent>>>()
         .drain()
         .map(|event| event.event.0)
@@ -87,19 +67,56 @@ fn mapping_and_sending_receiving() {
 }
 
 #[test]
+fn sending_receiving_without_plugins() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    server_app
+        .add_plugins((
+            MinimalPlugins,
+            RepliconPlugins
+                .build()
+                .disable::<ClientPlugin>()
+                .disable::<ClientEventsPlugin>(),
+        ))
+        .add_client_event::<DummyEvent>(ChannelKind::Ordered);
+    client_app
+        .add_plugins((
+            MinimalPlugins,
+            RepliconPlugins
+                .build()
+                .disable::<ServerPlugin>()
+                .disable::<ServerEventsPlugin>(),
+        ))
+        .add_client_event::<DummyEvent>(ChannelKind::Ordered);
+
+    server_app.connect_client(&mut client_app);
+
+    client_app.world_mut().send_event(DummyEvent);
+
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    server_app.update();
+
+    let client_events = server_app
+        .world()
+        .resource::<Events<FromClient<DummyEvent>>>();
+    assert_eq!(client_events.len(), 1);
+}
+
+#[test]
 fn local_resending() {
     let mut app = App::new();
     app.add_plugins((TimePlugin, RepliconPlugins))
         .add_client_event::<DummyEvent>(ChannelKind::Ordered);
 
-    app.world.send_event(DummyEvent);
+    app.world_mut().send_event(DummyEvent);
 
     app.update();
 
-    let dummy_events = app.world.resource::<Events<DummyEvent>>();
+    let dummy_events = app.world().resource::<Events<DummyEvent>>();
     assert!(dummy_events.is_empty());
 
-    let client_events = app.world.resource::<Events<FromClient<DummyEvent>>>();
+    let client_events = app.world().resource::<Events<FromClient<DummyEvent>>>();
     assert_eq!(client_events.len(), 1);
 }
 
