@@ -3,15 +3,13 @@ ECS-focused high-level networking crate for the [Bevy game engine](https://bevye
 
 # Quick start
 
-Replicon provides a [`prelude`] module, which exports most of the typically used traits and types.
+We provide a [`prelude`] module, which exports most of the typically used traits and types.
 
-The library doesn't provide any I/O, so you need to add a messaging backend.
-We provide a first-party integration with [`bevy_renet`](https://docs.rs/bevy_renet)
-via [`bevy_replicon_renet`](https://docs.rs/bevy_replicon_renet).
-
+The library doesn't provide any I/O, so you need to add a
+[messaging backend](https://github.com/projectharmonia/bevy_replicon#messaging-backends).
 If you want to write an integration for a messaging backend,
 see the documentation for [`RepliconServer`], [`RepliconClient`] and [`ServerEvent`].
-You can also use `bevy_replicon_renet` as a reference.
+You can also use `bevy_replicon_renet`, which we maintain, as a reference.
 
 Also depending on your game, you may want to use additional crates. For example, if your game
 is fast-paced, you will need interpolation and rollback.
@@ -19,6 +17,46 @@ For details see [`goals`](https://github.com/projectharmonia/bevy_replicon#goals
 [`related crates`](https://github.com/projectharmonia/bevy_replicon#related-crates).
 Before adding advanced functionality, it's recommended to read the quick start guide
 first to understand the basics.
+
+## API showcase
+
+```
+# use bevy::app::PluginGroupBuilder;
+use bevy::prelude::*;
+use bevy_replicon::prelude::*;
+use serde::{Deserialize, Serialize};
+
+let mut app = App::new();
+app.add_plugins((
+    MinimalPlugins,
+    RepliconPlugins,
+    MyMessagingPlugins, // Plugins for your messaging backend of choice.
+))
+.replicate::<Health>() // Component that will be replicated.
+.add_client_event::<MovementEvent>(ChannelKind::Ordered) // Bevy event that will replicated from clients to server.
+.add_server_event::<HitEvent>(ChannelKind::Unordered) // Bevy event that will replicated from server to client.
+// You can use existing events and components from Bevy or other third-party plugins as well.
+.replicate::<Transform>();
+
+#[derive(Component, Serialize, Deserialize)]
+struct Health(u32);
+
+#[derive(Event, Serialize, Deserialize)]
+struct MovementEvent(Vec2);
+
+#[derive(Event, Serialize, Deserialize)]
+struct HitEvent(u32);
+#
+# struct MyMessagingPlugins;
+#
+# impl PluginGroup for MyMessagingPlugins {
+#     fn build(self) -> PluginGroupBuilder {
+#         PluginGroupBuilder::start::<Self>()
+#     }
+# }
+```
+
+Below we describe each part in more details.
 
 ## Initialization
 

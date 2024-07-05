@@ -8,14 +8,15 @@ Server-authoritative networking crate for the [Bevy game engine](https://bevyeng
 
 ## Features
 
-- Automatic component-oriented world state replication.
-- Events-based messaging API with different guarantees (reliable, reliable unordered, and unreliable).
+- Automatic world replication.
+- Events-based messaging API.
 - Control over client visibility of entities and events.
 - Replication into scene to save server state.
 - Support for client and server both in one `App` and in separate.
 - Customizable serialization and deserialization even for types that don't implement `serde` traits (like `Box<dyn Reflect>`).
 - No builtin I/O, can be used with any messaging library. See [messaging backends](#messaging-backends) for already available integrations.
 - API focused on writing logic once that automatically works for singleplayer, client, server, and listen server (when server is also a player).
+- Extensible architecture. See [related crates](#related-crates).
 
 If you are new to networking, see [glossary](https://gist.github.com/maniwani/f92cc5d827b00163f5846ea7dcb90d44).
 
