@@ -42,6 +42,7 @@ impl ServerEntityMap {
     /// # let mut commands = world.commands();
     /// # let server_entity = Entity::PLACEHOLDER;
     /// entity_map.get_by_server_or_insert(server_entity, || commands.spawn(Replicated).id());
+    /// # world.flush();
     /// ```
     pub fn get_by_server_or_insert(
         &mut self,

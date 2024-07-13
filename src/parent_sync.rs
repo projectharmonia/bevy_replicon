@@ -102,6 +102,7 @@ impl ParentSyncPlugin {
 /// commands.spawn(Replicated).with_children(|parent| {
 ///     parent.spawn((Replicated, ParentSync::default()));
 /// });
+/// # world.flush();
 /// ```
 #[derive(Component, Default, Reflect, Clone, Copy, Debug, Serialize, Deserialize)]
 #[reflect(Component, MapEntities)]
