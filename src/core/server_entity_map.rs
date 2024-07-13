@@ -35,12 +35,11 @@ impl ServerEntityMap {
     /// # Examples
     ///
     /// ```
-    /// # use bevy::{ecs::world::CommandQueue, prelude::*};
+    /// # use bevy::prelude::*;
     /// # use bevy_replicon::{core::server_entity_map::ServerEntityMap, prelude::*};
     /// # let mut entity_map = ServerEntityMap::default();
-    /// # let mut queue = CommandQueue::default();
-    /// # let world = World::default();
-    /// # let mut commands = Commands::new(&mut queue, &world);
+    /// # let mut world = World::default();
+    /// # let mut commands = world.commands();
     /// # let server_entity = Entity::PLACEHOLDER;
     /// entity_map.get_by_server_or_insert(server_entity, || commands.spawn(Replicated).id());
     /// ```

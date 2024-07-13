@@ -95,11 +95,10 @@ impl ParentSyncPlugin {
 /// Replicating two entities and their parent-children relation:
 ///
 /// ```
-/// # use bevy::{ecs::world::CommandQueue, prelude::*};
+/// # use bevy::prelude::*;
 /// # use bevy_replicon::prelude::*;
-/// # let mut queue = CommandQueue::default();
-/// # let world = World::default();
-/// # let mut commands = Commands::new(&mut queue, &world);
+/// # let mut world = World::default();
+/// # let mut commands = world.commands();
 /// commands.spawn(Replicated).with_children(|parent| {
 ///     parent.spawn((Replicated, ParentSync::default()));
 /// });
