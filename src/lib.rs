@@ -33,13 +33,15 @@ app.add_plugins((
     MyMessagingPlugins, // Plugins for your messaging backend of choice.
 ))
 .replicate::<Health>() // Component that will be replicated.
+.replicate_group::<(Transform, Player)>() // Replicate multiple components only if all of them are present.
 .add_client_event::<MovementEvent>(ChannelKind::Ordered) // Bevy event that will replicated from clients to server.
-.add_server_event::<HitEvent>(ChannelKind::Unordered) // Bevy event that will replicated from server to client.
-// You can use existing events and components from Bevy or other third-party plugins as well.
-.replicate::<Transform>();
+.add_server_event::<HitEvent>(ChannelKind::Unordered); // Bevy event that will replicated from server to client.
 
 #[derive(Component, Serialize, Deserialize)]
 struct Health(u32);
+
+#[derive(Component, Serialize, Deserialize)]
+struct Player;
 
 #[derive(Event, Serialize, Deserialize)]
 struct MovementEvent(Vec2);
