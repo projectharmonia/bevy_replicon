@@ -33,7 +33,7 @@ app.add_plugins((
     MyMessagingPlugins, // Plugins for your messaging backend of choice.
 ))
 .replicate::<Health>() // Component that will be replicated.
-.replicate_group::<(Name, Player)>() // Replicate multiple components only if all of them are present.
+.replicate_group::<(Transform, Player)>() // Replicate multiple components only if all of them are present.
 .add_client_event::<MovementEvent>(ChannelKind::Ordered) // Bevy event that will replicated from clients to server.
 .add_server_event::<HitEvent>(ChannelKind::Unordered); // Bevy event that will replicated from server to client.
 
