@@ -81,8 +81,8 @@ app.add_plugins((MinimalPlugins, RepliconPlugins, MyMessagingPlugins));
 # }
 ```
 
-If you want to separate the client and server, you can use the `client` and `server` features,
-which control enabled plugins.
+If you want to separate the client and server, you can use the `client` and `server` features
+(both enabled by default), which control enabled plugins.
 
 It's also possible to do it at runtime via [`PluginGroupBuilder::disable()`].
 For server disable [`ClientPlugin`] and [`ClientEventsPlugin`].
