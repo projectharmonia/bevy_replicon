@@ -1,0 +1,12 @@
+[toolchain]
+channel = "stable"
+components = [
+  "rustc",
+  "cargo",
+  "rustfmt",
+  "rust-std",
+  "rust-docs",
+  "rust-src",
+  "clippy",
+]
+targets = ["wasm32-unknown-unknown"]

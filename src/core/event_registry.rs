@@ -1,7 +1,7 @@
 pub(crate) mod client_event;
 pub(crate) mod server_event;
 
-use bevy::prelude::*;
+use bevy::{ecs::component::ComponentId, prelude::*};
 use client_event::ClientEvent;
 use server_event::ServerEvent;
 
@@ -19,6 +19,17 @@ impl EventRegistry {
 
     pub(crate) fn register_client_event(&mut self, event_data: ClientEvent) {
         self.client.push(event_data);
+    }
+
+    pub(crate) fn make_independent(&mut self, events_id: ComponentId) -> bool {
+        let mut success = false;
+        for event in &mut self.server {
+            if event.events_id() == events_id {
+                event.make_independent();
+                success = true;
+            }
+        }
+        success
     }
 
     pub(crate) fn iter_server_events(&self) -> impl Iterator<Item = &ServerEvent> {
