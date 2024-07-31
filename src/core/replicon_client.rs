@@ -7,13 +7,13 @@ use crate::core::ClientId;
 ///
 /// The messaging backend is responsible for updating this resource:
 /// - When the messaging client changes its status (connected, connecting and disconnected),
-/// [`Self::set_status`] should be used to reflect this.
+///   [`Self::set_status`] should be used to reflect this.
 /// - For receiving messages, [`Self::insert_received`] should be to used.
-/// A system to forward backend messages to Replicon should run in
-/// [`ClientSet::ReceivePackets`](crate::client::ClientSet::ReceivePackets).
+///   A system to forward backend messages to Replicon should run in
+///   [`ClientSet::ReceivePackets`](crate::client::ClientSet::ReceivePackets).
 /// - For sending messages, [`Self::drain_sent`] should be used to drain all sent messages.
-/// A system to forward Replicon messages to the backend should run in
-/// [`ClientSet::SendPackets`](crate::client::ClientSet::SendPackets).
+///   A system to forward Replicon messages to the backend should run in
+///   [`ClientSet::SendPackets`](crate::client::ClientSet::SendPackets).
 ///
 /// Inserted as resource by [`ClientPlugin`](crate::client::ClientPlugin).
 #[derive(Resource, Default)]
