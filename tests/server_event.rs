@@ -245,7 +245,7 @@ fn event_queue() {
 }
 
 #[test]
-fn independent_event_queue() {
+fn independent_event() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
@@ -271,10 +271,10 @@ fn independent_event_queue() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    // Artificially reset the init tick to force the next received event to be queued.
-    let mut init_tick = client_app.world_mut().resource_mut::<ServerInitTick>();
-    let previous_tick = *init_tick;
-    *init_tick = Default::default();
+    // Artificially reset the init tick
+    // Normal events would be queued and not triggered yet,
+    // but our independent event should be triggered immediately
+    *client_app.world_mut().resource_mut::<ServerInitTick>() = Default::default();
     server_app.world_mut().send_event(ToClients {
         mode: SendMode::Broadcast,
         event: DummyEvent,
@@ -284,15 +284,8 @@ fn independent_event_queue() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    // Event should have already been synced, even without resetting the tick,
+    // Event should have already been triggered, even without resetting the tick,
     // since it's independent
-    assert_eq!(client_app.world().resource::<Events<DummyEvent>>().len(), 1);
-
-    // Restore the init tick to receive the event.
-    *client_app.world_mut().resource_mut::<ServerInitTick>() = previous_tick;
-
-    client_app.update();
-
     assert_eq!(client_app.world().resource::<Events<DummyEvent>>().len(), 1);
 }
 
