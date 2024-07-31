@@ -120,6 +120,27 @@ pub trait ServerEventAppExt {
         serialize: SerializeFn<E>,
         deserialize: DeserializeFn<E>,
     ) -> &mut Self;
+
+    /// Marks the event `E` as an independent event.
+    ///
+    /// By default, all events from the server are buffered until all
+    /// insertions, removals and despawns (value changes doesn't count) are
+    /// replicated for the tick on which the event was triggered. This is
+    /// necessary to ensure that the executed logic during the event does not
+    /// affect components or entities that the client has not yet received.
+    ///
+    /// However, if you know your event doesn't rely on that, you can mark it
+    /// as independent to always emit it immediately. For example, a chat
+    /// message event - which does not hold references to any entities - may be
+    /// marked as independent.
+    ///
+    /// <div class="warning">
+    ///
+    /// Use this method very carefully; it can lead to logic errors that are
+    /// very difficult to debug!
+    ///
+    /// </div>
+    fn make_independent<E: Event>(&mut self) -> &mut Self;
 }
 
 impl ServerEventAppExt for App {
@@ -150,6 +171,24 @@ impl ServerEventAppExt for App {
 
         self
     }
+
+    fn make_independent<E: Event>(&mut self) -> &mut Self {
+        self.world_mut()
+            .resource_scope(|world, mut event_registry: Mut<EventRegistry>| {
+                let events_id = world
+                    .components()
+                    .resource_id::<Events<E>>()
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "event `{}` should be previously registered",
+                            any::type_name::<E>()
+                        )
+                    });
+                event_registry.make_independent(events_id);
+            });
+
+        self
+    }
 }
 
 /// Type-erased functions and metadata for a registered server event.
@@ -158,6 +197,13 @@ impl ServerEventAppExt for App {
 pub(crate) struct ServerEvent {
     type_id: TypeId,
     type_name: &'static str,
+
+    /// Whether this event depends on replication or not.
+    ///
+    /// Events like a chat message event do not have to wait for replication to
+    /// be synced. If set to `true`, the event will always be applied
+    /// immediately.
+    independent: bool,
 
     /// ID of [`Events<E>`].
     events_id: ComponentId,
@@ -213,6 +259,7 @@ impl ServerEvent {
         Self {
             type_id: TypeId::of::<E>(),
             type_name: any::type_name::<E>(),
+            independent: false,
             events_id,
             server_events_id,
             queue_id,
@@ -236,6 +283,14 @@ impl ServerEvent {
 
     pub(crate) fn queue_id(&self) -> ComponentId {
         self.queue_id
+    }
+
+    pub(crate) fn is_independent(&self) -> bool {
+        self.independent
+    }
+
+    pub(crate) fn make_independent(&mut self) {
+        self.independent = true
     }
 
     /// Sends an event to client(s).
@@ -414,7 +469,13 @@ unsafe fn receive<E: Event>(
         let (tick, event) = deserialize_with(ctx, event_data, &mut cursor)
             .expect("server should send valid events");
 
-        if tick <= init_tick {
+        if event_data.is_independent() {
+            trace!(
+                "applying independent event `{}` with `{tick:?}`",
+                any::type_name::<E>()
+            );
+            events.send(event);
+        } else if tick <= init_tick {
             trace!("applying event `{}` with `{tick:?}`", any::type_name::<E>());
             events.send(event);
         } else {
