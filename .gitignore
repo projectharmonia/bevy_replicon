@@ -9,7 +9,3 @@ html
 
 # For library
 Cargo.lock
-
-# Nix dev shell
-.direnv
-.envrc
