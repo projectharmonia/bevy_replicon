@@ -470,7 +470,10 @@ unsafe fn receive<E: Event>(
             .expect("server should send valid events");
 
         if event_data.is_independent() {
-            trace!("applying independent event `{}` with `{tick:?}`", any::type_name::<E>());
+            trace!(
+                "applying independent event `{}` with `{tick:?}`",
+                any::type_name::<E>()
+            );
             events.send(event);
         } else if tick <= init_tick {
             trace!("applying event `{}` with `{tick:?}`", any::type_name::<E>());
