@@ -245,6 +245,58 @@ fn event_queue() {
 }
 
 #[test]
+fn independent_event_queue() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<DummyComponent>()
+        .add_server_event::<DummyEvent>(ChannelKind::Ordered)
+        .make_independent::<DummyEvent>();
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    // Spawn entity to trigger world change.
+    server_app.world_mut().spawn((Replicated, DummyComponent));
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    // Artificially reset the init tick to force the next received event to be queued.
+    let mut init_tick = client_app.world_mut().resource_mut::<ServerInitTick>();
+    let previous_tick = *init_tick;
+    *init_tick = Default::default();
+    server_app.world_mut().send_event(ToClients {
+        mode: SendMode::Broadcast,
+        event: DummyEvent,
+    });
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    // Event should have already been synced, even without resetting the tick,
+    // since it's independent
+    assert_eq!(client_app.world().resource::<Events<DummyEvent>>().len(), 1);
+
+    // Restore the init tick to receive the event.
+    *client_app.world_mut().resource_mut::<ServerInitTick>() = previous_tick;
+
+    client_app.update();
+
+    assert_eq!(client_app.world().resource::<Events<DummyEvent>>().len(), 1);
+}
+
+#[test]
 fn different_ticks() {
     let mut server_app = App::new();
     let mut client_app1 = App::new();
