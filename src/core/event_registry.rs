@@ -22,13 +22,14 @@ impl EventRegistry {
     }
 
     pub(crate) fn make_independent(&mut self, events_id: ComponentId) {
-        self.server
+        let event = self
+            .server
             .iter_mut()
             .find(|event| event.events_id() == events_id)
             .unwrap_or_else(|| {
                 panic!("event with ID {events_id:?} should be previously registered");
-            })
-            .make_independent();
+            });
+        event.make_independent();
     }
 
     pub(crate) fn iter_server_events(&self) -> impl Iterator<Item = &ServerEvent> {
