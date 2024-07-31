@@ -123,11 +123,23 @@ pub trait ServerEventAppExt {
 
     /// Marks the event `E` as an independent event.
     ///
-    /// By default, events will wait for replication info for the current tick
-    /// before being synced. However, if you know your event doesn't rely on
-    /// the state of any entities, you can mark it as an independent event so
-    /// that the event is sent out as soon as possible, even if there has been
-    /// no replication info yet.
+    /// By default, all events from the server are buffered until all
+    /// insertions, removals and despawns (value changes doesn't count) are
+    /// replicated for the tick on which the event was triggered. This is
+    /// necessary to ensure that the executed logic during the event does not
+    /// affect components or entities that the client has not yet received.
+    ///
+    /// However, if you know your event doesn't rely on that, you can mark it
+    /// as independent to always emit it immediately. For example, a chat
+    /// message event - which does not hold references to any entities - may be
+    /// marked as independent.
+    ///
+    /// <div class="warning">
+    ///
+    /// Use this method very carefully; it can lead to logic errors that are
+    /// very difficult to debug!
+    ///
+    /// </div>
     fn make_independent<E: Event>(&mut self) -> &mut Self;
 }
 
@@ -172,13 +184,7 @@ impl ServerEventAppExt for App {
                             any::type_name::<E>()
                         )
                     });
-                let marked = event_registry.make_independent(events_id);
-                if !marked {
-                    warn!(
-                        "Event `{}` has already been made independent",
-                        any::type_name::<E>()
-                    );
-                }
+                event_registry.make_independent(events_id);
             });
 
         self
@@ -194,9 +200,9 @@ pub(crate) struct ServerEvent {
 
     /// Whether this event depends on replication or not.
     ///
-    /// Events which don't concern any entity in particular, like a chat message
-    /// event, does not have to wait for replication to be synced. If this field
-    /// is set to `true`, this event will follow this behavior.
+    /// Events like a chat message event do not have to wait for replication to
+    /// be synced. If set to `true`, the event will always be applied
+    /// immediately.
     independent: bool,
 
     /// ID of [`Events<E>`].

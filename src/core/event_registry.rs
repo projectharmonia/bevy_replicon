@@ -21,15 +21,14 @@ impl EventRegistry {
         self.client.push(event_data);
     }
 
-    pub(crate) fn make_independent(&mut self, events_id: ComponentId) -> bool {
-        let mut success = false;
-        for event in &mut self.server {
-            if event.events_id() == events_id {
-                event.make_independent();
-                success = true;
-            }
+    pub(crate) fn make_independent(&mut self, events_id: ComponentId) {
+        let event = self
+            .server
+            .iter_mut()
+            .find(|event| event.events_id() == events_id);
+        if let Some(event) = event {
+            event.make_independent();
         }
-        success
     }
 
     pub(crate) fn iter_server_events(&self) -> impl Iterator<Item = &ServerEvent> {
