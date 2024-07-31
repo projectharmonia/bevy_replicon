@@ -469,7 +469,10 @@ unsafe fn receive<E: Event>(
         let (tick, event) = deserialize_with(ctx, event_data, &mut cursor)
             .expect("server should send valid events");
 
-        if tick <= init_tick || event_data.is_independent() {
+        if event_data.is_independent() {
+            trace!("applying independent event `{}` with `{tick:?}`", any::type_name::<E>());
+            events.send(event);
+        } else if tick <= init_tick {
             trace!("applying event `{}` with `{tick:?}`", any::type_name::<E>());
             events.send(event);
         } else {

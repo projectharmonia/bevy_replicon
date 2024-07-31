@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `make_independent` to `ServerEventAppExt`, letting events be triggered without waiting for replication on the same tick.
+- `ServerEventAppExt::make_independent` to let events be triggered without waiting for replication on the same tick.
 
 ## [0.27.0] - 2024-07-04
 

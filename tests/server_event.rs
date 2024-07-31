@@ -271,9 +271,9 @@ fn independent_event() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    // Artificially reset the init tick
+    // Artificially reset the init tick.
     // Normal events would be queued and not triggered yet,
-    // but our independent event should be triggered immediately
+    // but our independent event should be triggered immediately.
     *client_app.world_mut().resource_mut::<ServerInitTick>() = Default::default();
     server_app.world_mut().send_event(ToClients {
         mode: SendMode::Broadcast,
@@ -285,7 +285,7 @@ fn independent_event() {
     client_app.update();
 
     // Event should have already been triggered, even without resetting the tick,
-    // since it's independent
+    // since it's independent.
     assert_eq!(client_app.world().resource::<Events<DummyEvent>>().len(), 1);
 }
 
