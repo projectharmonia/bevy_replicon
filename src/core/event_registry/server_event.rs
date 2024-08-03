@@ -20,7 +20,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use super::EventRegistry;
 use crate::core::{
     channels::{RepliconChannel, RepliconChannels},
-    connected_clients::{ConnectedClient, ConnectedClients},
+    connected_clients::{ReplicatedClient, ReplicatedClients},
     ctx::{ClientReceiveCtx, ServerSendCtx},
     replicon_client::RepliconClient,
     replicon_server::RepliconServer,
@@ -304,9 +304,9 @@ impl ServerEvent {
         ctx: &mut ServerSendCtx,
         server_events: &Ptr,
         server: &mut RepliconServer,
-        connected_clients: &ConnectedClients,
+        replicated_clients: &ReplicatedClients,
     ) {
-        (self.send)(self, ctx, server_events, server, connected_clients);
+        (self.send)(self, ctx, server_events, server, replicated_clients);
     }
 
     /// Receives an event from the server.
@@ -398,7 +398,7 @@ pub type DeserializeFn<E> = fn(&mut ClientReceiveCtx, &mut Cursor<&[u8]>) -> bin
 
 /// Signature of server event sending functions.
 type SendFn =
-    unsafe fn(&ServerEvent, &mut ServerSendCtx, &Ptr, &mut RepliconServer, &ConnectedClients);
+    unsafe fn(&ServerEvent, &mut ServerSendCtx, &Ptr, &mut RepliconServer, &ReplicatedClients);
 
 /// Signature of server event receiving functions.
 type ReceiveFn = unsafe fn(
@@ -427,14 +427,14 @@ unsafe fn send<E: Event>(
     ctx: &mut ServerSendCtx,
     server_events: &Ptr,
     server: &mut RepliconServer,
-    connected_clients: &ConnectedClients,
+    replicated_clients: &ReplicatedClients,
 ) {
     let events: &Events<ToClients<E>> = server_events.deref();
     // For server events we don't track read events because
     // all of them will always be drained in the local resending system.
     for ToClients { event, mode } in events.get_reader().read(events) {
         trace!("sending event `{}` with `{mode:?}`", any::type_name::<E>());
-        send_with(event_data, ctx, event, mode, server, connected_clients)
+        send_with(event_data, ctx, event, mode, server, replicated_clients)
             .expect("server event should be serializable");
     }
 }
@@ -539,12 +539,12 @@ unsafe fn send_with<E: Event>(
     event: &E,
     mode: &SendMode,
     server: &mut RepliconServer,
-    connected_clients: &ConnectedClients,
+    replicated_clients: &ReplicatedClients,
 ) -> bincode::Result<()> {
     match *mode {
         SendMode::Broadcast => {
             let mut previous_message = None;
-            for client in connected_clients.iter() {
+            for client in replicated_clients.iter() {
                 let message = serialize_with(event_data, ctx, event, client, previous_message)?;
                 server.send(client.id(), event_data.channel_id, message.bytes.clone());
                 previous_message = Some(message);
@@ -552,7 +552,7 @@ unsafe fn send_with<E: Event>(
         }
         SendMode::BroadcastExcept(client_id) => {
             let mut previous_message = None;
-            for client in connected_clients.iter() {
+            for client in replicated_clients.iter() {
                 if client.id() == client_id {
                     continue;
                 }
@@ -563,7 +563,7 @@ unsafe fn send_with<E: Event>(
         }
         SendMode::Direct(client_id) => {
             if client_id != ClientId::SERVER {
-                if let Some(client) = connected_clients.get_client(client_id) {
+                if let Some(client) = replicated_clients.get_client(client_id) {
                     let message = serialize_with(event_data, ctx, event, client, None)?;
                     server.send(client.id(), event_data.channel_id, message.bytes);
                 }
@@ -586,7 +586,7 @@ unsafe fn serialize_with<E: Event>(
     event_data: &ServerEvent,
     ctx: &mut ServerSendCtx,
     event: &E,
-    client: &ConnectedClient,
+    client: &ReplicatedClient,
     previous_message: Option<SerializedMessage>,
 ) -> bincode::Result<SerializedMessage> {
     if let Some(previous_message) = previous_message {

@@ -11,16 +11,48 @@ use bevy::{
 use crate::core::{replicon_tick::RepliconTick, ClientId};
 use client_visibility::ClientVisibility;
 
-/// Stores information about connected clients.
-///
-/// Inserted as resource by [`ServerPlugin`](crate::server::ServerPlugin).
 #[derive(Resource, Default)]
 pub struct ConnectedClients {
-    clients: Vec<ConnectedClient>,
-    policy: VisibilityPolicy,
+    clients: Vec<ClientId>,
+    pub(crate) replicate_after_connect: bool,
 }
 
 impl ConnectedClients {
+    pub(crate) fn new(replicate_after_connect: bool) -> Self {
+        Self {
+            clients: Default::default(),
+            replicate_after_connect,
+        }
+    }
+
+    pub(crate) fn add(&mut self, client_id: ClientId) {
+        debug!("adding connected `{client_id:?}`");
+
+        self.clients.push(client_id);
+    }
+
+    pub(crate) fn remove(&mut self, client_id: ClientId) {
+        debug!("removing disconnected `{client_id:?}`");
+
+        let index = self
+            .clients
+            .iter()
+            .position(|test_id| *test_id == client_id)
+            .unwrap_or_else(|| panic!("{client_id:?} should be added before removal"));
+        self.clients.remove(index);
+    }
+}
+
+/// Stores information about connected clients which are enabled for replication.
+///
+/// Inserted as resource by [`ServerPlugin`](crate::server::ServerPlugin).
+#[derive(Resource, Default)]
+pub struct ReplicatedClients {
+    clients: Vec<ReplicatedClient>,
+    policy: VisibilityPolicy,
+}
+
+impl ReplicatedClients {
     pub(crate) fn new(policy: VisibilityPolicy) -> Self {
         Self {
             clients: Default::default(),
@@ -41,7 +73,7 @@ impl ConnectedClients {
     /// # Panics
     ///
     /// Panics if the passed client ID is not connected.
-    pub fn client(&self, client_id: ClientId) -> &ConnectedClient {
+    pub fn client(&self, client_id: ClientId) -> &ReplicatedClient {
         self.get_client(client_id)
             .unwrap_or_else(|| panic!("{client_id:?} should be connected"))
     }
@@ -54,7 +86,7 @@ impl ConnectedClients {
     /// # Panics
     ///
     /// Panics if the passed client ID is not connected.
-    pub fn client_mut(&mut self, client_id: ClientId) -> &mut ConnectedClient {
+    pub fn client_mut(&mut self, client_id: ClientId) -> &mut ReplicatedClient {
         self.get_client_mut(client_id)
             .unwrap_or_else(|| panic!("{client_id:?} should be connected"))
     }
@@ -63,7 +95,7 @@ impl ConnectedClients {
     ///
     /// This operation is *O*(*n*).
     /// See also [`Self::client`] for the panicking version.
-    pub fn get_client(&self, client_id: ClientId) -> Option<&ConnectedClient> {
+    pub fn get_client(&self, client_id: ClientId) -> Option<&ReplicatedClient> {
         self.clients.iter().find(|client| client.id == client_id)
     }
 
@@ -71,7 +103,7 @@ impl ConnectedClients {
     ///
     /// This operation is *O*(*n*).
     /// See also [`Self::client`] for the panicking version.
-    pub fn get_client_mut(&mut self, client_id: ClientId) -> Option<&mut ConnectedClient> {
+    pub fn get_client_mut(&mut self, client_id: ClientId) -> Option<&mut ReplicatedClient> {
         self.clients
             .iter_mut()
             .find(|client| client.id == client_id)
@@ -83,12 +115,12 @@ impl ConnectedClients {
     }
 
     /// Returns an iterator over connected clients.
-    pub fn iter(&self) -> impl Iterator<Item = &ConnectedClient> {
+    pub fn iter(&self) -> impl Iterator<Item = &ReplicatedClient> {
         self.clients.iter()
     }
 
     /// Returns a mutable iterator over connected clients.
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut ConnectedClient> {
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut ReplicatedClient> {
         self.clients.iter_mut()
     }
 
@@ -102,33 +134,45 @@ impl ConnectedClients {
         self.clients.is_empty()
     }
 
-    /// Initializes a new [`ConnectedClient`] for this client.
+    /// Initializes a new [`ReplicatedClient`] for this client.
     ///
     /// Reuses the memory from the buffers if available.
     pub(crate) fn add(&mut self, client_buffers: &mut ClientBuffers, client_id: ClientId) {
-        debug!("adding connected `{client_id:?}`");
+        debug!("enabling replication for `{client_id:?}`");
+
+        if self
+            .clients
+            .iter()
+            .find(|client| client.id == client_id)
+            .is_some()
+        {
+            warn!("enabling replication for `{client_id:?}` which already has replication enabled");
+            return;
+        }
 
         let client = if let Some(mut client) = client_buffers.clients.pop() {
             client.reset(client_id);
             client
         } else {
-            ConnectedClient::new(client_id, self.policy)
+            ReplicatedClient::new(client_id, self.policy)
         };
 
         self.clients.push(client);
     }
 
-    /// Removes a connected client.
+    /// Removes a replicated client if replication has already been enabled for it.
     ///
     /// Keeps allocated memory in the buffers for reuse.
     pub(crate) fn remove(&mut self, client_buffers: &mut ClientBuffers, client_id: ClientId) {
-        debug!("removing disconnected `{client_id:?}`");
+        debug!("disabling replication for `{client_id:?}`");
 
-        let index = self
+        let Some(index) = self
             .clients
             .iter()
             .position(|client| client.id == client_id)
-            .unwrap_or_else(|| panic!("{client_id:?} should be added before removal"));
+        else {
+            return;
+        };
         let mut client = self.clients.remove(index);
         client_buffers.entities.extend(client.drain_entities());
         client_buffers.clients.push(client);
@@ -145,7 +189,7 @@ impl ConnectedClients {
     }
 }
 
-pub struct ConnectedClient {
+pub struct ReplicatedClient {
     /// Client's ID.
     id: ClientId,
 
@@ -171,7 +215,7 @@ pub struct ConnectedClient {
     next_update_index: u16,
 }
 
-impl ConnectedClient {
+impl ReplicatedClient {
     fn new(id: ClientId, policy: VisibilityPolicy) -> Self {
         Self {
             id,
@@ -349,15 +393,15 @@ impl ConnectedClient {
     }
 }
 
-/// Reusable buffers for [`ConnectedClients`] and [`ConnectedClient`].
+/// Reusable buffers for [`ReplicatedClients`] and [`ReplicatedClient`].
 #[derive(Default, Resource)]
 pub(crate) struct ClientBuffers {
-    /// [`ConnectedClient`]'s of previously disconnected clients.
+    /// [`ReplicatedClient`]'s of previously disconnected clients.
     ///
     /// Stored to reuse allocated memory.
-    clients: Vec<ConnectedClient>,
+    clients: Vec<ReplicatedClient>,
 
-    /// [`Vec`]'s from acknowledged update indexes from [`ConnectedClient`].
+    /// [`Vec`]'s from acknowledged update indexes from [`ReplicatedClient`].
     ///
     /// Stored to reuse allocated capacity.
     entities: Vec<Vec<Entity>>,

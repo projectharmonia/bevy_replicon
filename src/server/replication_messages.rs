@@ -9,10 +9,10 @@ use bincode::{DefaultOptions, Options};
 use bytes::Bytes;
 use varint_rs::VarintWriter;
 
-use super::{client_entity_map::ClientMapping, ConnectedClient};
+use super::{client_entity_map::ClientMapping, ReplicatedClient};
 use crate::core::{
     channels::ReplicationChannel,
-    connected_clients::{ClientBuffers, ConnectedClients},
+    connected_clients::{ClientBuffers, ReplicatedClients},
     ctx::SerializeCtx,
     replication_registry::{component_fns::ComponentFns, rule_fns::UntypedRuleFns, FnsId},
     replicon_server::RepliconServer,
@@ -27,7 +27,7 @@ use crate::core::{
 /// Reuses allocated memory from older messages.
 #[derive(Default)]
 pub(crate) struct ReplicationMessages {
-    connected_clients: ConnectedClients,
+    replicated_clients: ReplicatedClients,
     data: Vec<(InitMessage, UpdateMessage)>,
 }
 
@@ -38,11 +38,11 @@ impl ReplicationMessages {
     /// Creates new messages if the number of clients is bigger then the number of allocated messages.
     /// If there are more messages than the number of clients, then the extra messages remain untouched
     /// and iteration methods will not include them.
-    pub(super) fn prepare(&mut self, connected_clients: ConnectedClients) {
+    pub(super) fn prepare(&mut self, replicated_clients: ReplicatedClients) {
         self.data
-            .reserve(connected_clients.len().saturating_sub(self.data.len()));
+            .reserve(replicated_clients.len().saturating_sub(self.data.len()));
 
-        for index in 0..connected_clients.len() {
+        for index in 0..replicated_clients.len() {
             if let Some((init_message, update_message)) = self.data.get_mut(index) {
                 init_message.reset();
                 update_message.reset();
@@ -51,21 +51,21 @@ impl ReplicationMessages {
             }
         }
 
-        self.connected_clients = connected_clients;
+        self.replicated_clients = replicated_clients;
     }
 
     /// Returns iterator over messages for each client.
     pub(super) fn iter_mut(&mut self) -> impl Iterator<Item = &mut (InitMessage, UpdateMessage)> {
-        self.data.iter_mut().take(self.connected_clients.len())
+        self.data.iter_mut().take(self.replicated_clients.len())
     }
 
-    /// Same as [`Self::iter_mut`], but also includes [`ConnectedClient`].
+    /// Same as [`Self::iter_mut`], but also includes [`ReplicatedClient`].
     pub(super) fn iter_mut_with_clients(
         &mut self,
-    ) -> impl Iterator<Item = (&mut InitMessage, &mut UpdateMessage, &mut ConnectedClient)> {
+    ) -> impl Iterator<Item = (&mut InitMessage, &mut UpdateMessage, &mut ReplicatedClient)> {
         self.data
             .iter_mut()
-            .zip(self.connected_clients.iter_mut())
+            .zip(self.replicated_clients.iter_mut())
             .map(|((init_message, update_message), client)| (init_message, update_message, client))
     }
 
@@ -81,18 +81,18 @@ impl ReplicationMessages {
         server_tick: RepliconTick,
         tick: Tick,
         timestamp: Duration,
-    ) -> bincode::Result<ConnectedClients> {
+    ) -> bincode::Result<ReplicatedClients> {
         for ((init_message, update_message), client) in
-            self.data.iter_mut().zip(self.connected_clients.iter_mut())
+            self.data.iter_mut().zip(self.replicated_clients.iter_mut())
         {
             init_message.send(server, client, server_tick)?;
             update_message.send(server, client_buffers, client, server_tick, tick, timestamp)?;
             client.visibility_mut().update();
         }
 
-        let connected_clients = mem::take(&mut self.connected_clients);
+        let replicated_clients = mem::take(&mut self.replicated_clients);
 
-        Ok(connected_clients)
+        Ok(replicated_clients)
     }
 }
 
@@ -373,7 +373,7 @@ impl InitMessage {
     fn send(
         &self,
         server: &mut RepliconServer,
-        client: &mut ConnectedClient,
+        client: &mut ReplicatedClient,
         server_tick: RepliconTick,
     ) -> bincode::Result<()> {
         debug_assert_eq!(self.array_len, 0);
@@ -552,7 +552,7 @@ impl UpdateMessage {
         &mut self,
         server: &mut RepliconServer,
         client_buffers: &mut ClientBuffers,
-        client: &mut ConnectedClient,
+        client: &mut ReplicatedClient,
         server_tick: RepliconTick,
         tick: Tick,
         timestamp: Duration,

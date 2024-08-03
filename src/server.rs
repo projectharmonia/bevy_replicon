@@ -25,8 +25,8 @@ use crate::core::{
     channels::{ReplicationChannel, RepliconChannels},
     common_conditions::{server_just_stopped, server_running},
     connected_clients::{
-        client_visibility::Visibility, ClientBuffers, ConnectedClient, ConnectedClients,
-        VisibilityPolicy,
+        client_visibility::Visibility, ClientBuffers, ConnectedClients, ReplicatedClient,
+        ReplicatedClients, VisibilityPolicy,
     },
     ctx::SerializeCtx,
     replication_registry::ReplicationRegistry,
@@ -53,6 +53,14 @@ pub struct ServerPlugin {
     ///
     /// In practice updates will live at least `update_timeout`, and at most `2*update_timeout`.
     pub update_timeout: Duration,
+
+    /// After a client connects, do we automatically start replication for them, or have the user
+    /// manually enable replication for them?
+    ///
+    /// You may not want entity and component replication to start immediately after a client
+    /// connects, for example if you want to perform some sort of handshaking beforehand. If you
+    /// disable this, you must manually enable replication for clients by sending a
+    pub replicate_after_connect: bool,
 }
 
 impl Default for ServerPlugin {
@@ -61,6 +69,7 @@ impl Default for ServerPlugin {
             tick_policy: TickPolicy::MaxTickRate(30),
             visibility_policy: Default::default(),
             update_timeout: Duration::from_secs(10),
+            replicate_after_connect: true,
         }
     }
 }
@@ -75,8 +84,10 @@ impl Plugin for ServerPlugin {
             .init_resource::<ServerTick>()
             .init_resource::<ClientBuffers>()
             .init_resource::<ClientEntityMap>()
-            .insert_resource(ConnectedClients::new(self.visibility_policy))
+            .insert_resource(ConnectedClients::new(self.replicate_after_connect))
+            .insert_resource(ReplicatedClients::new(self.visibility_policy))
             .add_event::<ServerEvent>()
+            .add_event::<EnableReplication>()
             .configure_sets(
                 PreUpdate,
                 (
@@ -100,6 +111,7 @@ impl Plugin for ServerPlugin {
                 PreUpdate,
                 (
                     Self::handle_connections,
+                    Self::enable_replication,
                     Self::receive_acks,
                     Self::cleanup_acks(self.update_timeout).run_if(on_timer(self.update_timeout)),
                 )
@@ -158,31 +170,47 @@ impl ServerPlugin {
         mut server_events: EventReader<ServerEvent>,
         mut entity_map: ResMut<ClientEntityMap>,
         mut connected_clients: ResMut<ConnectedClients>,
+        mut replicated_clients: ResMut<ReplicatedClients>,
         mut server: ResMut<RepliconServer>,
         mut client_buffers: ResMut<ClientBuffers>,
+        mut enable_replication: EventWriter<EnableReplication>,
     ) {
         for event in server_events.read() {
             match *event {
                 ServerEvent::ClientDisconnected { client_id, .. } => {
                     entity_map.0.remove(&client_id);
-                    connected_clients.remove(&mut client_buffers, client_id);
+                    connected_clients.remove(client_id);
+                    replicated_clients.remove(&mut client_buffers, client_id);
                     server.remove_client(client_id);
                 }
                 ServerEvent::ClientConnected { client_id } => {
-                    connected_clients.add(&mut client_buffers, client_id);
+                    connected_clients.add(client_id);
+                    if connected_clients.replicate_after_connect {
+                        enable_replication.send(EnableReplication { target: client_id });
+                    }
                 }
             }
         }
     }
 
+    fn enable_replication(
+        mut enable_replication: EventReader<EnableReplication>,
+        mut replicated_clients: ResMut<ReplicatedClients>,
+        mut client_buffers: ResMut<ClientBuffers>,
+    ) {
+        for event in enable_replication.read() {
+            replicated_clients.add(&mut client_buffers, event.target);
+        }
+    }
+
     fn cleanup_acks(
         update_timeout: Duration,
-    ) -> impl FnMut(ResMut<ConnectedClients>, ResMut<ClientBuffers>, Res<Time>) {
-        move |mut connected_clients: ResMut<ConnectedClients>,
+    ) -> impl FnMut(ResMut<ReplicatedClients>, ResMut<ClientBuffers>, Res<Time>) {
+        move |mut replicated_clients: ResMut<ReplicatedClients>,
               mut client_buffers: ResMut<ClientBuffers>,
               time: Res<Time>| {
             let min_timestamp = time.elapsed().saturating_sub(update_timeout);
-            for client in connected_clients.iter_mut() {
+            for client in replicated_clients.iter_mut() {
                 client.remove_older_updates(&mut client_buffers, min_timestamp);
             }
         }
@@ -191,7 +219,7 @@ impl ServerPlugin {
     fn receive_acks(
         change_tick: SystemChangeTick,
         mut server: ResMut<RepliconServer>,
-        mut connected_clients: ResMut<ConnectedClients>,
+        mut replicated_clients: ResMut<ReplicatedClients>,
         mut client_buffers: ResMut<ClientBuffers>,
     ) {
         for (client_id, message) in server.receive(ReplicationChannel::Init) {
@@ -200,7 +228,7 @@ impl ServerPlugin {
             while cursor.position() < message_end {
                 match bincode::deserialize_from(&mut cursor) {
                     Ok(update_index) => {
-                        let client = connected_clients.client_mut(client_id);
+                        let client = replicated_clients.client_mut(client_id);
                         client.acknowledge(
                             &mut client_buffers,
                             change_tick.this_run(),
@@ -221,7 +249,7 @@ impl ServerPlugin {
         change_tick: SystemChangeTick,
         mut set: ParamSet<(
             &World,
-            ResMut<ConnectedClients>,
+            ResMut<ReplicatedClients>,
             ResMut<ClientEntityMap>,
             ResMut<DespawnBuffer>,
             ResMut<RemovalBuffer>,
@@ -235,8 +263,8 @@ impl ServerPlugin {
     ) -> bincode::Result<()> {
         replicated_archetypes.update(set.p0(), &rules);
 
-        let connected_clients = mem::take(&mut *set.p1()); // Take ownership to avoid borrowing issues.
-        messages.prepare(connected_clients);
+        let replicated_clients = mem::take(&mut *set.p1()); // Take ownership to avoid borrowing issues.
+        messages.prepare(replicated_clients);
 
         collect_mappings(&mut messages, &mut set.p2())?;
         collect_despawns(&mut messages, &mut set.p3())?;
@@ -253,7 +281,7 @@ impl ServerPlugin {
         entities_with_removals.clear();
 
         let mut client_buffers = mem::take(&mut *set.p5());
-        let connected_clients = messages.send(
+        let replicated_clients = messages.send(
             &mut set.p6(),
             &mut client_buffers,
             **server_tick,
@@ -262,7 +290,7 @@ impl ServerPlugin {
         )?;
 
         // Return borrowed data back.
-        *set.p1() = connected_clients;
+        *set.p1() = replicated_clients;
         *set.p5() = client_buffers;
 
         Ok(())
@@ -271,12 +299,12 @@ impl ServerPlugin {
     fn reset(
         mut server_tick: ResMut<ServerTick>,
         mut entity_map: ResMut<ClientEntityMap>,
-        mut connected_clients: ResMut<ConnectedClients>,
+        mut replicated_clients: ResMut<ReplicatedClients>,
         mut client_buffers: ResMut<ClientBuffers>,
     ) {
         *server_tick = Default::default();
         entity_map.0.clear();
-        connected_clients.clear(&mut client_buffers);
+        replicated_clients.clear(&mut client_buffers);
     }
 }
 
@@ -592,4 +620,16 @@ pub enum TickPolicy {
 pub enum ServerEvent {
     ClientConnected { client_id: ClientId },
     ClientDisconnected { client_id: ClientId, reason: String },
+}
+
+/// Enables replication for a specific connected client.
+///
+/// If you set [`ServerPlugin::replicate_after_connect`] to `false`, then you will have to send
+/// this event manually to enable replication for a specific client.
+///
+/// You must only enable replication for a specific client up to once per connection.
+#[derive(Debug, Clone, Copy, Event)]
+pub struct EnableReplication {
+    /// Client ID to enable replication for.
+    pub target: ClientId,
 }
