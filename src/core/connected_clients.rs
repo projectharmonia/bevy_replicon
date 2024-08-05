@@ -145,12 +145,7 @@ impl ReplicatedClients {
     pub(crate) fn add(&mut self, client_buffers: &mut ClientBuffers, client_id: ClientId) {
         debug!("enabling replication for `{client_id:?}`");
 
-        if self
-            .clients
-            .iter()
-            .find(|client| client.id == client_id)
-            .is_some()
-        {
+        if self.clients.iter().any(|client| client.id == client_id) {
             warn!("enabling replication for `{client_id:?}` which already has replication enabled");
             return;
         }
