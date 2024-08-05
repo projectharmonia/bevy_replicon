@@ -112,7 +112,7 @@ impl ServerTestAppExt for App {
         self.world_mut()
             .send_event(ServerEvent::ClientConnected { client_id });
 
-        self.update(); // Will update `ConnectedClients`, otherwise next call will assign the same ID.
+        self.update(); // Will update `ReplicatedClients`, otherwise next call will assign the same ID.
         client_app.update();
     }
 

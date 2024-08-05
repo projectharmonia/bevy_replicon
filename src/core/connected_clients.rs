@@ -25,6 +25,11 @@ impl ConnectedClients {
         }
     }
 
+    /// Gets an iterator over all [`ClientId`]s currently tracked.
+    pub fn iter_client_ids(&self) -> impl Iterator<Item = ClientId> + '_ {
+        self.clients.iter().copied()
+    }
+
     pub(crate) fn add(&mut self, client_id: ClientId) {
         debug!("adding connected `{client_id:?}`");
 
