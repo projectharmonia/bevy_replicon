@@ -171,6 +171,8 @@ impl ReplicatedClients {
             .iter()
             .position(|client| client.id == client_id)
         else {
+            // It's valid to remove a client which is connected but not replicating yet,
+            // which is just a no-op.
             return;
         };
         let mut client = self.clients.remove(index);

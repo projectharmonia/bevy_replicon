@@ -417,7 +417,8 @@ fn dont_replicate_after_connect() {
                 ..Default::default()
             }),
         ))
-        .replicate::<TableComponent>();
+        .replicate::<TableComponent>()
+        .replicate::<SparseSetComponent>();
     }
 
     server_app.connect_client(&mut client_app);
@@ -434,6 +435,23 @@ fn dont_replicate_after_connect() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
+
+    // Test that we're not replicating to this client yet.
+    assert_eq!(
+        client_id,
+        server_app
+            .world()
+            .resource::<ConnectedClients>()
+            .iter_client_ids()
+            .next()
+            .unwrap()
+    );
+    assert!(server_app
+        .world()
+        .resource::<ReplicatedClients>()
+        .iter_client_ids()
+        .next()
+        .is_none());
 
     // Test that this entity has not been sent to the client yet.
     assert!(client_app
@@ -456,6 +474,29 @@ fn dont_replicate_after_connect() {
     client_app
         .world_mut()
         .query_filtered::<(), With<TableComponent>>()
+        .single(client_app.world());
+
+    // Make sure that enabling replication twice doesn't break anything.
+    server_app
+        .world_mut()
+        .send_event(EnableReplication { target: client_id });
+
+    server_app
+        .world_mut()
+        .spawn((Replicated, SparseSetComponent));
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    client_app
+        .world_mut()
+        .query_filtered::<(), With<TableComponent>>()
+        .single(client_app.world());
+    client_app
+        .world_mut()
+        .query_filtered::<(), With<SparseSetComponent>>()
         .single(client_app.world());
 }
 
