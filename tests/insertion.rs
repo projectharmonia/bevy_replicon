@@ -404,6 +404,61 @@ fn after_removal() {
         .single(client_app.world());
 }
 
+#[test]
+fn dont_replicate_after_connect() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                replicate_after_connect: false,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<TableComponent>();
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    let client_id = client_app
+        .world()
+        .resource::<RepliconClient>()
+        .id()
+        .unwrap();
+
+    server_app.world_mut().spawn((Replicated, TableComponent));
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    // Test that this entity has not been sent to the client yet.
+    assert!(client_app
+        .world_mut()
+        .query_filtered::<(), With<TableComponent>>()
+        .iter(client_app.world())
+        .next()
+        .is_none());
+
+    // Now enable replication and test that we send the entity to the client.
+    server_app
+        .world_mut()
+        .send_event(EnableReplication { target: client_id });
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    client_app
+        .world_mut()
+        .query_filtered::<(), With<TableComponent>>()
+        .single(client_app.world());
+}
+
 #[derive(Component, Deserialize, Serialize)]
 struct MappedComponent(Entity);
 
