@@ -508,8 +508,8 @@ pub mod prelude {
             command_markers::AppMarkerExt,
             common_conditions::*,
             connected_clients::{
-                client_visibility::ClientVisibility, ReplicatedClient, ReplicatedClients,
-                VisibilityPolicy,
+                client_visibility::ClientVisibility, ConnectedClients, ReplicatedClient,
+                ReplicatedClients, VisibilityPolicy,
             },
             event_registry::{
                 client_event::{ClientEventAppExt, FromClient},
