@@ -14,7 +14,7 @@ use client_visibility::ClientVisibility;
 #[derive(Resource, Default)]
 pub struct ConnectedClients {
     clients: Vec<ClientId>,
-    pub(crate) replicate_after_connect: bool,
+    pub replicate_after_connect: bool,
 }
 
 impl ConnectedClients {
@@ -23,6 +23,11 @@ impl ConnectedClients {
             clients: Default::default(),
             replicate_after_connect,
         }
+    }
+
+    /// Gets if clients will automatically have replication enabled for them after they connect.
+    pub fn replicate_after_connect(&self) -> bool {
+        self.replicate_after_connect
     }
 
     /// Gets an iterator over all [`ClientId`]s currently tracked.
@@ -164,7 +169,7 @@ impl ReplicatedClients {
     ///
     /// Keeps allocated memory in the buffers for reuse.
     pub(crate) fn remove(&mut self, client_buffers: &mut ClientBuffers, client_id: ClientId) {
-        debug!("disabling replication for `{client_id:?}`");
+        debug!("stopping replication for `{client_id:?}`");
 
         let Some(index) = self
             .clients

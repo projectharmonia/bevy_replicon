@@ -54,12 +54,15 @@ pub struct ServerPlugin {
     /// In practice updates will live at least `update_timeout`, and at most `2*update_timeout`.
     pub update_timeout: Duration,
 
-    /// After a client connects, do we automatically start replication for them, or have the user
-    /// manually enable replication for them?
+    /// If enabled, replication will be started automatically after connection.
     ///
-    /// You may not want entity and component replication to start immediately after a client
-    /// connects, for example if you want to perform some sort of handshaking beforehand. If you
-    /// disable this, you must manually enable replication for clients by sending a
+    /// If disabled, replication should be started manually by sending the [`StartReplication`] event.
+    /// Until replication has started, the client and server can still exchange network events.
+    ///
+    /// All events from server will be buffered on client until replication starts, except the ones marked as independent.
+    /// See also [`ServerEventAppExt::make_independent`].
+    ///
+    /// [`ServerEventAppExt::make_independent`]: crate::core::event_registry::server_event::ServerEventAppExt::make_independent
     pub replicate_after_connect: bool,
 }
 
@@ -87,7 +90,7 @@ impl Plugin for ServerPlugin {
             .insert_resource(ConnectedClients::new(self.replicate_after_connect))
             .insert_resource(ReplicatedClients::new(self.visibility_policy))
             .add_event::<ServerEvent>()
-            .add_event::<EnableReplication>()
+            .add_event::<StartReplication>()
             .configure_sets(
                 PreUpdate,
                 (
@@ -173,7 +176,7 @@ impl ServerPlugin {
         mut replicated_clients: ResMut<ReplicatedClients>,
         mut server: ResMut<RepliconServer>,
         mut client_buffers: ResMut<ClientBuffers>,
-        mut enable_replication: EventWriter<EnableReplication>,
+        mut enable_replication: EventWriter<StartReplication>,
     ) {
         for event in server_events.read() {
             match *event {
@@ -185,8 +188,8 @@ impl ServerPlugin {
                 }
                 ServerEvent::ClientConnected { client_id } => {
                     connected_clients.add(client_id);
-                    if connected_clients.replicate_after_connect {
-                        enable_replication.send(EnableReplication { target: client_id });
+                    if connected_clients.replicate_after_connect() {
+                        enable_replication.send(StartReplication { target: client_id });
                     }
                 }
             }
@@ -194,7 +197,7 @@ impl ServerPlugin {
     }
 
     fn enable_replication(
-        mut enable_replication: EventReader<EnableReplication>,
+        mut enable_replication: EventReader<StartReplication>,
         mut replicated_clients: ResMut<ReplicatedClients>,
         mut client_buffers: ResMut<ClientBuffers>,
     ) {
@@ -622,14 +625,13 @@ pub enum ServerEvent {
     ClientDisconnected { client_id: ClientId, reason: String },
 }
 
-/// Enables replication for a specific connected client.
+/// Starts replication for a connected client.
 ///
-/// If you set [`ServerPlugin::replicate_after_connect`] to `false`, then you will have to send
-/// this event manually to enable replication for a specific client.
+/// This event needs to be sent manually if [`ServerPlugin::replicate_after_connect`] is set to `false`.
 ///
-/// You must only enable replication for a specific client up to once per connection.
+/// You must only startin replication for a specific client up to once per connection.
 #[derive(Debug, Clone, Copy, Event)]
-pub struct EnableReplication {
+pub struct StartReplication {
     /// Client ID to enable replication for.
     pub target: ClientId,
 }

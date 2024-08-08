@@ -530,7 +530,7 @@ pub mod prelude {
     pub use super::server::{
         client_entity_map::{ClientEntityMap, ClientMapping},
         events::ServerEventsPlugin,
-        EnableReplication, ServerEvent, ServerPlugin, ServerSet, TickPolicy,
+        ServerEvent, ServerPlugin, ServerSet, StartReplication, TickPolicy,
     };
 
     #[cfg(feature = "client_diagnostics")]
