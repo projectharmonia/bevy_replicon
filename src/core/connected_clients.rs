@@ -14,7 +14,7 @@ use client_visibility::ClientVisibility;
 #[derive(Resource, Default)]
 pub struct ConnectedClients {
     clients: Vec<ClientId>,
-    pub replicate_after_connect: bool,
+    replicate_after_connect: bool,
 }
 
 impl ConnectedClients {
@@ -148,12 +148,12 @@ impl ReplicatedClients {
     ///
     /// Reuses the memory from the buffers if available.
     pub(crate) fn add(&mut self, client_buffers: &mut ClientBuffers, client_id: ClientId) {
-        debug!("enabling replication for `{client_id:?}`");
-
         if self.clients.iter().any(|client| client.id == client_id) {
-            warn!("enabling replication for `{client_id:?}` which already has replication enabled");
+            warn!("starting replication for `{client_id:?}` which already has replication enabled");
             return;
         }
+
+        debug!("starting replication for `{client_id:?}`");
 
         let client = if let Some(mut client) = client_buffers.clients.pop() {
             client.reset(client_id);
@@ -169,8 +169,6 @@ impl ReplicatedClients {
     ///
     /// Keeps allocated memory in the buffers for reuse.
     pub(crate) fn remove(&mut self, client_buffers: &mut ClientBuffers, client_id: ClientId) {
-        debug!("stopping replication for `{client_id:?}`");
-
         let Some(index) = self
             .clients
             .iter()
@@ -180,6 +178,9 @@ impl ReplicatedClients {
             // which is just a no-op.
             return;
         };
+
+        debug!("stopping replication for `{client_id:?}`");
+
         let mut client = self.clients.remove(index);
         client_buffers.entities.extend(client.drain_entities());
         client_buffers.clients.push(client);
