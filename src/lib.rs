@@ -415,8 +415,8 @@ For events that require special serialization and deserialization functions you 
 You can control which parts of the world are visible for each client by setting visibility policy
 in [`ServerPlugin`] to [`VisibilityPolicy::Whitelist`] or [`VisibilityPolicy::Blacklist`].
 
-In order to set which entity is visible, you need to use the [`ConnectedClients`] resource
-to obtain the [`ConnectedClient`] for a specific client and get its [`ClientVisibility`]:
+In order to set which entity is visible, you need to use the [`ReplicatedClients`] resource
+to obtain the [`ReplicatedClient`] for a specific client and get its [`ClientVisibility`]:
 
 ```
 # use bevy::prelude::*;
@@ -434,12 +434,12 @@ app.add_plugins((
 
 /// Disables the visibility of other players' entities that are further away than the visible distance.
 fn update_visibility(
-    mut connected_clients: ResMut<ConnectedClients>,
+    mut replicated_clients: ResMut<ReplicatedClients>,
     moved_players: Query<(&Transform, &Player), Changed<Transform>>,
     other_players: Query<(Entity, &Transform, &Player)>,
 ) {
     for (moved_transform, moved_player) in &moved_players {
-        let client = connected_clients.client_mut(moved_player.0);
+        let client = replicated_clients.client_mut(moved_player.0);
         for (entity, transform, _) in other_players
             .iter()
             .filter(|(.., player)| player.0 != moved_player.0)
@@ -507,10 +507,7 @@ pub mod prelude {
             channels::{ChannelKind, RepliconChannel, RepliconChannels},
             command_markers::AppMarkerExt,
             common_conditions::*,
-            connected_clients::{
-                client_visibility::ClientVisibility, ConnectedClient, ConnectedClients,
-                VisibilityPolicy,
-            },
+            connected_clients::ConnectedClients,
             event_registry::{
                 client_event::{ClientEventAppExt, FromClient},
                 server_event::{SendMode, ServerEventAppExt, ToClients},
@@ -530,7 +527,11 @@ pub mod prelude {
     pub use super::server::{
         client_entity_map::{ClientEntityMap, ClientMapping},
         events::ServerEventsPlugin,
-        ServerEvent, ServerPlugin, ServerSet, TickPolicy,
+        replicated_clients::{
+            client_visibility::ClientVisibility, ReplicatedClient, ReplicatedClients,
+            VisibilityPolicy,
+        },
+        ServerEvent, ServerPlugin, ServerSet, StartReplication, TickPolicy,
     };
 
     #[cfg(feature = "client_diagnostics")]

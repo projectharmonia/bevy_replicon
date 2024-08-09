@@ -1,12 +1,14 @@
 use bevy::prelude::*;
 
 use super::{ServerPlugin, ServerSet};
-use crate::core::{
-    common_conditions::*,
-    connected_clients::ConnectedClients,
-    ctx::{ServerReceiveCtx, ServerSendCtx},
-    event_registry::EventRegistry,
-    replicon_server::RepliconServer,
+use crate::{
+    core::{
+        common_conditions::*,
+        ctx::{ServerReceiveCtx, ServerSendCtx},
+        event_registry::EventRegistry,
+        replicon_server::RepliconServer,
+    },
+    ReplicatedClients,
 };
 
 /// Sending events from the server to clients.
@@ -40,7 +42,7 @@ impl ServerEventsPlugin {
     fn send(world: &mut World) {
         world.resource_scope(|world, mut server: Mut<RepliconServer>| {
             world.resource_scope(|world, registry: Mut<AppTypeRegistry>| {
-                world.resource_scope(|world, connected_clients: Mut<ConnectedClients>| {
+                world.resource_scope(|world, replicated_clients: Mut<ReplicatedClients>| {
                     world.resource_scope(|world, event_registry: Mut<EventRegistry>| {
                         let mut ctx = ServerSendCtx {
                             registry: &registry.read(),
@@ -57,7 +59,7 @@ impl ServerEventsPlugin {
                                     &mut ctx,
                                     &server_events,
                                     &mut server,
-                                    &connected_clients,
+                                    &replicated_clients,
                                 );
                             }
                         }
