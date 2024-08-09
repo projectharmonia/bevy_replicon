@@ -128,7 +128,7 @@ impl ClientEventAppExt for App {
         serialize: SerializeFn<E>,
         deserialize: DeserializeFn<E>,
     ) -> &mut Self {
-        debug!("registering client event {}", any::type_name::<E>());
+        debug!("registering client event `{}`", any::type_name::<E>());
 
         self.add_event::<E>()
             .add_event::<FromClient<E>>()
