@@ -3,7 +3,6 @@ pub(super) mod despawn_buffer;
 pub mod events;
 pub(super) mod removal_buffer;
 pub(super) mod replicated_archetypes;
-pub mod replicated_clients;
 pub(super) mod replication_messages;
 pub mod server_tick;
 
@@ -27,6 +26,9 @@ use crate::core::{
     common_conditions::{server_just_stopped, server_running},
     connected_clients::ConnectedClients,
     ctx::SerializeCtx,
+    replicated_clients::{
+        client_visibility::Visibility, ClientBuffers, ReplicatedClients, VisibilityPolicy,
+    },
     replication_registry::ReplicationRegistry,
     replication_rules::ReplicationRules,
     replicon_server::RepliconServer,
@@ -37,10 +39,6 @@ use client_entity_map::ClientEntityMap;
 use despawn_buffer::{DespawnBuffer, DespawnBufferPlugin};
 use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
 use replicated_archetypes::ReplicatedArchetypes;
-use replicated_clients::{
-    client_visibility::Visibility, ClientBuffers, ReplicatedClient, ReplicatedClients,
-    VisibilityPolicy,
-};
 use replication_messages::ReplicationMessages;
 use server_tick::ServerTick;
 

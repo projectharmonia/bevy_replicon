@@ -512,6 +512,10 @@ pub mod prelude {
                 client_event::{ClientEventAppExt, FromClient},
                 server_event::{SendMode, ServerEventAppExt, ToClients},
             },
+            replicated_clients::{
+                client_visibility::ClientVisibility, ReplicatedClient, ReplicatedClients,
+                VisibilityPolicy,
+            },
             replication_rules::AppRuleExt,
             replicon_client::{RepliconClient, RepliconClientStatus},
             replicon_server::RepliconServer,
@@ -527,10 +531,6 @@ pub mod prelude {
     pub use super::server::{
         client_entity_map::{ClientEntityMap, ClientMapping},
         events::ServerEventsPlugin,
-        replicated_clients::{
-            client_visibility::ClientVisibility, ReplicatedClient, ReplicatedClients,
-            VisibilityPolicy,
-        },
         ServerEvent, ServerPlugin, ServerSet, StartReplication, TickPolicy,
     };
 

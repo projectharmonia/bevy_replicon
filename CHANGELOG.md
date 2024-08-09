@@ -20,6 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rename `ConnectedClients` to `ReplicatedClients`
 - Rename `ConnectedClient` to `ReplicatedClient`
 
+### Changed
+
+- Rename `connected_clients` into `replicated_clients`.
+- Rename `ConnectedClients` to `ReplicatedClients`.
+- Rename `ConnectedClient` to `ReplicatedClient`.
+
 ## [0.27.0] - 2024-07-04
 
 ### Changed

@@ -21,12 +21,12 @@ use super::EventRegistry;
 use crate::core::{
     channels::{RepliconChannel, RepliconChannels},
     ctx::{ClientReceiveCtx, ServerSendCtx},
+    replicated_clients::{ReplicatedClient, ReplicatedClients},
     replicon_client::RepliconClient,
     replicon_server::RepliconServer,
     replicon_tick::RepliconTick,
     ClientId,
 };
-use crate::server::replicated_clients::{ReplicatedClient, ReplicatedClients};
 
 /// An extension trait for [`App`] for creating client events.
 pub trait ServerEventAppExt {

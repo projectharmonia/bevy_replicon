@@ -139,7 +139,6 @@ impl ReplicatedClients {
         };
 
         debug!("stopping replication for `{client_id:?}`");
-
         let mut client = self.clients.remove(index);
         client_buffers.entities.extend(client.drain_entities());
         client_buffers.clients.push(client);
