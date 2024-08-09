@@ -9,14 +9,18 @@ use bincode::{DefaultOptions, Options};
 use bytes::Bytes;
 use varint_rs::VarintWriter;
 
-use super::{client_entity_map::ClientMapping, ReplicatedClient};
-use crate::core::{
-    channels::ReplicationChannel,
-    connected_clients::{ClientBuffers, ReplicatedClients},
-    ctx::SerializeCtx,
-    replication_registry::{component_fns::ComponentFns, rule_fns::UntypedRuleFns, FnsId},
-    replicon_server::RepliconServer,
-    replicon_tick::RepliconTick,
+use super::{
+    client_entity_map::ClientMapping, replicated_clients::ClientBuffers, ReplicatedClient,
+};
+use crate::{
+    core::{
+        channels::ReplicationChannel,
+        ctx::SerializeCtx,
+        replication_registry::{component_fns::ComponentFns, rule_fns::UntypedRuleFns, FnsId},
+        replicon_server::RepliconServer,
+        replicon_tick::RepliconTick,
+    },
+    ReplicatedClients,
 };
 
 /// Accumulates replication messages and sends them to clients.

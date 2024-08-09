@@ -436,21 +436,6 @@ fn dont_replicate_after_connect() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    // Test that we're not replicating to this client yet.
-    let first_connected_id = server_app
-        .world()
-        .resource::<ConnectedClients>()
-        .iter()
-        .next();
-    assert_eq!(client_id, first_connected_id.unwrap());
-
-    let first_replicated_id = server_app
-        .world()
-        .resource::<ReplicatedClients>()
-        .iter_client_ids()
-        .next();
-    assert!(first_replicated_id.is_none());
-
     // Test that this entity has not been sent to the client yet.
     assert!(client_app
         .world_mut()

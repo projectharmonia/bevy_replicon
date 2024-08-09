@@ -2,12 +2,11 @@ use bevy::prelude::*;
 
 use crate::{
     core::{
-        connected_clients::ReplicatedClients,
         replicon_client::{RepliconClient, RepliconClientStatus},
         replicon_server::RepliconServer,
         ClientId,
     },
-    server::ServerEvent,
+    server::{replicated_clients::ReplicatedClients, ServerEvent},
 };
 
 /**

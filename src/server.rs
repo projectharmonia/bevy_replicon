@@ -25,10 +25,7 @@ use bevy::{
 use crate::core::{
     channels::{ReplicationChannel, RepliconChannels},
     common_conditions::{server_just_stopped, server_running},
-    connected_clients::{
-        client_visibility::Visibility, ClientBuffers, ConnectedClients, ReplicatedClient,
-        ReplicatedClients, VisibilityPolicy,
-    },
+    connected_clients::ConnectedClients,
     ctx::SerializeCtx,
     replication_registry::ReplicationRegistry,
     replication_rules::ReplicationRules,
@@ -40,6 +37,10 @@ use client_entity_map::ClientEntityMap;
 use despawn_buffer::{DespawnBuffer, DespawnBufferPlugin};
 use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
 use replicated_archetypes::ReplicatedArchetypes;
+use replicated_clients::{
+    client_visibility::Visibility, ClientBuffers, ReplicatedClient, ReplicatedClients,
+    VisibilityPolicy,
+};
 use replication_messages::ReplicationMessages;
 use server_tick::ServerTick;
 

@@ -20,13 +20,13 @@ use serde::{de::DeserializeOwned, Serialize};
 use super::EventRegistry;
 use crate::core::{
     channels::{RepliconChannel, RepliconChannels},
-    connected_clients::{ReplicatedClient, ReplicatedClients},
     ctx::{ClientReceiveCtx, ServerSendCtx},
     replicon_client::RepliconClient,
     replicon_server::RepliconServer,
     replicon_tick::RepliconTick,
     ClientId,
 };
+use crate::server::replicated_clients::{ReplicatedClient, ReplicatedClients};
 
 /// An extension trait for [`App`] for creating client events.
 pub trait ServerEventAppExt {

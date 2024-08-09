@@ -202,3 +202,65 @@ fn server_inactive() {
 
     assert_eq!(app.world().resource::<ServerTick>().get(), 0);
 }
+
+#[test]
+fn dont_replicate_after_connect() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                replicate_after_connect: false,
+                ..Default::default()
+            }),
+        ));
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    let client_id = client_app
+        .world()
+        .resource::<RepliconClient>()
+        .id()
+        .unwrap();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    // Test that we're not replicating to this client yet.
+    let first_connected_id = server_app
+        .world()
+        .resource::<ConnectedClients>()
+        .iter()
+        .next();
+    assert_eq!(client_id, first_connected_id.unwrap());
+
+    let first_replicated_id = server_app
+        .world()
+        .resource::<ReplicatedClients>()
+        .iter_client_ids()
+        .next();
+    assert!(first_replicated_id.is_none());
+
+    // Now enable replication.
+    server_app
+        .world_mut()
+        .send_event(StartReplication { target: client_id });
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    // Test that we are now replicating to the client.
+    let first_replicated_id = server_app
+        .world()
+        .resource::<ReplicatedClients>()
+        .iter_client_ids()
+        .next();
+    assert_eq!(client_id, first_replicated_id.unwrap());
+}

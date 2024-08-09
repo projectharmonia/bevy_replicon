@@ -1,12 +1,14 @@
 use bevy::prelude::*;
 
 use super::{ServerPlugin, ServerSet};
-use crate::core::{
-    common_conditions::*,
-    connected_clients::ReplicatedClients,
-    ctx::{ServerReceiveCtx, ServerSendCtx},
-    event_registry::EventRegistry,
-    replicon_server::RepliconServer,
+use crate::{
+    core::{
+        common_conditions::*,
+        ctx::{ServerReceiveCtx, ServerSendCtx},
+        event_registry::EventRegistry,
+        replicon_server::RepliconServer,
+    },
+    ReplicatedClients,
 };
 
 /// Sending events from the server to clients.
