@@ -150,6 +150,8 @@ impl ServerEventAppExt for App {
         serialize: SerializeFn<E>,
         deserialize: DeserializeFn<E>,
     ) -> &mut Self {
+        debug!("registering server event {}", any::type_name::<E>());
+
         self.add_event::<E>()
             .add_event::<ToClients<E>>()
             .init_resource::<ServerEventQueue<E>>();

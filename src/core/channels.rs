@@ -82,7 +82,10 @@ impl RepliconChannels {
         }
 
         self.server.push(channel);
-        self.server.len() as u8 - 1
+        let id = self.server.len() as u8 - 1;
+        debug!("creating a server channel with ID {id}");
+
+        id
     }
 
     /// Creates a new client channel and returns its ID.
@@ -96,7 +99,10 @@ impl RepliconChannels {
         }
 
         self.client.push(channel);
-        self.client.len() as u8 - 1
+        let id = self.client.len() as u8 - 1;
+        debug!("creating a client channel with ID {id}");
+
+        id
     }
 
     /// Returns a mutable reference to a server channel.
