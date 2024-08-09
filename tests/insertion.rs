@@ -440,7 +440,7 @@ fn dont_replicate_after_connect() {
     let first_connected_id = server_app
         .world()
         .resource::<ConnectedClients>()
-        .iter_client_ids()
+        .iter()
         .next();
     assert_eq!(client_id, first_connected_id.unwrap());
 

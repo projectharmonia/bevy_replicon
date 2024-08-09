@@ -3,6 +3,7 @@ pub(super) mod despawn_buffer;
 pub mod events;
 pub(super) mod removal_buffer;
 pub(super) mod replicated_archetypes;
+pub mod replicated_clients;
 pub(super) mod replication_messages;
 pub mod server_tick;
 
