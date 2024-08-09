@@ -85,13 +85,13 @@ fn connect_disconnect() {
 
     server_app.connect_client(&mut client_app);
 
-    let connected_clients = server_app.world().resource::<ConnectedClients>();
-    assert_eq!(connected_clients.len(), 1);
+    let replicated_clients = server_app.world().resource::<ReplicatedClients>();
+    assert_eq!(replicated_clients.len(), 1);
 
     server_app.disconnect_client(&mut client_app);
 
-    let connected_clients = server_app.world().resource::<ConnectedClients>();
-    assert!(connected_clients.is_empty());
+    let replicated_clients = server_app.world().resource::<ReplicatedClients>();
+    assert!(replicated_clients.is_empty());
 }
 
 #[test]
