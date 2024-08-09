@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     core::{
-        connected_clients::ConnectedClients,
+        replicated_clients::ReplicatedClients,
         replicon_client::{RepliconClient, RepliconClientStatus},
         replicon_server::RepliconServer,
         ClientId,
@@ -97,7 +97,7 @@ impl ServerTestAppExt for App {
         // Server ID (0) will always be skipped.
         let max_id = self
             .world_mut()
-            .resource_mut::<ConnectedClients>()
+            .resource_mut::<ReplicatedClients>()
             .iter_client_ids()
             .max()
             .unwrap_or(ClientId::SERVER);
@@ -112,7 +112,7 @@ impl ServerTestAppExt for App {
         self.world_mut()
             .send_event(ServerEvent::ClientConnected { client_id });
 
-        self.update(); // Will update `ConnectedClients`, otherwise next call will assign the same ID.
+        self.update(); // Will update `ReplicatedClients`, otherwise next call will assign the same ID.
         client_app.update();
     }
 
