@@ -204,7 +204,7 @@ fn server_inactive() {
 }
 
 #[test]
-fn dont_replicate_after_connect() {
+fn after_deferred_replication_start() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
