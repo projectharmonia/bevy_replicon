@@ -2,6 +2,11 @@ use bevy::prelude::*;
 
 use crate::core::ClientId;
 
+/// Contains all connected clients.
+///
+/// Inserted as resource by [`ServerPlugin`](crate::server::ServerPlugin).
+///
+/// See also [ReplicatedClients](super::replicated_clients::ReplicatedClients).
 #[derive(Resource, Default, Deref)]
 pub struct ConnectedClients {
     #[deref]

@@ -15,6 +15,8 @@ use client_visibility::ClientVisibility;
 /// Stores information about connected clients which are enabled for replication.
 ///
 /// Inserted as resource by [`ServerPlugin`](crate::server::ServerPlugin).
+///
+/// See also [ConnectedClients](super::connected_clients::ConnectedClients).
 #[derive(Resource, Default)]
 pub struct ReplicatedClients {
     clients: Vec<ReplicatedClient>,
