@@ -405,7 +405,7 @@ fn after_removal() {
 }
 
 #[test]
-fn after_deferred_replication() {
+fn before_deferred_replication() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
@@ -458,7 +458,7 @@ fn after_deferred_replication() {
 }
 
 #[test]
-fn sync_before_and_after_deferred_replication() {
+fn after_deferred_replication() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
@@ -470,34 +470,13 @@ fn sync_before_and_after_deferred_replication() {
                 ..Default::default()
             }),
         ))
-        .replicate::<TableComponent>()
-        .replicate::<SparseSetComponent>();
+        .replicate::<TableComponent>();
     }
 
     server_app.connect_client(&mut client_app);
 
-    let client_id = client_app
-        .world()
-        .resource::<RepliconClient>()
-        .id()
-        .unwrap();
-
-    // Send an entity with TableComponent which shouldn't be present yet, since replication isn't started.
-    server_app.world_mut().spawn((Replicated, TableComponent));
-
-    server_app.update();
-    server_app.exchange_with_client(&mut client_app);
-    client_app.update();
-    server_app.exchange_with_client(&mut client_app);
-
-    assert!(client_app
-        .world_mut()
-        .query_filtered::<(), With<TableComponent>>()
-        .iter(client_app.world())
-        .next()
-        .is_none());
-
-    // Now start replication.
+    let client = client_app.world().resource::<RepliconClient>();
+    let client_id = client.id().unwrap();
     server_app
         .world_mut()
         .send_event(StartReplication { target: client_id });
@@ -507,15 +486,7 @@ fn sync_before_and_after_deferred_replication() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    client_app
-        .world_mut()
-        .query_filtered::<(), With<TableComponent>>()
-        .single(client_app.world());
-
-    // Send a second entity over, and ensure that both entity 1 and 2 are synced properly.
-    server_app
-        .world_mut()
-        .spawn((Replicated, SparseSetComponent));
+    server_app.world_mut().spawn((Replicated, TableComponent));
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -525,10 +496,6 @@ fn sync_before_and_after_deferred_replication() {
     client_app
         .world_mut()
         .query_filtered::<(), With<TableComponent>>()
-        .single(client_app.world());
-    client_app
-        .world_mut()
-        .query_filtered::<(), With<SparseSetComponent>>()
         .single(client_app.world());
 }
 
