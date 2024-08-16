@@ -16,12 +16,12 @@ impl ConnectedClients {
         }
     }
 
-    /// Gets if clients will automatically have replication enabled for them after they connect.
+    /// Returns if clients will automatically have replication enabled for them after they connect.
     pub fn replicate_after_connect(&self) -> bool {
         self.replicate_after_connect
     }
 
-    /// Gets an iterator over all [`ClientId`]s currently tracked.
+    /// Returns an iterator over all [`ClientId`]s currently tracked.
     pub fn iter(&self) -> impl Iterator<Item = ClientId> + '_ {
         self.clients.iter().copied()
     }
