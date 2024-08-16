@@ -237,7 +237,7 @@ fn after_deferred_replication_start() {
         .resource::<ConnectedClients>()
         .iter()
         .next();
-    assert_eq!(client_id, first_connected_id.unwrap());
+    assert_eq!(client_id, *first_connected_id.unwrap());
 
     let first_replicated_id = server_app
         .world()

@@ -2,8 +2,9 @@ use bevy::prelude::*;
 
 use crate::core::ClientId;
 
-#[derive(Resource, Default)]
+#[derive(Resource, Default, Deref)]
 pub struct ConnectedClients {
+    #[deref]
     clients: Vec<ClientId>,
     replicate_after_connect: bool,
 }
@@ -19,11 +20,6 @@ impl ConnectedClients {
     /// Returns if clients will automatically have replication enabled for them after they connect.
     pub fn replicate_after_connect(&self) -> bool {
         self.replicate_after_connect
-    }
-
-    /// Returns an iterator over all [`ClientId`]s currently tracked.
-    pub fn iter(&self) -> impl Iterator<Item = ClientId> + '_ {
-        self.clients.iter().copied()
     }
 
     pub(crate) fn add(&mut self, client_id: ClientId) {
