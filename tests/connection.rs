@@ -204,7 +204,7 @@ fn server_inactive() {
 }
 
 #[test]
-fn after_deferred_replication_start() {
+fn deferred_replication() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
@@ -245,4 +245,17 @@ fn after_deferred_replication_start() {
         !replicated_clients.is_empty(),
         "server now should start replicating"
     );
+
+    // Make sure that enabling replication twice do nothing.
+    server_app
+        .world_mut()
+        .send_event(StartReplication { target: client_id });
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    let replicated_clients = server_app.world().resource::<ReplicatedClients>();
+    assert_eq!(replicated_clients.len(), 1);
 }

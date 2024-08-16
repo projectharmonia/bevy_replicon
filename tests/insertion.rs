@@ -405,7 +405,7 @@ fn after_removal() {
 }
 
 #[test]
-fn after_deferred_replication_start() {
+fn after_deferred_replication() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
@@ -422,12 +422,6 @@ fn after_deferred_replication_start() {
 
     server_app.connect_client(&mut client_app);
 
-    let client_id = client_app
-        .world()
-        .resource::<RepliconClient>()
-        .id()
-        .unwrap();
-
     server_app.world_mut().spawn((Replicated, TableComponent));
 
     server_app.update();
@@ -435,30 +429,19 @@ fn after_deferred_replication_start() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    // Test that this entity has not been sent to the client yet.
-    assert!(client_app
+    let replicated_components = client_app
         .world_mut()
         .query_filtered::<(), With<TableComponent>>()
         .iter(client_app.world())
-        .next()
-        .is_none());
+        .count();
 
-    // Now start replication and test that we send the entity to the client.
-    server_app
-        .world_mut()
-        .send_event(StartReplication { target: client_id });
+    assert_eq!(
+        replicated_components, 0,
+        "no entities should have been sent to the client"
+    );
 
-    server_app.update();
-    server_app.exchange_with_client(&mut client_app);
-    client_app.update();
-    server_app.exchange_with_client(&mut client_app);
-
-    client_app
-        .world_mut()
-        .query_filtered::<(), With<TableComponent>>()
-        .single(client_app.world());
-
-    // Make sure that enabling replication twice doesn't break anything.
+    let client = client_app.world().resource::<RepliconClient>();
+    let client_id = client.id().unwrap();
     server_app
         .world_mut()
         .send_event(StartReplication { target: client_id });
