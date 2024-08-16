@@ -60,9 +60,7 @@ pub struct ServerPlugin {
     /// Until replication has started, the client and server can still exchange network events.
     ///
     /// All events from server will be buffered on client until replication starts, except the ones marked as independent.
-    /// See also [`ServerEventAppExt::make_independent`].
-    ///
-    /// [`ServerEventAppExt::make_independent`]: crate::core::event_registry::server_event::ServerEventAppExt::make_independent
+    /// See also [`ServerEventAppExt::make_independent`](crate::core::event_registry::server_event::ServerEventAppExt::make_independent).
     pub replicate_after_connect: bool,
 }
 
@@ -628,8 +626,6 @@ pub enum ServerEvent {
 /// Starts replication for a connected client.
 ///
 /// This event needs to be sent manually if [`ServerPlugin::replicate_after_connect`] is set to `false`.
-///
-/// You must only startin replication for a specific client up to once per connection.
 #[derive(Debug, Clone, Copy, Event)]
 pub struct StartReplication {
     /// Client ID to enable replication for.
