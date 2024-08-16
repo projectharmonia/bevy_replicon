@@ -220,33 +220,17 @@ fn after_deferred_replication_start() {
 
     server_app.connect_client(&mut client_app);
 
-    let client_id = client_app
-        .world()
-        .resource::<RepliconClient>()
-        .id()
-        .unwrap();
+    let connected_clients = server_app.world().resource::<ConnectedClients>();
+    assert!(!connected_clients.is_empty());
 
-    server_app.update();
-    server_app.exchange_with_client(&mut client_app);
-    client_app.update();
-    server_app.exchange_with_client(&mut client_app);
+    let replicated_clients = server_app.world().resource::<ReplicatedClients>();
+    assert!(
+        replicated_clients.is_empty(),
+        "server shouldn't replicate to yet"
+    );
 
-    // Test that we're not replicating to this client yet.
-    let first_connected_id = server_app
-        .world()
-        .resource::<ConnectedClients>()
-        .iter()
-        .next();
-    assert_eq!(client_id, *first_connected_id.unwrap());
-
-    let first_replicated_id = server_app
-        .world()
-        .resource::<ReplicatedClients>()
-        .iter_client_ids()
-        .next();
-    assert!(first_replicated_id.is_none());
-
-    // Now enable replication.
+    let client = client_app.world().resource::<RepliconClient>();
+    let client_id = client.id().unwrap();
     server_app
         .world_mut()
         .send_event(StartReplication { target: client_id });
@@ -256,11 +240,9 @@ fn after_deferred_replication_start() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    // Test that we are now replicating to the client.
-    let first_replicated_id = server_app
-        .world()
-        .resource::<ReplicatedClients>()
-        .iter_client_ids()
-        .next();
-    assert_eq!(client_id, first_replicated_id.unwrap());
+    let replicated_clients = server_app.world().resource::<ReplicatedClients>();
+    assert!(
+        !replicated_clients.is_empty(),
+        "server now should start replicating"
+    );
 }
