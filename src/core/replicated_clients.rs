@@ -21,19 +21,26 @@ use client_visibility::ClientVisibility;
 pub struct ReplicatedClients {
     clients: Vec<ReplicatedClient>,
     policy: VisibilityPolicy,
+    replicate_after_connect: bool,
 }
 
 impl ReplicatedClients {
-    pub(crate) fn new(policy: VisibilityPolicy) -> Self {
+    pub(crate) fn new(policy: VisibilityPolicy, replicate_after_connect: bool) -> Self {
         Self {
             clients: Default::default(),
             policy,
+            replicate_after_connect,
         }
     }
 
     /// Returns the configured [`VisibilityPolicy`].
     pub fn visibility_policy(&self) -> VisibilityPolicy {
         self.policy
+    }
+
+    /// Returns if clients will automatically have replication enabled for them after they connect.
+    pub fn replicate_after_connect(&self) -> bool {
+        self.replicate_after_connect
     }
 
     /// Returns a reference to a connected client.

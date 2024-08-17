@@ -85,8 +85,11 @@ impl Plugin for ServerPlugin {
             .init_resource::<ServerTick>()
             .init_resource::<ClientBuffers>()
             .init_resource::<ClientEntityMap>()
-            .insert_resource(ConnectedClients::new(self.replicate_after_connect))
-            .insert_resource(ReplicatedClients::new(self.visibility_policy))
+            .init_resource::<ConnectedClients>()
+            .insert_resource(ReplicatedClients::new(
+                self.visibility_policy,
+                self.replicate_after_connect,
+            ))
             .add_event::<ServerEvent>()
             .add_event::<StartReplication>()
             .configure_sets(
@@ -186,7 +189,7 @@ impl ServerPlugin {
                 }
                 ServerEvent::ClientConnected { client_id } => {
                     connected_clients.add(client_id);
-                    if connected_clients.replicate_after_connect() {
+                    if replicated_clients.replicate_after_connect() {
                         enable_replication.send(StartReplication(client_id));
                     }
                 }
