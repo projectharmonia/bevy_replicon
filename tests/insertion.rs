@@ -444,7 +444,7 @@ fn before_started_replication() {
     let client_id = client.id().unwrap();
     server_app
         .world_mut()
-        .send_event(StartReplication { target: client_id });
+        .send_event(StartReplication(client_id));
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -479,7 +479,7 @@ fn after_started_replication() {
     let client_id = client.id().unwrap();
     server_app
         .world_mut()
-        .send_event(StartReplication { target: client_id });
+        .send_event(StartReplication(client_id));
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);

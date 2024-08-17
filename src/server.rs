@@ -187,7 +187,7 @@ impl ServerPlugin {
                 ServerEvent::ClientConnected { client_id } => {
                     connected_clients.add(client_id);
                     if connected_clients.replicate_after_connect() {
-                        enable_replication.send(StartReplication { target: client_id });
+                        enable_replication.send(StartReplication(client_id));
                     }
                 }
             }
@@ -200,7 +200,7 @@ impl ServerPlugin {
         mut client_buffers: ResMut<ClientBuffers>,
     ) {
         for event in enable_replication.read() {
-            replicated_clients.add(&mut client_buffers, event.target);
+            replicated_clients.add(&mut client_buffers, event.0);
         }
     }
 
@@ -627,7 +627,4 @@ pub enum ServerEvent {
 ///
 /// This event needs to be sent manually if [`ServerPlugin::replicate_after_connect`] is set to `false`.
 #[derive(Debug, Clone, Copy, Event)]
-pub struct StartReplication {
-    /// Client ID to enable replication for.
-    pub target: ClientId,
-}
+pub struct StartReplication(pub ClientId);
