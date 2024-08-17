@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use super::{ServerPlugin, ServerSet};
 use crate::core::{
     common_conditions::*,
+    connected_clients::ConnectedClients,
     ctx::{ServerReceiveCtx, ServerSendCtx},
     event_registry::EventRegistry,
     replicated_clients::ReplicatedClients,
@@ -40,27 +41,30 @@ impl ServerEventsPlugin {
     fn send(world: &mut World) {
         world.resource_scope(|world, mut server: Mut<RepliconServer>| {
             world.resource_scope(|world, registry: Mut<AppTypeRegistry>| {
-                world.resource_scope(|world, replicated_clients: Mut<ReplicatedClients>| {
-                    world.resource_scope(|world, event_registry: Mut<EventRegistry>| {
-                        let mut ctx = ServerSendCtx {
-                            registry: &registry.read(),
-                        };
+                world.resource_scope(|world, connected_clients: Mut<ConnectedClients>| {
+                    world.resource_scope(|world, replicated_clients: Mut<ReplicatedClients>| {
+                        world.resource_scope(|world, event_registry: Mut<EventRegistry>| {
+                            let mut ctx = ServerSendCtx {
+                                registry: &registry.read(),
+                            };
 
-                        for event_data in event_registry.iter_server_events() {
-                            let server_events = world
-                                .get_resource_by_id(event_data.server_events_id())
-                                .expect("server events shouldn't be removed");
+                            for event_data in event_registry.iter_server_events() {
+                                let server_events = world
+                                    .get_resource_by_id(event_data.server_events_id())
+                                    .expect("server events shouldn't be removed");
 
-                            // SAFETY: passed pointer was obtained using this event data.
-                            unsafe {
-                                event_data.send(
-                                    &mut ctx,
-                                    &server_events,
-                                    &mut server,
-                                    &replicated_clients,
-                                );
+                                // SAFETY: passed pointer was obtained using this event data.
+                                unsafe {
+                                    event_data.send(
+                                        &mut ctx,
+                                        &server_events,
+                                        &mut server,
+                                        &connected_clients,
+                                        &replicated_clients,
+                                    );
+                                }
                             }
-                        }
+                        });
                     });
                 });
             });

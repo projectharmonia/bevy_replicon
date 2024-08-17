@@ -20,8 +20,9 @@ use serde::{de::DeserializeOwned, Serialize};
 use super::EventRegistry;
 use crate::core::{
     channels::{RepliconChannel, RepliconChannels},
+    connected_clients::ConnectedClients,
     ctx::{ClientReceiveCtx, ServerSendCtx},
-    replicated_clients::{ReplicatedClient, ReplicatedClients},
+    replicated_clients::ReplicatedClients,
     replicon_client::RepliconClient,
     replicon_server::RepliconServer,
     replicon_tick::RepliconTick,
@@ -304,9 +305,17 @@ impl ServerEvent {
         ctx: &mut ServerSendCtx,
         server_events: &Ptr,
         server: &mut RepliconServer,
+        connected_clients: &ConnectedClients,
         replicated_clients: &ReplicatedClients,
     ) {
-        (self.send)(self, ctx, server_events, server, replicated_clients);
+        (self.send)(
+            self,
+            ctx,
+            server_events,
+            server,
+            connected_clients,
+            replicated_clients,
+        );
     }
 
     /// Receives an event from the server.
@@ -397,8 +406,14 @@ pub type SerializeFn<E> = fn(&mut ServerSendCtx, &E, &mut Cursor<Vec<u8>>) -> bi
 pub type DeserializeFn<E> = fn(&mut ClientReceiveCtx, &mut Cursor<&[u8]>) -> bincode::Result<E>;
 
 /// Signature of server event sending functions.
-type SendFn =
-    unsafe fn(&ServerEvent, &mut ServerSendCtx, &Ptr, &mut RepliconServer, &ReplicatedClients);
+type SendFn = unsafe fn(
+    &ServerEvent,
+    &mut ServerSendCtx,
+    &Ptr,
+    &mut RepliconServer,
+    &ConnectedClients,
+    &ReplicatedClients,
+);
 
 /// Signature of server event receiving functions.
 type ReceiveFn = unsafe fn(
@@ -427,6 +442,7 @@ unsafe fn send<E: Event>(
     ctx: &mut ServerSendCtx,
     server_events: &Ptr,
     server: &mut RepliconServer,
+    connected_clients: &ConnectedClients,
     replicated_clients: &ReplicatedClients,
 ) {
     let events: &Events<ToClients<E>> = server_events.deref();
@@ -434,8 +450,14 @@ unsafe fn send<E: Event>(
     // all of them will always be drained in the local resending system.
     for ToClients { event, mode } in events.get_reader().read(events) {
         trace!("sending event `{}` with `{mode:?}`", any::type_name::<E>());
-        send_with(event_data, ctx, event, mode, server, replicated_clients)
-            .expect("server event should be serializable");
+
+        if event_data.is_independent() {
+            send_independent_event(event_data, ctx, event, mode, server, connected_clients)
+                .expect("independent server event should be serializable");
+        } else {
+            send_event(event_data, ctx, event, mode, server, replicated_clients)
+                .expect("server event should be serializable");
+        }
     }
 }
 
@@ -466,21 +488,23 @@ unsafe fn receive<E: Event>(
 
     for message in client.receive(event_data.channel_id) {
         let mut cursor = Cursor::new(&*message);
-        let (tick, event) = deserialize_with(ctx, event_data, &mut cursor)
-            .expect("server should send valid events");
-
         if event_data.is_independent() {
-            trace!(
-                "applying independent event `{}` with `{tick:?}`",
-                any::type_name::<E>()
-            );
-            events.send(event);
-        } else if tick <= init_tick {
-            trace!("applying event `{}` with `{tick:?}`", any::type_name::<E>());
+            let event = event_data
+                .deserialize(ctx, &mut cursor)
+                .expect("server should send valid events");
+            trace!("applying independent event `{}`", any::type_name::<E>());
             events.send(event);
         } else {
-            trace!("queuing event `{}` with `{tick:?}`", any::type_name::<E>());
-            queue.insert(tick, event);
+            let (tick, event) = deserialize_with_tick(ctx, event_data, &mut cursor)
+                .expect("server should send valid events");
+
+            if tick <= init_tick {
+                trace!("applying event `{}` with `{tick:?}`", any::type_name::<E>());
+                events.send(event);
+            } else {
+                trace!("queuing event `{}` with `{tick:?}`", any::type_name::<E>());
+                queue.insert(tick, event);
+            }
         }
     }
 }
@@ -533,7 +557,9 @@ unsafe fn reset<E: Event>(queue: PtrMut) {
 /// # Safety
 ///
 /// The caller must ensure that `event_data` was created for `E`.
-unsafe fn send_with<E: Event>(
+///
+/// For independent events see [`send_independent_event`].
+unsafe fn send_event<E: Event>(
     event_data: &ServerEvent,
     ctx: &mut ServerSendCtx,
     event: &E,
@@ -545,7 +571,13 @@ unsafe fn send_with<E: Event>(
         SendMode::Broadcast => {
             let mut previous_message = None;
             for client in replicated_clients.iter() {
-                let message = serialize_with(event_data, ctx, event, client, previous_message)?;
+                let message = serialize_with_tick(
+                    event_data,
+                    ctx,
+                    event,
+                    client.init_tick(),
+                    previous_message,
+                )?;
                 server.send(client.id(), event_data.channel_id, message.bytes.clone());
                 previous_message = Some(message);
             }
@@ -556,7 +588,13 @@ unsafe fn send_with<E: Event>(
                 if client.id() == client_id {
                     continue;
                 }
-                let message = serialize_with(event_data, ctx, event, client, previous_message)?;
+                let message = serialize_with_tick(
+                    event_data,
+                    ctx,
+                    event,
+                    client.init_tick(),
+                    previous_message,
+                )?;
                 server.send(client.id(), event_data.channel_id, message.bytes.clone());
                 previous_message = Some(message);
             }
@@ -564,9 +602,52 @@ unsafe fn send_with<E: Event>(
         SendMode::Direct(client_id) => {
             if client_id != ClientId::SERVER {
                 if let Some(client) = replicated_clients.get_client(client_id) {
-                    let message = serialize_with(event_data, ctx, event, client, None)?;
+                    let message =
+                        serialize_with_tick(event_data, ctx, event, client.init_tick(), None)?;
                     server.send(client.id(), event_data.channel_id, message.bytes);
                 }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Sends independent event `E` based on a mode.
+///
+/// # Safety
+///
+/// The caller must ensure that `event_data` was created for `E`.
+///
+/// For regular events see [`send_event`].
+unsafe fn send_independent_event<E: Event>(
+    event_data: &ServerEvent,
+    ctx: &mut ServerSendCtx,
+    event: &E,
+    mode: &SendMode,
+    server: &mut RepliconServer,
+    connected_clients: &ConnectedClients,
+) -> bincode::Result<()> {
+    let mut cursor = Default::default();
+    event_data.serialize(ctx, event, &mut cursor)?;
+    let message: Bytes = cursor.into_inner().into();
+
+    match *mode {
+        SendMode::Broadcast => {
+            for &client_id in connected_clients.iter() {
+                server.send(client_id, event_data.channel_id, message.clone());
+            }
+        }
+        SendMode::BroadcastExcept(id) => {
+            for &client_id in connected_clients.iter() {
+                if client_id != id {
+                    server.send(client_id, event_data.channel_id, message.clone());
+                }
+            }
+        }
+        SendMode::Direct(client_id) => {
+            if client_id != ClientId::SERVER {
+                server.send(client_id, event_data.channel_id, message.clone());
             }
         }
     }
@@ -582,24 +663,24 @@ unsafe fn send_with<E: Event>(
 /// # Safety
 ///
 /// The caller must ensure that `event_data` was created for `E`.
-unsafe fn serialize_with<E: Event>(
+unsafe fn serialize_with_tick<E: Event>(
     event_data: &ServerEvent,
     ctx: &mut ServerSendCtx,
     event: &E,
-    client: &ReplicatedClient,
+    init_tick: RepliconTick,
     previous_message: Option<SerializedMessage>,
 ) -> bincode::Result<SerializedMessage> {
     if let Some(previous_message) = previous_message {
-        if previous_message.tick == client.init_tick() {
+        if previous_message.init_tick == init_tick {
             return Ok(previous_message);
         }
 
-        let tick_size = DefaultOptions::new().serialized_size(&client.init_tick())? as usize;
+        let tick_size = DefaultOptions::new().serialized_size(&init_tick)? as usize;
         let mut bytes = Vec::with_capacity(tick_size + previous_message.event_bytes().len());
-        DefaultOptions::new().serialize_into(&mut bytes, &client.init_tick())?;
+        DefaultOptions::new().serialize_into(&mut bytes, &init_tick)?;
         bytes.extend_from_slice(previous_message.event_bytes());
         let message = SerializedMessage {
-            tick: client.init_tick(),
+            init_tick,
             tick_size,
             bytes: bytes.into(),
         };
@@ -607,11 +688,11 @@ unsafe fn serialize_with<E: Event>(
         Ok(message)
     } else {
         let mut cursor = Cursor::new(Vec::new());
-        DefaultOptions::new().serialize_into(&mut cursor, &client.init_tick())?;
+        DefaultOptions::new().serialize_into(&mut cursor, &init_tick)?;
         let tick_size = cursor.get_ref().len();
         event_data.serialize(ctx, event, &mut cursor)?;
         let message = SerializedMessage {
-            tick: client.init_tick(),
+            init_tick,
             tick_size,
             bytes: cursor.into_inner().into(),
         };
@@ -625,7 +706,7 @@ unsafe fn serialize_with<E: Event>(
 /// # Safety
 ///
 /// The caller must ensure that `event_data` was created for `E`.
-unsafe fn deserialize_with<E: Event>(
+unsafe fn deserialize_with_tick<E: Event>(
     ctx: &mut ClientReceiveCtx,
     event_data: &ServerEvent,
     cursor: &mut Cursor<&[u8]>,
@@ -638,7 +719,7 @@ unsafe fn deserialize_with<E: Event>(
 
 /// Cached message for use in [`serialize_with`].
 struct SerializedMessage {
-    tick: RepliconTick,
+    init_tick: RepliconTick,
     tick_size: usize,
     bytes: Bytes,
 }

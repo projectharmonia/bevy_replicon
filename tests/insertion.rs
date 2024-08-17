@@ -405,7 +405,7 @@ fn after_removal() {
 }
 
 #[test]
-fn before_deferred_replication() {
+fn before_started_replication() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
@@ -458,7 +458,7 @@ fn before_deferred_replication() {
 }
 
 #[test]
-fn after_deferred_replication() {
+fn after_started_replication() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
