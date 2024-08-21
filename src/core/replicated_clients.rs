@@ -117,7 +117,7 @@ impl ReplicatedClients {
     /// Reuses the memory from the buffers if available.
     pub(crate) fn add(&mut self, client_buffers: &mut ClientBuffers, client_id: ClientId) {
         if self.clients.iter().any(|client| client.id == client_id) {
-            warn!("starting replication for `{client_id:?}` which already has replication enabled");
+            warn!("ignoring attempt to start replication for `{client_id:?}` that already has replication enabled");
             return;
         }
 
