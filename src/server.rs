@@ -24,6 +24,7 @@ use bevy::{
 use crate::core::{
     channels::{ReplicationChannel, RepliconChannels},
     common_conditions::{server_just_stopped, server_running},
+    connected_clients::ConnectedClients,
     ctx::SerializeCtx,
     replicated_clients::{
         client_visibility::Visibility, ClientBuffers, ReplicatedClients, VisibilityPolicy,
@@ -52,6 +53,15 @@ pub struct ServerPlugin {
     ///
     /// In practice updates will live at least `update_timeout`, and at most `2*update_timeout`.
     pub update_timeout: Duration,
+
+    /// If enabled, replication will be started automatically after connection.
+    ///
+    /// If disabled, replication should be started manually by sending the [`StartReplication`] event.
+    /// Until replication has started, the client and server can still exchange network events.
+    ///
+    /// All events from server will be buffered on client until replication starts, except the ones marked as independent.
+    /// See also [`ServerEventAppExt::make_independent`](crate::core::event_registry::server_event::ServerEventAppExt::make_independent).
+    pub replicate_after_connect: bool,
 }
 
 impl Default for ServerPlugin {
@@ -60,6 +70,7 @@ impl Default for ServerPlugin {
             tick_policy: TickPolicy::MaxTickRate(30),
             visibility_policy: Default::default(),
             update_timeout: Duration::from_secs(10),
+            replicate_after_connect: true,
         }
     }
 }
@@ -74,8 +85,13 @@ impl Plugin for ServerPlugin {
             .init_resource::<ServerTick>()
             .init_resource::<ClientBuffers>()
             .init_resource::<ClientEntityMap>()
-            .insert_resource(ReplicatedClients::new(self.visibility_policy))
+            .init_resource::<ConnectedClients>()
+            .insert_resource(ReplicatedClients::new(
+                self.visibility_policy,
+                self.replicate_after_connect,
+            ))
             .add_event::<ServerEvent>()
+            .add_event::<StartReplication>()
             .configure_sets(
                 PreUpdate,
                 (
@@ -99,6 +115,7 @@ impl Plugin for ServerPlugin {
                 PreUpdate,
                 (
                     Self::handle_connections,
+                    Self::enable_replication,
                     Self::receive_acks,
                     Self::cleanup_acks(self.update_timeout).run_if(on_timer(self.update_timeout)),
                 )
@@ -156,21 +173,37 @@ impl ServerPlugin {
     fn handle_connections(
         mut server_events: EventReader<ServerEvent>,
         mut entity_map: ResMut<ClientEntityMap>,
+        mut connected_clients: ResMut<ConnectedClients>,
         mut replicated_clients: ResMut<ReplicatedClients>,
         mut server: ResMut<RepliconServer>,
         mut client_buffers: ResMut<ClientBuffers>,
+        mut enable_replication: EventWriter<StartReplication>,
     ) {
         for event in server_events.read() {
             match *event {
                 ServerEvent::ClientDisconnected { client_id, .. } => {
                     entity_map.0.remove(&client_id);
+                    connected_clients.remove(client_id);
                     replicated_clients.remove(&mut client_buffers, client_id);
                     server.remove_client(client_id);
                 }
                 ServerEvent::ClientConnected { client_id } => {
-                    replicated_clients.add(&mut client_buffers, client_id);
+                    connected_clients.add(client_id);
+                    if replicated_clients.replicate_after_connect() {
+                        enable_replication.send(StartReplication(client_id));
+                    }
                 }
             }
+        }
+    }
+
+    fn enable_replication(
+        mut enable_replication: EventReader<StartReplication>,
+        mut replicated_clients: ResMut<ReplicatedClients>,
+        mut client_buffers: ResMut<ClientBuffers>,
+    ) {
+        for event in enable_replication.read() {
+            replicated_clients.add(&mut client_buffers, event.0);
         }
     }
 
@@ -592,3 +625,9 @@ pub enum ServerEvent {
     ClientConnected { client_id: ClientId },
     ClientDisconnected { client_id: ClientId, reason: String },
 }
+
+/// Starts replication for a connected client.
+///
+/// This event needs to be sent manually if [`ServerPlugin::replicate_after_connect`] is set to `false`.
+#[derive(Debug, Clone, Copy, Event)]
+pub struct StartReplication(pub ClientId);

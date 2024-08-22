@@ -15,23 +15,32 @@ use client_visibility::ClientVisibility;
 /// Stores information about connected clients which are enabled for replication.
 ///
 /// Inserted as resource by [`ServerPlugin`](crate::server::ServerPlugin).
+///
+/// See also [ConnectedClients](super::connected_clients::ConnectedClients).
 #[derive(Resource, Default)]
 pub struct ReplicatedClients {
     clients: Vec<ReplicatedClient>,
     policy: VisibilityPolicy,
+    replicate_after_connect: bool,
 }
 
 impl ReplicatedClients {
-    pub(crate) fn new(policy: VisibilityPolicy) -> Self {
+    pub(crate) fn new(policy: VisibilityPolicy, replicate_after_connect: bool) -> Self {
         Self {
             clients: Default::default(),
             policy,
+            replicate_after_connect,
         }
     }
 
     /// Returns the configured [`VisibilityPolicy`].
     pub fn visibility_policy(&self) -> VisibilityPolicy {
         self.policy
+    }
+
+    /// Returns if clients will automatically have replication enabled for them after they connect.
+    pub fn replicate_after_connect(&self) -> bool {
+        self.replicate_after_connect
     }
 
     /// Returns a reference to a connected client.
@@ -107,6 +116,11 @@ impl ReplicatedClients {
     ///
     /// Reuses the memory from the buffers if available.
     pub(crate) fn add(&mut self, client_buffers: &mut ClientBuffers, client_id: ClientId) {
+        if self.clients.iter().any(|client| client.id == client_id) {
+            warn!("ignoring attempt to start replication for `{client_id:?}` that already has replication enabled");
+            return;
+        }
+
         debug!("starting replication for `{client_id:?}`");
 
         let client = if let Some(mut client) = client_buffers.clients.pop() {
@@ -123,13 +137,17 @@ impl ReplicatedClients {
     ///
     /// Keeps allocated memory in the buffers for reuse.
     pub(crate) fn remove(&mut self, client_buffers: &mut ClientBuffers, client_id: ClientId) {
-        debug!("stopping replication for `{client_id:?}`");
-
-        let index = self
+        let Some(index) = self
             .clients
             .iter()
             .position(|client| client.id == client_id)
-            .unwrap_or_else(|| panic!("{client_id:?} should be added before removal"));
+        else {
+            // It's valid to remove a client which is connected but not replicating yet,
+            // which is just a no-op.
+            return;
+        };
+
+        debug!("stopping replication for `{client_id:?}`");
         let mut client = self.clients.remove(index);
         client_buffers.entities.extend(client.drain_entities());
         client_buffers.clients.push(client);

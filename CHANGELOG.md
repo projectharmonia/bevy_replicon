@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `ServerEventAppExt::make_independent` to let events be triggered without waiting for replication on the same tick.
+- `ConnectedClients` (the same name as the old resource that was renamed into `ReplicatedClients`) with client IDs for all connected clients (but may not be replicated yet).
+- `ServerPlugin::replicate_after_connect` to enable replication right after connection (enabled by default, same as old behavior).
 
 ### Changed
 

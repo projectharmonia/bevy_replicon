@@ -202,3 +202,60 @@ fn server_inactive() {
 
     assert_eq!(app.world().resource::<ServerTick>().get(), 0);
 }
+
+#[test]
+fn deferred_replication() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                replicate_after_connect: false,
+                ..Default::default()
+            }),
+        ));
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    let connected_clients = server_app.world().resource::<ConnectedClients>();
+    assert!(!connected_clients.is_empty());
+
+    let replicated_clients = server_app.world().resource::<ReplicatedClients>();
+    assert!(
+        replicated_clients.is_empty(),
+        "server shouldn't replicate to yet"
+    );
+
+    let client = client_app.world().resource::<RepliconClient>();
+    let client_id = client.id().unwrap();
+    server_app
+        .world_mut()
+        .send_event(StartReplication(client_id));
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    let replicated_clients = server_app.world().resource::<ReplicatedClients>();
+    assert!(
+        !replicated_clients.is_empty(),
+        "server now should start replicating"
+    );
+
+    // Make sure that enabling replication twice do nothing.
+    server_app
+        .world_mut()
+        .send_event(StartReplication(client_id));
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    let replicated_clients = server_app.world().resource::<ReplicatedClients>();
+    assert_eq!(replicated_clients.len(), 1);
+}

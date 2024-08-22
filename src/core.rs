@@ -1,6 +1,7 @@
 pub mod channels;
 pub mod command_markers;
 pub mod common_conditions;
+pub mod connected_clients;
 pub mod ctx;
 pub mod event_registry;
 pub mod replicated_clients;

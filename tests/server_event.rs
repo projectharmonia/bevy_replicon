@@ -46,9 +46,9 @@ fn sending_receiving() {
         client_app.update();
         server_app.exchange_with_client(&mut client_app);
 
-        let mut dummy_events = client_app.world_mut().resource_mut::<Events<DummyEvent>>();
+        let mut events = client_app.world_mut().resource_mut::<Events<DummyEvent>>();
         assert_eq!(
-            dummy_events.drain().count(),
+            events.drain().count(),
             events_count,
             "event should be emited {events_count} times for {mode:?}"
         );
@@ -146,9 +146,9 @@ fn sending_receiving_without_plugins() {
         client_app.update();
         server_app.exchange_with_client(&mut client_app);
 
-        let mut dummy_events = client_app.world_mut().resource_mut::<Events<DummyEvent>>();
+        let mut events = client_app.world_mut().resource_mut::<Events<DummyEvent>>();
         assert_eq!(
-            dummy_events.drain().count(),
+            events.drain().count(),
             events_count,
             "event should be emited {events_count} times for {mode:?}"
         );
@@ -245,7 +245,7 @@ fn event_queue() {
 }
 
 #[test]
-fn independent_event() {
+fn independent() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
@@ -275,6 +275,60 @@ fn independent_event() {
     // Normal events would be queued and not triggered yet,
     // but our independent event should be triggered immediately.
     *client_app.world_mut().resource_mut::<ServerInitTick>() = Default::default();
+
+    let client = client_app.world().resource::<RepliconClient>();
+    let client_id = client.id().unwrap();
+
+    for (mode, events_count) in [
+        (SendMode::Broadcast, 1),
+        (SendMode::Direct(ClientId::SERVER), 0),
+        (SendMode::Direct(client_id), 1),
+        (SendMode::BroadcastExcept(ClientId::SERVER), 1),
+        (SendMode::BroadcastExcept(client_id), 0),
+    ] {
+        server_app.world_mut().send_event(ToClients {
+            mode,
+            event: DummyEvent,
+        });
+
+        server_app.update();
+        server_app.exchange_with_client(&mut client_app);
+        client_app.update();
+        server_app.exchange_with_client(&mut client_app);
+
+        // Event should have already been triggered, even without resetting the tick,
+        // since it's independent.
+        let mut events = client_app.world_mut().resource_mut::<Events<DummyEvent>>();
+        assert_eq!(
+            events.drain().count(),
+            events_count,
+            "event should be emited {events_count} times for {mode:?}"
+        );
+    }
+}
+
+#[test]
+fn before_started_replication() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                replicate_after_connect: false,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<DummyComponent>()
+        .add_server_event::<DummyEvent>(ChannelKind::Ordered);
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    // Spawn entity to trigger world change.
+    server_app.world_mut().spawn((Replicated, DummyComponent));
+
     server_app.world_mut().send_event(ToClients {
         mode: SendMode::Broadcast,
         event: DummyEvent,
@@ -283,9 +337,45 @@ fn independent_event() {
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
+    server_app.exchange_with_client(&mut client_app);
 
-    // Event should have already been triggered, even without resetting the tick,
-    // since it's independent.
+    let events = client_app.world().resource::<Events<DummyEvent>>();
+    assert!(events.is_empty());
+}
+
+#[test]
+fn independent_before_started_replication() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                replicate_after_connect: false,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<DummyComponent>()
+        .add_server_event::<DummyEvent>(ChannelKind::Ordered)
+        .make_independent::<DummyEvent>();
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    // Spawn entity to trigger world change.
+    server_app.world_mut().spawn((Replicated, DummyComponent));
+
+    server_app.world_mut().send_event(ToClients {
+        mode: SendMode::Broadcast,
+        event: DummyEvent,
+    });
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
     assert_eq!(client_app.world().resource::<Events<DummyEvent>>().len(), 1);
 }
 
@@ -350,6 +440,9 @@ struct DummyComponent;
 
 #[derive(Deserialize, Event, Serialize)]
 struct DummyEvent;
+
+#[derive(Deserialize, Event, Serialize)]
+struct IndependentDummyEvent;
 
 #[derive(Deserialize, Event, Serialize)]
 struct MappedEvent(Entity);

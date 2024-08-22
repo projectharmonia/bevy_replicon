@@ -507,6 +507,7 @@ pub mod prelude {
             channels::{ChannelKind, RepliconChannel, RepliconChannels},
             command_markers::AppMarkerExt,
             common_conditions::*,
+            connected_clients::ConnectedClients,
             event_registry::{
                 client_event::{ClientEventAppExt, FromClient},
                 server_event::{SendMode, ServerEventAppExt, ToClients},
@@ -530,7 +531,7 @@ pub mod prelude {
     pub use super::server::{
         client_entity_map::{ClientEntityMap, ClientMapping},
         events::ServerEventsPlugin,
-        ServerEvent, ServerPlugin, ServerSet, TickPolicy,
+        ServerEvent, ServerPlugin, ServerSet, StartReplication, TickPolicy,
     };
 
     #[cfg(feature = "client_diagnostics")]
