@@ -2,7 +2,7 @@ use super::{ClientPlugin, ClientSet, ServerInitTick};
 use crate::core::{
     common_conditions::*,
     ctx::{ClientReceiveCtx, ClientSendCtx},
-    event_registry::{server_event::ServerEventQueue, EventRegistry},
+    event_registry::EventRegistry,
     replicon_client::RepliconClient,
     server_entity_map::ServerEntityMap,
 };
@@ -16,26 +16,25 @@ pub struct ClientEventsPlugin;
 
 impl Plugin for ClientEventsPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ServerEventQueue>()
-            .add_systems(
-                PreUpdate,
-                (
-                    Self::reset.in_set(ClientSet::ResetEvents),
-                    Self::receive
-                        .after(ClientPlugin::receive_replication)
-                        .in_set(ClientSet::Receive)
-                        .run_if(client_connected),
-                ),
+        app.add_systems(
+            PreUpdate,
+            (
+                Self::reset.in_set(ClientSet::ResetEvents),
+                Self::receive
+                    .after(ClientPlugin::receive_replication)
+                    .in_set(ClientSet::Receive)
+                    .run_if(client_connected),
+            ),
+        )
+        .add_systems(
+            PostUpdate,
+            (
+                Self::send.run_if(client_connected),
+                Self::resend_locally.run_if(has_authority),
             )
-            .add_systems(
-                PostUpdate,
-                (
-                    Self::send.run_if(client_connected),
-                    Self::resend_locally.run_if(has_authority),
-                )
-                    .chain()
-                    .in_set(ClientSet::Send),
-            );
+                .chain()
+                .in_set(ClientSet::Send),
+        );
     }
 }
 
@@ -84,31 +83,37 @@ impl ClientEventsPlugin {
             world.resource_scope(|world, registry: Mut<AppTypeRegistry>| {
                 world.resource_scope(|world, entity_map: Mut<ServerEntityMap>| {
                     world.resource_scope(|world, event_registry: Mut<EventRegistry>| {
-                        world.resource_scope(|world, mut queue: Mut<ServerEventQueue>| {
-                            let init_tick = **world.resource::<ServerInitTick>();
-                            let mut ctx = ClientReceiveCtx {
-                                registry: &registry.read(),
-                                entity_map: &entity_map,
-                                invalid_entities: Vec::new(),
-                            };
+                        let init_tick = **world.resource::<ServerInitTick>();
+                        let mut ctx = ClientReceiveCtx {
+                            registry: &registry.read(),
+                            entity_map: &entity_map,
+                            invalid_entities: Vec::new(),
+                        };
 
-                            for event_data in event_registry.iter_server_events() {
-                                let events = world
+                        let world_cell = world.as_unsafe_world_cell();
+                        for event_data in event_registry.iter_server_events() {
+                            // SAFETY: both resources mutably borrowed uniquely.
+                            let (events, queue) = unsafe {
+                                let events = world_cell
                                     .get_resource_mut_by_id(event_data.events_id())
                                     .expect("events shouldn't be removed");
+                                let queue = world_cell
+                                    .get_resource_mut_by_id(event_data.queue_id())
+                                    .expect("event queue shouldn't be removed");
+                                (events, queue)
+                            };
 
-                                // SAFETY: passed pointers were obtained using this event data.
-                                unsafe {
-                                    event_data.receive(
-                                        &mut ctx,
-                                        events.into_inner(),
-                                        &mut queue,
-                                        &mut client,
-                                        init_tick,
-                                    )
-                                };
-                            }
-                        });
+                            // SAFETY: passed pointers were obtained using this event data.
+                            unsafe {
+                                event_data.receive(
+                                    &mut ctx,
+                                    events.into_inner(),
+                                    queue.into_inner(),
+                                    &mut client,
+                                    init_tick,
+                                )
+                            };
+                        }
                     });
                 });
             });
@@ -149,13 +154,13 @@ impl ClientEventsPlugin {
                 unsafe { event_data.reset(events.into_inner()) };
             }
 
-            let mut queue = world.resource_mut::<ServerEventQueue>();
-            if !queue.is_empty() {
-                warn!(
-                    "discarding {} queued server events due to a disconnect",
-                    queue.values_len()
-                );
-                queue.clear();
+            for event_data in event_registry.iter_server_events() {
+                let queue = world
+                    .get_resource_mut_by_id(event_data.queue_id())
+                    .expect("event queue shouldn't be removed");
+
+                // SAFETY: passed pointer was obtained using this event data.
+                unsafe { event_data.reset(queue.into_inner()) };
             }
         });
     }
