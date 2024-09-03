@@ -119,14 +119,20 @@ pub struct ClientReceiveCtx<'a> {
 
     /// Maps server entities to client entities and vice versa.
     pub entity_map: &'a ServerEntityMap,
+
+    /// Entities that couldn't be mapped by [`EntityMapper::map_entity`].
+    ///
+    /// We needed it because [`EntityMapper`] doesn't provide a way to handle errors.
+    pub(crate) invalid_entities: Vec<Entity>,
 }
 
 impl EntityMapper for ClientReceiveCtx<'_> {
     fn map_entity(&mut self, entity: Entity) -> Entity {
-        *self
-            .entity_map
-            .to_client()
-            .get(&entity)
-            .unwrap_or_else(|| panic!("server {entity:?} should have a mapping"))
+        if let Some(mapped_entity) = self.entity_map.to_client().get(&entity) {
+            *mapped_entity
+        } else {
+            self.invalid_entities.push(entity);
+            Entity::PLACEHOLDER
+        }
     }
 }

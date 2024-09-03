@@ -87,6 +87,7 @@ impl ClientEventsPlugin {
                         let mut ctx = ClientReceiveCtx {
                             registry: &registry.read(),
                             entity_map: &entity_map,
+                            invalid_entities: Vec::new(),
                         };
 
                         let world_cell = world.as_unsafe_world_cell();

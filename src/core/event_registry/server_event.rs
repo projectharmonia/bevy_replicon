@@ -387,7 +387,17 @@ impl ServerEvent {
     ) -> bincode::Result<E> {
         self.check_type::<E>();
         let deserialize: DeserializeFn<E> = std::mem::transmute(self.deserialize);
-        (deserialize)(ctx, cursor)
+        let event = (deserialize)(ctx, cursor);
+        if ctx.invalid_entities.is_empty() {
+            event
+        } else {
+            let message = format!(
+                "unable to map entities `{:?}` from server, \
+                make sure that the event references visible entities for the client",
+                ctx.invalid_entities,
+            );
+            Err(bincode::ErrorKind::Custom(message).into())
+        }
     }
 
     fn check_type<C: Event>(&self) {
@@ -491,21 +501,31 @@ unsafe fn receive<E: Event>(
     for message in client.receive(event_data.channel_id) {
         let mut cursor = Cursor::new(&*message);
         if event_data.is_independent() {
-            let event = event_data
-                .deserialize(ctx, &mut cursor)
-                .expect("server should send valid events");
-            trace!("applying independent event `{}`", any::type_name::<E>());
-            events.send(event);
+            match event_data.deserialize(ctx, &mut cursor) {
+                Ok(event) => {
+                    trace!("applying independent event `{}`", any::type_name::<E>());
+                    events.send(event);
+                }
+                Err(e) => error!(
+                    "unable to deserialize independent event `{}`: {e}",
+                    any::type_name::<E>()
+                ),
+            }
         } else {
-            let (tick, event) = deserialize_with_tick(ctx, event_data, &mut cursor)
-                .expect("server should send valid events");
-
-            if tick <= init_tick {
-                trace!("applying event `{}` with `{tick:?}`", any::type_name::<E>());
-                events.send(event);
-            } else {
-                trace!("queuing event `{}` with `{tick:?}`", any::type_name::<E>());
-                queue.insert(tick, event);
+            match deserialize_with_tick(ctx, event_data, &mut cursor) {
+                Ok((tick, event)) => {
+                    if tick <= init_tick {
+                        trace!("applying event `{}` with `{tick:?}`", any::type_name::<E>());
+                        events.send(event);
+                    } else {
+                        trace!("queuing event `{}` with `{tick:?}`", any::type_name::<E>());
+                        queue.insert(tick, event);
+                    }
+                }
+                Err(e) => error!(
+                    "unable to deserialize event `{}`: {e}",
+                    any::type_name::<E>()
+                ),
             }
         }
     }
