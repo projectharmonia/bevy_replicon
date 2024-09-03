@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fix client event buffering.
+- Client event buffering.
 
 ## [0.28.0] - 2024-09-03
 
