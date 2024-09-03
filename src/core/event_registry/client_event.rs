@@ -367,7 +367,7 @@ unsafe fn send<E: Event>(
     for event in reader.read(events.deref()) {
         let mut cursor = Default::default();
         event_data
-            .serialize::<E>(ctx, event, &mut cursor)
+            .serialize(ctx, event, &mut cursor)
             .expect("client event should be serializable");
 
         trace!("sending event `{}`", any::type_name::<E>());
@@ -390,7 +390,7 @@ unsafe fn receive<E: Event>(
     let events: &mut Events<FromClient<E>> = events.deref_mut();
     for (client_id, message) in server.receive(event_data.channel_id) {
         let mut cursor = Cursor::new(&*message);
-        match event_data.deserialize::<E>(ctx, &mut cursor) {
+        match event_data.deserialize(ctx, &mut cursor) {
             Ok(event) => {
                 trace!(
                     "applying event `{}` from `{client_id:?}`",
@@ -398,7 +398,10 @@ unsafe fn receive<E: Event>(
                 );
                 events.send(FromClient { client_id, event });
             }
-            Err(e) => debug!("unable to deserialize event from {client_id:?}: {e}"),
+            Err(e) => debug!(
+                "ignoring event `{}` from {client_id:?} that failed to deserialize: {e}",
+                any::type_name::<E>()
+            ),
         }
     }
 }
