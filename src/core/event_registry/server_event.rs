@@ -396,6 +396,7 @@ impl ServerEvent {
                 make sure that the event references visible entities for the client",
                 ctx.invalid_entities,
             );
+            ctx.invalid_entities.clear();
             Err(bincode::ErrorKind::Custom(message).into())
         }
     }
