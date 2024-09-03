@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Emit an error instead of panic on events deserialization on client.
-- Fix buffering for events that have mapped entities.
+- Buffering for events that have mapped entities.
 
 ## [0.27.0] - 2024-07-04
 
