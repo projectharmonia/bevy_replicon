@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.1] - 2024-09-04
+
 ### Fixed
 
 - Fix client event buffering.
@@ -567,7 +569,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release after separation from [Project Harmonia](https://github.com/projectharmonia/project_harmonia).
 
-[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.28.0...HEAD
+[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.28.1...HEAD
+[0.28.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.28.0...v0.28.1
 [0.28.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.27.0...v0.28.0
 [0.27.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.26.3...v0.27.0
 [0.26.3]: https://github.com/projectharmonia/bevy_replicon/compare/v0.26.2...v0.26.3
