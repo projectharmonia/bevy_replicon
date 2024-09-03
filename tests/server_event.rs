@@ -67,7 +67,7 @@ fn sending_receiving_and_mapping() {
                 ..Default::default()
             }),
         ))
-        .add_mapped_server_event::<MappedEvent>(ChannelKind::Ordered);
+        .add_mapped_server_event::<EntityEvent>(ChannelKind::Ordered);
     }
 
     server_app.connect_client(&mut client_app);
@@ -81,7 +81,7 @@ fn sending_receiving_and_mapping() {
 
     server_app.world_mut().send_event(ToClients {
         mode: SendMode::Broadcast,
-        event: MappedEvent(server_entity),
+        event: EntityEvent(server_entity),
     });
 
     server_app.update();
@@ -90,7 +90,7 @@ fn sending_receiving_and_mapping() {
 
     let mapped_entities: Vec<_> = client_app
         .world_mut()
-        .resource_mut::<Events<MappedEvent>>()
+        .resource_mut::<Events<EntityEvent>>()
         .drain()
         .map(|event| event.0)
         .collect();
@@ -255,7 +255,7 @@ fn event_queue_and_mapping() {
                 ..Default::default()
             }),
         ))
-        .add_server_event::<MappedEvent>(ChannelKind::Ordered);
+        .add_server_event::<EntityEvent>(ChannelKind::Ordered);
     }
 
     server_app.connect_client(&mut client_app);
@@ -279,14 +279,14 @@ fn event_queue_and_mapping() {
     *init_tick = Default::default();
     server_app.world_mut().send_event(ToClients {
         mode: SendMode::Broadcast,
-        event: MappedEvent(server_entity),
+        event: EntityEvent(server_entity),
     });
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let events = client_app.world().resource::<Events<MappedEvent>>();
+    let events = client_app.world().resource::<Events<EntityEvent>>();
     assert!(events.is_empty());
 
     // Restore the init tick to receive the event.
@@ -296,11 +296,72 @@ fn event_queue_and_mapping() {
 
     let mapped_entities: Vec<_> = client_app
         .world_mut()
-        .resource_mut::<Events<MappedEvent>>()
+        .resource_mut::<Events<EntityEvent>>()
         .drain()
         .map(|event| event.0)
         .collect();
     assert_eq!(mapped_entities, [client_entity]);
+}
+
+#[test]
+fn multiple_event_queues() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .add_server_event::<DummyEvent>(ChannelKind::Ordered)
+        .add_server_event::<EntityEvent>(ChannelKind::Ordered); // Use as a regular event with a different serialization size.
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    // Spawn entity to trigger world change.
+    server_app.world_mut().spawn(Replicated);
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    // Artificially reset the init tick to force the next received event to be queued.
+    let mut init_tick = client_app.world_mut().resource_mut::<ServerInitTick>();
+    let previous_tick = *init_tick;
+    *init_tick = Default::default();
+    server_app.world_mut().send_event(ToClients {
+        mode: SendMode::Broadcast,
+        event: DummyEvent,
+    });
+    server_app.world_mut().send_event(ToClients {
+        mode: SendMode::Broadcast,
+        event: EntityEvent(Entity::PLACEHOLDER),
+    });
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    let events = client_app.world().resource::<Events<DummyEvent>>();
+    assert!(events.is_empty());
+
+    let mapped_events = client_app.world().resource::<Events<EntityEvent>>();
+    assert!(mapped_events.is_empty());
+
+    // Restore the init tick to receive the event.
+    *client_app.world_mut().resource_mut::<ServerInitTick>() = previous_tick;
+
+    client_app.update();
+
+    assert_eq!(client_app.world().resource::<Events<DummyEvent>>().len(), 1);
+    assert_eq!(
+        client_app.world().resource::<Events<EntityEvent>>().len(),
+        1
+    );
 }
 
 #[test]
@@ -494,12 +555,9 @@ fn different_ticks() {
 struct DummyEvent;
 
 #[derive(Deserialize, Event, Serialize)]
-struct IndependentDummyEvent;
+struct EntityEvent(Entity);
 
-#[derive(Deserialize, Event, Serialize)]
-struct MappedEvent(Entity);
-
-impl MapEntities for MappedEvent {
+impl MapEntities for EntityEvent {
     fn map_entities<T: EntityMapper>(&mut self, entity_mapper: &mut T) {
         self.0 = entity_mapper.map_entity(self.0);
     }
