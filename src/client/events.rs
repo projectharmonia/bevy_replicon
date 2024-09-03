@@ -2,14 +2,11 @@ use super::{ClientPlugin, ClientSet, ServerInitTick};
 use crate::core::{
     common_conditions::*,
     ctx::{ClientReceiveCtx, ClientSendCtx},
-    event_registry::EventRegistry,
+    event_registry::{server_event::ServerEventQueue, EventRegistry},
     replicon_client::RepliconClient,
-    replicon_tick::RepliconTick,
     server_entity_map::ServerEntityMap,
 };
 use bevy::prelude::*;
-use bytes::Bytes;
-use ordered_multimap::ListOrderedMultimap;
 
 /// Sending events from a client to the server.
 ///
@@ -161,25 +158,5 @@ impl ClientEventsPlugin {
                 queue.clear();
             }
         });
-    }
-}
-
-/// Stores all received events from server that arrived earlier then replication message with their tick.
-///
-/// Stores data sorted by ticks and maintains order of arrival.
-/// Needed to ensure that when an event is triggered, all the data that it affects or references already exists.
-#[derive(Resource, Deref, DerefMut, Default)]
-pub(crate) struct ServerEventQueue(ListOrderedMultimap<RepliconTick, Bytes>);
-
-impl ServerEventQueue {
-    /// Pops the next event that is at least as old as the specified replicon tick.
-    pub(crate) fn pop_if_le(&mut self, init_tick: RepliconTick) -> Option<(RepliconTick, Bytes)> {
-        let (tick, _) = self.0.front()?;
-        if *tick > init_tick {
-            return None;
-        }
-        self.0
-            .pop_front()
-            .map(|(tick, message)| (tick.into_owned(), message))
     }
 }

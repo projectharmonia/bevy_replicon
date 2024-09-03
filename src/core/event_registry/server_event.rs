@@ -14,21 +14,19 @@ use bevy::{
 };
 use bincode::{DefaultOptions, Options};
 use bytes::Bytes;
+use ordered_multimap::ListOrderedMultimap;
 use serde::{de::DeserializeOwned, Serialize};
 
 use super::EventRegistry;
-use crate::{
-    client::events::ServerEventQueue,
-    core::{
-        channels::{RepliconChannel, RepliconChannels},
-        connected_clients::ConnectedClients,
-        ctx::{ClientReceiveCtx, ServerSendCtx},
-        replicated_clients::ReplicatedClients,
-        replicon_client::RepliconClient,
-        replicon_server::RepliconServer,
-        replicon_tick::RepliconTick,
-        ClientId,
-    },
+use crate::core::{
+    channels::{RepliconChannel, RepliconChannels},
+    connected_clients::ConnectedClients,
+    ctx::{ClientReceiveCtx, ServerSendCtx},
+    replicated_clients::ReplicatedClients,
+    replicon_client::RepliconClient,
+    replicon_server::RepliconServer,
+    replicon_tick::RepliconTick,
+    ClientId,
 };
 
 /// An extension trait for [`App`] for creating client events.
@@ -685,6 +683,26 @@ unsafe fn serialize_with_tick<E: Event>(
         };
 
         Ok(message)
+    }
+}
+
+/// Stores all received events from server that arrived earlier then replication message with their tick.
+///
+/// Stores data sorted by ticks and maintains order of arrival.
+/// Needed to ensure that when an event is triggered, all the data that it affects or references already exists.
+#[derive(Resource, Deref, DerefMut, Default)]
+pub(crate) struct ServerEventQueue(ListOrderedMultimap<RepliconTick, Bytes>);
+
+impl ServerEventQueue {
+    /// Pops the next event that is at least as old as the specified replicon tick.
+    pub(crate) fn pop_if_le(&mut self, init_tick: RepliconTick) -> Option<(RepliconTick, Bytes)> {
+        let (tick, _) = self.0.front()?;
+        if *tick > init_tick {
+            return None;
+        }
+        self.0
+            .pop_front()
+            .map(|(tick, message)| (tick.into_owned(), message))
     }
 }
 
