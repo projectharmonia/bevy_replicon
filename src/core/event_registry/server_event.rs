@@ -1,6 +1,7 @@
 use std::{
     any::{self, TypeId},
     io::Cursor,
+    marker::PhantomData,
     mem,
 };
 
@@ -153,7 +154,9 @@ impl ServerEventAppExt for App {
     ) -> &mut Self {
         debug!("registering server event `{}`", any::type_name::<E>());
 
-        self.add_event::<E>().add_event::<ToClients<E>>();
+        self.add_event::<E>()
+            .add_event::<ToClients<E>>()
+            .init_resource::<ServerEventQueue<E>>();
 
         let channel_id = self
             .world_mut()
@@ -212,12 +215,16 @@ pub(crate) struct ServerEvent {
     /// ID of [`Events<ToClients<E>>`].
     server_events_id: ComponentId,
 
+    /// ID of [`ServerEventQueue<T>`].
+    queue_id: ComponentId,
+
     /// Used channel.
     channel_id: u8,
 
     send: SendFn,
     receive: ReceiveFn,
     resend_locally: ResendLocallyFn,
+    reset: ResetFn,
     serialize: unsafe fn(),
     deserialize: unsafe fn(),
 }
@@ -243,6 +250,14 @@ impl ServerEvent {
                     any::type_name::<ToClients<E>>()
                 )
             });
+        let queue_id = components
+            .resource_id::<ServerEventQueue<E>>()
+            .unwrap_or_else(|| {
+                panic!(
+                    "resource `{}` should be previously inserted",
+                    any::type_name::<ServerEventQueue<E>>()
+                )
+            });
 
         // SAFETY: these functions won't be called until the type is restored.
         Self {
@@ -251,10 +266,12 @@ impl ServerEvent {
             independent: false,
             events_id,
             server_events_id,
+            queue_id,
             channel_id,
             send: send::<E>,
             receive: receive::<E>,
             resend_locally: resend_locally::<E>,
+            reset: reset::<E>,
             serialize: unsafe { mem::transmute::<SerializeFn<E>, unsafe fn()>(serialize) },
             deserialize: unsafe { mem::transmute::<DeserializeFn<E>, unsafe fn()>(deserialize) },
         }
@@ -266,6 +283,10 @@ impl ServerEvent {
 
     pub(crate) fn server_events_id(&self) -> ComponentId {
         self.server_events_id
+    }
+
+    pub(crate) fn queue_id(&self) -> ComponentId {
+        self.queue_id
     }
 
     pub(crate) fn is_independent(&self) -> bool {
@@ -304,13 +325,13 @@ impl ServerEvent {
     ///
     /// # Safety
     ///
-    /// The caller must ensure that `events` is [`Events<E>`]
+    /// The caller must ensure that `events` is [`Events<E>`], `queue` is [`ServerEventQueue<E>`],
     /// and this instance was created for `E`.
     pub(crate) unsafe fn receive(
         &self,
         ctx: &mut ClientReceiveCtx,
         events: PtrMut,
-        queue: &mut ServerEventQueue,
+        queue: PtrMut,
         client: &mut RepliconClient,
         init_tick: RepliconTick,
     ) {
@@ -325,6 +346,18 @@ impl ServerEvent {
     /// and this instance was created for `E`.
     pub(crate) unsafe fn resend_locally(&self, server_events: PtrMut, events: PtrMut) {
         (self.resend_locally)(server_events, events);
+    }
+
+    /// Clears queued events.
+    ///
+    /// We clear events while waiting for a connection to ensure clean reconnects.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `queue` is [`Events<E>`]
+    /// and this instance was created for `E`.
+    pub(crate) unsafe fn reset(&self, queue: PtrMut) {
+        (self.reset)(queue);
     }
 
     /// Serializes an event into a cursor.
@@ -401,13 +434,16 @@ type ReceiveFn = unsafe fn(
     &ServerEvent,
     &mut ClientReceiveCtx,
     PtrMut,
-    &mut ServerEventQueue,
+    PtrMut,
     &mut RepliconClient,
     RepliconTick,
 );
 
 /// Signature of server event resending functions.
 type ResendLocallyFn = unsafe fn(PtrMut, PtrMut);
+
+/// Signature of server event reset functions.
+type ResetFn = unsafe fn(PtrMut);
 
 /// Typed version of [`ServerEvent::send`].
 ///
@@ -449,11 +485,12 @@ unsafe fn receive<E: Event>(
     event_data: &ServerEvent,
     ctx: &mut ClientReceiveCtx,
     events: PtrMut,
-    queue: &mut ServerEventQueue,
+    queue: PtrMut,
     client: &mut RepliconClient,
     init_tick: RepliconTick,
 ) {
     let events: &mut Events<E> = events.deref_mut();
+    let queue: &mut ServerEventQueue<E> = queue.deref_mut();
 
     while let Some((tick, message)) = queue.pop_if_le(init_tick) {
         let mut cursor = Cursor::new(&*message);
@@ -535,6 +572,22 @@ unsafe fn resend_locally<E: Event>(server_events: PtrMut, events: PtrMut) {
             }
         }
     }
+}
+
+/// Typed version of [`ServerEvent::reset`].
+///
+/// # Safety
+///
+/// The caller must ensure that `queue` is [`Events<E>`].
+unsafe fn reset<E: Event>(queue: PtrMut) {
+    let queue: &mut ServerEventQueue<E> = queue.deref_mut();
+    if !queue.is_empty() {
+        warn!(
+            "discarding {} queued server events due to a disconnect",
+            queue.values_len()
+        );
+    }
+    queue.clear();
 }
 
 /// Sends event `E` based on a mode.
@@ -686,26 +739,6 @@ unsafe fn serialize_with_tick<E: Event>(
     }
 }
 
-/// Stores all received events from server that arrived earlier then replication message with their tick.
-///
-/// Stores data sorted by ticks and maintains order of arrival.
-/// Needed to ensure that when an event is triggered, all the data that it affects or references already exists.
-#[derive(Resource, Deref, DerefMut, Default)]
-pub(crate) struct ServerEventQueue(ListOrderedMultimap<RepliconTick, Bytes>);
-
-impl ServerEventQueue {
-    /// Pops the next event that is at least as old as the specified replicon tick.
-    pub(crate) fn pop_if_le(&mut self, init_tick: RepliconTick) -> Option<(RepliconTick, Bytes)> {
-        let (tick, _) = self.0.front()?;
-        if *tick > init_tick {
-            return None;
-        }
-        self.0
-            .pop_front()
-            .map(|(tick, message)| (tick.into_owned(), message))
-    }
-}
-
 /// Cached message for use in [`serialize_with`].
 struct SerializedMessage {
     init_tick: RepliconTick,
@@ -732,6 +765,39 @@ pub enum SendMode {
     Broadcast,
     BroadcastExcept(ClientId),
     Direct(ClientId),
+}
+
+/// Stores all received events from server that arrived earlier then replication message with their tick.
+///
+/// Stores data sorted by ticks and maintains order of arrival.
+/// Needed to ensure that when an event is triggered, all the data that it affects or references already exists.
+#[derive(Resource, Deref, DerefMut)]
+struct ServerEventQueue<E> {
+    #[deref]
+    list: ListOrderedMultimap<RepliconTick, Bytes>,
+    marker: PhantomData<E>,
+}
+
+impl<E> ServerEventQueue<E> {
+    /// Pops the next event that is at least as old as the specified replicon tick.
+    fn pop_if_le(&mut self, init_tick: RepliconTick) -> Option<(RepliconTick, Bytes)> {
+        let (tick, _) = self.list.front()?;
+        if *tick > init_tick {
+            return None;
+        }
+        self.list
+            .pop_front()
+            .map(|(tick, message)| (tick.into_owned(), message))
+    }
+}
+
+impl<E> Default for ServerEventQueue<E> {
+    fn default() -> Self {
+        Self {
+            list: Default::default(),
+            marker: PhantomData,
+        }
+    }
 }
 
 /// Default event serialization function.
