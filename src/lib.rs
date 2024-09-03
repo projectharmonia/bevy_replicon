@@ -483,6 +483,23 @@ To reduce packet size there are the following limits per replication update:
 - Up to [`u16::MAX`] entities that have changed components with up to [`u16::MAX`] bytes of component data.
 - Up to [`u16::MAX`] entities that have removed components with up to [`u16::MAX`] bytes of component data.
 - Up to [`u16::MAX`] entities that were despawned.
+
+## Troubleshooting
+
+If you face any issue, try to enable logging to see what is going on.
+To enable logging, you can temporarely set `RUST_LOG` environment variable to `bevy_replicon=debug`
+(or `bevy_replicon=trace` for more noisy output) like this:
+
+```bash
+RUST_LOG=bevy_replicon=debug cargo run
+```
+
+The exact method depends on the OS shell.
+
+Alternatively you can configure [`LogPlugin`](bevy::log::LogPlugin) to make it permanent.
+
+For deserialization errors on client we use `error` level which should be visible by default.
+But on server we use `debug` for it to avoid flooding server logs with errors caused by clients.
 */
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
