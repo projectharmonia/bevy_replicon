@@ -508,7 +508,7 @@ unsafe fn receive<E: Event>(
                     events.send(event);
                 }
                 Err(e) => error!(
-                    "unable to deserialize independent event `{}`: {e}",
+                    "ignoring independent event `{}` from server that failed to deserialize: {e}",
                     any::type_name::<E>()
                 ),
             }
@@ -524,7 +524,7 @@ unsafe fn receive<E: Event>(
                     }
                 }
                 Err(e) => error!(
-                    "unable to deserialize event `{}`: {e}",
+                    "ignoring event `{}` from server that failed to deserialize: {e}",
                     any::type_name::<E>()
                 ),
             }
