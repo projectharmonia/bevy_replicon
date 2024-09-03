@@ -206,14 +206,13 @@ fn event_queue() {
                 ..Default::default()
             }),
         ))
-        .replicate::<DummyComponent>()
         .add_server_event::<DummyEvent>(ChannelKind::Ordered);
     }
 
     server_app.connect_client(&mut client_app);
 
     // Spawn entity to trigger world change.
-    server_app.world_mut().spawn((Replicated, DummyComponent));
+    server_app.world_mut().spawn(Replicated);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -245,6 +244,66 @@ fn event_queue() {
 }
 
 #[test]
+fn event_queue_and_mapping() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .add_server_event::<MappedEvent>(ChannelKind::Ordered);
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    // Spawn an entity to trigger world change.
+    let server_entity = server_app.world_mut().spawn(Replicated).id();
+    let client_entity = client_app.world_mut().spawn_empty().id();
+    client_app
+        .world_mut()
+        .resource_mut::<ServerEntityMap>()
+        .insert(server_entity, client_entity);
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    // Artificially reset the init tick to force the next received event to be queued.
+    let mut init_tick = client_app.world_mut().resource_mut::<ServerInitTick>();
+    let previous_tick = *init_tick;
+    *init_tick = Default::default();
+    server_app.world_mut().send_event(ToClients {
+        mode: SendMode::Broadcast,
+        event: MappedEvent(server_entity),
+    });
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    let events = client_app.world().resource::<Events<MappedEvent>>();
+    assert!(events.is_empty());
+
+    // Restore the init tick to receive the event.
+    *client_app.world_mut().resource_mut::<ServerInitTick>() = previous_tick;
+
+    client_app.update();
+
+    let mapped_entities: Vec<_> = client_app
+        .world_mut()
+        .resource_mut::<Events<MappedEvent>>()
+        .drain()
+        .map(|event| event.0)
+        .collect();
+    assert_eq!(mapped_entities, [client_entity]);
+}
+
+#[test]
 fn independent() {
     let mut server_app = App::new();
     let mut client_app = App::new();
@@ -256,7 +315,6 @@ fn independent() {
                 ..Default::default()
             }),
         ))
-        .replicate::<DummyComponent>()
         .add_server_event::<DummyEvent>(ChannelKind::Ordered)
         .make_independent::<DummyEvent>();
     }
@@ -264,7 +322,7 @@ fn independent() {
     server_app.connect_client(&mut client_app);
 
     // Spawn entity to trigger world change.
-    server_app.world_mut().spawn((Replicated, DummyComponent));
+    server_app.world_mut().spawn(Replicated);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -320,14 +378,13 @@ fn before_started_replication() {
                 ..Default::default()
             }),
         ))
-        .replicate::<DummyComponent>()
         .add_server_event::<DummyEvent>(ChannelKind::Ordered);
     }
 
     server_app.connect_client(&mut client_app);
 
     // Spawn entity to trigger world change.
-    server_app.world_mut().spawn((Replicated, DummyComponent));
+    server_app.world_mut().spawn(Replicated);
 
     server_app.world_mut().send_event(ToClients {
         mode: SendMode::Broadcast,
@@ -356,7 +413,6 @@ fn independent_before_started_replication() {
                 ..Default::default()
             }),
         ))
-        .replicate::<DummyComponent>()
         .add_server_event::<DummyEvent>(ChannelKind::Ordered)
         .make_independent::<DummyEvent>();
     }
@@ -364,7 +420,7 @@ fn independent_before_started_replication() {
     server_app.connect_client(&mut client_app);
 
     // Spawn entity to trigger world change.
-    server_app.world_mut().spawn((Replicated, DummyComponent));
+    server_app.world_mut().spawn(Replicated);
 
     server_app.world_mut().send_event(ToClients {
         mode: SendMode::Broadcast,
@@ -392,7 +448,6 @@ fn different_ticks() {
                 ..Default::default()
             }),
         ))
-        .replicate::<DummyComponent>()
         .add_server_event::<DummyEvent>(ChannelKind::Ordered);
     }
 
@@ -400,7 +455,7 @@ fn different_ticks() {
     server_app.connect_client(&mut client_app1);
 
     // Spawn entity to trigger world change.
-    server_app.world_mut().spawn((Replicated, DummyComponent));
+    server_app.world_mut().spawn(Replicated);
 
     // Update client 1 to initialize their replicon tick.
     server_app.update();
@@ -434,9 +489,6 @@ fn different_ticks() {
         1
     );
 }
-
-#[derive(Component, Serialize, Deserialize)]
-struct DummyComponent;
 
 #[derive(Deserialize, Event, Serialize)]
 struct DummyEvent;

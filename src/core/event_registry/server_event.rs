@@ -153,9 +153,7 @@ impl ServerEventAppExt for App {
     ) -> &mut Self {
         debug!("registering server event `{}`", any::type_name::<E>());
 
-        self.add_event::<E>()
-            .add_event::<ToClients<E>>()
-            .init_resource::<ServerEventQueue<E>>();
+        self.add_event::<E>().add_event::<ToClients<E>>();
 
         let channel_id = self
             .world_mut()
@@ -214,16 +212,12 @@ pub(crate) struct ServerEvent {
     /// ID of [`Events<ToClients<E>>`].
     server_events_id: ComponentId,
 
-    /// ID of [`ServerEventQueue<T>`].
-    queue_id: ComponentId,
-
     /// Used channel.
     channel_id: u8,
 
     send: SendFn,
     receive: ReceiveFn,
     resend_locally: ResendLocallyFn,
-    reset: ResetFn,
     serialize: unsafe fn(),
     deserialize: unsafe fn(),
 }
@@ -249,14 +243,6 @@ impl ServerEvent {
                     any::type_name::<ToClients<E>>()
                 )
             });
-        let queue_id = components
-            .resource_id::<ServerEventQueue<E>>()
-            .unwrap_or_else(|| {
-                panic!(
-                    "resource `{}` should be previously inserted",
-                    any::type_name::<ServerEventQueue<E>>()
-                )
-            });
 
         // SAFETY: these functions won't be called until the type is restored.
         Self {
@@ -265,12 +251,10 @@ impl ServerEvent {
             independent: false,
             events_id,
             server_events_id,
-            queue_id,
             channel_id,
             send: send::<E>,
             receive: receive::<E>,
             resend_locally: resend_locally::<E>,
-            reset: reset::<E>,
             serialize: unsafe { mem::transmute::<SerializeFn<E>, unsafe fn()>(serialize) },
             deserialize: unsafe { mem::transmute::<DeserializeFn<E>, unsafe fn()>(deserialize) },
         }
@@ -282,10 +266,6 @@ impl ServerEvent {
 
     pub(crate) fn server_events_id(&self) -> ComponentId {
         self.server_events_id
-    }
-
-    pub(crate) fn queue_id(&self) -> ComponentId {
-        self.queue_id
     }
 
     pub(crate) fn is_independent(&self) -> bool {
@@ -324,13 +304,13 @@ impl ServerEvent {
     ///
     /// # Safety
     ///
-    /// The caller must ensure that `events` is [`Events<E>`], `queue` is [`ServerEventQueue<E>`],
+    /// The caller must ensure that `events` is [`Events<E>`]
     /// and this instance was created for `E`.
     pub(crate) unsafe fn receive(
         &self,
         ctx: &mut ClientReceiveCtx,
         events: PtrMut,
-        queue: PtrMut,
+        queue: &mut ServerEventQueue,
         client: &mut RepliconClient,
         init_tick: RepliconTick,
     ) {
@@ -345,18 +325,6 @@ impl ServerEvent {
     /// and this instance was created for `E`.
     pub(crate) unsafe fn resend_locally(&self, server_events: PtrMut, events: PtrMut) {
         (self.resend_locally)(server_events, events);
-    }
-
-    /// Clears queued events.
-    ///
-    /// We clear events while waiting for a connection to ensure clean reconnects.
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that `queue` is [`Events<E>`]
-    /// and this instance was created for `E`.
-    pub(crate) unsafe fn reset(&self, queue: PtrMut) {
-        (self.reset)(queue);
     }
 
     /// Serializes an event into a cursor.
@@ -387,7 +355,18 @@ impl ServerEvent {
     ) -> bincode::Result<E> {
         self.check_type::<E>();
         let deserialize: DeserializeFn<E> = std::mem::transmute(self.deserialize);
-        (deserialize)(ctx, cursor)
+        let event = (deserialize)(ctx, cursor);
+        if ctx.invalid_entities.is_empty() {
+            event
+        } else {
+            let message = format!(
+                "unable to map entities `{:?}` from server, \
+                make sure that the event references visible entities for the client",
+                ctx.invalid_entities,
+            );
+            ctx.invalid_entities.clear();
+            Err(bincode::ErrorKind::Custom(message).into())
+        }
     }
 
     fn check_type<C: Event>(&self) {
@@ -422,16 +401,13 @@ type ReceiveFn = unsafe fn(
     &ServerEvent,
     &mut ClientReceiveCtx,
     PtrMut,
-    PtrMut,
+    &mut ServerEventQueue,
     &mut RepliconClient,
     RepliconTick,
 );
 
 /// Signature of server event resending functions.
 type ResendLocallyFn = unsafe fn(PtrMut, PtrMut);
-
-/// Signature of server event reset functions.
-type ResetFn = unsafe fn(PtrMut);
 
 /// Typed version of [`ServerEvent::send`].
 ///
@@ -473,40 +449,63 @@ unsafe fn receive<E: Event>(
     event_data: &ServerEvent,
     ctx: &mut ClientReceiveCtx,
     events: PtrMut,
-    queue: PtrMut,
+    queue: &mut ServerEventQueue,
     client: &mut RepliconClient,
     init_tick: RepliconTick,
 ) {
     let events: &mut Events<E> = events.deref_mut();
-    let queue: &mut ServerEventQueue<E> = queue.deref_mut();
 
-    while let Some((tick, event)) = queue.pop_if_le(init_tick) {
-        trace!(
-            "applying event `{}` from queue with `{tick:?}`",
-            any::type_name::<E>()
-        );
-        events.send(event);
+    while let Some((tick, message)) = queue.pop_if_le(init_tick) {
+        let mut cursor = Cursor::new(&*message);
+        match event_data.deserialize(ctx, &mut cursor) {
+            Ok(event) => {
+                trace!(
+                    "applying event `{}` from queue with `{tick:?}`",
+                    any::type_name::<E>()
+                );
+                events.send(event);
+            }
+            Err(e) => error!(
+                "ignoring event `{}` from queue with `{tick:?}` that failed to deserialize: {e}",
+                any::type_name::<E>()
+            ),
+        }
     }
 
     for message in client.receive(event_data.channel_id) {
         let mut cursor = Cursor::new(&*message);
-        if event_data.is_independent() {
-            let event = event_data
-                .deserialize(ctx, &mut cursor)
-                .expect("server should send valid events");
-            trace!("applying independent event `{}`", any::type_name::<E>());
-            events.send(event);
-        } else {
-            let (tick, event) = deserialize_with_tick(ctx, event_data, &mut cursor)
-                .expect("server should send valid events");
-
-            if tick <= init_tick {
-                trace!("applying event `{}` with `{tick:?}`", any::type_name::<E>());
-                events.send(event);
-            } else {
+        if !event_data.is_independent() {
+            let tick = match DefaultOptions::new().deserialize_from(&mut cursor) {
+                Ok(tick) => tick,
+                Err(e) => {
+                    error!(
+                        "ignoring event `{}` because it's tick failed to deserialize: {e}",
+                        any::type_name::<E>()
+                    );
+                    continue;
+                }
+            };
+            if tick > init_tick {
                 trace!("queuing event `{}` with `{tick:?}`", any::type_name::<E>());
-                queue.insert(tick, event);
+                queue.insert(tick, message.slice(cursor.position() as usize..));
+                continue;
+            } else {
+                trace!(
+                    "receiving event `{}` with `{tick:?}`",
+                    any::type_name::<E>()
+                );
             }
+        }
+
+        match event_data.deserialize(ctx, &mut cursor) {
+            Ok(event) => {
+                trace!("applying event `{}`", any::type_name::<E>());
+                events.send(event);
+            }
+            Err(e) => error!(
+                "ignoring event `{}` that failed to deserialize: {e}",
+                any::type_name::<E>()
+            ),
         }
     }
 }
@@ -536,22 +535,6 @@ unsafe fn resend_locally<E: Event>(server_events: PtrMut, events: PtrMut) {
             }
         }
     }
-}
-
-/// Typed version of [`ServerEvent::reset`].
-///
-/// # Safety
-///
-/// The caller must ensure that `queue` is [`Events<E>`].
-unsafe fn reset<E: Event>(queue: PtrMut) {
-    let queue: &mut ServerEventQueue<E> = queue.deref_mut();
-    if !queue.is_empty() {
-        warn!(
-            "discarding {} queued server events due to a disconnect",
-            queue.values_len()
-        );
-    }
-    queue.clear();
 }
 
 /// Sends event `E` based on a mode.
@@ -703,20 +686,24 @@ unsafe fn serialize_with_tick<E: Event>(
     }
 }
 
-/// Deserializes event change tick first and then calls the specified deserialization function to get the event itself.
+/// Stores all received events from server that arrived earlier then replication message with their tick.
 ///
-/// # Safety
-///
-/// The caller must ensure that `event_data` was created for `E`.
-unsafe fn deserialize_with_tick<E: Event>(
-    ctx: &mut ClientReceiveCtx,
-    event_data: &ServerEvent,
-    cursor: &mut Cursor<&[u8]>,
-) -> bincode::Result<(RepliconTick, E)> {
-    let tick = DefaultOptions::new().deserialize_from(&mut *cursor)?;
-    let event = event_data.deserialize(ctx, cursor)?;
+/// Stores data sorted by ticks and maintains order of arrival.
+/// Needed to ensure that when an event is triggered, all the data that it affects or references already exists.
+#[derive(Resource, Deref, DerefMut, Default)]
+pub(crate) struct ServerEventQueue(ListOrderedMultimap<RepliconTick, Bytes>);
 
-    Ok((tick, event))
+impl ServerEventQueue {
+    /// Pops the next event that is at least as old as the specified replicon tick.
+    pub(crate) fn pop_if_le(&mut self, init_tick: RepliconTick) -> Option<(RepliconTick, Bytes)> {
+        let (tick, _) = self.0.front()?;
+        if *tick > init_tick {
+            return None;
+        }
+        self.0
+            .pop_front()
+            .map(|(tick, message)| (tick.into_owned(), message))
+    }
 }
 
 /// Cached message for use in [`serialize_with`].
@@ -745,32 +732,6 @@ pub enum SendMode {
     Broadcast,
     BroadcastExcept(ClientId),
     Direct(ClientId),
-}
-
-/// Stores all received events from server that arrived earlier then replication message with their tick.
-///
-/// Stores data sorted by ticks and maintains order of arrival.
-/// Needed to ensure that when an event is triggered, all the data that it affects or references already exists.
-#[derive(Resource, Deref, DerefMut)]
-struct ServerEventQueue<T>(ListOrderedMultimap<RepliconTick, T>);
-
-impl<T> ServerEventQueue<T> {
-    /// Pops the next event that is at least as old as the specified replicon tick.
-    fn pop_if_le(&mut self, init_tick: RepliconTick) -> Option<(RepliconTick, T)> {
-        let (tick, _) = self.0.front()?;
-        if *tick > init_tick {
-            return None;
-        }
-        self.0
-            .pop_front()
-            .map(|(tick, event)| (tick.into_owned(), event))
-    }
-}
-
-impl<T> Default for ServerEventQueue<T> {
-    fn default() -> Self {
-        Self(Default::default())
-    }
 }
 
 /// Default event serialization function.
