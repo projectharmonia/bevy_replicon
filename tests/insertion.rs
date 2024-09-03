@@ -346,18 +346,18 @@ fn not_replicated() {
     server_app
         .world_mut()
         .entity_mut(server_entity)
-        .insert(NotReplicatedComponent);
+        .insert(DummyComponent);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let not_replicated_components = client_app
+    let components = client_app
         .world_mut()
-        .query_filtered::<(), With<NotReplicatedComponent>>()
+        .query_filtered::<(), With<DummyComponent>>()
         .iter(client_app.world())
         .count();
-    assert_eq!(not_replicated_components, 0);
+    assert_eq!(components, 0);
 }
 
 #[test]
@@ -520,9 +520,6 @@ struct GroupComponentA;
 
 #[derive(Component, Deserialize, Serialize)]
 struct GroupComponentB;
-
-#[derive(Component, Deserialize, Serialize)]
-struct NotReplicatedComponent;
 
 #[derive(Component)]
 struct ReplaceMarker;
