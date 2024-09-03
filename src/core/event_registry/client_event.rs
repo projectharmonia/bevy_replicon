@@ -398,7 +398,10 @@ unsafe fn receive<E: Event>(
                 );
                 events.send(FromClient { client_id, event });
             }
-            Err(e) => debug!("unable to deserialize event from {client_id:?}: {e}"),
+            Err(e) => debug!(
+                "unable to deserialize event `{}` from {client_id:?}: {e}",
+                any::type_name::<E>()
+            ),
         }
     }
 }
