@@ -24,7 +24,7 @@ fn table_storage() {
                 ..Default::default()
             }),
         ))
-        .replicate::<TableComponent>();
+        .replicate::<DummyComponent>();
     }
 
     server_app.connect_client(&mut client_app);
@@ -39,7 +39,7 @@ fn table_storage() {
     server_app
         .world_mut()
         .entity_mut(server_entity)
-        .insert(TableComponent);
+        .insert(DummyComponent);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -47,7 +47,7 @@ fn table_storage() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), With<TableComponent>>()
+        .query_filtered::<(), With<DummyComponent>>()
         .single(client_app.world());
 }
 
@@ -372,14 +372,14 @@ fn after_removal() {
                 ..Default::default()
             }),
         ))
-        .replicate::<TableComponent>();
+        .replicate::<DummyComponent>();
     }
 
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
         .world_mut()
-        .spawn((Replicated, TableComponent))
+        .spawn((Replicated, DummyComponent))
         .id();
 
     server_app.update();
@@ -391,8 +391,8 @@ fn after_removal() {
     server_app
         .world_mut()
         .entity_mut(server_entity)
-        .remove::<TableComponent>()
-        .insert(TableComponent);
+        .remove::<DummyComponent>()
+        .insert(DummyComponent);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -400,7 +400,7 @@ fn after_removal() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), With<TableComponent>>()
+        .query_filtered::<(), With<DummyComponent>>()
         .single(client_app.world());
 }
 
@@ -417,12 +417,12 @@ fn before_started_replication() {
                 ..Default::default()
             }),
         ))
-        .replicate::<TableComponent>();
+        .replicate::<DummyComponent>();
     }
 
     server_app.connect_client(&mut client_app);
 
-    server_app.world_mut().spawn((Replicated, TableComponent));
+    server_app.world_mut().spawn((Replicated, DummyComponent));
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -431,7 +431,7 @@ fn before_started_replication() {
 
     let replicated_components = client_app
         .world_mut()
-        .query_filtered::<(), With<TableComponent>>()
+        .query_filtered::<(), With<DummyComponent>>()
         .iter(client_app.world())
         .count();
 
@@ -453,7 +453,7 @@ fn before_started_replication() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), With<TableComponent>>()
+        .query_filtered::<(), With<DummyComponent>>()
         .single(client_app.world());
 }
 
@@ -470,7 +470,7 @@ fn after_started_replication() {
                 ..Default::default()
             }),
         ))
-        .replicate::<TableComponent>();
+        .replicate::<DummyComponent>();
     }
 
     server_app.connect_client(&mut client_app);
@@ -486,7 +486,7 @@ fn after_started_replication() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    server_app.world_mut().spawn((Replicated, TableComponent));
+    server_app.world_mut().spawn((Replicated, DummyComponent));
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -495,7 +495,7 @@ fn after_started_replication() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), With<TableComponent>>()
+        .query_filtered::<(), With<DummyComponent>>()
         .single(client_app.world());
 }
 
@@ -509,7 +509,7 @@ impl MapEntities for MappedComponent {
 }
 
 #[derive(Component, Deserialize, Serialize)]
-struct TableComponent;
+struct DummyComponent;
 
 #[derive(Component, Deserialize, Serialize)]
 #[component(storage = "SparseSet")]
