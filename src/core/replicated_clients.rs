@@ -25,7 +25,10 @@ pub struct ReplicatedClients {
 }
 
 impl ReplicatedClients {
-    pub(crate) fn new(policy: VisibilityPolicy, replicate_after_connect: bool) -> Self {
+    /// Makes a new replicated clients struct.
+    ///
+    /// Generally you should not need this except in testing contexts.
+    pub fn new(policy: VisibilityPolicy, replicate_after_connect: bool) -> Self {
         Self {
             clients: Default::default(),
             policy,

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Made `ReplicatedClients::new` public for use in testing contexts.
+
 ## [0.28.1] - 2024-09-04
 
 ### Fixed
