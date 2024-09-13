@@ -7,9 +7,20 @@ fn replicated_entity() {
     let mut app = App::new();
     app.add_plugins(RepliconPlugins)
         .register_type::<DummyComponent>()
-        .replicate::<DummyComponent>();
+        .register_type::<NonReflectedComponent>()
+        .replicate::<DummyComponent>()
+        .replicate::<OtherReflectedComponent>() // Reflected, but the type is not registered.
+        .replicate::<NonReflectedComponent>();
 
-    let entity = app.world_mut().spawn((Replicated, DummyComponent)).id();
+    let entity = app
+        .world_mut()
+        .spawn((
+            Replicated,
+            DummyComponent,
+            OtherReflectedComponent,
+            NonReflectedComponent,
+        ))
+        .id();
 
     let mut scene = DynamicScene::default();
     scene::replicate_into(&mut scene, app.world());
@@ -19,7 +30,11 @@ fn replicated_entity() {
 
     let dyn_entity = &scene.entities[0];
     assert_eq!(dyn_entity.entity, entity);
-    assert_eq!(dyn_entity.components.len(), 1);
+    assert_eq!(
+        dyn_entity.components.len(),
+        1,
+        "entity should have only registered components with `#[reflect(Component)]`"
+    );
 }
 
 #[test]
@@ -94,3 +109,7 @@ struct DummyComponent;
 #[derive(Component, Default, Deserialize, Reflect, Serialize)]
 #[reflect(Component)]
 struct OtherReflectedComponent;
+
+/// Component that have `Reflect` derive, but without `#[reflect(Component)]`
+#[derive(Component, Default, Deserialize, Reflect, Serialize)]
+struct NonReflectedComponent;
