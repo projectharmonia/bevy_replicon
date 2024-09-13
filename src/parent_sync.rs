@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "client")]
 use crate::client::ClientSet;
-use crate::core::{common_conditions::has_authority, replication_rules::AppRuleExt};
+use crate::core::{common_conditions::*, replication_rules::AppRuleExt};
 #[cfg(feature = "server")]
 use crate::server::ServerSet;
 
@@ -39,7 +39,7 @@ impl Plugin for ParentSyncPlugin {
         app.add_systems(
             PostUpdate,
             (Self::store_changes, Self::store_removals)
-                .run_if(has_authority)
+                .run_if(server_or_singleplayer)
                 .in_set(ServerSet::StoreHierarchy),
         );
     }

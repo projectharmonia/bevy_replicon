@@ -135,8 +135,8 @@ This module is also available from [`prelude`].
 
 For example, to display a "connecting" message, you can use [`client_connecting`].
 But for gameplay systems, you most likely want to run them in both server and single-player
-sessions. For example, damage registration or procedural generation systems. Use [`has_authority`]
-condition for those cases.
+sessions. For example, damage registration or procedural generation systems.
+Use [`server_or_singleplayer`] condition for those cases.
 
 If you want your systems to run only on frames when the server sends updates to clients,
 use [`ServerSet::Send`].
@@ -307,7 +307,7 @@ also as a client with ID [`ClientId::SERVER`]. So you can send such events even 
 and [`FromClient`] will be emitted for them too. This way your game logic will work the same
 on client, listen server and in single-player session.
 
-For systems that receive events attach [`has_authority`] condition to receive a message
+For systems that receive events attach [`server_or_singleplayer`] condition to receive a message
 on non-client instances (server or single-player):
 
 ```
@@ -317,7 +317,7 @@ on non-client instances (server or single-player):
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
 app.add_client_event::<DummyEvent>(ChannelKind::Ordered)
-    .add_systems(Update, (send_events, receive_events.run_if(has_authority)));
+    .add_systems(Update, (send_events, receive_events.run_if(server_or_singleplayer)));
 
 /// Sends an event from client or listen server.
 fn send_events(mut dummy_events: EventWriter<DummyEvent>) {
@@ -383,7 +383,7 @@ from the send list):
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
 app.add_server_event::<DummyEvent>(ChannelKind::Ordered)
-    .add_systems(Update, (send_events.run_if(has_authority), receive_events));
+    .add_systems(Update, (send_events.run_if(server_or_singleplayer), receive_events));
 
 /// Sends an event from server or single-player.
 fn send_events(mut dummy_events: EventWriter<ToClients<DummyEvent>>) {
