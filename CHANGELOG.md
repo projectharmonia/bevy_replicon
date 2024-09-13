@@ -7,15 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.3] - 2024-09-13
+
 ### Changed
 
 - Ignore replicated components that don't have type registration or missing `#[reflect(Component)]` in `scene::replicate_into` instead of panicking.
+- Rename `has_authority` condition into `server_or_singleplayer`. Old name still works, but marked as deprecated.
 
 ## [0.28.2] - 2024-09-09
 
 ### Changed
 
-- Rename `has_authority` condition into `server_or_singleplayer`. Old name still works, but marked as deprecated.
 - Make `ReplicatedClients::new` public.
 
 ## [0.28.1] - 2024-09-04
@@ -580,8 +582,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release after separation from [Project Harmonia](https://github.com/projectharmonia/project_harmonia).
 
-[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.28.2...HEAD
-[0.28.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.28.1...v0.28.2
+[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.28.3...HEAD
+[0.28.3]: https://github.com/projectharmonia/bevy_replicon/compare/v0.28.2...v0.28.3
+[0.28.2]: https://github.com/projectharmonia/bevy_replicon/compare/v0.28.1...v0.28.2
 [0.28.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.28.0...v0.28.1
 [0.28.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.27.0...v0.28.0
 [0.27.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.26.3...v0.27.0
