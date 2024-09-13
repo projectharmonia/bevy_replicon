@@ -142,10 +142,10 @@ struct MessageEvent(String);
 
 This example shows a server and client logic inside a single app managed by
 [run conditions](#system-sets-and-conditions). But it's possible to split server and client into
-multiple apps if needed. Seamless singleplayer and listen-server mode (when server is also a clients)
+multiple apps if needed. Seamless singleplayer and listen-server mode (when server is also a client)
 are also supported by just adjusting the run conditions.
 
-Below we describe each part and more advanced features in more details.
+Below we describe each part and more advanced features in more detail.
 
 ## Initialization
 
@@ -297,7 +297,7 @@ If you are planning to have separate apps for the client and server, make sure t
 registration order is the same on both.
 
 Typically, in this setup, you have a "shared" crate that contains type definitions and possibly some logic.
-This is also where you want make all component registrations.
+This is also where you want to add all component registrations.
 
 </div>
 
@@ -434,11 +434,11 @@ fn receive_events(mut dummy_events: EventReader<FromClient<DummyEvent>>) {
 struct DummyEvent;
 ```
 
-We consider server or a singleplayer session also as a client with ID [`ClientId::SERVER`].
+We consider the server or a singleplayer session also as a client with ID [`ClientId::SERVER`].
 So you can send such events even on server and [`FromClient`] will be emitted for them too.
 
-So if you just remove [`client_connected`] condition and replace [`server_running`] with
-[`server_or_singleplayer`], your game logic will work the same on client, listen server
+If you remove [`client_connected`] condition and replace [`server_running`] with
+[`server_or_singleplayer`], your game logic will work the same on client, listen server,
 and in singleplayer session.
 
 Just like components, if an event contains an entity, then the client should
