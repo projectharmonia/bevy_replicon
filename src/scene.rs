@@ -5,13 +5,11 @@ use crate::{core::replication_rules::ReplicationRules, Replicated};
 /**
 Fills scene with all replicated entities and their components.
 
+Components that are not registered using [`App::register_type`]
+or do not have `#[reflect(Component)]` will be skipped.
+
 Entities won't have the [`Replicated`] component.
 So on deserialization you need to insert it back if you want entities to continue to replicate.
-
-# Panics
-
-Panics if any replicated component is not registered using [`App::register_type`]
-or `#[reflect(Component)]` is missing.
 
 # Examples
 
@@ -83,22 +81,26 @@ pub fn replicate_into(scene: &mut DynamicScene, world: &World) {
                 let type_name = replicated_component.name();
                 let type_id = replicated_component
                     .type_id()
-                    .unwrap_or_else(|| panic!("{type_name} should have registered TypeId"));
-                let registration = registry
-                    .get(type_id)
-                    .unwrap_or_else(|| panic!("{type_name} should be registered"));
-                let reflect_component = registration
-                    .data::<ReflectComponent>()
-                    .unwrap_or_else(|| panic!("{type_name} should have reflect(Component)"));
+                    .unwrap_or_else(|| panic!("`{type_name}` should be a Rust type"));
+                let Some(registration) = registry.get(type_id) else {
+                    debug!("ignoring `{type_name}` because it's not registered");
+                    continue;
+                };
+                let Some(reflect_component) = registration.data::<ReflectComponent>() else {
+                    debug!("ignoring `{type_name}` because it's missing `#[reflect(Component)]`");
+                    continue;
+                };
 
                 for entity in archetype.entities() {
                     let component = reflect_component
                         .reflect(world.entity(entity.id()))
-                        .unwrap_or_else(|| panic!("entity should have {type_name}"));
+                        .unwrap_or_else(|| panic!("entity should have `{type_name}`"));
 
                     let components = entities
                         .get_mut(&entity.id())
                         .expect("all entities should be populated ahead of time");
+
+                    debug!("adding `{type_name}` to `{}`", entity.id());
                     components.push(component.clone_value());
                 }
             }

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Ignore replicated components that don't have type registration or missing `#[reflect(Component)]` in `scene::replicate_into` instead of panicking.
+
 ## [0.28.2] - 2024-09-09
 
 ### Changed
