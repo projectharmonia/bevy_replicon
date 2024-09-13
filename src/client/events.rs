@@ -30,7 +30,7 @@ impl Plugin for ClientEventsPlugin {
             PostUpdate,
             (
                 Self::send.run_if(client_connected),
-                Self::resend_locally.run_if(has_authority),
+                Self::resend_locally.run_if(server_or_singleplayer),
             )
                 .chain()
                 .in_set(ClientSet::Send),

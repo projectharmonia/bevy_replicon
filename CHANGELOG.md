@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Rename `has_authority` condition into `server_or_singleplayer`. Old name still works, but marked as deprecated.
 - Make `ReplicatedClients::new` public.
 
 ## [0.28.1] - 2024-09-04

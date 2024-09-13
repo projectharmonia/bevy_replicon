@@ -10,7 +10,16 @@ pub fn server_running(server: Option<Res<RepliconServer>>) -> bool {
 /// Returns `true` if there is no client or if the existing client is disconnected.
 ///
 /// Can be used for systems that run both on the server and in singleplayer mode.
+#[deprecated(note = "Use `server_or_singleplayer`")]
 pub fn has_authority(client: Option<Res<RepliconClient>>) -> bool {
+    server_or_singleplayer(client)
+}
+
+/// Returns `true` if there is no client or if the existing client is disconnected.
+///
+/// Can be used instead of the regular [`server_running`] to seamlessly support
+/// singleplayer or listen-server mode (where server is also a player).
+pub fn server_or_singleplayer(client: Option<Res<RepliconClient>>) -> bool {
     let Some(client) = client else {
         return true;
     };

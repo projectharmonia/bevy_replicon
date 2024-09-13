@@ -28,7 +28,7 @@ impl Plugin for ServerEventsPlugin {
             PostUpdate,
             (
                 Self::send.run_if(server_running),
-                Self::resend_locally.run_if(has_authority),
+                Self::resend_locally.run_if(server_or_singleplayer),
             )
                 .chain()
                 .after(ServerPlugin::send_replication)
