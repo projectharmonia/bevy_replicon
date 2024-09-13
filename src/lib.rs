@@ -32,10 +32,89 @@ app.add_plugins((
     RepliconPlugins,
     MyMessagingPlugins, // Plugins for your messaging backend of choice.
 ))
+.add_systems(
+    PreUpdate,
+    (
+        // Run systems that read events right after receiving them.
+        // But it can be done in any other place.
+        apply_movement
+            .after(ClientSet::Receive)
+            .run_if(client_connected),
+        show_message
+            .after(ServerSet::Receive)
+            .run_if(server_running),
+    ),
+)
+.add_systems(
+    Update,
+    (spawn_entities, update_health).run_if(server_running),
+)
+.add_systems(
+    PostUpdate,
+    (
+        // Run systems that write events right before sending them.
+        // But it can be done in any other place.
+        send_movement
+            .before(ClientSet::Send)
+            .run_if(client_connected),
+        send_message
+            .before(ServerSet::Send)
+            .run_if(server_running),
+    ),
+)
 .replicate::<Health>() // Component that will be replicated.
 .replicate_group::<(Transform, Player)>() // Replicate multiple components only if all of them are present.
 .add_client_event::<MovementEvent>(ChannelKind::Ordered) // Bevy event that will replicated from clients to server.
-.add_server_event::<HitEvent>(ChannelKind::Unordered); // Bevy event that will replicated from server to client.
+.add_server_event::<MessageEvent>(ChannelKind::Unordered); // Bevy event that will replicated from server to client.
+
+fn spawn_entities(mut commands: Commands) {
+    // All entities with `Replicated` marker will be automatically replicated.
+    commands.spawn((
+        Replicated,
+        Health(100),
+        Transform::default(),
+        Player,
+        NotReplicatedComponent, // This component will be ignored since it's not replicated for replication.
+    ));
+
+    // `Transform` won't be replicated in this case since `Player` marker is missing.
+    commands.spawn((Replicated, Health(100), Transform::default()));
+}
+
+fn update_health(mut players: Query<&mut Health, With<Player>>) {
+    // Changed values on server will be automatically replicated to clients.
+    for mut health in &mut players {
+        health.0 += 1;
+    }
+}
+
+fn send_movement(mut movement_events: EventWriter<MovementEvent>) {
+    // This event will be available on server, but in form of
+    // `FromClient<MovementEvent>` to include the sender ID.
+    movement_events.send(MovementEvent(Vec2::ONE));
+}
+
+fn apply_movement(mut movement_events: EventReader<FromClient<MovementEvent>>) {
+    for FromClient { client_id, event } in movement_events.read() {
+        // Apply user inputs to entities.
+        // Since it runs on server, all changes will be replicated back to clients.
+    }
+}
+
+fn send_message(mut message_events: EventWriter<ToClients<MessageEvent>>) {
+    // This event will be available on clients, but in form of
+    // just `MessageEvent`. On server we use `ToClients` wrapper to include `mode`.
+    message_events.send(ToClients {
+        mode: SendMode::Broadcast,
+        event: MessageEvent("Hello from server".to_string()),
+    });
+}
+
+fn show_message(mut message_events: EventReader<MessageEvent>) {
+    for event in message_events.read() {
+        // Process the message, show in UI, etc...
+    }
+}
 
 #[derive(Component, Serialize, Deserialize)]
 struct Health(u32);
@@ -43,11 +122,14 @@ struct Health(u32);
 #[derive(Component, Serialize, Deserialize)]
 struct Player;
 
+#[derive(Component)]
+struct NotReplicatedComponent;
+
 #[derive(Event, Serialize, Deserialize)]
 struct MovementEvent(Vec2);
 
 #[derive(Event, Serialize, Deserialize)]
-struct HitEvent(u32);
+struct MessageEvent(String);
 #
 # struct MyMessagingPlugins;
 #
@@ -58,7 +140,12 @@ struct HitEvent(u32);
 # }
 ```
 
-Below we describe each part in more details.
+This example shows a server and client logic inside a single app managed by
+[run conditions](#system-sets-and-conditions). But it's possible to split server and client into
+multiple apps if needed. Seamless singleplayer and listen-server mode (when server is also a clients)
+are also supported by just adjusting the run conditions.
+
+Below we describe each part and more advanced features in more details.
 
 ## Initialization
 
@@ -122,7 +209,7 @@ be used directly, it is preferred to use more high-level abstractions described 
 
 <div class="warning">
 
-Never initialize a client and server in the same app for single-player, it will cause a replication loop.
+Never initialize a client and server in the same app for singleplayer, it will cause a replication loop.
 Use the described pattern in [system sets and conditions](#system-sets-and-conditions)
 in combination with [network events](#network-events).
 
@@ -133,10 +220,12 @@ in combination with [network events](#network-events).
 To run a system based on a network condition, use the [`core::common_conditions`] module.
 This module is also available from [`prelude`].
 
-For example, to display a "connecting" message, you can use [`client_connecting`].
-But for gameplay systems, you most likely want to run them in both server and single-player
-sessions. For example, damage registration or procedural generation systems.
-Use [`server_or_singleplayer`] condition for those cases.
+This way you can run specific systems only on server ([`server_running`]) or
+only on client ([`client_connected`]). To display a "connecting" message, you can use [`client_connecting`].
+
+If your game needs singleplayer or listen-server mode (when server is also a client),
+just use [`server_or_singleplayer`] instead of [`server_running`] and remove all [`client_connected`].
+No other changes needed. We will describe later what replicon does internally to achieve it.
 
 If you want your systems to run only on frames when the server sends updates to clients,
 use [`ServerSet::Send`].
@@ -201,6 +290,16 @@ on some marker component (for example, write into a different component), see [`
 Useful for implementing rollback and interpolation.
 
 In order to serialize Bevy components you need to enable the `serialize` feature on Bevy.
+
+<div class="warning">
+
+If you are planning to have separate apps for the client and server, make sure that the component
+registration order is the same on both.
+
+Typically, in this setup, you have a "shared" crate that contains type definitions and possibly some logic.
+This is also where you want make all component registrations.
+
+</div>
 
 ### Mapping to existing client entities
 
@@ -296,19 +395,12 @@ server.
 
 To send specific events from client to server, you need to register the event
 with [`ClientEventAppExt::add_client_event()`] instead of [`App::add_event()`].
-The event must be registered on both the client and the server in the same order.
 
 Events include [`ChannelKind`] to configure delivery guarantees (reliability and
 ordering). You can alternatively pass in [`RepliconChannel`] with more advanced configuration.
 
 These events will appear on server as [`FromClient`] wrapper event that
-contains sender ID and the sent event. We consider server or a single-player session
-also as a client with ID [`ClientId::SERVER`]. So you can send such events even on server
-and [`FromClient`] will be emitted for them too. This way your game logic will work the same
-on client, listen server and in single-player session.
-
-For systems that receive events attach [`server_or_singleplayer`] condition to receive a message
-on non-client instances (server or single-player):
+contains sender ID and the sent event.
 
 ```
 # use bevy::prelude::*;
@@ -317,14 +409,21 @@ on non-client instances (server or single-player):
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
 app.add_client_event::<DummyEvent>(ChannelKind::Ordered)
-    .add_systems(Update, (send_events, receive_events.run_if(server_or_singleplayer)));
+    .add_systems(
+        PreUpdate,
+        receive_events
+            .after(ServerSet::Receive)
+            .run_if(server_running),
+    )
+    .add_systems(
+        PostUpdate,
+        send_events.before(ClientSet::Send).run_if(client_connected),
+    );
 
-/// Sends an event from client or listen server.
 fn send_events(mut dummy_events: EventWriter<DummyEvent>) {
     dummy_events.send_default();
 }
 
-/// Receives events on server or single-player.
 fn receive_events(mut dummy_events: EventReader<FromClient<DummyEvent>>) {
     for FromClient { client_id, event } in dummy_events.read() {
         info!("received event {event:?} from {client_id:?}");
@@ -334,6 +433,13 @@ fn receive_events(mut dummy_events: EventReader<FromClient<DummyEvent>>) {
 #[derive(Debug, Default, Deserialize, Event, Serialize)]
 struct DummyEvent;
 ```
+
+We consider server or a singleplayer session also as a client with ID [`ClientId::SERVER`].
+So you can send such events even on server and [`FromClient`] will be emitted for them too.
+
+So if you just remove [`client_connected`] condition and replace [`server_running`] with
+[`server_or_singleplayer`], your game logic will work the same on client, listen server
+and in singleplayer session.
 
 Just like components, if an event contains an entity, then the client should
 map it before sending it to the server.
@@ -369,12 +475,9 @@ Don't forget to validate the contents of every [`Box<dyn Reflect>`] from a clien
 ### From server to client
 
 A similar technique is used to send events from server to clients. To do this,
-register the event with [`ServerEventAppExt::add_server_event()`] server event
-and send it from server using [`ToClients`]. The event must be registered on
-both the client and the server in the same order. This wrapper contains send parameters
-and the event itself. Just like events sent from the client, you can send these events on the server or
-in single-player and they will appear locally as regular events (if [`ClientId::SERVER`] is not excluded
-from the send list):
+register the event with [`ServerEventAppExt::add_server_event()`]
+and send it from server using [`ToClients`]. This wrapper contains send parameters
+and the event itself.
 
 ```
 # use bevy::prelude::*;
@@ -383,9 +486,17 @@ from the send list):
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
 app.add_server_event::<DummyEvent>(ChannelKind::Ordered)
-    .add_systems(Update, (send_events.run_if(server_or_singleplayer), receive_events));
+    .add_systems(
+        PreUpdate,
+        receive_events
+            .after(ClientSet::Receive)
+            .run_if(client_connected),
+    )
+    .add_systems(
+        PostUpdate,
+        send_events.before(ServerSet::Send).run_if(server_running),
+    );
 
-/// Sends an event from server or single-player.
 fn send_events(mut dummy_events: EventWriter<ToClients<DummyEvent>>) {
     dummy_events.send(ToClients {
         mode: SendMode::Broadcast,
@@ -393,7 +504,6 @@ fn send_events(mut dummy_events: EventWriter<ToClients<DummyEvent>>) {
     });
 }
 
-/// Receives events on client or listen server.
 fn receive_events(mut dummy_events: EventReader<DummyEvent>) {
     for event in dummy_events.read() {
         info!("received event {event:?} from server");
@@ -404,11 +514,21 @@ fn receive_events(mut dummy_events: EventReader<DummyEvent>) {
 struct DummyEvent;
 ```
 
-Just like with client events, if the event contains an entity, then
+Just like events sent from the client, you can send these events on the server or
+in singleplayer and they will appear locally as regular events (if [`ClientId::SERVER`] is not excluded
+from the send list). So the same trick with run conditions will work.
+
+If the event contains an entity, then
 [`ServerEventAppExt::add_mapped_server_event()`] should be used instead.
 
 For events that require special serialization and deserialization functions you can use
 [`ServerEventAppExt::add_server_event_with()`].
+
+<div class="warning">
+
+Just like with components, all networked events should be registered in the same order.
+
+</div>
 
 ## Client visibility
 
