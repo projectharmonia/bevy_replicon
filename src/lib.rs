@@ -227,8 +227,8 @@ If your game needs singleplayer or listen-server mode (when server is also a cli
 just use [`server_or_singleplayer`] instead of [`server_running`] and remove all [`client_connected`].
 No other changes needed. We will describe later what replicon does internally to achieve it.
 
-If you want your systems to run only on frames when the server sends updates to clients,
-use [`ServerSet::Send`].
+We also provide [`ClientSet`] and [`ServerSet`] to schedule your system at specific time in the frame.
+For example, you most likely want to react on receive after [`ClientSet::Receive`] or [`ServerSet::Receive`].
 
 ## Replication
 
