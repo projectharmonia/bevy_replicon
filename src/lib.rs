@@ -209,9 +209,9 @@ be used directly, it is preferred to use more high-level abstractions described 
 
 <div class="warning">
 
-Never initialize a client and server in the same app for singleplayer, it will cause a replication loop.
+Never initialize a client and server in the same app for singleplayer; doing so will cause a replication loop.
 Use the described pattern in [system sets and conditions](#system-sets-and-conditions)
-in combination with [network events](#network-events).
+in combination with [network events](#network-events) instead.
 
 </div>
 
