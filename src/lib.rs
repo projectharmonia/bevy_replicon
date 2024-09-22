@@ -215,7 +215,7 @@ in combination with [network events](#network-events).
 
 </div>
 
-## System conditions
+## System sets and conditions
 
 To run a system based on a network condition, use the [`core::common_conditions`] module.
 This module is also available from [`prelude`].
