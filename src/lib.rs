@@ -579,7 +579,7 @@ struct Player(ClientId);
 
 For a higher level API consider using [`bevy_replicon_attributes`](https://docs.rs/bevy_replicon_attributes).
 
-## Eventual consistency
+# Eventual consistency
 
 All events, inserts, removals and despawns will be applied to clients in the same order as on the server.
 
@@ -595,7 +595,7 @@ Updates for despawned entities will be discarded automatically, but events or co
 Clients should never assume their world state is the same as the server's on any given tick value-wise.
 World state on the client is only "eventually consistent" with the server's.
 
-## Limits
+# Limits
 
 To reduce packet size there are the following limits per replication update:
 
@@ -604,7 +604,7 @@ To reduce packet size there are the following limits per replication update:
 - Up to [`u16::MAX`] entities that have removed components with up to [`u16::MAX`] bytes of component data.
 - Up to [`u16::MAX`] entities that were despawned.
 
-## Troubleshooting
+# Troubleshooting
 
 If you face any issue, try to enable logging to see what is going on.
 To enable logging, you can temporarely set `RUST_LOG` environment variable to `bevy_replicon=debug`
