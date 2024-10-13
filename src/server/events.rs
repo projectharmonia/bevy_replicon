@@ -1,11 +1,14 @@
 use bevy::prelude::*;
 
-use super::{ServerPlugin, ServerSet};
+use super::{
+    server_tick::{ServerLastInitTick, ServerTick},
+    ServerPlugin, ServerSet,
+};
 use crate::core::{
     common_conditions::*,
     connected_clients::ConnectedClients,
     ctx::{ServerReceiveCtx, ServerSendCtx},
-    event_registry::EventRegistry,
+    event_registry::{server_event::BufferedServerEvents, EventRegistry},
     replicated_clients::ReplicatedClients,
     replicon_server::RepliconServer,
 };
@@ -27,7 +30,10 @@ impl Plugin for ServerEventsPlugin {
         .add_systems(
             PostUpdate,
             (
-                Self::send.run_if(server_running),
+                Self::send_or_buffer.run_if(server_running),
+                Self::send_buffered
+                    .run_if(server_running)
+                    .run_if(resource_changed::<ServerTick>),
                 Self::resend_locally.run_if(server_or_singleplayer),
             )
                 .chain()
@@ -38,36 +44,52 @@ impl Plugin for ServerEventsPlugin {
 }
 
 impl ServerEventsPlugin {
-    fn send(world: &mut World) {
+    fn send_or_buffer(world: &mut World) {
         world.resource_scope(|world, mut server: Mut<RepliconServer>| {
-            world.resource_scope(|world, registry: Mut<AppTypeRegistry>| {
-                world.resource_scope(|world, connected_clients: Mut<ConnectedClients>| {
-                    world.resource_scope(|world, replicated_clients: Mut<ReplicatedClients>| {
-                        world.resource_scope(|world, event_registry: Mut<EventRegistry>| {
-                            let mut ctx = ServerSendCtx {
-                                registry: &registry.read(),
-                            };
+            world.resource_scope(
+                |world, mut buffered_server_events: Mut<BufferedServerEvents>| {
+                    let registry = world.resource::<AppTypeRegistry>();
+                    let mut ctx = ServerSendCtx {
+                        registry: &registry.read(),
+                    };
+                    let init_tick = **world.resource::<ServerLastInitTick>();
+                    let connected_clients = world.resource::<ConnectedClients>();
+                    let event_registry = world.resource::<EventRegistry>();
 
-                            for event_data in event_registry.iter_server_events() {
-                                let server_events = world
-                                    .get_resource_by_id(event_data.server_events_id())
-                                    .expect("server events shouldn't be removed");
+                    buffered_server_events.start_tick();
 
-                                // SAFETY: passed pointer was obtained using this event data.
-                                unsafe {
-                                    event_data.send(
-                                        &mut ctx,
-                                        &server_events,
-                                        &mut server,
-                                        &connected_clients,
-                                        &replicated_clients,
-                                    );
-                                }
-                            }
-                        });
-                    });
-                });
-            });
+                    for event_data in event_registry.iter_server_events() {
+                        let server_events = world
+                            .get_resource_by_id(event_data.server_events_id())
+                            .expect("server events shouldn't be removed");
+
+                        // SAFETY: passed pointer was obtained using this event data.
+                        unsafe {
+                            event_data.send_or_buffer(
+                                &mut ctx,
+                                init_tick,
+                                &server_events,
+                                &mut server,
+                                connected_clients,
+                                &mut buffered_server_events,
+                            );
+                        }
+                    }
+                },
+            );
+        });
+    }
+
+    fn send_buffered(world: &mut World) {
+        world.resource_scope(|world, mut server: Mut<RepliconServer>| {
+            world.resource_scope(
+                |world, mut buffered_server_events: Mut<BufferedServerEvents>| {
+                    let replicated_clients = world.resource::<ReplicatedClients>();
+                    buffered_server_events
+                        .send_all(&mut server, replicated_clients)
+                        .expect("buffered server events should send");
+                },
+            );
         });
     }
 

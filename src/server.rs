@@ -26,6 +26,7 @@ use crate::core::{
     common_conditions::{server_just_stopped, server_running},
     connected_clients::ConnectedClients,
     ctx::SerializeCtx,
+    event_registry::server_event::BufferedServerEvents,
     replicated_clients::{
         client_visibility::Visibility, ClientBuffers, ReplicatedClients, VisibilityPolicy,
     },
@@ -40,7 +41,7 @@ use despawn_buffer::{DespawnBuffer, DespawnBufferPlugin};
 use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
 use replicated_archetypes::ReplicatedArchetypes;
 use replication_messages::ReplicationMessages;
-use server_tick::ServerTick;
+use server_tick::{ServerLastInitTick, ServerTick};
 
 pub struct ServerPlugin {
     /// Tick configuration.
@@ -83,6 +84,7 @@ impl Plugin for ServerPlugin {
         app.add_plugins((DespawnBufferPlugin, RemovalBufferPlugin))
             .init_resource::<RepliconServer>()
             .init_resource::<ServerTick>()
+            .init_resource::<ServerLastInitTick>()
             .init_resource::<ClientBuffers>()
             .init_resource::<ClientEntityMap>()
             .init_resource::<ConnectedClients>()
@@ -90,6 +92,7 @@ impl Plugin for ServerPlugin {
                 self.visibility_policy,
                 self.replicate_after_connect,
             ))
+            .init_resource::<BufferedServerEvents>()
             .add_event::<ServerEvent>()
             .add_event::<StartReplication>()
             .configure_sets(
@@ -177,6 +180,7 @@ impl ServerPlugin {
         mut replicated_clients: ResMut<ReplicatedClients>,
         mut server: ResMut<RepliconServer>,
         mut client_buffers: ResMut<ClientBuffers>,
+        mut buffered_server_events: ResMut<BufferedServerEvents>,
         mut enable_replication: EventWriter<StartReplication>,
     ) {
         for event in server_events.read() {
@@ -192,6 +196,7 @@ impl ServerPlugin {
                     if replicated_clients.replicate_after_connect() {
                         enable_replication.send(StartReplication(client_id));
                     }
+                    buffered_server_events.ban_client(client_id);
                 }
             }
         }
@@ -259,6 +264,7 @@ impl ServerPlugin {
             ResMut<RemovalBuffer>,
             ResMut<ClientBuffers>,
             ResMut<RepliconServer>,
+            ResMut<ServerLastInitTick>,
         )>,
         registry: Res<ReplicationRegistry>,
         rules: Res<ReplicationRules>,
@@ -285,17 +291,20 @@ impl ServerPlugin {
         entities_with_removals.clear();
 
         let mut client_buffers = mem::take(&mut *set.p5());
+        let mut last_init_tick = **set.p7();
         let replicated_clients = messages.send(
             &mut set.p6(),
             &mut client_buffers,
             **server_tick,
             change_tick.this_run(),
             time.elapsed(),
+            &mut last_init_tick,
         )?;
 
         // Return borrowed data back.
         *set.p1() = replicated_clients;
         *set.p5() = client_buffers;
+        set.p7().0 = last_init_tick;
 
         Ok(())
     }
@@ -305,10 +314,12 @@ impl ServerPlugin {
         mut entity_map: ResMut<ClientEntityMap>,
         mut replicated_clients: ResMut<ReplicatedClients>,
         mut client_buffers: ResMut<ClientBuffers>,
+        mut buffered_server_events: ResMut<BufferedServerEvents>,
     ) {
         *server_tick = Default::default();
         entity_map.0.clear();
         replicated_clients.clear(&mut client_buffers);
+        buffered_server_events.clear();
     }
 }
 
