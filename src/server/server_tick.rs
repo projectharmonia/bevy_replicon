@@ -32,9 +32,3 @@ impl ServerTick {
         self.increment_by(1)
     }
 }
-
-/// Stores the most recent [`ServerTick`] where at least one init message was sent to a client.
-///
-/// Used as an optimization during server event management.
-#[derive(Clone, Copy, Deref, Debug, Default, Resource)]
-pub struct ServerLastInitTick(pub(crate) RepliconTick);

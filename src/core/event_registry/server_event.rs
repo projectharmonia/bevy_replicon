@@ -1,7 +1,7 @@
 use std::{
     any::{self, TypeId},
     collections::HashSet,
-    io::Cursor,
+    io::{Cursor, Write},
     marker::PhantomData,
     mem,
 };
@@ -310,7 +310,6 @@ impl ServerEvent {
     pub(crate) unsafe fn send_or_buffer(
         &self,
         ctx: &mut ServerSendCtx,
-        init_tick: RepliconTick,
         server_events: &Ptr,
         server: &mut RepliconServer,
         connected_clients: &ConnectedClients,
@@ -319,7 +318,6 @@ impl ServerEvent {
         (self.send_or_buffer)(
             self,
             ctx,
-            init_tick,
             server_events,
             server,
             connected_clients,
@@ -429,7 +427,6 @@ pub type DeserializeFn<E> = fn(&mut ClientReceiveCtx, &mut Cursor<&[u8]>) -> bin
 type SendOrBufferFn = unsafe fn(
     &ServerEvent,
     &mut ServerSendCtx,
-    RepliconTick,
     &Ptr,
     &mut RepliconServer,
     &ConnectedClients,
@@ -461,7 +458,6 @@ type ResetFn = unsafe fn(PtrMut);
 unsafe fn send_or_buffer<E: Event>(
     event_data: &ServerEvent,
     ctx: &mut ServerSendCtx,
-    init_tick: RepliconTick,
     server_events: &Ptr,
     server: &mut RepliconServer,
     connected_clients: &ConnectedClients,
@@ -477,7 +473,7 @@ unsafe fn send_or_buffer<E: Event>(
             send_independent_event(event_data, ctx, event, mode, server, connected_clients)
                 .expect("independent server event should be serializable");
         } else {
-            buffer_event(event_data, ctx, init_tick, event, *mode, buffered_events)
+            buffer_event(event_data, ctx, event, *mode, buffered_events)
                 .expect("server event should be serializable");
         }
     }
@@ -608,12 +604,11 @@ unsafe fn reset<E: Event>(queue: PtrMut) {
 unsafe fn buffer_event<E: Event>(
     event_data: &ServerEvent,
     ctx: &mut ServerSendCtx,
-    init_tick: RepliconTick,
     event: &E,
     mode: SendMode,
     buffered_events: &mut BufferedServerEvents,
 ) -> bincode::Result<()> {
-    let message = serialize_with_tick(event_data, ctx, event, init_tick)?;
+    let message = serialize_with_padding(event_data, ctx, event)?;
     buffered_events.insert(mode, event_data.channel_id, message);
     Ok(())
 }
@@ -662,54 +657,81 @@ unsafe fn send_independent_event<E: Event>(
 
 /// Helper for serializing a server event.
 ///
-/// Will prepend the client's change tick to the injected message.
+/// Will prepend padding bytes for where the change tick will be inserted to the injected message.
 ///
 /// # Safety
 ///
 /// The caller must ensure that `event_data` was created for `E`.
-unsafe fn serialize_with_tick<E: Event>(
+unsafe fn serialize_with_padding<E: Event>(
     event_data: &ServerEvent,
     ctx: &mut ServerSendCtx,
     event: &E,
-    init_tick: RepliconTick,
 ) -> bincode::Result<SerializedMessage> {
-    let mut cursor = Cursor::new(Vec::new());
-    DefaultOptions::new().serialize_into(&mut cursor, &init_tick)?;
-    let tick_size = cursor.get_ref().len();
+    let bytes = Vec::with_capacity(128);
+    let mut cursor = Cursor::new(bytes);
+    let padding = [0u8; RepliconTick::MAX_SERIALIZED_SIZE];
+    cursor.write_all(&padding)?;
     event_data.serialize(ctx, event, &mut cursor)?;
-    let message = SerializedMessage {
-        init_tick,
-        tick_size,
-        bytes: cursor.into_inner().into(),
-    };
+    let message = SerializedMessage::Raw(cursor.into_inner());
 
     Ok(message)
 }
 
 /// Cached message for use in [`BufferedServerEvents`].
-struct SerializedMessage {
-    init_tick: RepliconTick,
-    tick_size: usize,
-    bytes: Bytes,
+enum SerializedMessage {
+    /// A message without serialized tick.
+    ///
+    /// `padding | message`
+    ///
+    /// The padding length equals max serialized bytes of RepliconTick. It should be overwritten before sending
+    /// to clients.
+    Raw(Vec<u8>),
+    /// A message with serialized tick.
+    ///
+    /// `tick | messsage`
+    Resolved {
+        tick: RepliconTick,
+        tick_size: usize,
+        bytes: Bytes,
+    },
 }
 
 impl SerializedMessage {
-    fn event_bytes(&self) -> &[u8] {
-        &self.bytes[self.tick_size..]
-    }
-
     /// Optimized to avoid reallocations when clients have the same init tick as the server's latest init tick (at
     /// the time the event was submitted).
-    fn get_bytes(&self, init_tick: RepliconTick) -> bincode::Result<Bytes> {
-        if self.init_tick == init_tick {
-            return Ok(self.bytes.clone());
-        }
+    fn get_bytes(&mut self, init_tick: RepliconTick) -> bincode::Result<Bytes> {
+        match self {
+            // Resolve the raw value into a message with serialized tick.
+            Self::Raw(raw) => {
+                let mut bytes = std::mem::take(raw);
+                let tick_size = DefaultOptions::new().serialized_size(&init_tick)? as usize;
+                let padding = RepliconTick::MAX_SERIALIZED_SIZE - tick_size;
+                DefaultOptions::new().serialize_into(&mut bytes[padding..], &init_tick)?;
+                let bytes = Bytes::from(bytes).slice(padding..);
+                *self = Self::Resolved {
+                    tick: init_tick,
+                    tick_size,
+                    bytes: bytes.clone(),
+                };
+                Ok(bytes)
+            }
+            // Get the already-resolved value or reserialize with a different tick.
+            Self::Resolved {
+                tick,
+                tick_size,
+                bytes,
+            } => {
+                if *tick == init_tick {
+                    return Ok(bytes.clone());
+                }
 
-        let tick_size = DefaultOptions::new().serialized_size(&init_tick)? as usize;
-        let mut bytes = Vec::with_capacity(tick_size + self.event_bytes().len());
-        DefaultOptions::new().serialize_into(&mut bytes, &init_tick)?;
-        bytes.extend_from_slice(self.event_bytes());
-        Ok(bytes.into())
+                let new_tick_size = DefaultOptions::new().serialized_size(&init_tick)? as usize;
+                let mut new_bytes = Vec::with_capacity(new_tick_size + bytes.len() - *tick_size);
+                DefaultOptions::new().serialize_into(&mut new_bytes, &init_tick)?;
+                new_bytes.extend_from_slice(&bytes[*tick_size..]);
+                Ok(new_bytes.into())
+            }
+        }
     }
 }
 
@@ -720,7 +742,11 @@ struct BufferedServerEvent {
 }
 
 impl BufferedServerEvent {
-    fn send(&self, server: &mut RepliconServer, client: &ReplicatedClient) -> bincode::Result<()> {
+    fn send(
+        &mut self,
+        server: &mut RepliconServer,
+        client: &ReplicatedClient,
+    ) -> bincode::Result<()> {
         let message = self.message.get_bytes(client.init_tick())?;
         server.send(client.id(), self.channel, message);
         Ok(())
@@ -744,7 +770,7 @@ impl BufferedServerEventSet {
 /// Caches synchronization-dependent server events until they can be sent with an accurate init tick.
 ///
 /// This exists because replication does not scan the world every tick. If a server event is sent in the same
-/// tick as a spawn (and the event references that spawn), then the server event's init tick needs to be synchronized
+/// tick as a spawn and the event references that spawn, then the server event's init tick needs to be synchronized
 /// with that spawn on the client. We buffer the event until the spawn can be detected.
 #[derive(Resource, Default)]
 pub(crate) struct BufferedServerEvents {
@@ -788,7 +814,7 @@ impl BufferedServerEvents {
         replicated_clients: &ReplicatedClients,
     ) -> bincode::Result<()> {
         for mut set in self.buffer.drain(..) {
-            for event in set.events.drain(..) {
+            for mut event in set.events.drain(..) {
                 match event.mode {
                     SendMode::Broadcast => {
                         for client in replicated_clients

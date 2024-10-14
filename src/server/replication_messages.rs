@@ -81,20 +81,13 @@ impl ReplicationMessages {
         server_tick: RepliconTick,
         tick: Tick,
         timestamp: Duration,
-        last_init_tick: &mut RepliconTick,
     ) -> bincode::Result<ReplicatedClients> {
-        let mut any_init_sent = false;
         for ((init_message, update_message), client) in
             self.data.iter_mut().zip(self.replicated_clients.iter_mut())
         {
-            let init_sent = init_message.send(server, client, server_tick)?;
-            any_init_sent = any_init_sent || init_sent;
+            init_message.send(server, client, server_tick)?;
             update_message.send(server, client_buffers, client, server_tick, tick, timestamp)?;
             client.visibility_mut().update();
-        }
-
-        if any_init_sent {
-            *last_init_tick = server_tick;
         }
 
         let replicated_clients = mem::take(&mut self.replicated_clients);
@@ -377,21 +370,19 @@ impl InitMessage {
     ///
     /// Updates change tick for the client if there are data to send.
     /// Does nothing if there is no data to send.
-    ///
-    /// Returns `true` if a message was sent to the server.
     fn send(
         &self,
         server: &mut RepliconServer,
         client: &mut ReplicatedClient,
         server_tick: RepliconTick,
-    ) -> bincode::Result<bool> {
+    ) -> bincode::Result<()> {
         debug_assert_eq!(self.array_len, 0);
         debug_assert_eq!(self.entity_data_size, 0);
 
         let slice = self.as_slice();
         if slice.is_empty() {
             trace!("no init data to send for {:?}", client.id());
-            return Ok(false);
+            return Ok(());
         }
 
         client.set_init_tick(server_tick);
@@ -406,7 +397,7 @@ impl InitMessage {
             Bytes::from([&header, slice].concat()),
         );
 
-        Ok(true)
+        Ok(())
     }
 }
 

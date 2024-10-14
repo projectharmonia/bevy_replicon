@@ -41,7 +41,7 @@ use despawn_buffer::{DespawnBuffer, DespawnBufferPlugin};
 use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
 use replicated_archetypes::ReplicatedArchetypes;
 use replication_messages::ReplicationMessages;
-use server_tick::{ServerLastInitTick, ServerTick};
+use server_tick::ServerTick;
 
 pub struct ServerPlugin {
     /// Tick configuration.
@@ -84,7 +84,6 @@ impl Plugin for ServerPlugin {
         app.add_plugins((DespawnBufferPlugin, RemovalBufferPlugin))
             .init_resource::<RepliconServer>()
             .init_resource::<ServerTick>()
-            .init_resource::<ServerLastInitTick>()
             .init_resource::<ClientBuffers>()
             .init_resource::<ClientEntityMap>()
             .init_resource::<ConnectedClients>()
@@ -264,7 +263,6 @@ impl ServerPlugin {
             ResMut<RemovalBuffer>,
             ResMut<ClientBuffers>,
             ResMut<RepliconServer>,
-            ResMut<ServerLastInitTick>,
         )>,
         registry: Res<ReplicationRegistry>,
         rules: Res<ReplicationRules>,
@@ -291,20 +289,17 @@ impl ServerPlugin {
         entities_with_removals.clear();
 
         let mut client_buffers = mem::take(&mut *set.p5());
-        let mut last_init_tick = **set.p7();
         let replicated_clients = messages.send(
             &mut set.p6(),
             &mut client_buffers,
             **server_tick,
             change_tick.this_run(),
             time.elapsed(),
-            &mut last_init_tick,
         )?;
 
         // Return borrowed data back.
         *set.p1() = replicated_clients;
         *set.p5() = client_buffers;
-        set.p7().0 = last_init_tick;
 
         Ok(())
     }

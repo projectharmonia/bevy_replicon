@@ -1,9 +1,6 @@
 use bevy::prelude::*;
 
-use super::{
-    server_tick::{ServerLastInitTick, ServerTick},
-    ServerPlugin, ServerSet,
-};
+use super::{server_tick::ServerTick, ServerPlugin, ServerSet};
 use crate::core::{
     common_conditions::*,
     connected_clients::ConnectedClients,
@@ -51,7 +48,6 @@ impl ServerEventsPlugin {
                 let mut ctx = ServerSendCtx {
                     registry: &registry.read(),
                 };
-                let init_tick = **world.resource::<ServerLastInitTick>();
                 let connected_clients = world.resource::<ConnectedClients>();
                 let event_registry = world.resource::<EventRegistry>();
 
@@ -66,7 +62,6 @@ impl ServerEventsPlugin {
                     unsafe {
                         event_data.send_or_buffer(
                             &mut ctx,
-                            init_tick,
                             &server_events,
                             &mut server,
                             connected_clients,
