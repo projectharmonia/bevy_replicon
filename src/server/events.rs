@@ -46,50 +46,46 @@ impl Plugin for ServerEventsPlugin {
 impl ServerEventsPlugin {
     fn send_or_buffer(world: &mut World) {
         world.resource_scope(|world, mut server: Mut<RepliconServer>| {
-            world.resource_scope(
-                |world, mut buffered_server_events: Mut<BufferedServerEvents>| {
-                    let registry = world.resource::<AppTypeRegistry>();
-                    let mut ctx = ServerSendCtx {
-                        registry: &registry.read(),
-                    };
-                    let init_tick = **world.resource::<ServerLastInitTick>();
-                    let connected_clients = world.resource::<ConnectedClients>();
-                    let event_registry = world.resource::<EventRegistry>();
+            world.resource_scope(|world, mut buffered_events: Mut<BufferedServerEvents>| {
+                let registry = world.resource::<AppTypeRegistry>();
+                let mut ctx = ServerSendCtx {
+                    registry: &registry.read(),
+                };
+                let init_tick = **world.resource::<ServerLastInitTick>();
+                let connected_clients = world.resource::<ConnectedClients>();
+                let event_registry = world.resource::<EventRegistry>();
 
-                    buffered_server_events.start_tick();
+                buffered_events.start_tick();
 
-                    for event_data in event_registry.iter_server_events() {
-                        let server_events = world
-                            .get_resource_by_id(event_data.server_events_id())
-                            .expect("server events shouldn't be removed");
+                for event_data in event_registry.iter_server_events() {
+                    let server_events = world
+                        .get_resource_by_id(event_data.server_events_id())
+                        .expect("server events shouldn't be removed");
 
-                        // SAFETY: passed pointer was obtained using this event data.
-                        unsafe {
-                            event_data.send_or_buffer(
-                                &mut ctx,
-                                init_tick,
-                                &server_events,
-                                &mut server,
-                                connected_clients,
-                                &mut buffered_server_events,
-                            );
-                        }
+                    // SAFETY: passed pointer was obtained using this event data.
+                    unsafe {
+                        event_data.send_or_buffer(
+                            &mut ctx,
+                            init_tick,
+                            &server_events,
+                            &mut server,
+                            connected_clients,
+                            &mut buffered_events,
+                        );
                     }
-                },
-            );
+                }
+            });
         });
     }
 
     fn send_buffered(world: &mut World) {
         world.resource_scope(|world, mut server: Mut<RepliconServer>| {
-            world.resource_scope(
-                |world, mut buffered_server_events: Mut<BufferedServerEvents>| {
-                    let replicated_clients = world.resource::<ReplicatedClients>();
-                    buffered_server_events
-                        .send_all(&mut server, replicated_clients)
-                        .expect("buffered server events should send");
-                },
-            );
+            world.resource_scope(|world, mut buffered_events: Mut<BufferedServerEvents>| {
+                let replicated_clients = world.resource::<ReplicatedClients>();
+                buffered_events
+                    .send_all(&mut server, replicated_clients)
+                    .expect("buffered server events should send");
+            });
         });
     }
 

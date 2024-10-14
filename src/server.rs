@@ -180,7 +180,7 @@ impl ServerPlugin {
         mut replicated_clients: ResMut<ReplicatedClients>,
         mut server: ResMut<RepliconServer>,
         mut client_buffers: ResMut<ClientBuffers>,
-        mut buffered_server_events: ResMut<BufferedServerEvents>,
+        mut buffered_events: ResMut<BufferedServerEvents>,
         mut enable_replication: EventWriter<StartReplication>,
     ) {
         for event in server_events.read() {
@@ -196,7 +196,7 @@ impl ServerPlugin {
                     if replicated_clients.replicate_after_connect() {
                         enable_replication.send(StartReplication(client_id));
                     }
-                    buffered_server_events.ban_client(client_id);
+                    buffered_events.exclude_client(client_id);
                 }
             }
         }
@@ -314,12 +314,12 @@ impl ServerPlugin {
         mut entity_map: ResMut<ClientEntityMap>,
         mut replicated_clients: ResMut<ReplicatedClients>,
         mut client_buffers: ResMut<ClientBuffers>,
-        mut buffered_server_events: ResMut<BufferedServerEvents>,
+        mut buffered_events: ResMut<BufferedServerEvents>,
     ) {
         *server_tick = Default::default();
         entity_map.0.clear();
         replicated_clients.clear(&mut client_buffers);
-        buffered_server_events.clear();
+        buffered_events.clear();
     }
 }
 

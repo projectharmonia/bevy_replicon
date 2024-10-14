@@ -314,7 +314,7 @@ impl ServerEvent {
         server_events: &Ptr,
         server: &mut RepliconServer,
         connected_clients: &ConnectedClients,
-        buffered_server_events: &mut BufferedServerEvents,
+        buffered_events: &mut BufferedServerEvents,
     ) {
         (self.send_or_buffer)(
             self,
@@ -323,7 +323,7 @@ impl ServerEvent {
             server_events,
             server,
             connected_clients,
-            buffered_server_events,
+            buffered_events,
         );
     }
 
@@ -465,7 +465,7 @@ unsafe fn send_or_buffer<E: Event>(
     server_events: &Ptr,
     server: &mut RepliconServer,
     connected_clients: &ConnectedClients,
-    buffered_server_events: &mut BufferedServerEvents,
+    buffered_events: &mut BufferedServerEvents,
 ) {
     let events: &Events<ToClients<E>> = server_events.deref();
     // For server events we don't track read events because
@@ -477,15 +477,8 @@ unsafe fn send_or_buffer<E: Event>(
             send_independent_event(event_data, ctx, event, mode, server, connected_clients)
                 .expect("independent server event should be serializable");
         } else {
-            buffer_event(
-                event_data,
-                ctx,
-                init_tick,
-                event,
-                *mode,
-                buffered_server_events,
-            )
-            .expect("server event should be serializable");
+            buffer_event(event_data, ctx, init_tick, event, *mode, buffered_events)
+                .expect("server event should be serializable");
         }
     }
 }
@@ -618,10 +611,10 @@ unsafe fn buffer_event<E: Event>(
     init_tick: RepliconTick,
     event: &E,
     mode: SendMode,
-    buffered_server_events: &mut BufferedServerEvents,
+    buffered_events: &mut BufferedServerEvents,
 ) -> bincode::Result<()> {
     let message = serialize_with_tick(event_data, ctx, event, init_tick)?;
-    buffered_server_events.insert(mode, event_data.channel_id, message);
+    buffered_events.insert(mode, event_data.channel_id, message);
     Ok(())
 }
 
@@ -737,14 +730,14 @@ impl BufferedServerEvent {
 #[derive(Default)]
 struct BufferedServerEventSet {
     events: Vec<BufferedServerEvent>,
-    /// Client ids banned from receiving events in this set because they connected after the events were sent.
-    banned: HashSet<ClientId>,
+    /// Client ids excluded from receiving events in this set because they connected after the events were sent.
+    excluded: HashSet<ClientId>,
 }
 
 impl BufferedServerEventSet {
     fn clear(&mut self) {
         self.events.clear();
-        self.banned.clear();
+        self.excluded.clear();
     }
 }
 
@@ -752,10 +745,11 @@ impl BufferedServerEventSet {
 ///
 /// This exists because replication does not scan the world every tick. If a server event is sent in the same
 /// tick as a spawn (and the event references that spawn), then the server event's init tick needs to be synchronized
-/// with that spawn on the client. We cache the event until the spawn can be detected.
+/// with that spawn on the client. We buffer the event until the spawn can be detected.
 #[derive(Resource, Default)]
 pub(crate) struct BufferedServerEvents {
     buffer: Vec<BufferedServerEventSet>,
+    /// Caches unused sets to avoid reallocations when pushing into the buffer. These are cleared before insertion.
     cache: Vec<BufferedServerEventSet>,
 }
 
@@ -764,10 +758,15 @@ impl BufferedServerEvents {
         self.buffer.push(self.cache.pop().unwrap_or_default());
     }
 
+    fn active_tick(&mut self) -> Option<&mut BufferedServerEventSet> {
+        self.buffer.last_mut()
+    }
+
     fn insert(&mut self, mode: SendMode, channel: u8, message: SerializedMessage) {
-        self.buffer
-            .last_mut()
-            .unwrap()
+        self.active_tick()
+            .expect(
+                "BufferedServerEvents::start_tick should be called before buffering server events",
+            )
             .events
             .push(BufferedServerEvent {
                 mode,
@@ -777,9 +776,9 @@ impl BufferedServerEvents {
     }
 
     /// Used to prevent newly-connected clients from receiving old events.
-    pub(crate) fn ban_client(&mut self, client: ClientId) {
+    pub(crate) fn exclude_client(&mut self, client: ClientId) {
         for set in self.buffer.iter_mut() {
-            set.banned.insert(client);
+            set.excluded.insert(client);
         }
     }
 
@@ -794,7 +793,7 @@ impl BufferedServerEvents {
                     SendMode::Broadcast => {
                         for client in replicated_clients
                             .iter()
-                            .filter(|c| !set.banned.contains(&c.id()))
+                            .filter(|c| !set.excluded.contains(&c.id()))
                         {
                             event.send(server, client)?;
                         }
@@ -802,7 +801,7 @@ impl BufferedServerEvents {
                     SendMode::BroadcastExcept(client_id) => {
                         for client in replicated_clients
                             .iter()
-                            .filter(|c| !set.banned.contains(&c.id()))
+                            .filter(|c| !set.excluded.contains(&c.id()))
                         {
                             if client.id() == client_id {
                                 continue;
@@ -811,7 +810,7 @@ impl BufferedServerEvents {
                         }
                     }
                     SendMode::Direct(client_id) => {
-                        if client_id != ClientId::SERVER && !set.banned.contains(&client_id) {
+                        if client_id != ClientId::SERVER && !set.excluded.contains(&client_id) {
                             if let Some(client) = replicated_clients.get_client(client_id) {
                                 event.send(server, client)?;
                             }
