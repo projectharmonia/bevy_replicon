@@ -697,8 +697,8 @@ enum SerializedMessage {
 }
 
 impl SerializedMessage {
-    /// Optimized to avoid reallocations when clients have the same init tick as the server's latest init tick (at
-    /// the time the event was submitted).
+    /// Optimized to avoid reallocations when clients have the same init tick as other clients receiving the
+    /// same message.
     fn get_bytes(&mut self, init_tick: RepliconTick) -> bincode::Result<Bytes> {
         match self {
             // Resolve the raw value into a message with serialized tick.
