@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.4] - 2024-10-15
+
 ### Fixed
 
 - Synchronize server events with init messages properly when `ServerTick` is not updated every app tick.
@@ -586,7 +588,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release after separation from [Project Harmonia](https://github.com/projectharmonia/project_harmonia).
 
-[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.28.3...HEAD
+[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.28.4...HEAD
+[0.28.4]: https://github.com/projectharmonia/bevy_replicon/compare/v0.28.3...v0.28.4
 [0.28.3]: https://github.com/projectharmonia/bevy_replicon/compare/v0.28.2...v0.28.3
 [0.28.2]: https://github.com/projectharmonia/bevy_replicon/compare/v0.28.1...v0.28.2
 [0.28.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.28.0...v0.28.1
