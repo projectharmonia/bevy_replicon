@@ -129,11 +129,12 @@ pub trait ServerEventAppExt {
 
     /// Marks the event `E` as an independent event.
     ///
-    /// By default, all events from the server are buffered until all
-    /// insertions, removals and despawns (value changes doesn't count) are
-    /// replicated for the tick on which the event was triggered. This is
-    /// necessary to ensure that the executed logic during the event does not
-    /// affect components or entities that the client has not yet received.
+    /// By default, all server events are buffered on server until server tick
+    /// and queued on client until all insertions, removals and despawns
+    /// (value changes doesn't count) are replicated for the tick on which the
+    /// event was triggered. This is necessary to ensure that the executed logic
+    /// during the event does not affect components or entities that the client
+    /// has not yet received.
     ///
     /// However, if you know your event doesn't rely on that, you can mark it
     /// as independent to always emit it immediately. For example, a chat
