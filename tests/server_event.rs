@@ -5,7 +5,7 @@ use bevy::{
 };
 use bevy_replicon::{
     client::ServerInitTick, core::server_entity_map::ServerEntityMap, prelude::*,
-    test_app::ServerTestAppExt,
+    server::server_tick::ServerTick, test_app::ServerTestAppExt,
 };
 use serde::{Deserialize, Serialize};
 
@@ -192,6 +192,51 @@ fn local_resending() {
             "event should be emited {events_count} times for {mode:?}"
         );
     }
+}
+
+#[test]
+fn event_buffering() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::Manual, // To artificially delay replication after sending.
+                ..Default::default()
+            }),
+        ))
+        .add_server_event::<DummyEvent>(ChannelKind::Ordered);
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    server_app.world_mut().send_event(ToClients {
+        mode: SendMode::Broadcast,
+        event: DummyEvent,
+    });
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    let events = client_app.world().resource::<Events<DummyEvent>>();
+    assert!(events.is_empty(), "event should be buffered on server");
+
+    // Trigger replication.
+    server_app
+        .world_mut()
+        .resource_mut::<ServerTick>()
+        .increment();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    let events = client_app.world().resource::<Events<DummyEvent>>();
+    assert_eq!(events.len(), 1);
 }
 
 #[test]
