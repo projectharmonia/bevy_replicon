@@ -682,7 +682,7 @@ enum SerializedMessage {
     ///
     /// `padding | message`
     ///
-    /// The padding length equals max serialized bytes of RepliconTick. It should be overwritten before sending
+    /// The padding length equals max serialized bytes of [`RepliconTick`]. It should be overwritten before sending
     /// to clients.
     Raw(Vec<u8>),
     /// A message with serialized tick.
@@ -774,7 +774,10 @@ impl BufferedServerEventSet {
 #[derive(Resource, Default)]
 pub(crate) struct BufferedServerEvents {
     buffer: Vec<BufferedServerEventSet>,
-    /// Caches unused sets to avoid reallocations when pushing into the buffer. These are cleared before insertion.
+
+    /// Caches unused sets to avoid reallocations when pushing into the buffer.
+    ///
+    /// These are cleared before insertion.
     cache: Vec<BufferedServerEventSet>,
 }
 
@@ -788,16 +791,15 @@ impl BufferedServerEvents {
     }
 
     fn insert(&mut self, mode: SendMode, channel: u8, message: SerializedMessage) {
-        self.active_tick()
-            .expect(
-                "BufferedServerEvents::start_tick should be called before buffering server events",
-            )
-            .events
-            .push(BufferedServerEvent {
-                mode,
-                channel,
-                message,
-            });
+        let buffer = self
+            .active_tick()
+            .expect("`BufferedServerEvents::start_tick` should be called before buffering");
+
+        buffer.events.push(BufferedServerEvent {
+            mode,
+            channel,
+            message,
+        });
     }
 
     /// Used to prevent newly-connected clients from receiving old events.
