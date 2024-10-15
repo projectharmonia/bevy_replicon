@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Synchronize server events with init messages properly when `ServerTick` is not updated every app tick.
+
 ## [0.28.3] - 2024-09-13
 
 ### Changed

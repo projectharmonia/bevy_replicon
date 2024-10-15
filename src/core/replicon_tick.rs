@@ -15,6 +15,9 @@ use serde::{Deserialize, Serialize};
 pub struct RepliconTick(u32);
 
 impl RepliconTick {
+    /// Maximum number of bytes required to serialize [`Self`] using default [`bincode::DefaultOptions`].
+    pub const MAX_SERIALIZED_SIZE: usize = 5;
+
     /// Creates a new instance wrapping the given value.
     #[inline]
     pub fn new(value: u32) -> Self {
@@ -79,7 +82,17 @@ impl SubAssign<u32> for RepliconTick {
 
 #[cfg(test)]
 mod tests {
+    use bincode::{DefaultOptions, Options};
+
     use super::*;
+
+    #[test]
+    fn max_serialized_size() {
+        let max = DefaultOptions::new()
+            .serialized_size(&RepliconTick(u32::MAX))
+            .unwrap();
+        assert_eq!(max as usize, RepliconTick::MAX_SERIALIZED_SIZE);
+    }
 
     #[test]
     fn tick_comparsion() {

@@ -1,6 +1,7 @@
 use std::{
     any::{self, TypeId},
-    io::Cursor,
+    collections::HashSet,
+    io::{Cursor, Write},
     marker::PhantomData,
     mem,
 };
@@ -19,15 +20,18 @@ use ordered_multimap::ListOrderedMultimap;
 use serde::{de::DeserializeOwned, Serialize};
 
 use super::EventRegistry;
-use crate::core::{
-    channels::{RepliconChannel, RepliconChannels},
-    connected_clients::ConnectedClients,
-    ctx::{ClientReceiveCtx, ServerSendCtx},
-    replicated_clients::ReplicatedClients,
-    replicon_client::RepliconClient,
-    replicon_server::RepliconServer,
-    replicon_tick::RepliconTick,
-    ClientId,
+use crate::{
+    core::{
+        channels::{RepliconChannel, RepliconChannels},
+        connected_clients::ConnectedClients,
+        ctx::{ClientReceiveCtx, ServerSendCtx},
+        replicated_clients::ReplicatedClients,
+        replicon_client::RepliconClient,
+        replicon_server::RepliconServer,
+        replicon_tick::RepliconTick,
+        ClientId,
+    },
+    ReplicatedClient,
 };
 
 /// An extension trait for [`App`] for creating client events.
@@ -125,11 +129,12 @@ pub trait ServerEventAppExt {
 
     /// Marks the event `E` as an independent event.
     ///
-    /// By default, all events from the server are buffered until all
-    /// insertions, removals and despawns (value changes doesn't count) are
-    /// replicated for the tick on which the event was triggered. This is
-    /// necessary to ensure that the executed logic during the event does not
-    /// affect components or entities that the client has not yet received.
+    /// By default, all server events are buffered on server until server tick
+    /// and queued on client until all insertions, removals and despawns
+    /// (value changes doesn't count) are replicated for the tick on which the
+    /// event was triggered. This is necessary to ensure that the executed logic
+    /// during the event does not affect components or entities that the client
+    /// has not yet received.
     ///
     /// However, if you know your event doesn't rely on that, you can mark it
     /// as independent to always emit it immediately. For example, a chat
@@ -221,7 +226,7 @@ pub(crate) struct ServerEvent {
     /// Used channel.
     channel_id: u8,
 
-    send: SendFn,
+    send_or_buffer: SendOrBufferFn,
     receive: ReceiveFn,
     resend_locally: ResendLocallyFn,
     reset: ResetFn,
@@ -268,7 +273,7 @@ impl ServerEvent {
             server_events_id,
             queue_id,
             channel_id,
-            send: send::<E>,
+            send_or_buffer: send_or_buffer::<E>,
             receive: receive::<E>,
             resend_locally: resend_locally::<E>,
             reset: reset::<E>,
@@ -303,21 +308,21 @@ impl ServerEvent {
     ///
     /// The caller must ensure that `events` is [`Events<ToClients<E>>`]
     /// and this instance was created for `E`.
-    pub(crate) unsafe fn send(
+    pub(crate) unsafe fn send_or_buffer(
         &self,
         ctx: &mut ServerSendCtx,
         server_events: &Ptr,
         server: &mut RepliconServer,
         connected_clients: &ConnectedClients,
-        replicated_clients: &ReplicatedClients,
+        buffered_events: &mut BufferedServerEvents,
     ) {
-        (self.send)(
+        (self.send_or_buffer)(
             self,
             ctx,
             server_events,
             server,
             connected_clients,
-            replicated_clients,
+            buffered_events,
         );
     }
 
@@ -420,13 +425,13 @@ pub type SerializeFn<E> = fn(&mut ServerSendCtx, &E, &mut Cursor<Vec<u8>>) -> bi
 pub type DeserializeFn<E> = fn(&mut ClientReceiveCtx, &mut Cursor<&[u8]>) -> bincode::Result<E>;
 
 /// Signature of server event sending functions.
-type SendFn = unsafe fn(
+type SendOrBufferFn = unsafe fn(
     &ServerEvent,
     &mut ServerSendCtx,
     &Ptr,
     &mut RepliconServer,
     &ConnectedClients,
-    &ReplicatedClients,
+    &mut BufferedServerEvents,
 );
 
 /// Signature of server event receiving functions.
@@ -445,19 +450,19 @@ type ResendLocallyFn = unsafe fn(PtrMut, PtrMut);
 /// Signature of server event reset functions.
 type ResetFn = unsafe fn(PtrMut);
 
-/// Typed version of [`ServerEvent::send`].
+/// Typed version of [`ServerEvent::send_or_buffer`].
 ///
 /// # Safety
 ///
 /// The caller must ensure that `events` is [`Events<ToClients<E>>`]
 /// and `event_data` was created for `E`.
-unsafe fn send<E: Event>(
+unsafe fn send_or_buffer<E: Event>(
     event_data: &ServerEvent,
     ctx: &mut ServerSendCtx,
     server_events: &Ptr,
     server: &mut RepliconServer,
     connected_clients: &ConnectedClients,
-    replicated_clients: &ReplicatedClients,
+    buffered_events: &mut BufferedServerEvents,
 ) {
     let events: &Events<ToClients<E>> = server_events.deref();
     // For server events we don't track read events because
@@ -469,7 +474,7 @@ unsafe fn send<E: Event>(
             send_independent_event(event_data, ctx, event, mode, server, connected_clients)
                 .expect("independent server event should be serializable");
         } else {
-            send_event(event_data, ctx, event, mode, server, replicated_clients)
+            buffer_event(event_data, ctx, event, *mode, buffered_events)
                 .expect("server event should be serializable");
         }
     }
@@ -590,64 +595,22 @@ unsafe fn reset<E: Event>(queue: PtrMut) {
     queue.clear();
 }
 
-/// Sends event `E` based on a mode.
+/// Buffers event `E` based on a mode.
 ///
 /// # Safety
 ///
 /// The caller must ensure that `event_data` was created for `E`.
 ///
 /// For independent events see [`send_independent_event`].
-unsafe fn send_event<E: Event>(
+unsafe fn buffer_event<E: Event>(
     event_data: &ServerEvent,
     ctx: &mut ServerSendCtx,
     event: &E,
-    mode: &SendMode,
-    server: &mut RepliconServer,
-    replicated_clients: &ReplicatedClients,
+    mode: SendMode,
+    buffered_events: &mut BufferedServerEvents,
 ) -> bincode::Result<()> {
-    match *mode {
-        SendMode::Broadcast => {
-            let mut previous_message = None;
-            for client in replicated_clients.iter() {
-                let message = serialize_with_tick(
-                    event_data,
-                    ctx,
-                    event,
-                    client.init_tick(),
-                    previous_message,
-                )?;
-                server.send(client.id(), event_data.channel_id, message.bytes.clone());
-                previous_message = Some(message);
-            }
-        }
-        SendMode::BroadcastExcept(client_id) => {
-            let mut previous_message = None;
-            for client in replicated_clients.iter() {
-                if client.id() == client_id {
-                    continue;
-                }
-                let message = serialize_with_tick(
-                    event_data,
-                    ctx,
-                    event,
-                    client.init_tick(),
-                    previous_message,
-                )?;
-                server.send(client.id(), event_data.channel_id, message.bytes.clone());
-                previous_message = Some(message);
-            }
-        }
-        SendMode::Direct(client_id) => {
-            if client_id != ClientId::SERVER {
-                if let Some(client) = replicated_clients.get_client(client_id) {
-                    let message =
-                        serialize_with_tick(event_data, ctx, event, client.init_tick(), None)?;
-                    server.send(client.id(), event_data.channel_id, message.bytes);
-                }
-            }
-        }
-    }
-
+    let message = serialize_with_padding(event_data, ctx, event)?;
+    buffered_events.insert(mode, event_data.channel_id, message);
     Ok(())
 }
 
@@ -695,60 +658,205 @@ unsafe fn send_independent_event<E: Event>(
 
 /// Helper for serializing a server event.
 ///
-/// Will prepend the client's change tick to the injected message.
-/// Optimized to avoid reallocations when consecutive clients have the same change tick.
+/// Will prepend padding bytes for where the change tick will be inserted to the injected message.
 ///
 /// # Safety
 ///
 /// The caller must ensure that `event_data` was created for `E`.
-unsafe fn serialize_with_tick<E: Event>(
+unsafe fn serialize_with_padding<E: Event>(
     event_data: &ServerEvent,
     ctx: &mut ServerSendCtx,
     event: &E,
-    init_tick: RepliconTick,
-    previous_message: Option<SerializedMessage>,
 ) -> bincode::Result<SerializedMessage> {
-    if let Some(previous_message) = previous_message {
-        if previous_message.init_tick == init_tick {
-            return Ok(previous_message);
-        }
+    let mut cursor = Cursor::new(Vec::new());
+    let padding = [0u8; RepliconTick::MAX_SERIALIZED_SIZE];
+    cursor.write_all(&padding)?;
+    event_data.serialize(ctx, event, &mut cursor)?;
+    let message = SerializedMessage::Raw(cursor.into_inner());
 
-        let tick_size = DefaultOptions::new().serialized_size(&init_tick)? as usize;
-        let mut bytes = Vec::with_capacity(tick_size + previous_message.event_bytes().len());
-        DefaultOptions::new().serialize_into(&mut bytes, &init_tick)?;
-        bytes.extend_from_slice(previous_message.event_bytes());
-        let message = SerializedMessage {
-            init_tick,
-            tick_size,
-            bytes: bytes.into(),
-        };
-
-        Ok(message)
-    } else {
-        let mut cursor = Cursor::new(Vec::new());
-        DefaultOptions::new().serialize_into(&mut cursor, &init_tick)?;
-        let tick_size = cursor.get_ref().len();
-        event_data.serialize(ctx, event, &mut cursor)?;
-        let message = SerializedMessage {
-            init_tick,
-            tick_size,
-            bytes: cursor.into_inner().into(),
-        };
-
-        Ok(message)
-    }
+    Ok(message)
 }
 
-/// Cached message for use in [`serialize_with`].
-struct SerializedMessage {
-    init_tick: RepliconTick,
-    tick_size: usize,
-    bytes: Bytes,
+/// Cached message for use in [`BufferedServerEvents`].
+enum SerializedMessage {
+    /// A message without serialized tick.
+    ///
+    /// `padding | message`
+    ///
+    /// The padding length equals max serialized bytes of [`RepliconTick`]. It should be overwritten before sending
+    /// to clients.
+    Raw(Vec<u8>),
+    /// A message with serialized tick.
+    ///
+    /// `tick | messsage`
+    Resolved {
+        tick: RepliconTick,
+        tick_size: usize,
+        bytes: Bytes,
+    },
 }
 
 impl SerializedMessage {
-    fn event_bytes(&self) -> &[u8] {
-        &self.bytes[self.tick_size..]
+    /// Optimized to avoid reallocations when clients have the same init tick as other clients receiving the
+    /// same message.
+    fn get_bytes(&mut self, init_tick: RepliconTick) -> bincode::Result<Bytes> {
+        match self {
+            // Resolve the raw value into a message with serialized tick.
+            Self::Raw(raw) => {
+                let mut bytes = std::mem::take(raw);
+                let tick_size = DefaultOptions::new().serialized_size(&init_tick)? as usize;
+                let padding = RepliconTick::MAX_SERIALIZED_SIZE - tick_size;
+                DefaultOptions::new().serialize_into(&mut bytes[padding..], &init_tick)?;
+                let bytes = Bytes::from(bytes).slice(padding..);
+                *self = Self::Resolved {
+                    tick: init_tick,
+                    tick_size,
+                    bytes: bytes.clone(),
+                };
+                Ok(bytes)
+            }
+            // Get the already-resolved value or reserialize with a different tick.
+            Self::Resolved {
+                tick,
+                tick_size,
+                bytes,
+            } => {
+                if *tick == init_tick {
+                    return Ok(bytes.clone());
+                }
+
+                let new_tick_size = DefaultOptions::new().serialized_size(&init_tick)? as usize;
+                let mut new_bytes = Vec::with_capacity(new_tick_size + bytes.len() - *tick_size);
+                DefaultOptions::new().serialize_into(&mut new_bytes, &init_tick)?;
+                new_bytes.extend_from_slice(&bytes[*tick_size..]);
+                Ok(new_bytes.into())
+            }
+        }
+    }
+}
+
+struct BufferedServerEvent {
+    mode: SendMode,
+    channel: u8,
+    message: SerializedMessage,
+}
+
+impl BufferedServerEvent {
+    fn send(
+        &mut self,
+        server: &mut RepliconServer,
+        client: &ReplicatedClient,
+    ) -> bincode::Result<()> {
+        let message = self.message.get_bytes(client.init_tick())?;
+        server.send(client.id(), self.channel, message);
+        Ok(())
+    }
+}
+
+#[derive(Default)]
+struct BufferedServerEventSet {
+    events: Vec<BufferedServerEvent>,
+    /// Client ids excluded from receiving events in this set because they connected after the events were sent.
+    excluded: HashSet<ClientId>,
+}
+
+impl BufferedServerEventSet {
+    fn clear(&mut self) {
+        self.events.clear();
+        self.excluded.clear();
+    }
+}
+
+/// Caches synchronization-dependent server events until they can be sent with an accurate init tick.
+///
+/// This exists because replication does not scan the world every tick. If a server event is sent in the same
+/// tick as a spawn and the event references that spawn, then the server event's init tick needs to be synchronized
+/// with that spawn on the client. We buffer the event until the spawn can be detected.
+#[derive(Resource, Default)]
+pub(crate) struct BufferedServerEvents {
+    buffer: Vec<BufferedServerEventSet>,
+
+    /// Caches unused sets to avoid reallocations when pushing into the buffer.
+    ///
+    /// These are cleared before insertion.
+    cache: Vec<BufferedServerEventSet>,
+}
+
+impl BufferedServerEvents {
+    pub(crate) fn start_tick(&mut self) {
+        self.buffer.push(self.cache.pop().unwrap_or_default());
+    }
+
+    fn active_tick(&mut self) -> Option<&mut BufferedServerEventSet> {
+        self.buffer.last_mut()
+    }
+
+    fn insert(&mut self, mode: SendMode, channel: u8, message: SerializedMessage) {
+        let buffer = self
+            .active_tick()
+            .expect("`BufferedServerEvents::start_tick` should be called before buffering");
+
+        buffer.events.push(BufferedServerEvent {
+            mode,
+            channel,
+            message,
+        });
+    }
+
+    /// Used to prevent newly-connected clients from receiving old events.
+    pub(crate) fn exclude_client(&mut self, client: ClientId) {
+        for set in self.buffer.iter_mut() {
+            set.excluded.insert(client);
+        }
+    }
+
+    pub(crate) fn send_all(
+        &mut self,
+        server: &mut RepliconServer,
+        replicated_clients: &ReplicatedClients,
+    ) -> bincode::Result<()> {
+        for mut set in self.buffer.drain(..) {
+            for mut event in set.events.drain(..) {
+                match event.mode {
+                    SendMode::Broadcast => {
+                        for client in replicated_clients
+                            .iter()
+                            .filter(|c| !set.excluded.contains(&c.id()))
+                        {
+                            event.send(server, client)?;
+                        }
+                    }
+                    SendMode::BroadcastExcept(client_id) => {
+                        for client in replicated_clients
+                            .iter()
+                            .filter(|c| !set.excluded.contains(&c.id()))
+                        {
+                            if client.id() == client_id {
+                                continue;
+                            }
+                            event.send(server, client)?;
+                        }
+                    }
+                    SendMode::Direct(client_id) => {
+                        if client_id != ClientId::SERVER && !set.excluded.contains(&client_id) {
+                            if let Some(client) = replicated_clients.get_client(client_id) {
+                                event.send(server, client)?;
+                            }
+                        }
+                    }
+                }
+            }
+            set.clear();
+            self.cache.push(set);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn clear(&mut self) {
+        for mut set in self.buffer.drain(..) {
+            set.clear();
+            self.cache.push(set);
+        }
     }
 }
 

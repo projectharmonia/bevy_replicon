@@ -26,6 +26,7 @@ use crate::core::{
     common_conditions::{server_just_stopped, server_running},
     connected_clients::ConnectedClients,
     ctx::SerializeCtx,
+    event_registry::server_event::BufferedServerEvents,
     replicated_clients::{
         client_visibility::Visibility, ClientBuffers, ReplicatedClients, VisibilityPolicy,
     },
@@ -90,6 +91,7 @@ impl Plugin for ServerPlugin {
                 self.visibility_policy,
                 self.replicate_after_connect,
             ))
+            .init_resource::<BufferedServerEvents>()
             .add_event::<ServerEvent>()
             .add_event::<StartReplication>()
             .configure_sets(
@@ -177,6 +179,7 @@ impl ServerPlugin {
         mut replicated_clients: ResMut<ReplicatedClients>,
         mut server: ResMut<RepliconServer>,
         mut client_buffers: ResMut<ClientBuffers>,
+        mut buffered_events: ResMut<BufferedServerEvents>,
         mut enable_replication: EventWriter<StartReplication>,
     ) {
         for event in server_events.read() {
@@ -192,6 +195,7 @@ impl ServerPlugin {
                     if replicated_clients.replicate_after_connect() {
                         enable_replication.send(StartReplication(client_id));
                     }
+                    buffered_events.exclude_client(client_id);
                 }
             }
         }
@@ -305,10 +309,12 @@ impl ServerPlugin {
         mut entity_map: ResMut<ClientEntityMap>,
         mut replicated_clients: ResMut<ReplicatedClients>,
         mut client_buffers: ResMut<ClientBuffers>,
+        mut buffered_events: ResMut<BufferedServerEvents>,
     ) {
         *server_tick = Default::default();
         entity_map.0.clear();
         replicated_clients.clear(&mut client_buffers);
+        buffered_events.clear();
     }
 }
 
