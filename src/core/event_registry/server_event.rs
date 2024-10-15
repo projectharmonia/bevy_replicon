@@ -667,8 +667,7 @@ unsafe fn serialize_with_padding<E: Event>(
     ctx: &mut ServerSendCtx,
     event: &E,
 ) -> bincode::Result<SerializedMessage> {
-    let bytes = Vec::with_capacity(128);
-    let mut cursor = Cursor::new(bytes);
+    let mut cursor = Cursor::new(Vec::new());
     let padding = [0u8; RepliconTick::MAX_SERIALIZED_SIZE];
     cursor.write_all(&padding)?;
     event_data.serialize(ctx, event, &mut cursor)?;
