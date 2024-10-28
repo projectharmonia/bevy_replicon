@@ -322,7 +322,7 @@ necessary components after replication. To avoid one frame delay, put
 your initialization systems in [`ClientSet::Receive`]:
 
 ```
-# use bevy::{color::palettes::css::AZURE, prelude::*, sprite::Mesh2dHandle};
+# use bevy::{color::palettes::css::AZURE, prelude::*};
 # use bevy_replicon::prelude::*;
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
@@ -334,16 +334,13 @@ app.replicate::<Transform>()
 fn init_player(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
     // Infer that the player was just added by the fact it's missing `GlobalTransform`.
     players: Query<Entity, (With<Player>, Without<GlobalTransform>)>,
 ) {
     for entity in &players {
         commands.entity(entity).insert((
             GlobalTransform::default(),
-            VisibilityBundle::default(),
-            Mesh2dHandle(meshes.add(Capsule2d::default())),
-            materials.add(Color::from(AZURE)),
+            Mesh2d(meshes.add(Capsule2d::default())),
         ));
     }
 }

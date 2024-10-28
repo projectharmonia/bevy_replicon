@@ -117,7 +117,7 @@ pub trait ServerEventAppExt {
     }
 
     #[derive(Event)]
-    struct ReflectEvent(Box<dyn Reflect>);
+    struct ReflectEvent(Box<dyn PartialReflect>);
     ```
     */
     fn add_server_event_with<E: Event>(

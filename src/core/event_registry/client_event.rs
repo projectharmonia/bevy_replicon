@@ -110,7 +110,7 @@ pub trait ClientEventAppExt {
     }
 
     #[derive(Event)]
-    struct ReflectEvent(Box<dyn Reflect>);
+    struct ReflectEvent(Box<dyn PartialReflect>);
     ```
     */
     fn add_client_event_with<E: Event>(
