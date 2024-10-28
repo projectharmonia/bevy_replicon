@@ -181,7 +181,7 @@ fn mapped_new_entity() {
         .world_mut()
         .query::<&MappedComponent>()
         .single(client_app.world());
-    assert!(client_app.world().get_entity(mapped_component.0).is_some());
+    assert!(client_app.world().get_entity(mapped_component.0).is_ok());
     assert_eq!(client_app.world().entities().len(), 2);
 }
 

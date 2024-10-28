@@ -118,7 +118,7 @@ impl ReplicationRegistry {
     /// If a [`ComponentFns`] has already been created for this component,
     /// then it returns its index instead of creating a new one.
     fn init_component_fns<C: Component>(&mut self, world: &mut World) -> (usize, ComponentId) {
-        let component_id = world.init_component::<C>();
+        let component_id = world.register_component::<C>();
         let index = self
             .components
             .iter()

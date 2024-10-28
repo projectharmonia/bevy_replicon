@@ -125,7 +125,7 @@ impl AppMarkerExt for App {
     }
 
     fn register_marker_with<M: Component>(&mut self, config: MarkerConfig) -> &mut Self {
-        let component_id = self.world_mut().init_component::<M>();
+        let component_id = self.world_mut().register_component::<M>();
         let mut command_markers = self.world_mut().resource_mut::<CommandMarkers>();
         let marker_id = command_markers.insert(CommandMarker {
             component_id,
@@ -143,7 +143,7 @@ impl AppMarkerExt for App {
         write: WriteFn<C>,
         remove: RemoveFn,
     ) -> &mut Self {
-        let component_id = self.world_mut().init_component::<M>();
+        let component_id = self.world_mut().register_component::<M>();
         let command_markers = self.world().resource::<CommandMarkers>();
         let marker_id = command_markers.marker_id(component_id);
         self.world_mut()

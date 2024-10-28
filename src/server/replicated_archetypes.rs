@@ -95,7 +95,7 @@ impl ReplicatedArchetypes {
 impl FromWorld for ReplicatedArchetypes {
     fn from_world(world: &mut World) -> Self {
         Self {
-            marker_id: world.init_component::<Replicated>(),
+            marker_id: world.register_component::<Replicated>(),
             generation: ArchetypeGeneration::initial(),
             archetypes: Default::default(),
         }

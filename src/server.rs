@@ -489,9 +489,12 @@ unsafe fn get_component_unchecked<'w>(
 ) -> (Ptr<'w>, ComponentTicks) {
     match storage_type {
         StorageType::Table => {
-            let column = table.get_column(component_id).unwrap_unchecked();
-            let component = column.get_data_unchecked(entity.table_row());
-            let ticks = column.get_ticks_unchecked(entity.table_row());
+            let component: Ptr<'w> = table
+                .get_component(component_id, entity.table_row())
+                .unwrap_unchecked();
+            let ticks = table
+                .get_ticks_unchecked(component_id, entity.table_row())
+                .unwrap_unchecked();
 
             (component, ticks)
         }

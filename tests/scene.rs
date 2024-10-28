@@ -87,7 +87,7 @@ fn entity_update() {
 
     // Populate scene only with a single non-replicated component.
     let mut scene = DynamicSceneBuilder::from_world(app.world())
-        .allow::<OtherReflectedComponent>()
+        .allow_component::<OtherReflectedComponent>()
         .extract_entity(entity)
         .build();
 

@@ -94,7 +94,7 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
         let (component_fns, rule_fns) = registry.get(fns_info.fns_id());
         let mut cursor = Cursor::default();
         let ctx = SerializeCtx { server_tick };
-        let ptr = self.get_by_id(fns_info.component_id()).unwrap_or_else(|| {
+        let ptr = self.get_by_id(fns_info.component_id()).unwrap_or_else(|_| {
             let components = self.world().components();
             let component_name = components
                 .get_name(fns_info.component_id())

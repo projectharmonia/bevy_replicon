@@ -288,7 +288,7 @@ fn apply_entity_mappings(
         let server_entity = deserialize_entity(cursor)?;
         let client_entity = deserialize_entity(cursor)?;
 
-        if let Some(mut entity) = world.get_entity_mut(client_entity) {
+        if let Ok(mut entity) = world.get_entity_mut(client_entity) {
             debug!("received mapping from {server_entity:?} to {client_entity:?}");
             entity.insert(Replicated);
             params.entity_map.insert(server_entity, client_entity);
@@ -389,10 +389,14 @@ fn apply_despawns(
         // with the last replication message, but the server might not yet have received confirmation
         // from the client and could include the deletion in the this message.
         let server_entity = deserialize_entity(cursor)?;
-        if let Some(client_entity) = params
-            .entity_map
-            .remove_by_server(server_entity)
-            .and_then(|entity| world.get_entity_mut(entity))
+        if let Some(client_entity) =
+            params
+                .entity_map
+                .remove_by_server(server_entity)
+                .and_then(|entity| match world.get_entity_mut(entity) {
+                    Ok(entity) => Some(entity),
+                    Err(_) => None,
+                })
         {
             let ctx = DespawnCtx { message_tick };
             (params.registry.despawn)(&ctx, client_entity);

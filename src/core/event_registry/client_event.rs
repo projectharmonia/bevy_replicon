@@ -8,7 +8,7 @@ use bevy::{
     ecs::{
         component::{ComponentId, Components},
         entity::MapEntities,
-        event::ManualEventReader,
+        event::EventCursor,
     },
     prelude::*,
     ptr::{Ptr, PtrMut},
@@ -437,12 +437,12 @@ unsafe fn reset<E: Event>(events: PtrMut) {
 ///
 /// Unlike with server events, we don't always drain all events in [`ClientEventPlugin::resend_locally`].
 #[derive(Resource, Deref, DerefMut)]
-struct ClientEventReader<E: Event>(ManualEventReader<E>);
+struct ClientEventReader<E: Event>(EventCursor<E>);
 
 impl<E: Event> FromWorld for ClientEventReader<E> {
     fn from_world(world: &mut World) -> Self {
         let events = world.resource::<Events<E>>();
-        Self(events.get_reader())
+        Self(events.get_cursor())
     }
 }
 
