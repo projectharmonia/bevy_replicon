@@ -96,7 +96,7 @@ pub trait ClientEventAppExt {
         event: &ReflectEvent,
         cursor: &mut Cursor<Vec<u8>>,
     ) -> bincode::Result<()> {
-        let serializer = ReflectSerializer::new(&*event.0, ctx.registry);
+        let serializer = ReflectSerializer::new(&*event.0.as_partial_reflect(), ctx.registry);
         DefaultOptions::new().serialize_into(cursor, &serializer)
     }
 
@@ -106,11 +106,11 @@ pub trait ClientEventAppExt {
     ) -> bincode::Result<ReflectEvent> {
         let mut deserializer = bincode::Deserializer::with_reader(cursor, DefaultOptions::new());
         let reflect = ReflectDeserializer::new(ctx.registry).deserialize(&mut deserializer)?;
-        Ok(ReflectEvent(reflect))
+        Ok(ReflectEvent(reflect.try_into_reflect().unwrap()))
     }
 
     #[derive(Event)]
-    struct ReflectEvent(Box<dyn PartialReflect>);
+    struct ReflectEvent(Box<dyn Reflect>);
     ```
     */
     fn add_client_event_with<E: Event>(
