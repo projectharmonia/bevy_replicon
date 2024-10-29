@@ -339,7 +339,6 @@ fn init_player(
 ) {
     for entity in &players {
         commands.entity(entity).insert((
-            GlobalTransform::default(),
             Mesh2d(meshes.add(Capsule2d::default())),
         ));
     }
