@@ -157,8 +157,6 @@ impl ServerEventAppExt for App {
         serialize: SerializeFn<E>,
         deserialize: DeserializeFn<E>,
     ) -> &mut Self {
-        debug!("registering server event `{}`", any::type_name::<E>());
-
         self.add_event::<E>()
             .add_event::<ToClients<E>>()
             .init_resource::<ServerEventQueue<E>>();
@@ -167,6 +165,11 @@ impl ServerEventAppExt for App {
             .world_mut()
             .resource_mut::<RepliconChannels>()
             .create_server_channel(channel.into());
+
+        debug!(
+            "registering server event `{}` with ID {channel_id}",
+            any::type_name::<E>()
+        );
 
         self.world_mut()
             .resource_scope(|world, mut event_registry: Mut<EventRegistry>| {

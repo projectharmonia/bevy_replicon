@@ -128,8 +128,6 @@ impl ClientEventAppExt for App {
         serialize: SerializeFn<E>,
         deserialize: DeserializeFn<E>,
     ) -> &mut Self {
-        debug!("registering client event `{}`", any::type_name::<E>());
-
         self.add_event::<E>()
             .add_event::<FromClient<E>>()
             .init_resource::<ClientEventReader<E>>();
@@ -138,6 +136,11 @@ impl ClientEventAppExt for App {
             .world_mut()
             .resource_mut::<RepliconChannels>()
             .create_client_channel(channel.into());
+
+        debug!(
+            "registering client event `{}` with ID {channel_id}",
+            any::type_name::<E>()
+        );
 
         self.world_mut()
             .resource_scope(|world, mut event_registry: Mut<EventRegistry>| {
