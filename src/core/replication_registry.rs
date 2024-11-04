@@ -23,7 +23,7 @@ pub struct ReplicationRegistry {
     /// Functions for replicated components.
     ///
     /// Unique for each component.
-    components: Vec<(ComponentFns, ComponentId)>,
+    components: Vec<(ComponentId, ComponentFns)>,
 
     /// Serialization/deserialization functions for a component and
     /// the component's index in [`Self::components`].
@@ -45,7 +45,7 @@ impl ReplicationRegistry {
     /// [`CommandMarkers::insert`](super::command_markers::CommandMarkers::insert)
     pub(super) fn register_marker(&mut self, marker_id: CommandMarkerIndex) {
         self.marker_slots += 1;
-        for (command_fns, _) in &mut self.components {
+        for (_, command_fns) in &mut self.components {
             command_fns.add_marker_slot(marker_id);
         }
     }
@@ -67,7 +67,7 @@ impl ReplicationRegistry {
         remove: RemoveFn,
     ) {
         let (index, _) = self.init_component_fns::<C>(world);
-        let (component_fns, _) = &mut self.components[index];
+        let (_, component_fns) = &mut self.components[index];
         let command_fns = UntypedCommandFns::new(write, remove);
 
         // SAFETY: `component_fns` and `command_fns` were created for `C`.
@@ -86,7 +86,7 @@ impl ReplicationRegistry {
         remove: RemoveFn,
     ) {
         let (index, _) = self.init_component_fns::<C>(world);
-        let (component_fns, _) = &mut self.components[index];
+        let (_, component_fns) = &mut self.components[index];
         let command_fns = UntypedCommandFns::new(write, remove);
 
         // SAFETY: `component_fns` and `command_fns` were created for `C`.
@@ -122,10 +122,10 @@ impl ReplicationRegistry {
         let index = self
             .components
             .iter()
-            .position(|&(_, id)| id == component_id)
+            .position(|&(id, _)| id == component_id)
             .unwrap_or_else(|| {
                 self.components
-                    .push((ComponentFns::new::<C>(self.marker_slots), component_id));
+                    .push((component_id, ComponentFns::new::<C>(self.marker_slots)));
                 self.components.len() - 1
             });
 
@@ -142,7 +142,7 @@ impl ReplicationRegistry {
             .expect("serde function IDs should be obtained from the same instance");
 
         // SAFETY: index obtained from `rules` is always valid.
-        let (command_fns, _) = unsafe { self.components.get_unchecked(*index) };
+        let (_, command_fns) = unsafe { self.components.get_unchecked(*index) };
 
         (command_fns, rule_fns)
     }
