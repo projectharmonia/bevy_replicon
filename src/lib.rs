@@ -426,7 +426,7 @@ fn send_events(mut dummy_events: EventWriter<DummyEvent>) {
 
 fn receive_events(mut dummy_events: EventReader<FromClient<DummyEvent>>) {
     for FromClient { client_id, event } in dummy_events.read() {
-        info!("received event {event:?} from {client_id}");
+        info!("received event {event:?} from {client_id:?}");
     }
 }
 

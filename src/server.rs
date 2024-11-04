@@ -243,7 +243,7 @@ impl ServerPlugin {
                             update_index,
                         );
                     }
-                    Err(e) => debug!("unable to deserialize update index from {client_id}: {e}"),
+                    Err(e) => debug!("unable to deserialize update index from {client_id:?}: {e}"),
                 }
             }
         }
