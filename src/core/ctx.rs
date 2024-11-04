@@ -1,4 +1,4 @@
-use bevy::{prelude::*, reflect::TypeRegistry};
+use bevy::{ecs::component::ComponentId, prelude::*, reflect::TypeRegistry};
 
 use super::{replicon_tick::RepliconTick, server_entity_map::ServerEntityMap, Replicated};
 
@@ -7,6 +7,9 @@ use super::{replicon_tick::RepliconTick, server_entity_map::ServerEntityMap, Rep
 pub struct SerializeCtx {
     /// Current tick.
     pub server_tick: RepliconTick,
+
+    /// ID of the serializing component.
+    pub component_id: ComponentId,
 }
 
 /// Replication context for writing and deserialization.
@@ -17,6 +20,9 @@ pub struct WriteCtx<'a, 'w, 's> {
 
     /// Maps server entities to client entities and vice versa.
     pub entity_map: &'a mut ServerEntityMap,
+
+    /// ID of the writing component.
+    pub component_id: ComponentId,
 
     /// Tick for the currently processing message.
     pub message_tick: RepliconTick,
@@ -29,11 +35,13 @@ impl<'a, 'w, 's> WriteCtx<'a, 'w, 's> {
     pub(crate) fn new(
         commands: &'a mut Commands<'w, 's>,
         entity_map: &'a mut ServerEntityMap,
+        component_id: ComponentId,
         message_tick: RepliconTick,
     ) -> Self {
         Self {
             commands,
             entity_map,
+            component_id,
             message_tick,
             ignore_mapping: false,
         }
@@ -59,15 +67,9 @@ pub struct RemoveCtx<'a, 'w, 's> {
 
     /// Tick for the currently processing message.
     pub message_tick: RepliconTick,
-}
 
-impl<'a, 'w, 's> RemoveCtx<'a, 'w, 's> {
-    pub(crate) fn new(commands: &'a mut Commands<'w, 's>, message_tick: RepliconTick) -> Self {
-        Self {
-            commands,
-            message_tick,
-        }
-    }
+    /// ID of the removing component.
+    pub component_id: ComponentId,
 }
 
 /// Replication context for despawn.

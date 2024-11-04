@@ -338,10 +338,11 @@ fn apply_init_components(
         let mut components_len = 0u32;
         while cursor.position() < end_pos {
             let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
-            let (component_fns, rule_fns) = params.registry.get(fns_id);
+            let (component_id, component_fns, rule_fns) = params.registry.get(fns_id);
             match components_kind {
                 ComponentsKind::Insert => {
-                    let mut ctx = WriteCtx::new(&mut commands, params.entity_map, message_tick);
+                    let mut ctx =
+                        WriteCtx::new(&mut commands, params.entity_map, component_id, message_tick);
 
                     // SAFETY: `rule_fns` and `component_fns` were created for the same type.
                     unsafe {
@@ -355,7 +356,11 @@ fn apply_init_components(
                     }
                 }
                 ComponentsKind::Removal => {
-                    let mut ctx = RemoveCtx::new(&mut commands, message_tick);
+                    let mut ctx = RemoveCtx {
+                        commands: &mut commands,
+                        message_tick,
+                        component_id,
+                    };
                     component_fns.remove(&mut ctx, params.entity_markers, &mut client_entity);
                 }
             }
@@ -465,8 +470,9 @@ fn apply_update_components(
         let mut components_count = 0u32;
         while cursor.position() < end_pos {
             let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
-            let (component_fns, rule_fns) = params.registry.get(fns_id);
-            let mut ctx = WriteCtx::new(&mut commands, params.entity_map, message_tick);
+            let (component_id, component_fns, rule_fns) = params.registry.get(fns_id);
+            let mut ctx =
+                WriteCtx::new(&mut commands, params.entity_map, component_id, message_tick);
 
             // SAFETY: `rule_fns` and `component_fns` were created for the same type.
             unsafe {
