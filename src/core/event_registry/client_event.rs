@@ -393,13 +393,13 @@ unsafe fn receive<E: Event>(
         match event_data.deserialize(ctx, &mut cursor) {
             Ok(event) => {
                 trace!(
-                    "applying event `{}` from `{client_id:?}`",
+                    "applying event `{}` from `{client_id}`",
                     any::type_name::<E>()
                 );
                 events.send(FromClient { client_id, event });
             }
             Err(e) => debug!(
-                "ignoring event `{}` from {client_id:?} that failed to deserialize: {e}",
+                "ignoring event `{}` from {client_id} that failed to deserialize: {e}",
                 any::type_name::<E>()
             ),
         }

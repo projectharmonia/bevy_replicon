@@ -381,7 +381,7 @@ impl InitMessage {
 
         let slice = self.as_slice();
         if slice.is_empty() {
-            trace!("no init data to send for {:?}", client.id());
+            trace!("no init data to send for {}", client.id());
             return Ok(());
         }
 
@@ -390,7 +390,7 @@ impl InitMessage {
         let mut header = [0; mem::size_of::<RepliconTick>()];
         bincode::serialize_into(&mut header[..], &server_tick)?;
 
-        trace!("sending init message to {:?}", client.id());
+        trace!("sending init message to {}", client.id());
         server.send(
             client.id(),
             ReplicationChannel::Init,
@@ -561,11 +561,11 @@ impl UpdateMessage {
 
         let mut slice = self.as_slice();
         if slice.is_empty() {
-            trace!("no updates to send for {:?}", client.id());
+            trace!("no updates to send for {}", client.id());
             return Ok(());
         }
 
-        trace!("sending update message(s) to {:?}", client.id());
+        trace!("sending update message(s) to {}", client.id());
         const TICKS_SIZE: usize = 2 * mem::size_of::<RepliconTick>();
         let mut header = [0; TICKS_SIZE + mem::size_of::<u16>()];
         bincode::serialize_into(&mut header[..], &(client.init_tick(), server_tick))?;

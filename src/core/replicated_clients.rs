@@ -56,7 +56,7 @@ impl ReplicatedClients {
     /// Panics if the passed client ID is not connected.
     pub fn client(&self, client_id: ClientId) -> &ReplicatedClient {
         self.get_client(client_id)
-            .unwrap_or_else(|| panic!("{client_id:?} should be connected"))
+            .unwrap_or_else(|| panic!("{client_id} should be connected"))
     }
 
     /// Returns a mutable reference to a connected client.
@@ -69,7 +69,7 @@ impl ReplicatedClients {
     /// Panics if the passed client ID is not connected.
     pub fn client_mut(&mut self, client_id: ClientId) -> &mut ReplicatedClient {
         self.get_client_mut(client_id)
-            .unwrap_or_else(|| panic!("{client_id:?} should be connected"))
+            .unwrap_or_else(|| panic!("{client_id} should be connected"))
     }
 
     /// Returns a reference to a connected client.
@@ -120,11 +120,11 @@ impl ReplicatedClients {
     /// Reuses the memory from the buffers if available.
     pub(crate) fn add(&mut self, client_buffers: &mut ClientBuffers, client_id: ClientId) {
         if self.clients.iter().any(|client| client.id == client_id) {
-            warn!("ignoring attempt to start replication for `{client_id:?}` that already has replication enabled");
+            warn!("ignoring attempt to start replication for `{client_id}` that already has replication enabled");
             return;
         }
 
-        debug!("starting replication for `{client_id:?}`");
+        debug!("starting replication for `{client_id}`");
 
         let client = if let Some(mut client) = client_buffers.clients.pop() {
             client.reset(client_id);
@@ -150,7 +150,7 @@ impl ReplicatedClients {
             return;
         };
 
-        debug!("stopping replication for `{client_id:?}`");
+        debug!("stopping replication for `{client_id}`");
         let mut client = self.clients.remove(index);
         client_buffers.entities.extend(client.drain_entities());
         client_buffers.clients.push(client);
