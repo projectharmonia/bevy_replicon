@@ -91,9 +91,12 @@ pub trait TestFnsEntityExt {
 impl TestFnsEntityExt for EntityWorldMut<'_> {
     fn serialize(&mut self, fns_info: FnsInfo, server_tick: RepliconTick) -> Vec<u8> {
         let registry = self.world().resource::<ReplicationRegistry>();
-        let (component_fns, rule_fns) = registry.get(fns_info.fns_id());
+        let (component_id, component_fns, rule_fns) = registry.get(fns_info.fns_id());
         let mut cursor = Cursor::default();
-        let ctx = SerializeCtx { server_tick };
+        let ctx = SerializeCtx {
+            server_tick,
+            component_id,
+        };
         let ptr = self.get_by_id(fns_info.component_id()).unwrap_or_else(|| {
             let components = self.world().components();
             let component_name = components
@@ -133,9 +136,10 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
                     let mut commands =
                         Commands::new_from_entities(&mut queue, world_cell.entities());
 
-                    let (component_fns, rule_fns) = registry.get(fns_info.fns_id());
+                    let (component_id, component_fns, rule_fns) = registry.get(fns_info.fns_id());
                     let mut cursor = Cursor::new(data);
-                    let mut ctx = WriteCtx::new(&mut commands, &mut entity_map, message_tick);
+                    let mut ctx =
+                        WriteCtx::new(&mut commands, &mut entity_map, component_id, message_tick);
 
                     unsafe {
                         component_fns
@@ -172,8 +176,12 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
                 let mut queue = CommandQueue::default();
                 let mut commands = Commands::new_from_entities(&mut queue, world_cell.entities());
 
-                let (component_fns, _) = registry.get(fns_info.fns_id());
-                let mut ctx = RemoveCtx::new(&mut commands, message_tick);
+                let (component_id, component_fns, _) = registry.get(fns_info.fns_id());
+                let mut ctx = RemoveCtx {
+                    commands: &mut commands,
+                    message_tick,
+                    component_id,
+                };
 
                 component_fns.remove(&mut ctx, &entity_markers, &mut entity);
 

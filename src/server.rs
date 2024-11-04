@@ -406,8 +406,12 @@ fn collect_changes(
                     )
                 };
 
-                let (component_fns, rule_fns) = registry.get(replicated_component.fns_id);
-                let ctx = SerializeCtx { server_tick };
+                let (component_id, component_fns, rule_fns) =
+                    registry.get(replicated_component.fns_id);
+                let ctx = SerializeCtx {
+                    server_tick,
+                    component_id,
+                };
                 let mut shared_bytes = None;
                 for (init_message, update_message, client) in messages.iter_mut_with_clients() {
                     let visibility = client.visibility().cached_visibility();

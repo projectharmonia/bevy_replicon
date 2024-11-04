@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.28.4] - 2024-10-15
 
+### Added
+
+- `ComponentId` to all component-related contexts.
+
 ### Fixed
 
 - Synchronize server events with init messages properly when `ServerTick` is not updated every app tick.

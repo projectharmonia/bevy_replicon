@@ -135,16 +135,16 @@ impl ReplicationRegistry {
     /// Returns associates functions.
     ///
     /// See also [`Self::register_rule_fns`].
-    pub(crate) fn get(&self, fns_id: FnsId) -> (&ComponentFns, &UntypedRuleFns) {
+    pub(crate) fn get(&self, fns_id: FnsId) -> (ComponentId, &ComponentFns, &UntypedRuleFns) {
         let (rule_fns, index) = self
             .rules
             .get(fns_id.0)
             .expect("serde function IDs should be obtained from the same instance");
 
         // SAFETY: index obtained from `rules` is always valid.
-        let (_, command_fns) = unsafe { self.components.get_unchecked(*index) };
+        let (component_id, command_fns) = unsafe { self.components.get_unchecked(*index) };
 
-        (command_fns, rule_fns)
+        (*component_id, command_fns, rule_fns)
     }
 }
 
