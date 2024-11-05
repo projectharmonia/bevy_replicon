@@ -5,11 +5,11 @@ use super::{replicon_tick::RepliconTick, server_entity_map::ServerEntityMap, Rep
 /// Replication context for serialization function.
 #[non_exhaustive]
 pub struct SerializeCtx {
-    /// Current tick.
-    pub server_tick: RepliconTick,
-
     /// ID of the serializing component.
     pub component_id: ComponentId,
+
+    /// Current tick.
+    pub server_tick: RepliconTick,
 }
 
 /// Replication context for writing and deserialization.
@@ -65,11 +65,11 @@ pub struct RemoveCtx<'a, 'w, 's> {
     /// A queue to perform structural changes to the [`World`].
     pub commands: &'a mut Commands<'w, 's>,
 
-    /// Tick for the currently processing message.
-    pub message_tick: RepliconTick,
-
     /// ID of the removing component.
     pub component_id: ComponentId,
+
+    /// Tick for the currently processing message.
+    pub message_tick: RepliconTick,
 }
 
 /// Replication context for despawn.
