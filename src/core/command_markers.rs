@@ -51,6 +51,7 @@ pub trait AppMarkerExt {
     use bevy_replicon::{
         core::{
             command_markers::MarkerConfig,
+            deferred_entity::DeferredEntity,
             ctx::{RemoveCtx, WriteCtx},
             replication_registry::rule_fns::RuleFns,
             replicon_tick::RepliconTick,
@@ -70,7 +71,7 @@ pub trait AppMarkerExt {
     fn write_history<C: Component>(
         ctx: &mut WriteCtx,
         rule_fns: &RuleFns<C>,
-        entity: &mut EntityMut,
+        entity: &mut DeferredEntity,
         cursor: &mut Cursor<&[u8]>,
     ) -> bincode::Result<()> {
         let component: C = rule_fns.deserialize(ctx, cursor)?;
@@ -86,7 +87,7 @@ pub trait AppMarkerExt {
     }
 
     /// Removes component `C` and its history.
-    fn remove_history<C: Component>(ctx: &mut RemoveCtx, entity: &mut EntityMut) {
+    fn remove_history<C: Component>(ctx: &mut RemoveCtx, entity: &mut DeferredEntity) {
         ctx.commands.entity(entity.id()).remove::<History<C>>().remove::<C>();
     }
 

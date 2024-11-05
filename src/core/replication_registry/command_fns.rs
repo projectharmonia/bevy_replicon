@@ -7,7 +7,10 @@ use std::{
 use bevy::prelude::*;
 
 use super::rule_fns::RuleFns;
-use crate::core::ctx::{RemoveCtx, WriteCtx};
+use crate::core::{
+    ctx::{RemoveCtx, WriteCtx},
+    deferred_entity::DeferredEntity,
+};
 
 /// Writing and removal functions for a component, like [`Commands`].
 #[derive(Clone, Copy)]
@@ -45,7 +48,7 @@ impl UntypedCommandFns {
         &self,
         ctx: &mut WriteCtx,
         rule_fns: &RuleFns<C>,
-        entity: &mut EntityMut,
+        entity: &mut DeferredEntity,
         cursor: &mut Cursor<&[u8]>,
     ) -> bincode::Result<()> {
         debug_assert_eq!(
@@ -61,17 +64,17 @@ impl UntypedCommandFns {
     }
 
     /// Calls the assigned removal function.
-    pub(super) fn remove(&self, ctx: &mut RemoveCtx, entity: &mut EntityMut) {
+    pub(super) fn remove(&self, ctx: &mut RemoveCtx, entity: &mut DeferredEntity) {
         (self.remove)(ctx, entity);
     }
 }
 
 /// Signature of component writing function.
 pub type WriteFn<C> =
-    fn(&mut WriteCtx, &RuleFns<C>, &mut EntityMut, &mut Cursor<&[u8]>) -> bincode::Result<()>;
+    fn(&mut WriteCtx, &RuleFns<C>, &mut DeferredEntity, &mut Cursor<&[u8]>) -> bincode::Result<()>;
 
 /// Signature of component removal functions.
-pub type RemoveFn = fn(&mut RemoveCtx, &mut EntityMut);
+pub type RemoveFn = fn(&mut RemoveCtx, &mut DeferredEntity);
 
 /// Default component writing function.
 ///
@@ -80,7 +83,7 @@ pub type RemoveFn = fn(&mut RemoveCtx, &mut EntityMut);
 pub fn default_write<C: Component>(
     ctx: &mut WriteCtx,
     rule_fns: &RuleFns<C>,
-    entity: &mut EntityMut,
+    entity: &mut DeferredEntity,
     cursor: &mut Cursor<&[u8]>,
 ) -> bincode::Result<()> {
     if let Some(mut component) = entity.get_mut::<C>() {
@@ -94,6 +97,6 @@ pub fn default_write<C: Component>(
 }
 
 /// Default component removal function.
-pub fn default_remove<C: Component>(ctx: &mut RemoveCtx, entity: &mut EntityMut) {
+pub fn default_remove<C: Component>(ctx: &mut RemoveCtx, entity: &mut DeferredEntity) {
     ctx.commands.entity(entity.id()).remove::<C>();
 }

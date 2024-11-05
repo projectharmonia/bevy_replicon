@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `ComponentId` to all component-related contexts.
 
+### Changed
+
+- All custom functions now accept the newly added `DeferredEntity` instead of `EntityMut`. This new entity type provides read-only access to the world.
+
 ### Fixed
 
 - Synchronize server events with init messages properly when `ServerTick` is not updated every app tick.

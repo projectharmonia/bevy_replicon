@@ -6,6 +6,7 @@ use bevy_replicon::{
     core::{
         command_markers::MarkerConfig,
         ctx::WriteCtx,
+        deferred_entity::DeferredEntity,
         replication_registry::{command_fns, rule_fns::RuleFns},
         server_entity_map::ServerEntityMap,
     },
@@ -905,7 +906,7 @@ struct BoolHistory(Vec<bool>);
 fn replace(
     ctx: &mut WriteCtx,
     rule_fns: &RuleFns<OriginalComponent>,
-    entity: &mut EntityMut,
+    entity: &mut DeferredEntity,
     cursor: &mut Cursor<&[u8]>,
 ) -> bincode::Result<()> {
     let component = rule_fns.deserialize(ctx, cursor)?;
@@ -920,7 +921,7 @@ fn replace(
 fn write_history(
     ctx: &mut WriteCtx,
     rule_fns: &RuleFns<BoolComponent>,
-    entity: &mut EntityMut,
+    entity: &mut DeferredEntity,
     cursor: &mut Cursor<&[u8]>,
 ) -> bincode::Result<()> {
     let component = rule_fns.deserialize(ctx, cursor)?;
