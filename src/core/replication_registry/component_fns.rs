@@ -6,6 +6,7 @@ use super::{command_fns::UntypedCommandFns, rule_fns::UntypedRuleFns};
 use crate::core::{
     command_markers::{CommandMarkerIndex, CommandMarkers, EntityMarkers},
     ctx::{RemoveCtx, SerializeCtx, WriteCtx},
+    deferred_entity::DeferredEntity,
 };
 
 /// Type-erased functions for a component.
@@ -103,7 +104,7 @@ impl ComponentFns {
         ctx: &mut WriteCtx,
         rule_fns: &UntypedRuleFns,
         entity_markers: &EntityMarkers,
-        entity: &mut EntityMut,
+        entity: &mut DeferredEntity,
         cursor: &mut Cursor<&[u8]>,
     ) -> bincode::Result<()> {
         let command_fns = self
@@ -131,7 +132,7 @@ impl ComponentFns {
         rule_fns: &UntypedRuleFns,
         entity_markers: &EntityMarkers,
         command_markers: &CommandMarkers,
-        entity: &mut EntityMut,
+        entity: &mut DeferredEntity,
         cursor: &mut Cursor<&[u8]>,
     ) -> bincode::Result<()> {
         if let Some(command_fns) = self
@@ -154,7 +155,7 @@ impl ComponentFns {
         &self,
         ctx: &mut RemoveCtx,
         entity_markers: &EntityMarkers,
-        entity: &mut EntityMut,
+        entity: &mut DeferredEntity,
     ) {
         let command_fns = self
             .markers
@@ -177,7 +178,7 @@ type UntypedWriteFn = unsafe fn(
     &mut WriteCtx,
     &UntypedCommandFns,
     &UntypedRuleFns,
-    &mut EntityMut,
+    &mut DeferredEntity,
     &mut Cursor<&[u8]>,
 ) -> bincode::Result<()>;
 
@@ -209,7 +210,7 @@ unsafe fn untyped_write<C: Component>(
     ctx: &mut WriteCtx,
     command_fns: &UntypedCommandFns,
     rule_fns: &UntypedRuleFns,
-    entity: &mut EntityMut,
+    entity: &mut DeferredEntity,
     cursor: &mut Cursor<&[u8]>,
 ) -> bincode::Result<()> {
     command_fns.write::<C>(ctx, &rule_fns.typed::<C>(), entity, cursor)

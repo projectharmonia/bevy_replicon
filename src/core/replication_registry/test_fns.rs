@@ -6,6 +6,7 @@ use super::{FnsInfo, ReplicationRegistry};
 use crate::core::{
     command_markers::{CommandMarkers, EntityMarkers},
     ctx::{DespawnCtx, RemoveCtx, SerializeCtx, WriteCtx},
+    deferred_entity::DeferredEntity,
     replicon_tick::RepliconTick,
     server_entity_map::ServerEntityMap,
 };
@@ -129,9 +130,8 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
             world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
                 world.resource_scope(|world, registry: Mut<ReplicationRegistry>| {
                     let world_cell = world.as_unsafe_world_cell();
-                    // SAFETY: access is unique and used to obtain `EntityMut`, which is just a wrapper over `UnsafeEntityCell`.
-                    let mut entity: EntityMut =
-                        unsafe { world_cell.world_mut().entity_mut(entity).into() };
+                    // SAFETY: have write access and the cell used only to get entities.
+                    let mut entity = unsafe { DeferredEntity::new(world_cell, entity) };
                     let mut queue = CommandQueue::default();
                     let mut commands =
                         Commands::new_from_entities(&mut queue, world_cell.entities());
@@ -170,9 +170,8 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
         self.world_scope(|world| {
             world.resource_scope(|world, registry: Mut<ReplicationRegistry>| {
                 let world_cell = world.as_unsafe_world_cell();
-                // SAFETY: access is unique and used to obtain `EntityMut`, which is just a wrapper over `UnsafeEntityCell`.
-                let mut entity: EntityMut =
-                    unsafe { world_cell.world_mut().entity_mut(entity).into() };
+                // SAFETY: have write access and the cell used only to get entities.
+                let mut entity = unsafe { DeferredEntity::new(world_cell, entity) };
                 let mut queue = CommandQueue::default();
                 let mut commands = Commands::new_from_entities(&mut queue, world_cell.entities());
 

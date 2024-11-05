@@ -15,6 +15,7 @@ use crate::core::{
     command_markers::{CommandMarkers, EntityMarkers},
     common_conditions::{client_connected, client_just_connected, client_just_disconnected},
     ctx::{DespawnCtx, RemoveCtx, WriteCtx},
+    deferred_entity::DeferredEntity,
     replication_registry::ReplicationRegistry,
     replicon_client::RepliconClient,
     replicon_tick::RepliconTick,
@@ -318,13 +319,12 @@ fn apply_init_components(
             .get_by_server_or_insert(server_entity, || world.spawn(Replicated).id());
 
         let world_cell = world.as_unsafe_world_cell();
-        // SAFETY: access is unique and used to obtain `EntityMut`, which is just a wrapper over `UnsafeEntityCell`.
-        let mut client_entity: EntityMut =
-            unsafe { world_cell.world_mut().entity_mut(client_entity).into() };
+        // SAFETY: have write access and the cell used only to get entities.
+        let mut client_entity = unsafe { DeferredEntity::new(world_cell, client_entity) };
         let mut commands = Commands::new_from_entities(params.queue, world_cell.entities());
         params
             .entity_markers
-            .read(params.command_markers, &client_entity);
+            .read(params.command_markers, &*client_entity);
 
         if let Some(mut history) = client_entity.get_mut::<ConfirmHistory>() {
             history.set_last_tick(message_tick);
@@ -429,13 +429,12 @@ fn apply_update_components(
         };
 
         let world_cell = world.as_unsafe_world_cell();
-        // SAFETY: access is unique and used to obtain `EntityMut`, which is just a wrapper over `UnsafeEntityCell`.
-        let mut client_entity: EntityMut =
-            unsafe { world_cell.world_mut().entity_mut(client_entity).into() };
+        // SAFETY: have write access and the cell used only to get entities.
+        let mut client_entity = unsafe { DeferredEntity::new(world_cell, client_entity) };
         let mut commands = Commands::new_from_entities(params.queue, world_cell.entities());
         params
             .entity_markers
-            .read(params.command_markers, &client_entity);
+            .read(params.command_markers, &*client_entity);
 
         let mut history = client_entity
             .get_mut::<ConfirmHistory>()
