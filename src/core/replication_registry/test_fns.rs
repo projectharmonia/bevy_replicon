@@ -6,6 +6,7 @@ use super::{FnsInfo, ReplicationRegistry};
 use crate::core::{
     command_markers::{CommandMarkers, EntityMarkers},
     ctx::{DespawnCtx, RemoveCtx, SerializeCtx, WriteCtx},
+    deferred_entity::DeferredEntity,
     replicon_tick::RepliconTick,
     server_entity_map::ServerEntityMap,
 };
@@ -91,9 +92,12 @@ pub trait TestFnsEntityExt {
 impl TestFnsEntityExt for EntityWorldMut<'_> {
     fn serialize(&mut self, fns_info: FnsInfo, server_tick: RepliconTick) -> Vec<u8> {
         let registry = self.world().resource::<ReplicationRegistry>();
-        let (component_fns, rule_fns) = registry.get(fns_info.fns_id());
+        let (component_id, component_fns, rule_fns) = registry.get(fns_info.fns_id());
         let mut cursor = Cursor::default();
-        let ctx = SerializeCtx { server_tick };
+        let ctx = SerializeCtx {
+            server_tick,
+            component_id,
+        };
         let ptr = self.get_by_id(fns_info.component_id()).unwrap_or_else(|_| {
             let components = self.world().components();
             let component_name = components
@@ -126,16 +130,16 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
             world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
                 world.resource_scope(|world, registry: Mut<ReplicationRegistry>| {
                     let world_cell = world.as_unsafe_world_cell();
-                    // SAFETY: access is unique and used to obtain `EntityMut`, which is just a wrapper over `UnsafeEntityCell`.
-                    let mut entity: EntityMut =
-                        unsafe { world_cell.world_mut().entity_mut(entity).into() };
+                    // SAFETY: have write access and the cell used only to get entities.
+                    let mut entity = unsafe { DeferredEntity::new(world_cell, entity) };
                     let mut queue = CommandQueue::default();
                     let mut commands =
                         Commands::new_from_entities(&mut queue, world_cell.entities());
 
-                    let (component_fns, rule_fns) = registry.get(fns_info.fns_id());
+                    let (component_id, component_fns, rule_fns) = registry.get(fns_info.fns_id());
                     let mut cursor = Cursor::new(data);
-                    let mut ctx = WriteCtx::new(&mut commands, &mut entity_map, message_tick);
+                    let mut ctx =
+                        WriteCtx::new(&mut commands, &mut entity_map, component_id, message_tick);
 
                     unsafe {
                         component_fns
@@ -166,14 +170,17 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
         self.world_scope(|world| {
             world.resource_scope(|world, registry: Mut<ReplicationRegistry>| {
                 let world_cell = world.as_unsafe_world_cell();
-                // SAFETY: access is unique and used to obtain `EntityMut`, which is just a wrapper over `UnsafeEntityCell`.
-                let mut entity: EntityMut =
-                    unsafe { world_cell.world_mut().entity_mut(entity).into() };
+                // SAFETY: have write access and the cell used only to get entities.
+                let mut entity = unsafe { DeferredEntity::new(world_cell, entity) };
                 let mut queue = CommandQueue::default();
                 let mut commands = Commands::new_from_entities(&mut queue, world_cell.entities());
 
-                let (component_fns, _) = registry.get(fns_info.fns_id());
-                let mut ctx = RemoveCtx::new(&mut commands, message_tick);
+                let (component_id, component_fns, _) = registry.get(fns_info.fns_id());
+                let mut ctx = RemoveCtx {
+                    commands: &mut commands,
+                    message_tick,
+                    component_id,
+                };
 
                 component_fns.remove(&mut ctx, &entity_markers, &mut entity);
 

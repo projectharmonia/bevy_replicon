@@ -5,6 +5,7 @@ use bevy_replicon::{
     core::{
         command_markers::MarkerConfig,
         ctx::{DespawnCtx, WriteCtx},
+        deferred_entity::DeferredEntity,
         replication_registry::{
             command_fns, rule_fns::RuleFns, test_fns::TestFnsEntityExt, ReplicationRegistry,
         },
@@ -359,7 +360,7 @@ struct DummyMarker;
 fn replace(
     ctx: &mut WriteCtx,
     rule_fns: &RuleFns<OriginalComponent>,
-    entity: &mut EntityMut,
+    entity: &mut DeferredEntity,
     cursor: &mut Cursor<&[u8]>,
 ) -> bincode::Result<()> {
     rule_fns.deserialize(ctx, cursor)?;

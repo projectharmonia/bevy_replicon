@@ -2,10 +2,11 @@ use std::io::Cursor;
 
 use bevy::{ecs::entity::MapEntities, prelude::*};
 use bevy_replicon::{
-    core::server_entity_map::ServerEntityMap,
     core::{
         ctx::WriteCtx,
+        deferred_entity::DeferredEntity,
         replication_registry::{command_fns, rule_fns::RuleFns},
+        server_entity_map::ServerEntityMap,
     },
     prelude::*,
     test_app::ServerTestAppExt,
@@ -534,7 +535,7 @@ struct ReplacedComponent;
 fn replace(
     ctx: &mut WriteCtx,
     rule_fns: &RuleFns<OriginalComponent>,
-    entity: &mut EntityMut,
+    entity: &mut DeferredEntity,
     cursor: &mut Cursor<&[u8]>,
 ) -> bincode::Result<()> {
     rule_fns.deserialize(ctx, cursor)?;

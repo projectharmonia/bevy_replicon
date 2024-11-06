@@ -4,6 +4,7 @@ use bevy::prelude::*;
 use bevy_replicon::{
     core::{
         ctx::WriteCtx,
+        deferred_entity::DeferredEntity,
         replication_registry::{command_fns, rule_fns::RuleFns},
     },
     prelude::*,
@@ -371,7 +372,7 @@ struct ReplacedComponent;
 fn replace(
     ctx: &mut WriteCtx,
     rule_fns: &RuleFns<OriginalComponent>,
-    entity: &mut EntityMut,
+    entity: &mut DeferredEntity,
     cursor: &mut Cursor<&[u8]>,
 ) -> bincode::Result<()> {
     rule_fns.deserialize(ctx, cursor)?;
