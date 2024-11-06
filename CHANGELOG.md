@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.28.4] - 2024-10-15
 
+### Changed
+
+- `Replicated` component is no longer automatically inserted after replication. Use `#[requires(Replicated)]` to opt-in the insertion.
+
 ### Added
 
 - `ComponentId` to all component-related contexts.
