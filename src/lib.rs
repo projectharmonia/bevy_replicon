@@ -69,11 +69,11 @@ app.add_plugins((
 
 fn spawn_entities(mut commands: Commands) {
     // All entities with `Replicated` marker will be automatically replicated.
+    // The `Replicated` marked as required for `Player`, so you don't have to insert it explicitly.
     commands.spawn((
-        Replicated,
+        Player,
         Health(100),
         Transform::default(),
-        Player,
         NotReplicatedComponent, // This component will be ignored since it's not replicated for replication.
     ));
 
@@ -120,6 +120,7 @@ fn show_message(mut message_events: EventReader<MessageEvent>) {
 struct Health(u32);
 
 #[derive(Component, Serialize, Deserialize)]
+#[requires(Replicated)] // Automatically replicate all entities with `Player` component.
 struct Player;
 
 #[derive(Component)]
@@ -268,6 +269,7 @@ Use [`AppRuleExt::replicate()`] to enable replication for a component:
 app.replicate::<DummyComponent>();
 
 #[derive(Component, Deserialize, Serialize)]
+#[requires(Replicated)]
 struct DummyComponent;
 ```
 
@@ -308,18 +310,14 @@ If you want the server to replicate an entity into a client entity that was alre
 This can be useful for certain types of game. For example, spawning bullets on the client immediately without
 waiting on replication.
 
-### "Blueprints" pattern
+### Required components
 
-The idea was borrowed from [iyes_scene_tools](https://github.com/IyesGames/iyes_scene_tools#blueprints-pattern).
 You don't want to replicate all components because not all of them are
 necessary to send over the network. For example, components that are computed based on other
-components (like [`GlobalTransform`]) can be inserted after replication.
-This can be easily done using a system with query filter.
-This way, you detect when such entities are spawned into the world, and you can
-do any additional setup on them using code. For example, if you have a
-character with mesh, you can replicate only your `Player` and [`Transform`] components and insert
-necessary components after replication. To avoid one frame delay, put
-your initialization systems in [`ClientSet::Receive`]:
+can be automatically inserted after replication thanks to the Bevy's required components.
+For components that require world access you can create a special system that inserts such
+components after entity spawn. To avoid one frame delay, put your initialization systems
+in [`ClientSet::Receive`]:
 
 ```
 # use bevy::{color::palettes::css::AZURE, prelude::*};
@@ -327,15 +325,16 @@ your initialization systems in [`ClientSet::Receive`]:
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
+// Replicate only transform and player marker.
 app.replicate::<Transform>()
     .replicate::<Player>()
-    .add_systems(PreUpdate, init_player.after(ClientSet::Receive));
+    .add_systems(PreUpdate, init_player_mesh.after(ClientSet::Receive));
 
-fn init_player(
+fn init_player_mesh(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    // Infer that the player was just added by the fact it's missing `GlobalTransform`.
-    players: Query<Entity, (With<Player>, Without<GlobalTransform>)>,
+    // Infer that the player was just spawned by the fact it's missing `Mesh2d`.
+    players: Query<Entity, (With<Player>, Without<Mesh2d>)>,
 ) {
     for entity in &players {
         commands.entity(entity).insert((
@@ -344,26 +343,21 @@ fn init_player(
     }
 }
 
-/// Bundle to spawn a player.
+/// Main player component.
 ///
-/// All non-replicated components will be added inside [`init_player`]
-/// after spawn, replication or even deserialization from disk.
-#[derive(Bundle)]
-struct PlayerBundle {
-    player: Player,
-    transform: Transform,
-    replicated: Replicated,
-}
-
+/// All non-replicated components will be inserted after spawn.
 #[derive(Component, Deserialize, Serialize)]
+#[requires(Replicated, AnimationTransitions)]
 struct Player;
 ```
 
 This pairs nicely with server state serialization and keeps saves clean.
 You can use [`replicate_into`](scene::replicate_into) to
 fill [`DynamicScene`] with replicated entities and their components.
+On deserialization all required components and initialization system
+will restore the correct game state.
 
-**Performance note**: We used [`With<Player>`] and [`Without<GlobalTransform>`] to
+**Performance note**: We used [`With<Player>`] and [`Without<Mesh2d>`] to
 filter all non-initialized entities. It's possible to use [`Added`] / [`Changed`] too,
 but they aren't true archetype-level filters like [`With`] or [`Without`].
 See [the Bevy docs](https://docs.rs/bevy/latest/bevy/ecs/prelude/struct.Added.html#time-complexity)
@@ -570,6 +564,7 @@ fn update_visibility(
 }
 
 #[derive(Component, Deserialize, Serialize)]
+#[requires(Replicated)]
 struct Player(ClientId);
 ```
 
