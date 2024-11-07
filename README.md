@@ -54,7 +54,7 @@ Have any questions? Feel free to ask in the dedicated [`bevy_replicon` channel](
 - [`bevy_replicon_renet`](https://github.com/projectharmonia/bevy_replicon_renet) - integration for [`bevy_renet`](https://github.com/lucaspoffo/renet/tree/master/bevy_renet). Maintained by the authors of this crate.
 - [`bevy_replicon_renet2`](https://github.com/UkoeHB/renet2/tree/main/bevy_replicon_renet2) - integration for [`bevy_renet2`](https://github.com/UkoeHB/renet2/tree/main/bevy_renet2). Includes a WebTransport backend for browsers, and enables servers that can manage multi-platform clients simultaneously.
 - [`bevy_replicon_quinnet`](https://github.com/Henauxg/bevy_quinnet/tree/main/bevy_replicon_quinnet) - integration for [`bevy_quinnet`](https://github.com/Henauxg/bevy_quinnet).
-- [`aeronet_replicon`](https://github.com/aecsocket/aeronet/tree/main/crates/aeronet_replicon) - integration for [`aeronet`](https://github.com/aecsocket/aeronet)
+- [`aeronet_replicon`](https://github.com/aecsocket/aeronet/tree/main/crates/aeronet_replicon) - integration for [`aeronet`](https://github.com/aecsocket/aeronet). Works on any IO layer supported by `aeronet_io`, but requires `aeronet_transport`.
 
 #### Helpers
 
