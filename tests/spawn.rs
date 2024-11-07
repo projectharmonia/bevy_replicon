@@ -142,7 +142,7 @@ fn before_connection() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), With<DummyComponent>>()
+        .query_filtered::<(), (With<Replicated>, With<DummyComponent>)>()
         .single(client_app.world());
 }
 
@@ -201,6 +201,10 @@ fn pre_spawn() {
     );
 
     let client_entity = client_app.world().entity(client_entity);
+    assert!(
+        client_entity.contains::<Replicated>(),
+        "entity should start receive replication"
+    );
     assert!(
         client_entity.contains::<ConfirmHistory>(),
         "server should confirm replication of client entity"

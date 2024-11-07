@@ -289,8 +289,9 @@ fn apply_entity_mappings(
         let server_entity = deserialize_entity(cursor)?;
         let client_entity = deserialize_entity(cursor)?;
 
-        if world.entities().contains(client_entity) {
+        if let Ok(mut entity) = world.get_entity_mut(client_entity) {
             debug!("received mapping from {server_entity:?} to {client_entity:?}");
+            entity.insert(Replicated);
             params.entity_map.insert(server_entity, client_entity);
         } else {
             // Entity could be despawned on client already.

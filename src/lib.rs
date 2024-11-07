@@ -120,7 +120,7 @@ fn show_message(mut message_events: EventReader<MessageEvent>) {
 struct Health(u32);
 
 #[derive(Component, Serialize, Deserialize)]
-#[require(Replicated)] // Automatically replicate all entities with `Player` component.
+#[requires(Replicated)] // Automatically replicate all entities with `Player` component.
 struct Player;
 
 #[derive(Component)]
@@ -269,7 +269,7 @@ Use [`AppRuleExt::replicate()`] to enable replication for a component:
 app.replicate::<DummyComponent>();
 
 #[derive(Component, Deserialize, Serialize)]
-#[require(Replicated)]
+#[requires(Replicated)]
 struct DummyComponent;
 ```
 
@@ -320,7 +320,7 @@ components after entity spawn. To avoid one frame delay, put your initialization
 in [`ClientSet::Receive`]:
 
 ```
-# use bevy::prelude::*;
+# use bevy::{color::palettes::css::AZURE, prelude::*};
 # use bevy_replicon::prelude::*;
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
@@ -347,11 +347,8 @@ fn init_player_mesh(
 ///
 /// All non-replicated components will be inserted after spawn.
 #[derive(Component, Deserialize, Serialize)]
-#[require(Replicated, NotReplicatedComponent)]
+#[requires(Replicated, AnimationTransitions)]
 struct Player;
-
-#[derive(Default, Component)]
-struct NotReplicatedComponent;
 ```
 
 This pairs nicely with server state serialization and keeps saves clean.
@@ -567,7 +564,7 @@ fn update_visibility(
 }
 
 #[derive(Component, Deserialize, Serialize)]
-#[require(Replicated)]
+#[requires(Replicated)]
 struct Player(ClientId);
 ```
 

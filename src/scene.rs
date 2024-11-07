@@ -9,7 +9,7 @@ Components that are not registered using [`App::register_type`]
 or do not have `#[reflect(Component)]` will be skipped.
 
 Entities won't have the [`Replicated`] component.
-So on deserialization you need to insert it back or use the required components.
+So on deserialization you need to insert it back if you want entities to continue to replicate.
 
 # Examples
 
@@ -36,6 +36,11 @@ let mut deserializer =
 let mut scene = scene_deserializer
     .deserialize(&mut deserializer)
     .expect("ron should be convertible to scene");
+
+// Re-insert `Replicated` component.
+for entity in &mut scene.entities {
+    entity.components.push(Replicated.clone_value());
+}
 ```
 */
 pub fn replicate_into(scene: &mut DynamicScene, world: &World) {
