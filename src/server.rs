@@ -339,6 +339,63 @@ fn collect_mappings(
     Ok(())
 }
 
+/// Collect entity despawns from this tick into init messages.
+fn collect_despawns(
+    messages: &mut ReplicationMessages,
+    despawn_buffer: &mut DespawnBuffer,
+) -> bincode::Result<()> {
+    for (message, _) in messages.iter_mut() {
+        message.start_array();
+    }
+
+    for entity in despawn_buffer.drain(..) {
+        let mut shared_bytes = None;
+        for (message, _, client) in messages.iter_mut_with_clients() {
+            client.remove_despawned(entity);
+            message.write_entity(&mut shared_bytes, entity)?;
+        }
+    }
+
+    for (message, _, client) in messages.iter_mut_with_clients() {
+        for entity in client.drain_lost_visibility() {
+            message.write_entity(&mut None, entity)?;
+        }
+
+        message.end_array()?;
+    }
+
+    Ok(())
+}
+
+/// Collects component removals from this tick into init messages.
+fn collect_removals(
+    messages: &mut ReplicationMessages,
+    removal_buffer: &mut RemovalBuffer,
+    entities_with_removals: &mut EntityHashSet,
+) -> bincode::Result<()> {
+    for (message, _) in messages.iter_mut() {
+        message.start_array();
+    }
+
+    for (entity, remove_ids) in removal_buffer.iter() {
+        for (message, _) in messages.iter_mut() {
+            message.start_entity_data(entity);
+            for fns_info in remove_ids {
+                message.write_fns_id(fns_info.fns_id())?;
+            }
+            entities_with_removals.insert(entity);
+            message.end_entity_data(false)?;
+        }
+    }
+    removal_buffer.clear();
+
+    for (message, _) in messages.iter_mut() {
+        message.end_array()?;
+    }
+
+    Ok(())
+}
+
 /// Collects component insertions from this tick into init messages, and changes into update messages
 /// since the last entity tick.
 fn collect_changes(
@@ -507,63 +564,6 @@ unsafe fn get_component_unchecked<'w>(
             (component, ticks)
         }
     }
-}
-
-/// Collect entity despawns from this tick into init messages.
-fn collect_despawns(
-    messages: &mut ReplicationMessages,
-    despawn_buffer: &mut DespawnBuffer,
-) -> bincode::Result<()> {
-    for (message, _) in messages.iter_mut() {
-        message.start_array();
-    }
-
-    for entity in despawn_buffer.drain(..) {
-        let mut shared_bytes = None;
-        for (message, _, client) in messages.iter_mut_with_clients() {
-            client.remove_despawned(entity);
-            message.write_entity(&mut shared_bytes, entity)?;
-        }
-    }
-
-    for (message, _, client) in messages.iter_mut_with_clients() {
-        for entity in client.drain_lost_visibility() {
-            message.write_entity(&mut None, entity)?;
-        }
-
-        message.end_array()?;
-    }
-
-    Ok(())
-}
-
-/// Collects component removals from this tick into init messages.
-fn collect_removals(
-    messages: &mut ReplicationMessages,
-    removal_buffer: &mut RemovalBuffer,
-    entities_with_removals: &mut EntityHashSet,
-) -> bincode::Result<()> {
-    for (message, _) in messages.iter_mut() {
-        message.start_array();
-    }
-
-    for (entity, remove_ids) in removal_buffer.iter() {
-        for (message, _) in messages.iter_mut() {
-            message.start_entity_data(entity);
-            for fns_info in remove_ids {
-                message.write_fns_id(fns_info.fns_id())?;
-            }
-            entities_with_removals.insert(entity);
-            message.end_entity_data(false)?;
-        }
-    }
-    removal_buffer.clear();
-
-    for (message, _) in messages.iter_mut() {
-        message.end_array()?;
-    }
-
-    Ok(())
 }
 
 /// Set with replication and event systems related to server.
