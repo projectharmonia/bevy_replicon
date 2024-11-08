@@ -12,7 +12,6 @@ use bevy::{
     ecs::{
         archetype::ArchetypeEntity,
         component::{ComponentId, ComponentTicks, StorageType},
-        entity::EntityHashSet,
         storage::{SparseSets, Table},
         system::SystemChangeTick,
     },
@@ -251,7 +250,6 @@ impl ServerPlugin {
 
     /// Collects [`ReplicationMessages`] and sends them.
     pub(super) fn send_replication(
-        mut entities_with_removals: Local<EntityHashSet>,
         mut messages: Local<ReplicationMessages>,
         mut replicated_archetypes: Local<ReplicatedArchetypes>,
         change_tick: SystemChangeTick,
@@ -271,22 +269,24 @@ impl ServerPlugin {
     ) -> bincode::Result<()> {
         replicated_archetypes.update(set.p0(), &rules);
 
-        let replicated_clients = mem::take(&mut *set.p1()); // Take ownership to avoid borrowing issues.
+        // Take ownership to avoid borrowing issues.
+        let replicated_clients = mem::take(&mut *set.p1());
+        let mut removal_buffer = mem::take(&mut *set.p4());
         messages.prepare(replicated_clients);
 
         collect_mappings(&mut messages, &mut set.p2())?;
         collect_despawns(&mut messages, &mut set.p3())?;
-        collect_removals(&mut messages, &mut set.p4(), &mut entities_with_removals)?;
+        collect_removals(&mut messages, &removal_buffer)?;
         collect_changes(
             &mut messages,
             &replicated_archetypes,
             &registry,
-            &entities_with_removals,
+            &removal_buffer,
             set.p0(),
             &change_tick,
             **server_tick,
         )?;
-        entities_with_removals.clear();
+        removal_buffer.clear();
 
         let mut client_buffers = mem::take(&mut *set.p5());
         let replicated_clients = messages.send(
@@ -299,6 +299,7 @@ impl ServerPlugin {
 
         // Return borrowed data back.
         *set.p1() = replicated_clients;
+        *set.p4() = removal_buffer;
         *set.p5() = client_buffers;
 
         Ok(())
@@ -370,24 +371,21 @@ fn collect_despawns(
 /// Collects component removals from this tick into init messages.
 fn collect_removals(
     messages: &mut ReplicationMessages,
-    removal_buffer: &mut RemovalBuffer,
-    entities_with_removals: &mut EntityHashSet,
+    removal_buffer: &RemovalBuffer,
 ) -> bincode::Result<()> {
     for (message, _) in messages.iter_mut() {
         message.start_array();
     }
 
-    for (entity, remove_ids) in removal_buffer.iter() {
+    for (&entity, remove_ids) in removal_buffer.iter() {
         for (message, _) in messages.iter_mut() {
             message.start_entity_data(entity);
             for &(_, fns_id) in remove_ids {
                 message.write_fns_id(fns_id)?;
             }
-            entities_with_removals.insert(entity);
             message.end_entity_data(false)?;
         }
     }
-    removal_buffer.clear();
 
     for (message, _) in messages.iter_mut() {
         message.end_array()?;
@@ -402,7 +400,7 @@ fn collect_changes(
     messages: &mut ReplicationMessages,
     replicated_archetypes: &ReplicatedArchetypes,
     registry: &ReplicationRegistry,
-    entities_with_removals: &EntityHashSet,
+    removal_buffer: &RemovalBuffer,
     world: &World,
     change_tick: &SystemChangeTick,
     server_tick: RepliconTick,
@@ -515,7 +513,7 @@ fn collect_changes(
                 let new_entity = marker_added || visibility == Visibility::Gained;
                 if new_entity
                     || init_message.entity_data_size() != 0
-                    || entities_with_removals.contains(&entity.id())
+                    || removal_buffer.contains_key(&entity.id())
                 {
                     // If there is any insertion, removal, or we must initialize, include all updates into init message.
                     // and bump the last acknowledged tick to keep entity updates atomic.

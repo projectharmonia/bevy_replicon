@@ -139,10 +139,11 @@ impl FromWorld for ReplicatedComponents {
 }
 
 /// Buffer with removed components.
-#[derive(Default, Resource)]
+#[derive(Default, Resource, Deref)]
 pub(crate) struct RemovalBuffer {
     /// Component removals grouped by entity.
-    removals: Vec<(Entity, Vec<(ComponentId, FnsId)>)>,
+    #[deref]
+    removals: EntityHashMap<Vec<(ComponentId, FnsId)>>,
 
     /// [`Vec`]s from removals.
     ///
@@ -152,13 +153,6 @@ pub(crate) struct RemovalBuffer {
 }
 
 impl RemovalBuffer {
-    /// Returns an iterator over entities and their removed components.
-    pub(super) fn iter(&self) -> impl Iterator<Item = (Entity, &[(ComponentId, FnsId)])> {
-        self.removals
-            .iter()
-            .map(|(entity, remove_ids)| (*entity, &**remove_ids))
-    }
-
     /// Registers component removals that match replication rules for an entity.
     fn update(
         &mut self,
@@ -188,7 +182,7 @@ impl RemovalBuffer {
         if removed_ids.is_empty() {
             self.ids_buffer.push(removed_ids);
         } else {
-            self.removals.push((entity, removed_ids));
+            self.removals.insert(entity, removed_ids);
         }
     }
 
@@ -197,7 +191,7 @@ impl RemovalBuffer {
     /// Keeps the allocated memory for reuse.
     pub(super) fn clear(&mut self) {
         self.ids_buffer
-            .extend(self.removals.drain(..).map(|(_, mut components)| {
+            .extend(self.removals.drain().map(|(_, mut components)| {
                 components.clear();
                 components
             }));
@@ -253,16 +247,18 @@ mod tests {
 
         app.update();
 
-        app.world_mut()
+        let entity = app
+            .world_mut()
             .spawn((Replicated, ComponentA))
-            .remove::<ComponentA>();
+            .remove::<ComponentA>()
+            .id();
 
         app.update();
 
         let removal_buffer = app.world().resource::<RemovalBuffer>();
         assert_eq!(removal_buffer.removals.len(), 1);
 
-        let (_, removals_id) = removal_buffer.removals.first().unwrap();
+        let removals_id = removal_buffer.removals.get(&entity).unwrap();
         assert_eq!(removals_id.len(), 1);
     }
 
@@ -281,16 +277,18 @@ mod tests {
 
         app.update();
 
-        app.world_mut()
+        let entity = app
+            .world_mut()
             .spawn((Replicated, ComponentA, ComponentB))
-            .remove::<(ComponentA, ComponentB)>();
+            .remove::<(ComponentA, ComponentB)>()
+            .id();
 
         app.update();
 
         let removal_buffer = app.world().resource::<RemovalBuffer>();
         assert_eq!(removal_buffer.removals.len(), 1);
 
-        let (_, removals_id) = removal_buffer.removals.first().unwrap();
+        let removals_id = removal_buffer.removals.get(&entity).unwrap();
         assert_eq!(removals_id.len(), 2);
     }
 
@@ -309,16 +307,18 @@ mod tests {
 
         app.update();
 
-        app.world_mut()
+        let entity = app
+            .world_mut()
             .spawn((Replicated, ComponentA, ComponentB))
-            .remove::<ComponentA>();
+            .remove::<ComponentA>()
+            .id();
 
         app.update();
 
         let removal_buffer = app.world().resource::<RemovalBuffer>();
         assert_eq!(removal_buffer.removals.len(), 1);
 
-        let (_, removals_id) = removal_buffer.removals.first().unwrap();
+        let removals_id = removal_buffer.removals.get(&entity).unwrap();
         assert_eq!(removals_id.len(), 1);
     }
 
@@ -338,16 +338,18 @@ mod tests {
 
         app.update();
 
-        app.world_mut()
+        let entity = app
+            .world_mut()
             .spawn((Replicated, ComponentA, ComponentB))
-            .remove::<(ComponentA, ComponentB)>();
+            .remove::<(ComponentA, ComponentB)>()
+            .id();
 
         app.update();
 
         let removal_buffer = app.world().resource::<RemovalBuffer>();
         assert_eq!(removal_buffer.removals.len(), 1);
 
-        let (_, removals_id) = removal_buffer.removals.first().unwrap();
+        let removals_id = removal_buffer.removals.get(&entity).unwrap();
         assert_eq!(removals_id.len(), 2);
     }
 
@@ -367,16 +369,18 @@ mod tests {
 
         app.update();
 
-        app.world_mut()
+        let entity = app
+            .world_mut()
             .spawn((Replicated, ComponentA, ComponentB))
-            .remove::<ComponentA>();
+            .remove::<ComponentA>()
+            .id();
 
         app.update();
 
         let removal_buffer = app.world().resource::<RemovalBuffer>();
         assert_eq!(removal_buffer.removals.len(), 1);
 
-        let (_, removals_id) = removal_buffer.removals.first().unwrap();
+        let removals_id = removal_buffer.removals.get(&entity).unwrap();
         assert_eq!(removals_id.len(), 1);
     }
 
