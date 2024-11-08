@@ -256,10 +256,10 @@ impl ServerPlugin {
         mut set: ParamSet<(
             &World,
             ResMut<ReplicatedClients>,
-            ResMut<ClientEntityMap>,
-            ResMut<DespawnBuffer>,
             ResMut<RemovalBuffer>,
             ResMut<ClientBuffers>,
+            ResMut<ClientEntityMap>,
+            ResMut<DespawnBuffer>,
             ResMut<RepliconServer>,
         )>,
         registry: Res<ReplicationRegistry>,
@@ -271,11 +271,13 @@ impl ServerPlugin {
 
         // Take ownership to avoid borrowing issues.
         let replicated_clients = mem::take(&mut *set.p1());
-        let mut removal_buffer = mem::take(&mut *set.p4());
+        let mut removal_buffer = mem::take(&mut *set.p2());
+        let mut client_buffers = mem::take(&mut *set.p3());
+
         messages.prepare(replicated_clients);
 
-        collect_mappings(&mut messages, &mut set.p2())?;
-        collect_despawns(&mut messages, &mut set.p3())?;
+        collect_mappings(&mut messages, &mut set.p4())?;
+        collect_despawns(&mut messages, &mut set.p5())?;
         collect_removals(&mut messages, &removal_buffer)?;
         collect_changes(
             &mut messages,
@@ -288,7 +290,6 @@ impl ServerPlugin {
         )?;
         removal_buffer.clear();
 
-        let mut client_buffers = mem::take(&mut *set.p5());
         let replicated_clients = messages.send(
             &mut set.p6(),
             &mut client_buffers,
@@ -299,8 +300,8 @@ impl ServerPlugin {
 
         // Return borrowed data back.
         *set.p1() = replicated_clients;
-        *set.p4() = removal_buffer;
-        *set.p5() = client_buffers;
+        *set.p2() = removal_buffer;
+        *set.p3() = client_buffers;
 
         Ok(())
     }
