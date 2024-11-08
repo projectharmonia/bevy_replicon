@@ -270,17 +270,18 @@ impl ServerPlugin {
         replicated_archetypes.update(set.p0(), &rules);
 
         // Take ownership to avoid borrowing issues.
-        let replicated_clients = mem::take(&mut *set.p1());
+        let mut replicated_clients = mem::take(&mut *set.p1());
         let mut removal_buffer = mem::take(&mut *set.p2());
         let mut client_buffers = mem::take(&mut *set.p3());
 
-        messages.prepare(replicated_clients);
+        messages.reset(replicated_clients.len());
 
-        collect_mappings(&mut messages, &mut set.p4())?;
-        collect_despawns(&mut messages, &mut set.p5())?;
+        collect_mappings(&mut messages, &replicated_clients, &mut set.p4())?;
+        collect_despawns(&mut messages, &mut replicated_clients, &mut set.p5())?;
         collect_removals(&mut messages, &removal_buffer)?;
         collect_changes(
             &mut messages,
+            &mut replicated_clients,
             &replicated_archetypes,
             &registry,
             &removal_buffer,
@@ -290,13 +291,23 @@ impl ServerPlugin {
         )?;
         removal_buffer.clear();
 
-        let replicated_clients = messages.send(
-            &mut set.p6(),
-            &mut client_buffers,
-            **server_tick,
-            change_tick.this_run(),
-            time.elapsed(),
-        )?;
+        for ((init_message, update_message), client) in
+            messages.iter_mut().zip(replicated_clients.iter_mut())
+        {
+            let server = &mut set.p6();
+
+            init_message.send(server, client, **server_tick)?;
+            update_message.send(
+                server,
+                client,
+                &mut client_buffers,
+                **server_tick,
+                change_tick.this_run(),
+                time.elapsed(),
+            )?;
+
+            client.visibility_mut().update();
+        }
 
         // Return borrowed data back.
         *set.p1() = replicated_clients;
@@ -325,9 +336,10 @@ impl ServerPlugin {
 /// On deserialization mappings should be processed first, so all referenced entities after it will behave correctly.
 fn collect_mappings(
     messages: &mut ReplicationMessages,
+    replicated_clients: &ReplicatedClients,
     entity_map: &mut ClientEntityMap,
 ) -> bincode::Result<()> {
-    for (message, _, client) in messages.iter_mut_with_clients() {
+    for ((message, _), client) in messages.iter_mut().zip(replicated_clients.iter()) {
         message.start_array();
 
         if let Some(mappings) = entity_map.0.get_mut(&client.id()) {
@@ -344,6 +356,7 @@ fn collect_mappings(
 /// Collect entity despawns from this tick into init messages.
 fn collect_despawns(
     messages: &mut ReplicationMessages,
+    replicated_clients: &mut ReplicatedClients,
     despawn_buffer: &mut DespawnBuffer,
 ) -> bincode::Result<()> {
     for (message, _) in messages.iter_mut() {
@@ -352,13 +365,13 @@ fn collect_despawns(
 
     for entity in despawn_buffer.drain(..) {
         let mut shared_bytes = None;
-        for (message, _, client) in messages.iter_mut_with_clients() {
+        for ((message, _), client) in messages.iter_mut().zip(replicated_clients.iter_mut()) {
             client.remove_despawned(entity);
             message.write_entity(&mut shared_bytes, entity)?;
         }
     }
 
-    for (message, _, client) in messages.iter_mut_with_clients() {
+    for ((message, _), client) in messages.iter_mut().zip(replicated_clients.iter_mut()) {
         for entity in client.drain_lost_visibility() {
             message.write_entity(&mut None, entity)?;
         }
@@ -399,6 +412,7 @@ fn collect_removals(
 /// since the last entity tick.
 fn collect_changes(
     messages: &mut ReplicationMessages,
+    replicated_clients: &mut ReplicatedClients,
     replicated_archetypes: &ReplicatedArchetypes,
     registry: &ReplicationRegistry,
     removal_buffer: &RemovalBuffer,
@@ -428,7 +442,9 @@ fn collect_changes(
         };
 
         for entity in archetype.entities() {
-            for (init_message, update_message, client) in messages.iter_mut_with_clients() {
+            for ((init_message, update_message), client) in
+                messages.iter_mut().zip(replicated_clients.iter_mut())
+            {
                 init_message.start_entity_data(entity.id());
                 update_message.start_entity_data(entity.id());
                 client.visibility_mut().cache_visibility(entity.id());
@@ -470,7 +486,9 @@ fn collect_changes(
                     component_id,
                 };
                 let mut shared_bytes = None;
-                for (init_message, update_message, client) in messages.iter_mut_with_clients() {
+                for ((init_message, update_message), client) in
+                    messages.iter_mut().zip(replicated_clients.iter_mut())
+                {
                     let visibility = client.visibility().cached_visibility();
                     if visibility == Visibility::Hidden {
                         continue;
@@ -505,7 +523,9 @@ fn collect_changes(
                 }
             }
 
-            for (init_message, update_message, client) in messages.iter_mut_with_clients() {
+            for ((init_message, update_message), client) in
+                messages.iter_mut().zip(replicated_clients.iter_mut())
+            {
                 let visibility = client.visibility().cached_visibility();
                 if visibility == Visibility::Hidden {
                     continue;

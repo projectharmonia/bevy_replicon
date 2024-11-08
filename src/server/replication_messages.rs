@@ -1,24 +1,15 @@
 pub(super) mod init_message;
 pub(super) mod update_message;
 
-use std::{
-    io::{Cursor, Write},
-    mem,
-    time::Duration,
-};
+use std::io::{Cursor, Write};
 
-use bevy::{ecs::component::Tick, prelude::*};
+use bevy::prelude::*;
 use varint_rs::VarintWriter;
 
-use crate::core::{
-    replicated_clients::{ClientBuffers, ReplicatedClient, ReplicatedClients},
-    replicon_server::RepliconServer,
-    replicon_tick::RepliconTick,
-};
 use init_message::InitMessage;
 use update_message::UpdateMessage;
 
-/// Accumulates replication messages and sends them to clients.
+/// Accumulates replication messages.
 ///
 /// Messages are serialized and deserialized manually because using an intermediate structure
 /// leads to allocations and according to our benchmarks it's much slower.
@@ -26,8 +17,8 @@ use update_message::UpdateMessage;
 /// Reuses allocated memory from older messages.
 #[derive(Default)]
 pub(crate) struct ReplicationMessages {
-    replicated_clients: ReplicatedClients,
-    data: Vec<(InitMessage, UpdateMessage)>,
+    messages: Vec<(InitMessage, UpdateMessage)>,
+    len: usize,
 }
 
 impl ReplicationMessages {
@@ -36,62 +27,26 @@ impl ReplicationMessages {
     /// Reuses already allocated messages.
     /// Creates new messages if the number of clients is bigger then the number of allocated messages.
     /// If there are more messages than the number of clients, then the extra messages remain untouched
-    /// and iteration methods will not include them.
-    pub(super) fn prepare(&mut self, replicated_clients: ReplicatedClients) {
-        self.data
-            .reserve(replicated_clients.len().saturating_sub(self.data.len()));
+    /// and [`Self::iter_mut`] will not include them.
+    pub(super) fn reset(&mut self, clients_count: usize) {
+        self.len = clients_count;
 
-        for index in 0..replicated_clients.len() {
-            if let Some((init_message, update_message)) = self.data.get_mut(index) {
+        let additional = clients_count.saturating_sub(self.messages.len());
+        self.messages.reserve(additional);
+
+        for index in 0..clients_count {
+            if let Some((init_message, update_message)) = self.messages.get_mut(index) {
                 init_message.reset();
                 update_message.reset();
             } else {
-                self.data.push(Default::default());
+                self.messages.push(Default::default());
             }
         }
-
-        self.replicated_clients = replicated_clients;
     }
 
     /// Returns iterator over messages for each client.
     pub(super) fn iter_mut(&mut self) -> impl Iterator<Item = &mut (InitMessage, UpdateMessage)> {
-        self.data.iter_mut().take(self.replicated_clients.len())
-    }
-
-    /// Same as [`Self::iter_mut`], but also includes [`ReplicatedClient`].
-    pub(super) fn iter_mut_with_clients(
-        &mut self,
-    ) -> impl Iterator<Item = (&mut InitMessage, &mut UpdateMessage, &mut ReplicatedClient)> {
-        self.data
-            .iter_mut()
-            .zip(self.replicated_clients.iter_mut())
-            .map(|((init_message, update_message), client)| (init_message, update_message, client))
-    }
-
-    /// Sends cached messages to clients specified in the last [`Self::prepare`] call.
-    ///
-    /// The change tick of each client with an init message is updated to equal the latest replicon tick.
-    /// messages were sent to clients. If only update messages were sent (or no messages at all) then
-    /// it will equal the input `last_change_tick`.
-    pub(super) fn send(
-        &mut self,
-        server: &mut RepliconServer,
-        client_buffers: &mut ClientBuffers,
-        server_tick: RepliconTick,
-        tick: Tick,
-        timestamp: Duration,
-    ) -> bincode::Result<ReplicatedClients> {
-        for ((init_message, update_message), client) in
-            self.data.iter_mut().zip(self.replicated_clients.iter_mut())
-        {
-            init_message.send(server, client, server_tick)?;
-            update_message.send(server, client_buffers, client, server_tick, tick, timestamp)?;
-            client.visibility_mut().update();
-        }
-
-        let replicated_clients = mem::take(&mut self.replicated_clients);
-
-        Ok(replicated_clients)
+        self.messages.iter_mut().take(self.len)
     }
 }
 
