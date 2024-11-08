@@ -380,8 +380,8 @@ fn collect_removals(
     for (entity, remove_ids) in removal_buffer.iter() {
         for (message, _) in messages.iter_mut() {
             message.start_entity_data(entity);
-            for fns_info in remove_ids {
-                message.write_fns_id(fns_info.fns_id())?;
+            for &(_, fns_id) in remove_ids {
+                message.write_fns_id(fns_id)?;
             }
             entities_with_removals.insert(entity);
             message.end_entity_data(false)?;

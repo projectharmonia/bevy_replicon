@@ -13,7 +13,7 @@ use bevy::{
 
 use super::{ServerPlugin, ServerSet};
 use crate::core::{
-    common_conditions::server_running, replication_registry::FnsInfo,
+    common_conditions::server_running, replication_registry::FnsId,
     replication_rules::ReplicationRules, Replicated,
 };
 
@@ -131,7 +131,7 @@ impl FromWorld for ReplicatedComponents {
         let component_ids = rules
             .iter()
             .flat_map(|rule| &rule.components)
-            .map(|fns_info| fns_info.component_id())
+            .map(|&(component_id, _)| component_id)
             .collect();
 
         Self(component_ids)
@@ -142,18 +142,18 @@ impl FromWorld for ReplicatedComponents {
 #[derive(Default, Resource)]
 pub(crate) struct RemovalBuffer {
     /// Component removals grouped by entity.
-    removals: Vec<(Entity, Vec<FnsInfo>)>,
+    removals: Vec<(Entity, Vec<(ComponentId, FnsId)>)>,
 
     /// [`Vec`]s from removals.
     ///
     /// All data is cleared before the insertion.
     /// Stored to reuse allocated capacity.
-    ids_buffer: Vec<Vec<FnsInfo>>,
+    ids_buffer: Vec<Vec<(ComponentId, FnsId)>>,
 }
 
 impl RemovalBuffer {
     /// Returns an iterator over entities and their removed components.
-    pub(super) fn iter(&self) -> impl Iterator<Item = (Entity, &[FnsInfo])> {
+    pub(super) fn iter(&self) -> impl Iterator<Item = (Entity, &[(ComponentId, FnsId)])> {
         self.removals
             .iter()
             .map(|(entity, remove_ids)| (*entity, &**remove_ids))
@@ -172,15 +172,15 @@ impl RemovalBuffer {
             .iter()
             .filter(|rule| rule.matches_removals(archetype, components))
         {
-            for &fns_info in &rule.components {
+            for &(component_id, fns_id) in &rule.components {
                 // Since rules are sorted by priority,
                 // we are inserting only new components that aren't present.
                 if removed_ids
                     .iter()
-                    .all(|removed_info| removed_info.component_id() != fns_info.component_id())
-                    && !archetype.contains(fns_info.component_id())
+                    .all(|&(removed_id, _)| removed_id != component_id)
+                    && !archetype.contains(component_id)
                 {
-                    removed_ids.push(fns_info);
+                    removed_ids.push((component_id, fns_id));
                 }
             }
         }
