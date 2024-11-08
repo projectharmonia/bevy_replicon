@@ -311,8 +311,8 @@ waiting on replication.
 ### Required components
 
 You don't want to replicate all components because not all of them are
-necessary to send over the network. For example, components that are computed based on other
-can be automatically inserted after replication thanks to the Bevy's required components.
+necessary to send over the network. For example, 'background' components
+can be automatically inserted after replication thanks to Bevy's required components.
 For components that require world access you can create a special system that inserts such
 components after entity spawn. To avoid one frame delay, put your initialization systems
 in [`ClientSet::Receive`]:
@@ -360,8 +360,8 @@ struct NotReplicatedComponent;
 This pairs nicely with server state serialization and keeps saves clean.
 You can use [`replicate_into`](scene::replicate_into) to
 fill [`DynamicScene`] with replicated entities and their components.
-On deserialization all required components and initialization systems
-will restore the correct game state.
+On deserialization all missing required components will be inserted, and initialization
+systems will restore the correct game state.
 
 **Performance note**: We used [`With<Player>`] and [`Without<Mesh2d>`] to
 filter all non-initialized entities. It's possible to use [`Added`] / [`Changed`] too,
