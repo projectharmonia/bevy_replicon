@@ -8,7 +8,7 @@ use std::{io::Cursor, mem};
 use bevy::{ecs::world::CommandQueue, prelude::*};
 use bincode::{DefaultOptions, Options};
 use bytes::Bytes;
-use varint_rs::VarintReader;
+use integer_encoding::VarIntReader;
 
 use crate::core::{
     channels::{ReplicationChannel, RepliconChannels},
@@ -514,10 +514,10 @@ fn apply_update_components(
 /// For details see
 /// [`ReplicationBuffer::write_entity`](crate::server::replication_message::replication_buffer::write_entity).
 fn deserialize_entity(cursor: &mut Cursor<&[u8]>) -> bincode::Result<Entity> {
-    let flagged_index: u64 = cursor.read_u64_varint()?;
+    let flagged_index: u64 = cursor.read_varint()?;
     let has_generation = (flagged_index & 1) > 0;
     let generation = if has_generation {
-        cursor.read_u32_varint()? + 1
+        cursor.read_varint::<u32>()? + 1
     } else {
         1u32
     };
