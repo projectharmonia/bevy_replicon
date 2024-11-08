@@ -45,18 +45,18 @@ impl ReplicatedArchetypes {
         {
             let mut replicated_archetype = ReplicatedArchetype::new(archetype.id());
             for rule in rules.iter().filter(|rule| rule.matches(archetype)) {
-                for fns_info in &rule.components {
+                for &(component_id, fns_id) in &rule.components {
                     // Since rules are sorted by priority,
                     // we are inserting only new components that aren't present.
                     if replicated_archetype
                         .components
                         .iter()
-                        .any(|component| component.component_id == fns_info.component_id())
+                        .any(|component| component.component_id == component_id)
                     {
                         if enabled!(Level::DEBUG) {
                             let component_name = world
                                 .components()
-                                .get_name(fns_info.component_id())
+                                .get_name(component_id)
                                 .expect("rules should be registered with valid component");
 
                             let component_names: Vec<_> = replicated_archetype
@@ -74,16 +74,13 @@ impl ReplicatedArchetypes {
                     }
 
                     // SAFETY: component ID obtained from this archetype.
-                    let storage_type = unsafe {
-                        archetype
-                            .get_storage_type(fns_info.component_id())
-                            .unwrap_unchecked()
-                    };
+                    let storage_type =
+                        unsafe { archetype.get_storage_type(component_id).unwrap_unchecked() };
 
                     replicated_archetype.components.push(ReplicatedComponent {
-                        component_id: fns_info.component_id(),
+                        component_id,
                         storage_type,
-                        fns_id: fns_info.fns_id(),
+                        fns_id,
                     });
                 }
             }

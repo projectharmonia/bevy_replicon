@@ -103,14 +103,11 @@ impl ReplicationRegistry {
         &mut self,
         world: &mut World,
         rule_fns: RuleFns<C>,
-    ) -> FnsInfo {
+    ) -> (ComponentId, FnsId) {
         let (index, component_id) = self.init_component_fns::<C>(world);
         self.rules.push((rule_fns.into(), index));
 
-        FnsInfo {
-            component_id,
-            fns_id: FnsId(self.rules.len() - 1),
-        }
+        (component_id, FnsId(self.rules.len() - 1))
     }
 
     /// Initializes [`ComponentFns`] for a component and returns its index and ID.
@@ -161,25 +158,6 @@ impl Default for ReplicationRegistry {
 
 #[deprecated(note = "use `Replicated` instead")]
 pub type ReplicationFns = ReplicationRegistry;
-
-/// IDs of a registered replication function and its component.
-///
-/// Can be obtained from [`ReplicationFns::register_rule_fns`].
-#[derive(Clone, Copy)]
-pub struct FnsInfo {
-    component_id: ComponentId,
-    fns_id: FnsId,
-}
-
-impl FnsInfo {
-    pub(crate) fn component_id(&self) -> ComponentId {
-        self.component_id
-    }
-
-    pub(crate) fn fns_id(&self) -> FnsId {
-        self.fns_id
-    }
-}
 
 /// ID of replicaton functions for a component.
 ///

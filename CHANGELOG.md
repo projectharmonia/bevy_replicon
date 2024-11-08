@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- All `TestFnsEntityExt` now accept `FnsId`.
+
+### Removed
+
+- `FnsInfo`, use `(ComponentId, FnsId)` instead.
+
 ## [0.28.4] - 2024-10-15
 
 ### Added

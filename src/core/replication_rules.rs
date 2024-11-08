@@ -7,7 +7,7 @@ use bevy::{
 };
 use serde::{de::DeserializeOwned, Serialize};
 
-use super::replication_registry::{rule_fns::RuleFns, FnsInfo, ReplicationRegistry};
+use super::replication_registry::{rule_fns::RuleFns, FnsId, ReplicationRegistry};
 
 /// Replication functions for [`App`].
 pub trait AppRuleExt {
@@ -217,12 +217,12 @@ pub struct ReplicationRule {
     pub priority: usize,
 
     /// Rule components and their serialization/deserialization/removal functions.
-    pub components: Vec<FnsInfo>,
+    pub components: Vec<(ComponentId, FnsId)>,
 }
 
 impl ReplicationRule {
     /// Creates a new rule with priority equal to the number of serializable components.
-    pub fn new(components: Vec<FnsInfo>) -> Self {
+    pub fn new(components: Vec<(ComponentId, FnsId)>) -> Self {
         Self {
             priority: components.len(),
             components,
@@ -233,7 +233,7 @@ impl ReplicationRule {
     pub(crate) fn matches(&self, archetype: &Archetype) -> bool {
         self.components
             .iter()
-            .all(|fns_info| archetype.contains(fns_info.component_id()))
+            .all(|&(component_id, _)| archetype.contains(component_id))
     }
 
     /// Determines whether the rule is applicable to an archetype with removals included and contains at least one removal.
@@ -248,10 +248,10 @@ impl ReplicationRule {
         removed_components: &HashSet<ComponentId>,
     ) -> bool {
         let mut matches = false;
-        for fns_info in &self.components {
-            if removed_components.contains(&fns_info.component_id()) {
+        for &(component_id, _) in &self.components {
+            if removed_components.contains(&component_id) {
                 matches = true;
-            } else if !post_removal_archetype.contains(fns_info.component_id()) {
+            } else if !post_removal_archetype.contains(component_id) {
                 return false;
             }
         }
