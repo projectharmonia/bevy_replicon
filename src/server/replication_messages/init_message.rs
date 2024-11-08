@@ -294,7 +294,7 @@ impl InitMessage {
     ///
     /// Updates change tick for the client if there are data to send.
     /// Does nothing if there is no data to send.
-    pub(super) fn send(
+    pub(crate) fn send(
         &self,
         server: &mut RepliconServer,
         client: &mut ReplicatedClient,

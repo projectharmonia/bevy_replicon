@@ -145,11 +145,11 @@ impl UpdateMessage {
     /// Splits message according to entities inside it and sends it to the specified client.
     ///
     /// Does nothing if there is no data to send.
-    pub(super) fn send(
+    pub(crate) fn send(
         &mut self,
         server: &mut RepliconServer,
-        client_buffers: &mut ClientBuffers,
         client: &mut ReplicatedClient,
+        client_buffers: &mut ClientBuffers,
         server_tick: RepliconTick,
         tick: Tick,
         timestamp: Duration,

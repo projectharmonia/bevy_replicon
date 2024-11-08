@@ -289,7 +289,7 @@ impl ReplicatedClient {
     }
 
     /// Gets the change tick for an entity that is replicated to this client.
-    pub fn get_change_tick(&mut self, entity: Entity) -> Option<Tick> {
+    pub fn get_change_tick(&self, entity: Entity) -> Option<Tick> {
         self.change_ticks.get(&entity).copied()
     }
 
