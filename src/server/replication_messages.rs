@@ -4,7 +4,7 @@ pub(super) mod update_message;
 use std::io::{Cursor, Write};
 
 use bevy::prelude::*;
-use varint_rs::VarintWriter;
+use integer_encoding::VarIntWriter;
 
 use init_message::InitMessage;
 use update_message::UpdateMessage;
@@ -93,9 +93,9 @@ fn serialize_entity(cursor: &mut Cursor<Vec<u8>>, entity: Entity) -> bincode::Re
     let flag = entity.generation() > 1;
     flagged_index |= flag as u64;
 
-    cursor.write_u64_varint(flagged_index)?;
+    cursor.write_varint(flagged_index)?;
     if flag {
-        cursor.write_u32_varint(entity.generation() - 1)?;
+        cursor.write_varint(entity.generation() - 1)?;
     }
 
     Ok(())
