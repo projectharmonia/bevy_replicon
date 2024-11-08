@@ -119,7 +119,7 @@ impl ReplicatedArchetype {
 
 /// Stores information about a replicated component.
 pub(super) struct ReplicatedComponent {
-    pub(super) component_id: ComponentId,
+    component_id: ComponentId,
     pub(super) storage_type: StorageType,
     pub(super) fns_id: FnsId,
 }
