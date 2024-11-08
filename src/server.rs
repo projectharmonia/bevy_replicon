@@ -452,6 +452,9 @@ fn collect_changes(
                 marker_ticks.is_added(change_tick.last_run(), change_tick.this_run());
 
             for replicated_component in &replicated_archetype.components {
+                let (component_id, component_fns, rule_fns) =
+                    registry.get(replicated_component.fns_id);
+
                 // SAFETY: component and storage were obtained from this archetype.
                 let (component, ticks) = unsafe {
                     get_component_unchecked(
@@ -459,12 +462,10 @@ fn collect_changes(
                         &world.storages().sparse_sets,
                         entity,
                         replicated_component.storage_type,
-                        replicated_component.component_id,
+                        component_id,
                     )
                 };
 
-                let (component_id, component_fns, rule_fns) =
-                    registry.get(replicated_component.fns_id);
                 let ctx = SerializeCtx {
                     server_tick,
                     component_id,
