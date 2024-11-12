@@ -16,7 +16,7 @@ use client_visibility::ClientVisibility;
 ///
 /// Inserted as resource by [`ServerPlugin`](crate::server::ServerPlugin).
 ///
-/// See also [ConnectedClients](super::connected_clients::ConnectedClients).
+/// See also [ConnectedClients](crate::core::connected_clients::ConnectedClients).
 #[derive(Resource, Default)]
 pub struct ReplicatedClients {
     clients: Vec<ReplicatedClient>,

@@ -76,12 +76,12 @@ pub trait TestFnsEntityExt {
     /// Deserializes a component using a registered function for it and
     /// writes it into an entity using a write function based on markers.
     ///
-    /// See also [`AppMarkerExt`](crate::core::command_markers::AppMarkerExt).
+    /// See also [`AppMarkerExt`](crate::core::replication::command_markers::AppMarkerExt).
     fn apply_write(&mut self, data: &[u8], fns_id: FnsId, message_tick: RepliconTick) -> &mut Self;
 
     /// Remvoes a component using a registered function for it.
     ///
-    /// See also [`AppMarkerExt`](crate::core::command_markers::AppMarkerExt).
+    /// See also [`AppMarkerExt`](crate::core::replication::command_markers::AppMarkerExt).
     fn apply_remove(&mut self, fns_id: FnsId, message_tick: RepliconTick) -> &mut Self;
 
     /// Despawns an entity using [`ReplicationRegistry::despawn`].
