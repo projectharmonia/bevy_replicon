@@ -2,10 +2,9 @@ use std::io::Cursor;
 
 use bevy::prelude::*;
 use bevy_replicon::{
-    core::{
-        ctx::WriteCtx,
+    core::replication::{
         deferred_entity::DeferredEntity,
-        replication_registry::{command_fns, rule_fns::RuleFns},
+        replication_registry::{command_fns, ctx::WriteCtx, rule_fns::RuleFns},
     },
     prelude::*,
     test_app::ServerTestAppExt,

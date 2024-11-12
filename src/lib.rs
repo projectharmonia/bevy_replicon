@@ -637,26 +637,29 @@ pub mod test_app;
 
 pub mod prelude {
     #[allow(deprecated)]
-    pub use super::core::Replication;
+    pub use super::core::replication::Replication;
 
     pub use super::{
         core::{
             channels::{ChannelKind, RepliconChannel, RepliconChannels},
-            command_markers::AppMarkerExt,
             common_conditions::*,
             connected_clients::ConnectedClients,
             event_registry::{
                 client_event::{ClientEventAppExt, FromClient},
                 server_event::{SendMode, ServerEventAppExt, ToClients},
             },
-            replicated_clients::{
-                client_visibility::ClientVisibility, ReplicatedClient, ReplicatedClients,
-                VisibilityPolicy,
+            replication::{
+                command_markers::AppMarkerExt,
+                replicated_clients::{
+                    client_visibility::ClientVisibility, ReplicatedClient, ReplicatedClients,
+                    VisibilityPolicy,
+                },
+                replication_rules::AppRuleExt,
+                Replicated,
             },
-            replication_rules::AppRuleExt,
             replicon_client::{RepliconClient, RepliconClientStatus},
             replicon_server::RepliconServer,
-            ClientId, Replicated, RepliconCorePlugin,
+            ClientId, RepliconCorePlugin,
         },
         RepliconPlugins,
     };

@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use super::{ServerPlugin, ServerSet};
-use crate::core::{common_conditions::server_running, Replicated};
+use crate::core::{common_conditions::server_running, replication::Replicated};
 
 /// Treats removals of [`Replicated`] component as despawns and stores them into [`DespawnBuffer`] resource.
 ///

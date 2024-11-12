@@ -8,11 +8,11 @@ use bevy::{ecs::entity::MapEntities, prelude::*};
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Serialize};
 
-use crate::core::ctx::{SerializeCtx, WriteCtx};
+use super::ctx::{SerializeCtx, WriteCtx};
 
 /// Type-erased version of [`RuleFns`].
 ///
-/// Stored inside [`ReplicationFns`](super::ReplicationFns) after registration.
+/// Stored inside [`ReplicationRegistry`](super::ReplicationRegistry) after registration.
 pub(crate) struct UntypedRuleFns {
     type_id: TypeId,
     type_name: &'static str,

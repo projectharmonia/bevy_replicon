@@ -1,8 +1,10 @@
 use super::{ClientPlugin, ClientSet, ServerInitTick};
 use crate::core::{
     common_conditions::*,
-    ctx::{ClientReceiveCtx, ClientSendCtx},
-    event_registry::EventRegistry,
+    event_registry::{
+        ctx::{ClientReceiveCtx, ClientSendCtx},
+        EventRegistry,
+    },
     replicon_client::RepliconClient,
     server_entity_map::ServerEntityMap,
 };

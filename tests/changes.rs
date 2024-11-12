@@ -4,10 +4,11 @@ use bevy::{ecs::entity::MapEntities, prelude::*, utils::Duration};
 use bevy_replicon::{
     client::{confirm_history::ConfirmHistory, ServerInitTick},
     core::{
-        command_markers::MarkerConfig,
-        ctx::WriteCtx,
-        deferred_entity::DeferredEntity,
-        replication_registry::{command_fns, rule_fns::RuleFns},
+        replication::{
+            command_markers::MarkerConfig,
+            deferred_entity::DeferredEntity,
+            replication_registry::{command_fns, ctx::WriteCtx, rule_fns::RuleFns},
+        },
         server_entity_map::ServerEntityMap,
     },
     prelude::*,

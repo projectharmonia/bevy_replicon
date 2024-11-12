@@ -16,10 +16,12 @@ use bevy::{
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Serialize};
 
-use super::EventRegistry;
+use super::{
+    ctx::{ClientSendCtx, ServerReceiveCtx},
+    EventRegistry,
+};
 use crate::core::{
     channels::{RepliconChannel, RepliconChannels},
-    ctx::{ClientSendCtx, ServerReceiveCtx},
     replicon_client::RepliconClient,
     replicon_server::RepliconServer,
     ClientId,
@@ -77,7 +79,7 @@ pub trait ClientEventAppExt {
         reflect::serde::{ReflectSerializer, ReflectDeserializer},
     };
     use bevy_replicon::{
-        core::ctx::{ClientSendCtx, ServerReceiveCtx},
+        core::event_registry::ctx::{ClientSendCtx, ServerReceiveCtx},
         prelude::*,
     };
     use bincode::{DefaultOptions, Options};

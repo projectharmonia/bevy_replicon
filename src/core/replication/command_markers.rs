@@ -2,8 +2,10 @@ use std::cmp::Reverse;
 
 use bevy::{ecs::component::ComponentId, prelude::*};
 
-use super::replication_registry::command_fns::{RemoveFn, WriteFn};
-use crate::core::replication_registry::ReplicationRegistry;
+use super::replication_registry::{
+    command_fns::{RemoveFn, WriteFn},
+    ReplicationRegistry,
+};
 
 /// Marker-based functions for [`App`].
 ///
@@ -50,10 +52,14 @@ pub trait AppMarkerExt {
     use bevy::{ecs::system::EntityCommands, prelude::*, utils::HashMap};
     use bevy_replicon::{
         core::{
-            command_markers::MarkerConfig,
-            deferred_entity::DeferredEntity,
-            ctx::{RemoveCtx, WriteCtx},
-            replication_registry::rule_fns::RuleFns,
+            replication::{
+                command_markers::MarkerConfig,
+                deferred_entity::DeferredEntity,
+                replication_registry::{
+                    ctx::{RemoveCtx, WriteCtx},
+                    rule_fns::RuleFns,
+                },
+            },
             replicon_tick::RepliconTick,
         },
         prelude::*,
@@ -174,7 +180,7 @@ impl CommandMarkers {
     ///
     /// May invalidate previously returned [`CommandMarkerIndex`] due to sorting.
     ///
-    /// Use [`ReplicationFns::register_marker`] to register a slot for command functions for this marker.
+    /// Use [`ReplicationRegistry::register_marker`] to register a slot for command functions for this marker.
     fn insert(&mut self, marker: CommandMarker) -> CommandMarkerIndex {
         let key = Reverse(marker.config.priority);
         let index = self
@@ -295,7 +301,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::core::replication_registry::{command_fns, ReplicationRegistry};
+    use crate::core::replication::replication_registry::command_fns;
 
     #[test]
     #[should_panic]

@@ -2,11 +2,15 @@ use std::io::Cursor;
 
 use bevy::{ecs::world::CommandQueue, prelude::*};
 
-use super::{FnsId, ReplicationRegistry};
-use crate::core::{
-    command_markers::{CommandMarkers, EntityMarkers},
+use super::{
     ctx::{DespawnCtx, RemoveCtx, SerializeCtx, WriteCtx},
-    deferred_entity::DeferredEntity,
+    FnsId, ReplicationRegistry,
+};
+use crate::core::{
+    replication::{
+        command_markers::{CommandMarkers, EntityMarkers},
+        deferred_entity::DeferredEntity,
+    },
     replicon_tick::RepliconTick,
     server_entity_map::ServerEntityMap,
 };
@@ -24,7 +28,7 @@ This example shows how to call registered functions on an entity:
 use bevy::prelude::*;
 use bevy_replicon::{
     core::{
-        replication_registry::{
+        replication::replication_registry::{
             rule_fns::RuleFns, test_fns::TestFnsEntityExt, ReplicationRegistry,
         },
         replicon_tick::RepliconTick,

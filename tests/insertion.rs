@@ -3,9 +3,10 @@ use std::io::Cursor;
 use bevy::{ecs::entity::MapEntities, prelude::*};
 use bevy_replicon::{
     core::{
-        ctx::WriteCtx,
-        deferred_entity::DeferredEntity,
-        replication_registry::{command_fns, rule_fns::RuleFns},
+        replication::{
+            deferred_entity::DeferredEntity,
+            replication_registry::{command_fns, ctx::WriteCtx, rule_fns::RuleFns},
+        },
         server_entity_map::ServerEntityMap,
     },
     prelude::*,

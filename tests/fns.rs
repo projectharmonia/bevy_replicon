@@ -3,11 +3,16 @@ use std::io::Cursor;
 use bevy::prelude::*;
 use bevy_replicon::{
     core::{
-        command_markers::MarkerConfig,
-        ctx::{DespawnCtx, WriteCtx},
-        deferred_entity::DeferredEntity,
-        replication_registry::{
-            command_fns, rule_fns::RuleFns, test_fns::TestFnsEntityExt, ReplicationRegistry,
+        replication::{
+            command_markers::MarkerConfig,
+            deferred_entity::DeferredEntity,
+            replication_registry::{
+                command_fns,
+                ctx::{DespawnCtx, WriteCtx},
+                rule_fns::RuleFns,
+                test_fns::TestFnsEntityExt,
+                ReplicationRegistry,
+            },
         },
         replicon_tick::RepliconTick,
     },
