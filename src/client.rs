@@ -12,15 +12,19 @@ use integer_encoding::VarIntReader;
 
 use crate::core::{
     channels::{ReplicationChannel, RepliconChannels},
-    command_markers::{CommandMarkers, EntityMarkers},
     common_conditions::{client_connected, client_just_connected, client_just_disconnected},
-    ctx::{DespawnCtx, RemoveCtx, WriteCtx},
-    deferred_entity::DeferredEntity,
-    replication_registry::ReplicationRegistry,
+    replication::{
+        command_markers::{CommandMarkers, EntityMarkers},
+        deferred_entity::DeferredEntity,
+        replication_registry::{
+            ctx::{DespawnCtx, RemoveCtx, WriteCtx},
+            ReplicationRegistry,
+        },
+        Replicated,
+    },
     replicon_client::RepliconClient,
     replicon_tick::RepliconTick,
     server_entity_map::ServerEntityMap,
-    Replicated,
 };
 use confirm_history::ConfirmHistory;
 

@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     core::{
-        replicated_clients::ReplicatedClients,
+        replication::replicated_clients::ReplicatedClients,
         replicon_client::{RepliconClient, RepliconClientStatus},
         replicon_server::RepliconServer,
         ClientId,

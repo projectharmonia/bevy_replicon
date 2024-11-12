@@ -19,13 +19,15 @@ use bytes::Bytes;
 use ordered_multimap::ListOrderedMultimap;
 use serde::{de::DeserializeOwned, Serialize};
 
-use super::EventRegistry;
+use super::{
+    ctx::{ClientReceiveCtx, ServerSendCtx},
+    EventRegistry,
+};
 use crate::{
     core::{
         channels::{RepliconChannel, RepliconChannels},
         connected_clients::ConnectedClients,
-        ctx::{ClientReceiveCtx, ServerSendCtx},
-        replicated_clients::ReplicatedClients,
+        replication::replicated_clients::ReplicatedClients,
         replicon_client::RepliconClient,
         replicon_server::RepliconServer,
         replicon_tick::RepliconTick,
@@ -84,7 +86,7 @@ pub trait ServerEventAppExt {
         reflect::serde::{ReflectSerializer, ReflectDeserializer},
     };
     use bevy_replicon::{
-        core::ctx::{ClientReceiveCtx, ServerSendCtx},
+        core::event_registry::ctx::{ClientReceiveCtx, ServerSendCtx},
         prelude::*,
     };
     use bincode::{DefaultOptions, Options};

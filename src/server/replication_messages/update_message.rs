@@ -6,9 +6,12 @@ use bytes::Bytes;
 
 use crate::core::{
     channels::ReplicationChannel,
-    ctx::SerializeCtx,
-    replicated_clients::{ClientBuffers, ReplicatedClient},
-    replication_registry::{component_fns::ComponentFns, rule_fns::UntypedRuleFns, FnsId},
+    replication::{
+        replicated_clients::{ClientBuffers, ReplicatedClient},
+        replication_registry::{
+            component_fns::ComponentFns, ctx::SerializeCtx, rule_fns::UntypedRuleFns, FnsId,
+        },
+    },
     replicon_server::RepliconServer,
     replicon_tick::RepliconTick,
 };

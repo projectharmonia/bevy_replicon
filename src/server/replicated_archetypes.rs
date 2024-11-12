@@ -10,7 +10,9 @@ use bevy::{
     utils::tracing::enabled,
 };
 
-use crate::core::{replication_registry::FnsId, replication_rules::ReplicationRules, Replicated};
+use crate::core::replication::{
+    replication_registry::FnsId, replication_rules::ReplicationRules, Replicated,
+};
 
 /// Cached information about all replicated archetypes.
 #[derive(Deref)]
@@ -129,7 +131,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::{core::replication_registry::ReplicationRegistry, AppRuleExt};
+    use crate::{core::replication::replication_registry::ReplicationRegistry, AppRuleExt};
 
     #[test]
     fn empty() {

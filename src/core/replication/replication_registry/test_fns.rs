@@ -2,11 +2,15 @@ use std::io::Cursor;
 
 use bevy::{ecs::world::CommandQueue, prelude::*};
 
-use super::{FnsId, ReplicationRegistry};
-use crate::core::{
-    command_markers::{CommandMarkers, EntityMarkers},
+use super::{
     ctx::{DespawnCtx, RemoveCtx, SerializeCtx, WriteCtx},
-    deferred_entity::DeferredEntity,
+    FnsId, ReplicationRegistry,
+};
+use crate::core::{
+    replication::{
+        command_markers::{CommandMarkers, EntityMarkers},
+        deferred_entity::DeferredEntity,
+    },
     replicon_tick::RepliconTick,
     server_entity_map::ServerEntityMap,
 };
@@ -24,7 +28,7 @@ This example shows how to call registered functions on an entity:
 use bevy::prelude::*;
 use bevy_replicon::{
     core::{
-        replication_registry::{
+        replication::replication_registry::{
             rule_fns::RuleFns, test_fns::TestFnsEntityExt, ReplicationRegistry,
         },
         replicon_tick::RepliconTick,
@@ -72,12 +76,12 @@ pub trait TestFnsEntityExt {
     /// Deserializes a component using a registered function for it and
     /// writes it into an entity using a write function based on markers.
     ///
-    /// See also [`AppMarkerExt`](crate::core::command_markers::AppMarkerExt).
+    /// See also [`AppMarkerExt`](crate::core::replication::command_markers::AppMarkerExt).
     fn apply_write(&mut self, data: &[u8], fns_id: FnsId, message_tick: RepliconTick) -> &mut Self;
 
     /// Remvoes a component using a registered function for it.
     ///
-    /// See also [`AppMarkerExt`](crate::core::command_markers::AppMarkerExt).
+    /// See also [`AppMarkerExt`](crate::core::replication::command_markers::AppMarkerExt).
     fn apply_remove(&mut self, fns_id: FnsId, message_tick: RepliconTick) -> &mut Self;
 
     /// Despawns an entity using [`ReplicationRegistry::despawn`].

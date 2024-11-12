@@ -2,10 +2,13 @@ use std::io::Cursor;
 
 use bevy::{prelude::*, ptr::Ptr};
 
-use super::{command_fns::UntypedCommandFns, rule_fns::UntypedRuleFns};
-use crate::core::{
-    command_markers::{CommandMarkerIndex, CommandMarkers, EntityMarkers},
+use super::{
+    command_fns::UntypedCommandFns,
     ctx::{RemoveCtx, SerializeCtx, WriteCtx},
+    rule_fns::UntypedRuleFns,
+};
+use crate::core::replication::{
+    command_markers::{CommandMarkerIndex, CommandMarkers, EntityMarkers},
     deferred_entity::DeferredEntity,
 };
 

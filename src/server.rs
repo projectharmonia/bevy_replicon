@@ -24,13 +24,14 @@ use crate::core::{
     channels::{ReplicationChannel, RepliconChannels},
     common_conditions::{server_just_stopped, server_running},
     connected_clients::ConnectedClients,
-    ctx::SerializeCtx,
     event_registry::server_event::BufferedServerEvents,
-    replicated_clients::{
-        client_visibility::Visibility, ClientBuffers, ReplicatedClients, VisibilityPolicy,
+    replication::{
+        replicated_clients::{
+            client_visibility::Visibility, ClientBuffers, ReplicatedClients, VisibilityPolicy,
+        },
+        replication_registry::{ctx::SerializeCtx, ReplicationRegistry},
+        replication_rules::ReplicationRules,
     },
-    replication_registry::ReplicationRegistry,
-    replication_rules::ReplicationRules,
     replicon_server::RepliconServer,
     replicon_tick::RepliconTick,
     ClientId,

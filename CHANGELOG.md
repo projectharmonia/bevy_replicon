@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - All `TestFnsEntityExt` now accept `FnsId`.
+- Move replication-related modules from `core` module under `core::replication`.
+- Move `Replicated` to the `replication` module.
+- Split the `ctx` module and move event-related contexts under `core::events_registry::ctx` and replication-related contexts under `core::replication_registry::ctx`.
 
 ### Removed
 

@@ -6,11 +6,11 @@ use std::{
 
 use bevy::prelude::*;
 
-use super::rule_fns::RuleFns;
-use crate::core::{
+use super::{
     ctx::{RemoveCtx, WriteCtx},
-    deferred_entity::DeferredEntity,
+    rule_fns::RuleFns,
 };
+use crate::core::replication::deferred_entity::DeferredEntity;
 
 /// Writing and removal functions for a component, like [`Commands`].
 #[derive(Clone, Copy)]

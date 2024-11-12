@@ -80,9 +80,9 @@ pub trait AppRuleExt {
 
     use bevy::prelude::*;
     use bevy_replicon::{
-        core::{
+        core::replication::replication_registry::{
             ctx::{SerializeCtx, WriteCtx},
-            replication_registry::rule_fns::RuleFns,
+            rule_fns::RuleFns,
         },
         prelude::*,
     };
@@ -272,9 +272,12 @@ use std::io::Cursor;
 
 use bevy::prelude::*;
 use bevy_replicon::{
-    core::{
-        ctx::{SerializeCtx, WriteCtx},
-        replication_registry::{rule_fns::RuleFns, ReplicationFns},
+    core::replication::{
+        replication_registry::{
+            ctx::{SerializeCtx, WriteCtx},
+            rule_fns::RuleFns,
+            ReplicationRegistry,
+        },
         replication_rules::{GroupReplication, ReplicationRule},
     },
     prelude::*,
@@ -296,7 +299,7 @@ struct PlayerBundle {
 struct Player;
 
 impl GroupReplication for PlayerBundle {
-    fn register(world: &mut World, registry: &mut ReplicationFns) -> ReplicationRule {
+    fn register(world: &mut World, registry: &mut ReplicationRegistry) -> ReplicationRule {
         // Customize serlialization to serialize only `translation`.
         let transform_info = registry.register_rule_fns(
             world,
@@ -347,7 +350,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::{core::replication_registry::ReplicationRegistry, AppRuleExt};
+    use crate::AppRuleExt;
 
     #[test]
     fn sorting() {

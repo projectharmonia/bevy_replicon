@@ -6,7 +6,7 @@ use crate::core::ClientId;
 ///
 /// Inserted as resource by [`ServerPlugin`](crate::server::ServerPlugin).
 ///
-/// See also [ReplicatedClients](super::replicated_clients::ReplicatedClients).
+/// See also [ReplicatedClients](super::replication::replicated_clients::ReplicatedClients).
 #[derive(Resource, Default, Deref)]
 pub struct ConnectedClients(Vec<ClientId>);
 

@@ -1,14 +1,16 @@
 pub mod command_fns;
 pub mod component_fns;
+pub mod ctx;
 pub mod rule_fns;
 pub mod test_fns;
 
 use bevy::{ecs::component::ComponentId, prelude::*};
 use serde::{Deserialize, Serialize};
 
-use super::{command_markers::CommandMarkerIndex, ctx::DespawnCtx};
+use super::command_markers::CommandMarkerIndex;
 use command_fns::{RemoveFn, UntypedCommandFns, WriteFn};
 use component_fns::ComponentFns;
+use ctx::DespawnCtx;
 use rule_fns::{RuleFns, UntypedRuleFns};
 
 /// Stores configurable replication functions.
@@ -156,12 +158,12 @@ impl Default for ReplicationRegistry {
     }
 }
 
-#[deprecated(note = "use `Replicated` instead")]
+#[deprecated(note = "use `ReplicationRegistry` instead")]
 pub type ReplicationFns = ReplicationRegistry;
 
 /// ID of replicaton functions for a component.
 ///
-/// Can be obtained from [`ReplicationFns::register_rule_fns`].
+/// Can be obtained from [`ReplicationRegistry::register_rule_fns`].
 #[derive(Clone, Copy, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub struct FnsId(usize);
 
