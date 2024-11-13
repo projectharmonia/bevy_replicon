@@ -92,7 +92,7 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
     fn serialize(&mut self, fns_id: FnsId, server_tick: RepliconTick) -> Vec<u8> {
         let registry = self.world().resource::<ReplicationRegistry>();
         let (component_id, component_fns, rule_fns) = registry.get(fns_id);
-        let mut cursor = Cursor::default();
+        let mut message = Vec::new();
         let ctx = SerializeCtx {
             server_tick,
             component_id,
@@ -107,11 +107,11 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
 
         unsafe {
             component_fns
-                .serialize(&ctx, rule_fns, ptr, &mut cursor)
+                .serialize(&ctx, rule_fns, ptr, &mut message)
                 .expect("serialization into memory should never fail");
         }
 
-        cursor.into_inner()
+        message
     }
 
     fn apply_write(&mut self, data: &[u8], fns_id: FnsId, message_tick: RepliconTick) -> &mut Self {

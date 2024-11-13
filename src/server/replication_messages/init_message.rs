@@ -1,344 +1,288 @@
-use std::{
-    io::{Cursor, Write},
-    mem,
-};
+use std::ops::Range;
 
-use bevy::{prelude::*, ptr::Ptr};
-use bincode::{DefaultOptions, Options};
-use bytes::Bytes;
+use bevy::prelude::*;
+use integer_encoding::{FixedIntWriter, VarInt, VarIntWriter};
 
-use super::update_message::UpdateMessage;
-use crate::{
-    core::{
-        channels::ReplicationChannel,
-        replication::{
-            replicated_clients::ReplicatedClient,
-            replication_registry::{
-                component_fns::ComponentFns, ctx::SerializeCtx, rule_fns::UntypedRuleFns, FnsId,
-            },
-        },
-        replicon_server::RepliconServer,
-        replicon_tick::RepliconTick,
+use super::{serialized_data::SerializedData, update_message::UpdateMessage};
+use crate::core::{
+    channels::ReplicationChannel,
+    replication::{
+        replicated_clients::{client_visibility::Visibility, ReplicatedClient},
+        InitMessageHeader,
     },
-    server::client_entity_map::ClientMapping,
+    replicon_server::RepliconServer,
 };
 
-/// A reusable message with replicated data.
+/// A message with replicated data.
 ///
-/// Contains tick and mappings, insertions, removals and despawns that
+/// Contains tick, mappings, insertions, removals and despawns that
 /// happened on this tick.
+///
+/// The data is stored in the form of ranges from [`SerializedData`].
+///
 /// Sent over [`ReplicationChannel::Init`] channel.
 ///
-/// See also [Limits](../index.html#limits)
+/// All sizes are serialized as `usize`, but we use variable integer encoding,
+/// so they are correctly deserialized even on a client with a different pointer size.
+/// However, if the server sends a value larger than what a client can fit into `usize`
+/// (which is very unlikely), the client will panic. This is expected,
+/// as it means the client can't have an array of such a size anyway.
+///
+/// Stored inside [`ReplicationMessages`](super::ReplicationMessages).
+#[derive(Default)]
 pub(crate) struct InitMessage {
-    /// Serialized data.
-    cursor: Cursor<Vec<u8>>,
+    /// Mappings for client's pre-spawned entities.
+    ///
+    /// Serialized as single continuous chunk of entity pairs.
+    ///
+    /// Mappings should be processed first, so all referenced entities after it will behave correctly.
+    ///
+    /// See aslo [`ClientEntityMap`](crate::server::client_entity_map::ClientEntityMap).
+    mappings: Range<usize>,
 
-    /// Length of the array that updated automatically after writing data.
-    array_len: u16,
+    /// Number pairs encoded in [`Self::mappings`].
+    mappings_len: usize,
 
-    /// Position of the array from last call of [`Self::start_array`].
-    array_pos: u64,
+    /// Despawn happened on this tick.
+    ///
+    /// Since clients may see different entities, it's serialized as multiple chunks of entities.
+    /// I.e. serialized despawns may have holes due to visibility differences.
+    despawns: Vec<Range<usize>>,
 
-    /// The number of empty arrays at the end.
-    trailing_empty_arrays: usize,
+    /// Number of depspawned entities.
+    ///
+    /// May not be equal to the length of [`Self::despawns`] since adjacent ranges are merged together.
+    despawns_len: usize,
 
-    /// Entity from last call of [`Self::start_entity_data`].
-    data_entity: Entity,
+    /// Component removals happened on this tick.
+    ///
+    /// Serialized as a list of pairs of entity chunk and a list of
+    /// [`FnsId`](crate::core::replication::replication_registry::FnsId)
+    /// serialized as a single chunk.
+    ///
+    /// For entities, we serialize their count like other data, but for IDs,
+    /// we serialize their size in bytes.
+    removals: Vec<(Range<usize>, Range<usize>)>,
 
-    /// Size in bytes of the component data stored for the currently-being-written entity.
-    entity_data_size: u16,
+    /// Component insertions or changes happened on this tick.
+    ///
+    /// Serialized as a list of pairs of entity chunk and multiple chunks with changed components.
+    /// Components are stored in multiple chunks because newly connected clients may need to serialize all components,
+    /// while previously connected clients only need the components spawned during this tick.
+    ///
+    /// For entities, we serialize their count like other data, but for IDs,
+    /// we serialize their size in bytes.
+    ///
+    /// Usually changes stored in [`UpdateMessage`], but if an entity have any insertion or removal,
+    /// we serialize it as part of the init message to keep entity changes atomic.
+    changes: Vec<(Range<usize>, Vec<Range<usize>>)>,
 
-    /// Position of entity from last call of [`Self::start_entity_data`].
-    entity_data_pos: u64,
+    /// Visibility of the entity for which changes are being written.
+    ///
+    /// Updated after [`Self::start_entity_changes`].
+    entity_visibility: Visibility,
 
-    /// Position of entity data length from last call of [`Self::write_data_entity`].
-    entity_data_size_pos: u64,
+    /// Indicates that an entity has been written since the
+    /// last call of [`Self::start_entity_changes`].
+    entity_written: bool,
+
+    /// Intermediate buffer to reuse allocated memory from [`Self::changes`].
+    buffer: Vec<Vec<Range<usize>>>,
 }
 
 impl InitMessage {
-    /// Clears the message.
-    ///
-    /// Keeps allocated capacity for reuse.
-    pub(super) fn reset(&mut self) {
-        self.cursor.set_position(0);
-        self.trailing_empty_arrays = 0;
+    pub(crate) fn set_mappings(&mut self, mappings: Range<usize>, len: usize) {
+        self.mappings = mappings;
+        self.mappings_len = len;
     }
 
-    /// Returns size in bytes of the current entity data.
-    ///
-    /// See also [`Self::start_entity_data`] and [`Self::end_entity_data`].
-    pub(crate) fn entity_data_size(&self) -> u16 {
-        self.entity_data_size
-    }
-
-    /// Starts writing array by remembering its position to write length after.
-    ///
-    /// Arrays can contain entity data or despawns inside.
-    /// See also [`Self::end_array`], [`Self::write_client_mapping`], [`Self::write_entity`] and [`Self::start_entity_data`].
-    pub(crate) fn start_array(&mut self) {
-        debug_assert_eq!(self.array_len, 0);
-
-        self.array_pos = self.cursor.position();
-        self.cursor
-            .set_position(self.array_pos + mem::size_of_val(&self.array_len) as u64);
-    }
-
-    /// Ends writing array by writing its length into the last remembered position.
-    ///
-    /// See also [`Self::start_array`].
-    pub(crate) fn end_array(&mut self) -> bincode::Result<()> {
-        if self.array_len != 0 {
-            let previous_pos = self.cursor.position();
-            self.cursor.set_position(self.array_pos);
-
-            bincode::serialize_into(&mut self.cursor, &self.array_len)?;
-
-            self.cursor.set_position(previous_pos);
-            self.array_len = 0;
-            self.trailing_empty_arrays = 0;
-        } else {
-            self.trailing_empty_arrays += 1;
-            self.cursor.set_position(self.array_pos);
-            bincode::serialize_into(&mut self.cursor, &self.array_len)?;
-        }
-
-        Ok(())
-    }
-
-    /// Serializes entity to entity mapping as an array element.
-    ///
-    /// Should be called only inside an array and increases its length by 1.
-    /// See also [`Self::start_array`].
-    pub(crate) fn write_client_mapping(&mut self, mapping: &ClientMapping) -> bincode::Result<()> {
-        super::serialize_entity(&mut self.cursor, mapping.server_entity)?;
-        super::serialize_entity(&mut self.cursor, mapping.client_entity)?;
-        self.array_len = self
-            .array_len
-            .checked_add(1)
-            .ok_or(bincode::ErrorKind::SizeLimit)?;
-
-        Ok(())
-    }
-
-    /// Serializes entity as an array element.
-    ///
-    /// Reuses previously shared bytes if they exist, or updates them.
-    /// Should be called only inside an array and increases its length by 1.
-    /// See also [`Self::start_array`].
-    pub(crate) fn write_entity<'a>(
-        &'a mut self,
-        shared_bytes: &mut Option<&'a [u8]>,
-        entity: Entity,
-    ) -> bincode::Result<()> {
-        super::write_with(shared_bytes, &mut self.cursor, |cursor| {
-            super::serialize_entity(cursor, entity)
-        })?;
-
-        self.array_len = self
-            .array_len
-            .checked_add(1)
-            .ok_or(bincode::ErrorKind::SizeLimit)?;
-
-        Ok(())
-    }
-
-    /// Starts writing entity and its data as an array element.
-    ///
-    /// Should be called only inside an array and increases its length by 1.
-    /// Data can contain components with their IDs or IDs only.
-    /// Entity will be written lazily after first data write.
-    /// See also [`Self::end_entity_data`] and [`Self::write_component`].
-    pub(crate) fn start_entity_data(&mut self, entity: Entity) {
-        debug_assert_eq!(self.entity_data_size, 0);
-
-        self.data_entity = entity;
-        self.entity_data_pos = self.cursor.position();
-    }
-
-    /// Writes entity for the current data and remembers the position after it to write length later.
-    ///
-    /// Should be called only after first data write.
-    fn write_data_entity(&mut self) -> bincode::Result<()> {
-        super::serialize_entity(&mut self.cursor, self.data_entity)?;
-        self.entity_data_size_pos = self.cursor.position();
-        self.cursor.set_position(
-            self.entity_data_size_pos + mem::size_of_val(&self.entity_data_size) as u64,
-        );
-
-        Ok(())
-    }
-
-    /// Ends writing entity data by writing its length into the last remembered position.
-    ///
-    /// If the entity data is empty, nothing will be written unless `save_empty` is set to true.
-    /// Should be called only inside an array and increases its length by 1.
-    /// See also [`Self::start_array`], [`Self::write_component`] and
-    /// [`Self::write_component_id`].
-    pub(crate) fn end_entity_data(&mut self, save_empty: bool) -> bincode::Result<()> {
-        if self.entity_data_size == 0 && !save_empty {
-            self.cursor.set_position(self.entity_data_pos);
-            return Ok(());
-        }
-
-        if self.entity_data_size == 0 {
-            self.write_data_entity()?;
-        }
-
-        let previous_pos = self.cursor.position();
-        self.cursor.set_position(self.entity_data_size_pos);
-
-        bincode::serialize_into(&mut self.cursor, &self.entity_data_size)?;
-
-        self.cursor.set_position(previous_pos);
-        self.entity_data_size = 0;
-        self.array_len = self
-            .array_len
-            .checked_add(1)
-            .ok_or(bincode::ErrorKind::SizeLimit)?;
-
-        Ok(())
-    }
-
-    /// Serializes component and its replication functions ID as an element of entity data.
-    ///
-    /// Reuses previously shared bytes if they exist, or updates them.
-    /// Should be called only inside an entity data and increases its size.
-    /// See also [`Self::start_entity_data`].
-    pub(crate) fn write_component<'a>(
-        &'a mut self,
-        shared_bytes: &mut Option<&'a [u8]>,
-        rule_fns: &UntypedRuleFns,
-        component_fns: &ComponentFns,
-        ctx: &SerializeCtx,
-        fns_id: FnsId,
-        ptr: Ptr,
-    ) -> bincode::Result<()> {
-        if self.entity_data_size == 0 {
-            self.write_data_entity()?;
-        }
-
-        let size = super::write_with(shared_bytes, &mut self.cursor, |cursor| {
-            DefaultOptions::new().serialize_into(&mut *cursor, &fns_id)?;
-            // SAFETY: `component_fns`, `ptr` and `rule_fns` were created for the same component type.
-            unsafe { component_fns.serialize(ctx, rule_fns, ptr, cursor) }
-        })?;
-
-        self.entity_data_size = self
-            .entity_data_size
-            .checked_add(size)
-            .ok_or(bincode::ErrorKind::SizeLimit)?;
-
-        Ok(())
-    }
-
-    /// Serializes replication functions ID as an element of entity data.
-    ///
-    /// Should be called only inside an entity data and increases its size.
-    /// See also [`Self::start_entity_data`].
-    pub(crate) fn write_fns_id(&mut self, fns_id: FnsId) -> bincode::Result<()> {
-        if self.entity_data_size == 0 {
-            self.write_data_entity()?;
-        }
-
-        let previous_pos = self.cursor.position();
-        DefaultOptions::new().serialize_into(&mut self.cursor, &fns_id)?;
-
-        let id_size = self.cursor.position() - previous_pos;
-        self.entity_data_size = self
-            .entity_data_size
-            .checked_add(id_size as u16)
-            .ok_or(bincode::ErrorKind::SizeLimit)?;
-
-        Ok(())
-    }
-
-    /// Removes entity data elements from update message and copies it.
-    ///
-    /// Ends entity data for the update message.
-    /// See also [`Self::start_entity_data`] and [`Self::end_entity_data`].
-    pub(crate) fn take_entity_data(
-        &mut self,
-        update_message: &mut UpdateMessage,
-    ) -> bincode::Result<()> {
-        if update_message.entity_data_size != 0 {
-            if self.entity_data_size == 0 {
-                self.write_data_entity()?;
+    pub(crate) fn add_despawn(&mut self, entity: Range<usize>) {
+        self.despawns_len += 1;
+        if let Some(last) = self.despawns.last_mut() {
+            // Append to previous range if possible.
+            if last.end == entity.start {
+                last.end = entity.end;
+                return;
             }
+        }
+        self.despawns.push(entity);
+    }
 
-            let slice = update_message.as_slice();
-            let offset = update_message.entity_data_size_pos as usize
-                + mem::size_of_val(&update_message.entity_data_size);
-            self.cursor.write_all(&slice[offset..]).unwrap();
+    pub(crate) fn add_removals(&mut self, entity: Range<usize>, fn_ids: Range<usize>) {
+        self.removals.push((entity, fn_ids));
+    }
 
-            self.entity_data_size = self
-                .entity_data_size
-                .checked_add(update_message.entity_data_size)
-                .ok_or(bincode::ErrorKind::SizeLimit)?;
-            update_message.entity_data_size = 0;
+    /// Updates internal state to start writing changes for an entity with the given visibility.
+    ///
+    /// Entities and their data written lazily during the iteration.
+    /// See [`Self::add_changed_entity`] and [`Self::add_changed_component`].
+    pub(crate) fn start_entity_changes(&mut self, visibility: Visibility) {
+        self.entity_visibility = visibility;
+        self.entity_written = false;
+    }
+
+    /// Visibility from the last call of [`Self::start_entity_changes`].
+    pub(crate) fn entity_visibility(&self) -> Visibility {
+        self.entity_visibility
+    }
+
+    /// Returns `true` if [`Self::add_changed_entity`] were called since the last
+    /// call of [`Self::start_entity_changes`].
+    pub(crate) fn entity_written(&mut self) -> bool {
+        self.entity_written
+    }
+
+    /// Adds an entity chunk.
+    pub(crate) fn add_changed_entity(&mut self, entity: Range<usize>) {
+        let components = self.buffer.pop().unwrap_or_default();
+        self.changes.push((entity, components));
+        self.entity_written = true;
+    }
+
+    /// Adds a component chunk to the last added entity from [`Self::add_changed_entity`].
+    pub(crate) fn add_changed_component(&mut self, component: Range<usize>) {
+        let (_, components) = self
+            .changes
+            .last_mut()
+            .expect("entity should be written before adding components");
+
+        if let Some(last) = components.last_mut() {
+            // Append to previous range if possible.
+            if last.end == component.start {
+                last.end = component.end;
+                return;
+            }
         }
 
-        update_message
-            .cursor
-            .set_position(update_message.entity_data_pos);
-
-        Ok(())
+        components.push(component);
     }
 
-    /// Returns the serialized data, excluding trailing empty arrays, as a byte array.
-    fn as_slice(&self) -> &[u8] {
-        let slice = self.cursor.get_ref();
-        let position = self.cursor.position() as usize;
-        let extra_len = self.trailing_empty_arrays * mem::size_of_val(&self.array_len);
-        &slice[..position - extra_len]
-    }
-
-    /// Sends the message, excluding trailing empty arrays, to the specified client.
+    /// Takes last changed entity with its component chunks.
     ///
-    /// Updates change tick for the client if there are data to send.
-    /// Does nothing if there is no data to send.
+    /// Needs to be called if an entity have any removal or insertion to keep entity updates atomic.
+    pub(crate) fn take_changes(&mut self, update_message: &mut UpdateMessage) {
+        if update_message.changes_written() {
+            let (entity, components_iter) = update_message
+                .pop_changes()
+                .expect("entity should be written");
+
+            if !self.entity_written {
+                let mut components = self.buffer.pop().unwrap_or_default();
+                components.extend(components_iter);
+                self.changes.push((entity, components));
+            } else {
+                let (_, components) = self.changes.last_mut().unwrap();
+                components.extend(components_iter);
+            }
+        }
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.mappings.is_empty()
+            && self.despawns.is_empty()
+            && self.removals.is_empty()
+            && self.changes.is_empty()
+    }
+
     pub(crate) fn send(
         &self,
         server: &mut RepliconServer,
-        client: &mut ReplicatedClient,
-        server_tick: RepliconTick,
+        client: &ReplicatedClient,
+        serialized: &SerializedData,
+        server_tick: Range<usize>,
     ) -> bincode::Result<()> {
-        debug_assert_eq!(self.array_len, 0);
-        debug_assert_eq!(self.entity_data_size, 0);
+        let mut header = InitMessageHeader::default();
+        let mut message_size = size_of::<InitMessageHeader>() + server_tick.len();
 
-        let slice = self.as_slice();
-        if slice.is_empty() {
-            trace!("no init data to send for {:?}", client.id());
-            return Ok(());
+        if !self.mappings.is_empty() {
+            header |= InitMessageHeader::MAPPINGS;
+            message_size += self.mappings_len.required_space() + self.mappings.len();
+        }
+        if !self.despawns.is_empty() {
+            header |= InitMessageHeader::DESPAWNS;
+            message_size += self.despawns_len.required_space();
+            message_size += self.despawns.iter().map(|range| range.len()).sum::<usize>();
+        }
+        if !self.removals.is_empty() {
+            header |= InitMessageHeader::REMOVALS;
+            message_size += self.removals.len().required_space();
+            message_size += self
+                .removals
+                .iter()
+                .map(|(entity, components)| {
+                    entity.len() + components.len().required_space() + components.len()
+                })
+                .sum::<usize>();
+        }
+        if !self.changes.is_empty() {
+            header |= InitMessageHeader::CHANGES;
+            message_size += self.changes.len().required_space();
+            message_size += self
+                .changes
+                .iter()
+                .map(|(entity, components)| {
+                    let components_size = components.iter().map(|range| range.len()).sum::<usize>();
+                    entity.len() + components_size.required_space() + components_size
+                })
+                .sum::<usize>();
         }
 
-        client.set_init_tick(server_tick);
+        let mut message = Vec::with_capacity(message_size);
 
-        let mut header = [0; mem::size_of::<RepliconTick>()];
-        bincode::serialize_into(&mut header[..], &server_tick)?;
+        message.write_fixedint(header.bits())?;
+        message.extend_from_slice(&serialized[server_tick]);
+
+        if !self.mappings.is_empty() {
+            message.write_varint(self.mappings_len)?;
+            message.extend_from_slice(&serialized[self.mappings.clone()]);
+        }
+        if !self.despawns.is_empty() {
+            message.write_varint(self.despawns_len)?;
+            for range in &self.despawns {
+                message.extend_from_slice(&serialized[range.clone()]);
+            }
+        }
+        if !self.removals.is_empty() {
+            message.write_varint(self.removals.len())?;
+            for (entity, components) in &self.removals {
+                message.extend_from_slice(&serialized[entity.clone()]);
+                message.write_varint(components.len())?;
+                message.extend_from_slice(&serialized[components.clone()]);
+            }
+        }
+        if !self.changes.is_empty() {
+            message.write_varint(self.changes.len())?;
+            for (entity, components) in &self.changes {
+                let components_size = components.iter().map(|range| range.len()).sum::<usize>();
+                message.extend_from_slice(&serialized[entity.clone()]);
+                message.write_varint(components_size)?;
+                for component in components {
+                    message.extend_from_slice(&serialized[component.clone()]);
+                }
+            }
+        }
+
+        debug_assert_eq!(message.len(), message_size);
 
         trace!("sending init message to {:?}", client.id());
-        server.send(
-            client.id(),
-            ReplicationChannel::Init,
-            Bytes::from([&header, slice].concat()),
-        );
+        server.send(client.id(), ReplicationChannel::Init, message);
 
         Ok(())
     }
-}
 
-impl Default for InitMessage {
-    fn default() -> Self {
-        Self {
-            cursor: Default::default(),
-            array_len: Default::default(),
-            array_pos: Default::default(),
-            trailing_empty_arrays: Default::default(),
-            entity_data_size: Default::default(),
-            entity_data_pos: Default::default(),
-            entity_data_size_pos: Default::default(),
-            data_entity: Entity::PLACEHOLDER,
-        }
+    /// Clears all chunks.
+    ///
+    /// Keeps allocated memory for reuse.
+    pub(super) fn clear(&mut self) {
+        self.mappings = Default::default();
+        self.mappings_len = 0;
+        self.despawns.clear();
+        self.despawns_len = 0;
+        self.removals.clear();
+        self.buffer
+            .extend(self.changes.drain(..).map(|(_, mut range)| {
+                range.clear();
+                range
+            }));
     }
 }

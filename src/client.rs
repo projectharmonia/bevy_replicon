@@ -8,7 +8,7 @@ use std::{io::Cursor, mem};
 use bevy::{ecs::world::CommandQueue, prelude::*};
 use bincode::{DefaultOptions, Options};
 use bytes::Bytes;
-use integer_encoding::VarIntReader;
+use integer_encoding::{FixedIntReader, VarIntReader, VarIntWriter};
 
 use crate::core::{
     channels::{ReplicationChannel, RepliconChannels},
@@ -20,7 +20,7 @@ use crate::core::{
             ctx::{DespawnCtx, RemoveCtx, WriteCtx},
             ReplicationRegistry,
         },
-        Replicated,
+        InitMessageHeader, Replicated,
     },
     replicon_client::RepliconClient,
     replicon_tick::RepliconTick,
@@ -163,7 +163,7 @@ fn apply_replication(
         let mut acks = Vec::with_capacity(acks_size);
         for message in client.receive(ReplicationChannel::Update) {
             let update_index = read_update_message(params, buffered_updates, message)?;
-            bincode::serialize_into(&mut acks, &update_index)?;
+            acks.write_varint(update_index)?;
         }
         client.send(ReplicationChannel::Init, acks);
     }
@@ -184,39 +184,38 @@ fn apply_init_message(
         stats.bytes += end_pos;
     }
 
-    let message_tick = bincode::deserialize_from(&mut cursor)?;
+    let header = InitMessageHeader::from_bits_retain(cursor.read_fixedint()?);
+    let message_tick = DefaultOptions::new().deserialize_from(&mut cursor)?;
     trace!("applying init message for {message_tick:?}");
     world.resource_mut::<ServerInitTick>().0 = message_tick;
-    debug_assert!(cursor.position() < end_pos, "init message can't be empty");
 
-    apply_entity_mappings(world, params, &mut cursor)?;
-    if cursor.position() == end_pos {
-        return Ok(());
+    if header.contains(InitMessageHeader::MAPPINGS) {
+        apply_entity_mappings(world, params, &mut cursor)?;
     }
 
-    apply_despawns(world, params, &mut cursor, message_tick)?;
-    if cursor.position() == end_pos {
-        return Ok(());
+    if header.contains(InitMessageHeader::DESPAWNS) {
+        apply_despawns(world, params, &mut cursor, message_tick)?;
     }
 
-    apply_init_components(
-        world,
-        params,
-        ComponentsKind::Removal,
-        &mut cursor,
-        message_tick,
-    )?;
-    if cursor.position() == end_pos {
-        return Ok(());
+    if header.contains(InitMessageHeader::REMOVALS) {
+        apply_init_components(
+            world,
+            params,
+            ComponentsKind::Removal,
+            &mut cursor,
+            message_tick,
+        )?;
     }
 
-    apply_init_components(
-        world,
-        params,
-        ComponentsKind::Insert,
-        &mut cursor,
-        message_tick,
-    )?;
+    if header.contains(InitMessageHeader::CHANGES) {
+        apply_init_components(
+            world,
+            params,
+            ComponentsKind::Insert,
+            &mut cursor,
+            message_tick,
+        )?;
+    }
 
     Ok(())
 }
@@ -236,7 +235,9 @@ fn read_update_message(
         stats.bytes += end_pos;
     }
 
-    let (init_tick, message_tick, update_index) = bincode::deserialize_from(&mut cursor)?;
+    let init_tick = DefaultOptions::new().deserialize_from(&mut cursor)?;
+    let message_tick = DefaultOptions::new().deserialize_from(&mut cursor)?;
+    let update_index = cursor.read_varint()?;
     trace!("received update message for {message_tick:?}");
     buffered_updates.insert(BufferedUpdate {
         init_tick,
@@ -285,7 +286,7 @@ fn apply_entity_mappings(
     params: &mut ReceiveParams,
     cursor: &mut Cursor<&[u8]>,
 ) -> bincode::Result<()> {
-    let mappings_len: u16 = bincode::deserialize_from(&mut *cursor)?;
+    let mappings_len: usize = cursor.read_varint()?;
     if let Some(stats) = &mut params.stats {
         stats.mappings += mappings_len as u32;
     }
@@ -313,10 +314,10 @@ fn apply_init_components(
     cursor: &mut Cursor<&[u8]>,
     message_tick: RepliconTick,
 ) -> bincode::Result<()> {
-    let entities_len: u16 = bincode::deserialize_from(&mut *cursor)?;
+    let entities_len: usize = cursor.read_varint()?;
     for _ in 0..entities_len {
         let server_entity = deserialize_entity(cursor)?;
-        let data_size: u16 = bincode::deserialize_from(&mut *cursor)?;
+        let data_size: usize = cursor.read_varint()?;
 
         let client_entity = params
             .entity_map
@@ -339,7 +340,7 @@ fn apply_init_components(
         }
 
         let end_pos = cursor.position() + data_size as u64;
-        let mut components_len = 0u32;
+        let mut components_len = 0;
         while cursor.position() < end_pos {
             let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
             let (component_id, component_fns, rule_fns) = params.registry.get(fns_id);
@@ -389,7 +390,7 @@ fn apply_despawns(
     cursor: &mut Cursor<&[u8]>,
     message_tick: RepliconTick,
 ) -> bincode::Result<()> {
-    let entities_len: u16 = bincode::deserialize_from(&mut *cursor)?;
+    let entities_len: usize = cursor.read_varint()?;
     if let Some(stats) = &mut params.stats {
         stats.despawns += entities_len as u32;
     }
@@ -411,7 +412,7 @@ fn apply_despawns(
     Ok(())
 }
 
-///  Deserializes replicated component updates and applies them to the `world`.
+/// Deserializes replicated component updates and applies them to the `world`.
 ///
 /// Consumes all remaining bytes in the cursor.
 fn apply_update_components(
@@ -423,7 +424,7 @@ fn apply_update_components(
     let message_end = cursor.get_ref().len() as u64;
     while cursor.position() < message_end {
         let server_entity = deserialize_entity(cursor)?;
-        let data_size: u16 = bincode::deserialize_from(&mut *cursor)?;
+        let data_size: usize = cursor.read_varint()?;
 
         let Some(client_entity) = params.entity_map.get_by_server(server_entity) else {
             // Update could arrive after a despawn from init message.
@@ -470,7 +471,7 @@ fn apply_update_components(
         }
 
         let end_pos = cursor.position() + data_size as u64;
-        let mut components_count = 0u32;
+        let mut components_count = 0;
         while cursor.position() < end_pos {
             let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
             let (component_id, component_fns, rule_fns) = params.registry.get(fns_id);

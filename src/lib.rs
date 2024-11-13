@@ -595,15 +595,6 @@ Updates for despawned entities will be discarded automatically, but events or co
 Clients should never assume their world state is the same as the server's on any given tick value-wise.
 World state on the client is only "eventually consistent" with the server's.
 
-# Limits
-
-To reduce packet size there are the following limits per replication update:
-
-- Up to [`u16::MAX`] entities that have added components with up to [`u16::MAX`] bytes of component data.
-- Up to [`u16::MAX`] entities that have changed components with up to [`u16::MAX`] bytes of component data.
-- Up to [`u16::MAX`] entities that have removed components with up to [`u16::MAX`] bytes of component data.
-- Up to [`u16::MAX`] entities that were despawned.
-
 # Troubleshooting
 
 If you face any issue, try to enable logging to see what is going on.

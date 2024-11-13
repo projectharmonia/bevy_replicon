@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Various optimizations for replication messages to use fewer bytes.
+- Accept `Vec<u8>` instead of `Cursor<Vec<u8>>` for serialization.
 - All `TestFnsEntityExt` now accept `FnsId`.
 - Move replication-related modules from `core` module under `core::replication`.
 - Move `Replicated` to the `replication` module.

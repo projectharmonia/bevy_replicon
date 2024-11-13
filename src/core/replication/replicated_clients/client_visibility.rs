@@ -9,11 +9,6 @@ use super::VisibilityPolicy;
 /// Entity visibility settings for a client.
 pub struct ClientVisibility {
     filter: VisibilityFilter,
-
-    /// Visibility for a specific entity that has been cached for re-referencing.
-    ///
-    /// Used as an optimization by server replication.
-    cached_visibility: Visibility,
 }
 
 impl ClientVisibility {
@@ -36,10 +31,7 @@ impl ClientVisibility {
 
     /// Creates a new instance with a specific filter.
     fn with_filter(filter: VisibilityFilter) -> Self {
-        Self {
-            filter,
-            cached_visibility: Default::default(),
-        }
+        Self { filter }
     }
 
     /// Resets the filter state to as it was after [`Self::new`].
@@ -177,7 +169,7 @@ impl ClientVisibility {
                     // For blacklisting an entity we don't remove the entity right away.
                     // Instead we mark it as queued for removal and remove it
                     // later in `Self::update`. This allows us to avoid accessing
-                    // the blacklist's `removed` field in `Self::get_visibility_state`.
+                    // the blacklist's `removed` field in `Self::visibility_state`.
                     entry.insert(BlacklistInfo::QueuedForRemoval);
                     removed.insert(entity);
                 } else {
@@ -200,7 +192,7 @@ impl ClientVisibility {
                     // Instead we mark it as `WhitelistInfo::JustAdded` and then set it to
                     // 'WhitelistInfo::Visible' in `Self::update`.
                     // This allows us to avoid accessing the whitelist's `added` field in
-                    // `Self::get_visibility_state`.
+                    // `Self::visibility_state`.
                     if *list.entry(entity).or_insert(WhitelistInfo::JustAdded)
                         == WhitelistInfo::JustAdded
                     {
@@ -227,26 +219,14 @@ impl ClientVisibility {
 
     /// Checks if a specific entity is visible.
     pub fn is_visible(&self, entity: Entity) -> bool {
-        match self.get_visibility_state(entity) {
+        match self.visibility_state(entity) {
             Visibility::Hidden => false,
             Visibility::Gained | Visibility::Visible => true,
         }
     }
 
-    /// Caches visibility for a specific entity.
-    ///
-    /// Can be obtained later from [`Self::cached_visibility`].
-    pub(crate) fn cache_visibility(&mut self, entity: Entity) {
-        self.cached_visibility = self.get_visibility_state(entity);
-    }
-
-    /// Returns visibility cached by the last call of [`Self::cache_visibility`].
-    pub(crate) fn cached_visibility(&self) -> Visibility {
-        self.cached_visibility
-    }
-
     /// Returns visibility of a specific entity.
-    fn get_visibility_state(&self, entity: Entity) -> Visibility {
+    pub(crate) fn visibility_state(&self, entity: Entity) -> Visibility {
         match &self.filter {
             VisibilityFilter::All => Visibility::Visible,
             VisibilityFilter::Blacklist { list, .. } => match list.get(&entity) {
