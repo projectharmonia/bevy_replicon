@@ -322,10 +322,7 @@ fn apply_init_components(
             .entity_map
             .get_by_server_or_insert(server_entity, || world.spawn(Replicated).id());
 
-        let world_cell = world.as_unsafe_world_cell();
-        // SAFETY: have write access and the cell used only to get entities.
-        let mut client_entity = unsafe { DeferredEntity::new(world_cell, client_entity) };
-        let mut commands = Commands::new_from_entities(params.queue, world_cell.entities());
+        let (mut client_entity, mut commands) = read_entity(world, params.queue, client_entity);
         params
             .entity_markers
             .read(params.command_markers, &*client_entity);
@@ -432,10 +429,7 @@ fn apply_update_components(
             continue;
         };
 
-        let world_cell = world.as_unsafe_world_cell();
-        // SAFETY: have write access and the cell used only to get entities.
-        let mut client_entity = unsafe { DeferredEntity::new(world_cell, client_entity) };
-        let mut commands = Commands::new_from_entities(params.queue, world_cell.entities());
+        let (mut client_entity, mut commands) = read_entity(world, params.queue, client_entity);
         params
             .entity_markers
             .read(params.command_markers, &*client_entity);
@@ -511,6 +505,20 @@ fn apply_update_components(
     }
 
     Ok(())
+}
+
+/// Splits world access into entity that disallows structural ECS changes and commands.
+fn read_entity<'w, 's>(
+    world: &'w mut World,
+    queue: &'s mut CommandQueue,
+    client_entity: Entity,
+) -> (DeferredEntity<'w>, Commands<'w, 's>) {
+    let world_cell = world.as_unsafe_world_cell();
+    // SAFETY: have write access and the cell used only to get entities.
+    let client_entity = unsafe { DeferredEntity::new(world_cell, client_entity) };
+    let commands = Commands::new_from_entities(queue, world_cell.entities());
+
+    (client_entity, commands)
 }
 
 /// Deserializes `entity` from compressed index and generation.
