@@ -114,6 +114,60 @@ fn package_size_component() {
 }
 
 #[test]
+fn many_components() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<BoolComponent>()
+        .replicate::<VecComponent>();
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    let server_entity = server_app
+        .world_mut()
+        .spawn((Replicated, BoolComponent(false), VecComponent::default()))
+        .id();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    let mut server_entity = server_app.world_mut().entity_mut(server_entity);
+
+    let mut bool_component = server_entity.get_mut::<BoolComponent>().unwrap();
+    bool_component.0 = true;
+
+    const VEC_VALUE: &[u8] = &[1; 10];
+    let mut vec_component = server_entity.get_mut::<VecComponent>().unwrap();
+    vec_component.0 = VEC_VALUE.to_vec();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    let (bool_component, vec_component) = client_app
+        .world_mut()
+        .query::<(&BoolComponent, &VecComponent)>()
+        .single(client_app.world());
+    assert!(bool_component.0);
+    assert_eq!(vec_component.0, VEC_VALUE);
+}
+
+#[test]
 fn command_fns() {
     let mut server_app = App::new();
     let mut client_app = App::new();
@@ -529,64 +583,6 @@ fn many_entities() {
     {
         assert!(component.0);
     }
-}
-
-#[test]
-fn many_clients() {
-    let mut server_app = App::new();
-    let mut client_app1 = App::new();
-    let mut client_app2 = App::new();
-    for app in [&mut server_app, &mut client_app1, &mut client_app2] {
-        app.add_plugins((
-            MinimalPlugins,
-            RepliconPlugins.set(ServerPlugin {
-                tick_policy: TickPolicy::EveryFrame,
-                ..Default::default()
-            }),
-        ))
-        .replicate::<BoolComponent>();
-    }
-
-    server_app.connect_client(&mut client_app1);
-    server_app.connect_client(&mut client_app2);
-
-    let server_entity = server_app
-        .world_mut()
-        .spawn((Replicated, BoolComponent(false)))
-        .id();
-
-    server_app.update();
-    server_app.exchange_with_client(&mut client_app1);
-    server_app.exchange_with_client(&mut client_app2);
-    client_app1.update();
-    client_app2.update();
-    server_app.exchange_with_client(&mut client_app1);
-    server_app.exchange_with_client(&mut client_app2);
-
-    // Change value.
-    let mut component = server_app
-        .world_mut()
-        .get_mut::<BoolComponent>(server_entity)
-        .unwrap();
-    component.0 = true;
-
-    server_app.update();
-    server_app.exchange_with_client(&mut client_app1);
-    server_app.exchange_with_client(&mut client_app2);
-    client_app1.update();
-    client_app2.update();
-
-    let component1 = client_app1
-        .world_mut()
-        .query::<&BoolComponent>()
-        .single(client_app1.world());
-    assert!(component1.0);
-
-    let component2 = client_app2
-        .world_mut()
-        .query::<&BoolComponent>()
-        .single(client_app2.world());
-    assert!(component2.0);
 }
 
 #[test]
