@@ -12,29 +12,29 @@ use crate::core::{
     replicon_tick::RepliconTick,
 };
 
-/// A message with replicated component updates.
+/// A message with replicated component mutations.
 ///
-/// Contains change tick, current tick, update index and component updates since
+/// Contains change tick, current tick, mutate index and component mutations since
 /// the last acknowledged tick for each entity.
 ///
-/// Cannot be applied on the client until the init message matching this update message's change tick
+/// Cannot be applied on the client until the init message matching this message change tick
 /// has been applied to the client world.
 /// The message will be manually split into packets up to max size, and each packet will be applied
 /// independently on the client.
-/// Message splits only happen per-entity to avoid weird behavior from partial entity updates.
+/// Message splits only happen per-entity to avoid weird behavior from partial entity mutations.
 ///
 /// The data is stored in the form of ranges from [`SerializedData`].
 ///
-/// Sent over the [`ReplicationChannel::Update`] channel. If the update gets lost, we try to resend it manually,
+/// Sent over the [`ReplicationChannel::Mutations`] channel. If the message gets lost, we try to resend it manually,
 /// using the last up-to-date mutations to avoid re-sending old values.
 ///
 /// Stored inside [`ReplicationMessages`](super::ReplicationMessages).
 #[derive(Default)]
-pub(crate) struct UpdateMessage {
+pub(crate) struct MutateMessage {
     /// List of entity values for [`Self::mutations`].
     ///
-    /// Used to associate entities with update indices that the client
-    /// needs to acknowledge to consider the mutations as received.
+    /// Used to associate entities with the mutate index that the client
+    /// needs to acknowledge to consider entity mutations as received.
     entities: Vec<Entity>,
 
     /// Component mutations happened on this tick.
@@ -51,14 +51,14 @@ pub(crate) struct UpdateMessage {
     /// Intermediate buffer to reuse allocated memory from [`Self::mutations`].
     buffer: Vec<Vec<Range<usize>>>,
 
-    /// Intermediate buffer with update index, message size and a range for [`Self::mutations`].
+    /// Intermediate buffer with mutate index, message size and a range for [`Self::mutations`].
     ///
-    /// We split messages first in order to know the number of updates in advance.
+    /// We split messages first in order to know their number in advance.
     /// We plan to include it in the message in the future.
     messages: Vec<(u16, usize, Range<usize>)>,
 }
 
-impl UpdateMessage {
+impl MutateMessage {
     /// Updates internal state to start writing mutated components for an entity.
     ///
     /// Entities and their data written lazily during the iteration.
@@ -129,9 +129,9 @@ impl UpdateMessage {
         let init_tick_size = init_tick.position() as usize;
         let ticks_size = init_tick_size + server_tick.len();
 
-        let (mut update_index, mut entities) =
-            client.register_update(client_buffers, tick, timestamp);
-        let mut message_size = ticks_size + update_index.required_space();
+        let (mut mutate_index, mut entities) =
+            client.register_mutate_message(client_buffers, tick, timestamp);
+        let mut message_size = ticks_size + mutate_index.required_space();
         let mut mutations_range = Range::<usize>::default();
         for (entity, (entity_range, components)) in self.entities.iter().zip(&self.mutations) {
             const MAX_PACKET_SIZE: usize = 1200; // TODO: make it configurable by the messaging backend.
@@ -144,26 +144,27 @@ impl UpdateMessage {
                 message_size += data_size;
             } else {
                 self.messages
-                    .push((update_index, message_size, mutations_range.clone()));
+                    .push((mutate_index, message_size, mutations_range.clone()));
 
                 mutations_range.start = mutations_range.end;
-                (update_index, entities) = client.register_update(client_buffers, tick, timestamp);
+                (mutate_index, entities) =
+                    client.register_mutate_message(client_buffers, tick, timestamp);
                 entities.push(*entity);
                 mutations_range.end += 1;
-                message_size = ticks_size + update_index.required_space() + data_size;
+                message_size = ticks_size + mutate_index.required_space() + data_size;
             }
         }
         if !mutations_range.is_empty() {
             self.messages
-                .push((update_index, message_size, mutations_range.clone()));
+                .push((mutate_index, message_size, mutations_range.clone()));
         }
 
-        for (update_index, message_size, mutations_range) in self.messages.drain(..) {
+        for (mutate_index, message_size, mutations_range) in self.messages.drain(..) {
             let mut message = Vec::with_capacity(message_size);
 
             message.extend_from_slice(&init_tick.get_ref()[..init_tick_size]);
             message.extend_from_slice(&serialized[server_tick.clone()]);
-            message.write_varint(update_index)?;
+            message.write_varint(mutate_index)?;
             for (entity, components) in &self.mutations[mutations_range.clone()] {
                 let components_size = components.iter().map(|range| range.len()).sum::<usize>();
                 message.extend_from_slice(&serialized[entity.clone()]);
@@ -175,7 +176,7 @@ impl UpdateMessage {
 
             debug_assert_eq!(message.len(), message_size);
 
-            server.send(client.id(), ReplicationChannel::Update, message);
+            server.send(client.id(), ReplicationChannel::Mutations, message);
         }
 
         Ok(())

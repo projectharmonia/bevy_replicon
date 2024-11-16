@@ -82,7 +82,7 @@ fn replication<C: Component + Default + Serialize + DeserializeOwned + Clone>(c:
             })
         });
 
-        c.bench_function(&format!("{name}, update send, {clients} client(s)"), |b| {
+        c.bench_function(&format!("{name}, mutate send, {clients} client(s)"), |b| {
             b.iter_custom(|iter| {
                 let mut server_app = create_app::<C>();
                 let mut client_apps = Vec::new();
@@ -154,7 +154,7 @@ fn replication<C: Component + Default + Serialize + DeserializeOwned + Clone>(c:
         })
     });
 
-    c.bench_function(&format!("{name}, update receive"), |b| {
+    c.bench_function(&format!("{name}, mutate receive"), |b| {
         b.iter_custom(|iter| {
             let mut server_app = create_app::<C>();
             let mut client_app = create_app::<C>();

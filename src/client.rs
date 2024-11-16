@@ -39,7 +39,7 @@ impl Plugin for ClientPlugin {
         app.init_resource::<RepliconClient>()
             .init_resource::<ServerEntityMap>()
             .init_resource::<ServerInitTick>()
-            .init_resource::<BufferedUpdates>()
+            .init_resource::<BufferedMutations>()
             .configure_sets(
                 PreUpdate,
                 (
@@ -77,17 +77,17 @@ impl ClientPlugin {
     /// Receives and applies replication messages from the server.
     ///
     /// Tick init messages are sent over the [`ReplicationChannel::Init`] and are applied first to ensure valid state
-    /// for entity updates.
+    /// for component mutations.
     ///
-    /// Entity update messages are sent over [`ReplicationChannel::Update`], which means they may appear
-    /// ahead-of or behind init messages from the same server tick. An update will only be applied if its
+    /// Mutate messages are sent over [`ReplicationChannel::Mutations`], which means they may appear
+    /// ahead-of or behind init messages from the same server tick. A mutation will only be applied if its
     /// change tick has already appeared in an init message, otherwise it will be buffered while waiting.
-    /// Since entity updates can arrive in any order, updates will only be applied if they correspond to a more
+    /// Since component mutations can arrive in any order, they will only be applied if correspond to a more
     /// recent server tick than the last acked server tick for each entity.
     ///
-    /// Buffered entity update messages are processed last.
+    /// Buffered mutate messages are processed last.
     ///
-    /// Acknowledgments for received entity update messages are sent back to the server.
+    /// Acknowledgments for received mutate messages are sent back to the server.
     ///
     /// See also [`ReplicationMessages`](crate::server::replication_messages::ReplicationMessages).
     pub(super) fn receive_replication(
@@ -97,7 +97,7 @@ impl ClientPlugin {
     ) -> bincode::Result<()> {
         world.resource_scope(|world, mut client: Mut<RepliconClient>| {
             world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
-                world.resource_scope(|world, mut buffered_updates: Mut<BufferedUpdates>| {
+                world.resource_scope(|world, mut buffered_mutations: Mut<BufferedMutations>| {
                     world.resource_scope(|world, command_markers: Mut<CommandMarkers>| {
                         world.resource_scope(|world, registry: Mut<ReplicationRegistry>| {
                             let mut stats = world.remove_resource::<ClientStats>();
@@ -114,7 +114,7 @@ impl ClientPlugin {
                                 world,
                                 &mut params,
                                 &mut client,
-                                &mut buffered_updates,
+                                &mut buffered_mutations,
                             )?;
 
                             if let Some(stats) = stats {
@@ -132,44 +132,44 @@ impl ClientPlugin {
     fn reset(
         mut init_tick: ResMut<ServerInitTick>,
         mut entity_map: ResMut<ServerEntityMap>,
-        mut buffered_updates: ResMut<BufferedUpdates>,
+        mut buffered_mutations: ResMut<BufferedMutations>,
     ) {
         *init_tick = Default::default();
         entity_map.clear();
-        buffered_updates.clear();
+        buffered_mutations.clear();
     }
 }
 
 /// Reads all received messages and applies them.
 ///
-/// Sends acknowledgments for update messages back.
+/// Sends acknowledgments for mutate messages back.
 fn apply_replication(
     world: &mut World,
     params: &mut ReceiveParams,
     client: &mut RepliconClient,
-    buffered_updates: &mut BufferedUpdates,
+    buffered_mutations: &mut BufferedMutations,
 ) -> bincode::Result<()> {
     for message in client.receive(ReplicationChannel::Init) {
         apply_init_message(world, params, &message)?;
     }
 
-    // Unlike init messages, we read all updates first, sort them by tick
-    // in descending order to ensure that the last update will be applied first.
-    // Since update messages manually split by packet size, we apply all messages,
+    // Unlike init messages, we read all mutate messages first, sort them by tick
+    // in descending order to ensure that the last mutation will be applied first.
+    // Since mutate messages manually split by packet size, we apply all messages,
     // but skip outdated data per-entity by checking last received tick for it
     // (unless user requested history via marker).
     let init_tick = *world.resource::<ServerInitTick>();
-    let acks_size = mem::size_of::<u16>() * client.received_count(ReplicationChannel::Update);
+    let acks_size = mem::size_of::<u16>() * client.received_count(ReplicationChannel::Mutations);
     if acks_size != 0 {
         let mut acks = Vec::with_capacity(acks_size);
-        for message in client.receive(ReplicationChannel::Update) {
-            let update_index = read_update_message(params, buffered_updates, message)?;
-            acks.write_varint(update_index)?;
+        for message in client.receive(ReplicationChannel::Mutations) {
+            let mutate_index = buffer_mutate_message(params, buffered_mutations, message)?;
+            acks.write_varint(mutate_index)?;
         }
         client.send(ReplicationChannel::Init, acks);
     }
 
-    apply_update_messages(world, params, buffered_updates, init_tick)
+    apply_mutate_messages(world, params, buffered_mutations, init_tick)
 }
 
 /// Reads and applies init message.
@@ -234,14 +234,14 @@ fn apply_init_message(
     Ok(())
 }
 
-/// Reads and buffers update message.
+/// Reads and buffers mutate message.
 ///
 /// For details see [`replication_messages`](crate::server::replication_messages).
 ///
-/// Returns update index to be used for acknowledgment.
-fn read_update_message(
+/// Returns mutate index to be used for acknowledgment.
+fn buffer_mutate_message(
     params: &mut ReceiveParams,
-    buffered_updates: &mut BufferedUpdates,
+    buffered_mutations: &mut BufferedMutations,
     message: Bytes,
 ) -> bincode::Result<u16> {
     let end_pos: u64 = message.len().try_into().unwrap();
@@ -253,38 +253,36 @@ fn read_update_message(
 
     let init_tick = DefaultOptions::new().deserialize_from(&mut cursor)?;
     let message_tick = DefaultOptions::new().deserialize_from(&mut cursor)?;
-    let update_index = cursor.read_varint()?;
-    trace!("received update message for {message_tick:?}");
-    buffered_updates.insert(BufferedUpdate {
+    let mutate_index = cursor.read_varint()?;
+    trace!("received mutate message for {message_tick:?}");
+    buffered_mutations.insert(BufferedMutate {
         init_tick,
         message_tick,
         message: message.slice(cursor.position() as usize..),
     });
 
-    Ok(update_index)
+    Ok(mutate_index)
 }
 
-/// Applies updates from [`BufferedUpdates`].
+/// Applies mutations from [`BufferedMutations`].
 ///
-/// For details see [`replication_messages`](crate::server::replication_messages).
-///
-/// If the update message can't be applied yet (because the init message with the
+/// If the mutate message can't be applied yet (because the init message with the
 /// corresponding tick hasn't arrived), it will be kept in the buffer.
-fn apply_update_messages(
+fn apply_mutate_messages(
     world: &mut World,
     params: &mut ReceiveParams,
-    buffered_updates: &mut BufferedUpdates,
+    buffered_mutations: &mut BufferedMutations,
     init_tick: ServerInitTick,
 ) -> bincode::Result<()> {
     let mut result = Ok(());
-    buffered_updates.0.retain(|update| {
-        if update.init_tick > *init_tick {
+    buffered_mutations.0.retain(|mutate| {
+        if mutate.init_tick > *init_tick {
             return true;
         }
 
-        trace!("applying update message for {:?}", update.message_tick);
-        let len = apply_array(&mut Cursor::new(&*update.message), false, |cursor| {
-            apply_update_mutations(world, params, cursor, update.message_tick)
+        trace!("applying mutate message for {:?}", mutate.message_tick);
+        let len = apply_array(&mut Cursor::new(&*mutate.message), false, |cursor| {
+            apply_mutations(world, params, cursor, mutate.message_tick)
         });
 
         match len {
@@ -483,10 +481,10 @@ fn apply_init_changes(
     Ok(())
 }
 
-/// Deserializes and applies component mutations for all entities from update message.
+/// Deserializes and applies component mutations for all entities from mutate message.
 ///
 /// Consumes all remaining bytes in the cursor.
-fn apply_update_mutations(
+fn apply_mutations(
     world: &mut World,
     params: &mut ReceiveParams,
     cursor: &mut Cursor<&[u8]>,
@@ -496,8 +494,8 @@ fn apply_update_mutations(
     let data_size: usize = cursor.read_varint()?;
 
     let Some(client_entity) = params.entity_map.get_by_server(server_entity) else {
-        // Update could arrive after a despawn from init message.
-        debug!("ignoring update received for unknown server's {server_entity:?}");
+        // Mutation could arrive after a despawn from init message.
+        debug!("ignoring mutations received for unknown server's {server_entity:?}");
         cursor.set_position(cursor.position() + data_size as u64);
         return Ok(());
     };
@@ -509,14 +507,14 @@ fn apply_update_mutations(
 
     let mut history = client_entity
         .get_mut::<ConfirmHistory>()
-        .expect("all entities from update should have confirmed ticks");
+        .expect("all entities from mutate message should have confirmed ticks");
     let new_entity = message_tick > history.last_tick();
     if new_entity {
         history.set_last_tick(message_tick);
     } else {
         if !params.entity_markers.need_history() {
             trace!(
-                "ignoring outdated update for client's {:?}",
+                "ignoring outdated mutations for client's {:?}",
                 client_entity.id()
             );
             cursor.set_position(cursor.position() + data_size as u64);
@@ -526,7 +524,7 @@ fn apply_update_mutations(
         let ago = history.last_tick().get().wrapping_sub(message_tick.get());
         if ago >= u64::BITS {
             trace!(
-                "discarding update {ago} ticks old for client's {:?}",
+                "discarding {ago} ticks old mutations for client's {:?}",
                 client_entity.id()
             );
             cursor.set_position(cursor.position() + data_size as u64);
@@ -679,42 +677,42 @@ pub enum ClientSet {
 /// Last received tick for init message from server.
 ///
 /// In other words, last [`RepliconTick`] with a removal, insertion, spawn or despawn.
-/// When a component changes, this value is not updated.
+/// When a component mutates, this value is not updated.
 #[derive(Clone, Copy, Debug, Default, Deref, Resource)]
 pub struct ServerInitTick(RepliconTick);
 
-/// All cached buffered updates, used by the replicon client to align replication updates with initialization
+/// Cached buffered mutate messages, used by the replicon client to align them with initialization
 /// messages.
 ///
 /// If [`ClientSet::Reset`] is disabled, then this needs to be cleaned up manually with [`Self::clear`].
 #[derive(Default, Resource)]
-pub struct BufferedUpdates(Vec<BufferedUpdate>);
+pub struct BufferedMutations(Vec<BufferedMutate>);
 
-impl BufferedUpdates {
+impl BufferedMutations {
     pub fn clear(&mut self) {
         self.0.clear();
     }
 
-    /// Inserts a new update, maintaining sorting by their message tick in descending order.
-    fn insert(&mut self, update: BufferedUpdate) {
+    /// Inserts a new buffered message, maintaining sorting by their message tick in descending order.
+    fn insert(&mut self, mutation: BufferedMutate) {
         let index = self
             .0
-            .partition_point(|other_update| update.message_tick < other_update.message_tick);
-        self.0.insert(index, update);
+            .partition_point(|other_mutation| mutation.message_tick < other_mutation.message_tick);
+        self.0.insert(index, mutation);
     }
 }
 
-/// Caches a partially-deserialized entity update message that is waiting for its tick to appear in an init message.
+/// Partially-deserialized mutate message that is waiting for its tick to appear in an init message.
 ///
-/// See also [`crate::server::replication_messages::UpdateMessage`].
-pub(super) struct BufferedUpdate {
+/// See also [`crate::server::replication_messages`].
+pub(super) struct BufferedMutate {
     /// Required tick to wait for.
     init_tick: RepliconTick,
 
-    /// The tick this update corresponds to.
+    /// The tick this mutations corresponds to.
     message_tick: RepliconTick,
 
-    /// Update data.
+    /// Mutations data.
     message: Bytes,
 }
 

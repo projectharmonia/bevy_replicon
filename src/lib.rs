@@ -583,14 +583,14 @@ For a higher level API consider using [`bevy_replicon_attributes`](https://docs.
 
 All events, inserts, removals and despawns will be applied to clients in the same order as on the server.
 
-Entity component updates are grouped by entity, and component groupings may be applied to clients in a different order than on the server.
-For example, if two entities are spawned in tick 1 on the server and their components are updated in tick 2,
-then the client is guaranteed to see the spawns at the same time, but the component updates may appear in different client ticks.
+Entity component mutations are grouped by entity, and component groupings may be applied to clients in a different order than on the server.
+For example, if two entities are spawned in tick 1 on the server and their components are mutated in tick 2,
+then the client is guaranteed to see the spawns at the same time, but the component mutations may appear in different client ticks.
 
-If a component is dependent on other data, updates to the component will only be applied to the client when that data has arrived.
-So if your component references another entity, updates to that component will only be applied when the referenced entity has been spawned on the client.
+If a component is dependent on other data, mutations to the component will only be applied to the client when that data has arrived.
+So if your component references another entity, mutations to that component will only be applied when the referenced entity has been spawned on the client.
 
-Updates for despawned entities will be discarded automatically, but events or components may reference despawned entities and should be handled with that in mind.
+Mutations for despawned entities will be discarded automatically, but events or components may reference despawned entities and should be handled with that in mind.
 
 Clients should never assume their world state is the same as the server's on any given tick value-wise.
 World state on the client is only "eventually consistent" with the server's.

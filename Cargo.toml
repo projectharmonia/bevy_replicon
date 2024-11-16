@@ -67,7 +67,7 @@ name = "replication"
 harness = false
 
 [[test]]
-name = "changes"
+name = "mutations"
 required-features = ["client", "server"]
 
 [[test]]

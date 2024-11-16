@@ -54,10 +54,10 @@ pub struct ServerPlugin {
     /// Visibility configuration.
     pub visibility_policy: VisibilityPolicy,
 
-    /// The time after which updates will be considered lost if an acknowledgment is not received for them.
+    /// The time after which mutations will be considered lost if an acknowledgment is not received for them.
     ///
-    /// In practice updates will live at least `update_timeout`, and at most `2*update_timeout`.
-    pub update_timeout: Duration,
+    /// In practice mutations will live at least `mutate_timeout`, and at most `2*mutate_timeout`.
+    pub mutate_timeout: Duration,
 
     /// If enabled, replication will be started automatically after connection.
     ///
@@ -74,7 +74,7 @@ impl Default for ServerPlugin {
         Self {
             tick_policy: TickPolicy::MaxTickRate(30),
             visibility_policy: Default::default(),
-            update_timeout: Duration::from_secs(10),
+            mutate_timeout: Duration::from_secs(10),
             replicate_after_connect: true,
         }
     }
@@ -123,7 +123,7 @@ impl Plugin for ServerPlugin {
                     Self::handle_connections,
                     Self::enable_replication,
                     Self::receive_acks,
-                    Self::cleanup_acks(self.update_timeout).run_if(on_timer(self.update_timeout)),
+                    Self::cleanup_acks(self.mutate_timeout).run_if(on_timer(self.mutate_timeout)),
                 )
                     .chain()
                     .in_set(ServerSet::Receive)
@@ -216,14 +216,14 @@ impl ServerPlugin {
     }
 
     fn cleanup_acks(
-        update_timeout: Duration,
+        mutate_timeout: Duration,
     ) -> impl FnMut(ResMut<ReplicatedClients>, ResMut<ClientBuffers>, Res<Time>) {
         move |mut replicated_clients: ResMut<ReplicatedClients>,
               mut client_buffers: ResMut<ClientBuffers>,
               time: Res<Time>| {
-            let min_timestamp = time.elapsed().saturating_sub(update_timeout);
+            let min_timestamp = time.elapsed().saturating_sub(mutate_timeout);
             for client in replicated_clients.iter_mut() {
-                client.remove_older_updates(&mut client_buffers, min_timestamp);
+                client.cleanup_older_mutations(&mut client_buffers, min_timestamp);
             }
         }
     }
@@ -239,15 +239,15 @@ impl ServerPlugin {
             let message_end = message.len() as u64;
             while cursor.position() < message_end {
                 match cursor.read_varint() {
-                    Ok(update_index) => {
+                    Ok(mutate_index) => {
                         let client = replicated_clients.client_mut(client_id);
-                        client.acknowledge(
+                        client.ack_mutate_message(
                             &mut client_buffers,
                             change_tick.this_run(),
-                            update_index,
+                            mutate_index,
                         );
                     }
-                    Err(e) => debug!("unable to deserialize update index from {client_id:?}: {e}"),
+                    Err(e) => debug!("unable to deserialize mutate index from {client_id:?}: {e}"),
                 }
             }
         }
@@ -353,7 +353,7 @@ fn send_messages(
     time: &Time,
 ) -> Result<(), Box<bincode::ErrorKind>> {
     let mut server_tick_range = None;
-    for ((init_message, update_message), client) in
+    for ((init_message, mutate_message), client) in
         messages.iter_mut().zip(replicated_clients.iter_mut())
     {
         if !init_message.is_empty() {
@@ -366,11 +366,11 @@ fn send_messages(
             trace!("no init data to send for {:?}", client.id());
         }
 
-        if !update_message.is_empty() {
+        if !mutate_message.is_empty() {
             let server_tick = write_tick_cached(&mut server_tick_range, serialized, server_tick)?;
 
-            trace!("sending update message(s) to {:?}", client.id());
-            update_message.send(
+            trace!("sending mutate message(s) to {:?}", client.id());
+            mutate_message.send(
                 server,
                 client,
                 client_buffers,
@@ -380,7 +380,7 @@ fn send_messages(
                 time.elapsed(),
             )?;
         } else {
-            trace!("no updates to send for {:?}", client.id());
+            trace!("no mutations to send for {:?}", client.id());
         }
 
         client.visibility_mut().update();
@@ -449,8 +449,7 @@ fn collect_removals(
     Ok(())
 }
 
-/// Collects component insertions from this tick into init messages, and changes into update messages
-/// since the last entity tick.
+/// Collects component changes from this tick into init and mutate messages since the last entity tick.
 fn collect_changes(
     messages: &mut ReplicationMessages,
     serialized: &mut SerializedData,
@@ -481,12 +480,12 @@ fn collect_changes(
 
         for entity in archetype.entities() {
             let mut entity_range = None;
-            for ((init_message, update_message), client) in
+            for ((init_message, mutate_message), client) in
                 messages.iter_mut().zip(replicated_clients.iter())
             {
                 let visibility = client.visibility().visibility_state(entity.id());
                 init_message.start_entity_changes(visibility);
-                update_message.start_entity_mutations();
+                mutate_message.start_entity_mutations();
             }
 
             // SAFETY: all replicated archetypes have marker component with table storage.
@@ -525,7 +524,7 @@ fn collect_changes(
                     component_id,
                 };
                 let mut component_range = None;
-                for ((init_message, update_message), client) in
+                for ((init_message, mutate_message), client) in
                     messages.iter_mut().zip(replicated_clients.iter())
                 {
                     if init_message.entity_visibility() == Visibility::Hidden {
@@ -539,13 +538,13 @@ fn collect_changes(
                         .filter(|_| !ticks.is_added(change_tick.last_run(), change_tick.this_run()))
                     {
                         if ticks.is_changed(tick, change_tick.this_run()) {
-                            if !update_message.mutations_written() {
+                            if !mutate_message.mutations_written() {
                                 let entity_range = write_entity_cached(
                                     &mut entity_range,
                                     serialized,
                                     entity.id(),
                                 )?;
-                                update_message.add_mutated_entity(entity.id(), entity_range);
+                                mutate_message.add_mutated_entity(entity.id(), entity_range);
                             }
                             let component_range = write_component_cached(
                                 &mut component_range,
@@ -556,7 +555,7 @@ fn collect_changes(
                                 replicated_component,
                                 component,
                             )?;
-                            update_message.add_mutated_component(component_range);
+                            mutate_message.add_mutated_component(component_range);
                         }
                     } else {
                         if !init_message.entity_written() {
@@ -578,7 +577,7 @@ fn collect_changes(
                 }
             }
 
-            for ((init_message, update_message), client) in
+            for ((init_message, mutate_message), client) in
                 messages.iter_mut().zip(replicated_clients.iter_mut())
             {
                 let visibility = init_message.entity_visibility();
@@ -591,9 +590,9 @@ fn collect_changes(
                     || init_message.entity_written()
                     || removal_buffer.contains_key(&entity.id())
                 {
-                    // If there is any insertion, removal, or we must initialize, include all updates into init message.
+                    // If there is any insertion, removal, or we must initialize, include all mutations into init message.
                     // and bump the last acknowledged tick to keep entity updates atomic.
-                    init_message.take_changes(update_message);
+                    init_message.take_changes(mutate_message);
                     client.set_change_tick(entity.id(), change_tick.this_run());
                 }
 
@@ -743,8 +742,8 @@ pub enum ServerSet {
 /// When [`RepliconTick`] is mutated, the server's replication
 /// system will run. This means the tick policy controls how often server state is replicated.
 ///
-/// Note that component updates are replicated over the unreliable channel, so if a component update packet is lost
-/// then component updates won't be resent until the server's replication system runs again.
+/// Note that component mutations are replicated over the unreliable channel, so if a component mutate message is lost
+/// then component mutations won't be resent until the server's replication system runs again.
 #[derive(Debug, Copy, Clone)]
 pub enum TickPolicy {
     /// The replicon tick is incremented at most max ticks per second. In practice the tick rate may be lower if the

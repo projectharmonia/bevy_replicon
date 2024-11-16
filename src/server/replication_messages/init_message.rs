@@ -3,7 +3,7 @@ use std::ops::Range;
 use bevy::prelude::*;
 use integer_encoding::{FixedIntWriter, VarInt, VarIntWriter};
 
-use super::{serialized_data::SerializedData, update_message::UpdateMessage};
+use super::{mutate_message::MutateMessage, serialized_data::SerializedData};
 use crate::core::{
     channels::ReplicationChannel,
     replication::{
@@ -163,9 +163,9 @@ impl InitMessage {
     /// Takes last changed entity with its component chunks.
     ///
     /// Needs to be called if an entity have any removal or insertion to keep entity updates atomic.
-    pub(crate) fn take_changes(&mut self, update_message: &mut UpdateMessage) {
-        if update_message.mutations_written() {
-            let (entity, components_iter) = update_message
+    pub(crate) fn take_changes(&mut self, mutate_message: &mut MutateMessage) {
+        if mutate_message.mutations_written() {
+            let (entity, components_iter) = mutate_message
                 .pop_mutations()
                 .expect("entity should be written");
 
