@@ -16,11 +16,12 @@ use crate::core::{
     replication::{
         command_markers::{CommandMarkers, EntityMarkers},
         deferred_entity::DeferredEntity,
+        init_message_arrays::InitMessageArrays,
         replication_registry::{
             ctx::{DespawnCtx, RemoveCtx, WriteCtx},
             ReplicationRegistry,
         },
-        InitMessageArrays, Replicated,
+        Replicated,
     },
     replicon_client::RepliconClient,
     replicon_tick::RepliconTick,
@@ -171,7 +172,9 @@ fn apply_replication(
     apply_update_messages(world, params, buffered_updates, init_tick)
 }
 
-/// Applies [`InitMessage`](crate::server::replication_messages::InitMessage).
+/// Reads and applies init message.
+///
+/// For details see [`replication_messages`](crate::server::replication_messages).
 fn apply_init_message(
     world: &mut World,
     params: &mut ReceiveParams,
@@ -189,38 +192,51 @@ fn apply_init_message(
     trace!("applying init message for {message_tick:?}");
     world.resource_mut::<ServerInitTick>().0 = message_tick;
 
-    if arrays.contains(InitMessageArrays::MAPPINGS) {
-        apply_entity_mappings(world, params, &mut cursor)?;
-    }
-
-    if arrays.contains(InitMessageArrays::DESPAWNS) {
-        apply_despawns(world, params, &mut cursor, message_tick)?;
-    }
-
-    if arrays.contains(InitMessageArrays::REMOVALS) {
-        apply_init_components(
-            world,
-            params,
-            ComponentsKind::Removal,
-            &mut cursor,
-            message_tick,
-        )?;
-    }
-
-    if arrays.contains(InitMessageArrays::CHANGES) {
-        apply_init_components(
-            world,
-            params,
-            ComponentsKind::Insert,
-            &mut cursor,
-            message_tick,
-        )?;
+    let last_array = arrays.last();
+    for (_, array) in arrays.iter_names() {
+        match array {
+            InitMessageArrays::MAPPINGS => {
+                let len = apply_array(&mut cursor, array != last_array, |cursor| {
+                    apply_entity_mapping(world, params, cursor)
+                })?;
+                if let Some(stats) = &mut params.stats {
+                    stats.mappings += len as u32;
+                }
+            }
+            InitMessageArrays::DESPAWNS => {
+                let len = apply_array(&mut cursor, array != last_array, |cursor| {
+                    apply_despawn(world, params, cursor, message_tick)
+                })?;
+                if let Some(stats) = &mut params.stats {
+                    stats.despawns += len as u32;
+                }
+            }
+            InitMessageArrays::REMOVALS => {
+                let len = apply_array(&mut cursor, array != last_array, |cursor| {
+                    apply_removals(world, params, cursor, message_tick)
+                })?;
+                if let Some(stats) = &mut params.stats {
+                    stats.entities_changed += len as u32;
+                }
+            }
+            InitMessageArrays::CHANGES => {
+                let len = apply_array(&mut cursor, false, |cursor| {
+                    apply_init_changes(world, params, cursor, message_tick)
+                })?;
+                if let Some(stats) = &mut params.stats {
+                    stats.entities_changed += len as u32;
+                }
+            }
+            _ => unreachable!("iteration should yield only named flags"),
+        }
     }
 
     Ok(())
 }
 
-/// Reads and buffers [`UpdateMessage`](crate::server::replication_messages::UpdateMessage).
+/// Reads and buffers update message.
+///
+/// For details see [`replication_messages`](crate::server::replication_messages).
 ///
 /// Returns update index to be used for acknowledgment.
 fn read_update_message(
@@ -250,6 +266,8 @@ fn read_update_message(
 
 /// Applies updates from [`BufferedUpdates`].
 ///
+/// For details see [`replication_messages`](crate::server::replication_messages).
+///
 /// If the update message can't be applied yet (because the init message with the
 /// corresponding tick hasn't arrived), it will be kept in the buffer.
 fn apply_update_messages(
@@ -265,13 +283,17 @@ fn apply_update_messages(
         }
 
         trace!("applying update message for {:?}", update.message_tick);
-        if let Err(e) = apply_update_components(
-            world,
-            params,
-            &mut Cursor::new(&*update.message),
-            update.message_tick,
-        ) {
-            result = Err(e);
+        let len = apply_array(&mut Cursor::new(&*update.message), false, |cursor| {
+            apply_update_mutations(world, params, cursor, update.message_tick)
+        });
+
+        match len {
+            Ok(len) => {
+                if let Some(stats) = &mut params.stats {
+                    stats.entities_changed += len as u32;
+                }
+            }
+            Err(e) => result = Err(e),
         }
 
         false
@@ -280,230 +302,277 @@ fn apply_update_messages(
     result
 }
 
-/// Applies received server mappings from client's pre-spawned entities.
-fn apply_entity_mappings(
-    world: &mut World,
-    params: &mut ReceiveParams,
+/// Reads received array from the message and applies `f` to its memebers.
+///
+/// If the array is serialized with the length, calls `f` the specified number of times.
+/// Otherwise, calls `f` until the end of the cursor.
+///
+/// See [`InitMessageArrays`] for details.
+fn apply_array(
     cursor: &mut Cursor<&[u8]>,
-) -> bincode::Result<()> {
-    let mappings_len: usize = cursor.read_varint()?;
-    if let Some(stats) = &mut params.stats {
-        stats.mappings += mappings_len as u32;
-    }
-    for _ in 0..mappings_len {
-        let server_entity = deserialize_entity(cursor)?;
-        let client_entity = deserialize_entity(cursor)?;
-
-        if let Some(mut entity) = world.get_entity_mut(client_entity) {
-            debug!("received mapping from {server_entity:?} to {client_entity:?}");
-            entity.insert(Replicated);
-            params.entity_map.insert(server_entity, client_entity);
-        } else {
-            // Entity could be despawned on client already.
-            debug!("received mapping from {server_entity:?} to {client_entity:?}, but the entity doesn't exists");
+    with_len: bool,
+    mut f: impl FnMut(&mut Cursor<&[u8]>) -> bincode::Result<()>,
+) -> bincode::Result<usize> {
+    if with_len {
+        let len = cursor.read_varint()?;
+        for _ in 0..len {
+            (f)(cursor)?;
         }
+
+        Ok(len)
+    } else {
+        let mut len = 0;
+        let end = cursor.get_ref().len() as u64;
+        while cursor.position() < end {
+            (f)(cursor)?;
+            len += 1;
+        }
+
+        Ok(len)
     }
-    Ok(())
 }
 
-/// Deserializes replicated components of `components_kind` and applies them to the `world`.
-fn apply_init_components(
+/// Deserializes and applies server mapping from client's pre-spawned entities from init message.
+fn apply_entity_mapping(
     world: &mut World,
     params: &mut ReceiveParams,
-    components_kind: ComponentsKind,
     cursor: &mut Cursor<&[u8]>,
-    message_tick: RepliconTick,
 ) -> bincode::Result<()> {
-    let entities_len: usize = cursor.read_varint()?;
-    for _ in 0..entities_len {
-        let server_entity = deserialize_entity(cursor)?;
-        let data_size: usize = cursor.read_varint()?;
+    let server_entity = deserialize_entity(cursor)?;
+    let client_entity = deserialize_entity(cursor)?;
 
-        let client_entity = params
-            .entity_map
-            .get_by_server_or_insert(server_entity, || world.spawn(Replicated).id());
-
-        let (mut client_entity, mut commands) = read_entity(world, params.queue, client_entity);
-        params
-            .entity_markers
-            .read(params.command_markers, &*client_entity);
-
-        if let Some(mut history) = client_entity.get_mut::<ConfirmHistory>() {
-            history.set_last_tick(message_tick);
-        } else {
-            commands
-                .entity(client_entity.id())
-                .insert(ConfirmHistory::new(message_tick));
-        }
-
-        let end_pos = cursor.position() + data_size as u64;
-        let mut components_len = 0;
-        while cursor.position() < end_pos {
-            let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
-            let (component_id, component_fns, rule_fns) = params.registry.get(fns_id);
-            match components_kind {
-                ComponentsKind::Insert => {
-                    let mut ctx =
-                        WriteCtx::new(&mut commands, params.entity_map, component_id, message_tick);
-
-                    // SAFETY: `rule_fns` and `component_fns` were created for the same type.
-                    unsafe {
-                        component_fns.write(
-                            &mut ctx,
-                            rule_fns,
-                            params.entity_markers,
-                            &mut client_entity,
-                            cursor,
-                        )?;
-                    }
-                }
-                ComponentsKind::Removal => {
-                    let mut ctx = RemoveCtx {
-                        commands: &mut commands,
-                        message_tick,
-                        component_id,
-                    };
-                    component_fns.remove(&mut ctx, params.entity_markers, &mut client_entity);
-                }
-            }
-            components_len += 1;
-        }
-
-        if let Some(stats) = &mut params.stats {
-            stats.entities_changed += 1;
-            stats.components_changed += components_len;
-        }
-
-        params.queue.apply(world);
+    if let Some(mut entity) = world.get_entity_mut(client_entity) {
+        debug!("received mapping from {server_entity:?} to {client_entity:?}");
+        entity.insert(Replicated);
+        params.entity_map.insert(server_entity, client_entity);
+    } else {
+        // Entity could be despawned on client already.
+        debug!("received mapping from {server_entity:?} to {client_entity:?}, but the entity doesn't exists");
     }
 
     Ok(())
 }
 
-/// Deserializes despawns and applies them to the `world`.
-fn apply_despawns(
+/// Deserializes and applies entity despawn from init message.
+fn apply_despawn(
     world: &mut World,
     params: &mut ReceiveParams,
     cursor: &mut Cursor<&[u8]>,
     message_tick: RepliconTick,
 ) -> bincode::Result<()> {
-    let entities_len: usize = cursor.read_varint()?;
-    if let Some(stats) = &mut params.stats {
-        stats.despawns += entities_len as u32;
-    }
-    for _ in 0..entities_len {
-        // The entity might have already been despawned because of hierarchy or
-        // with the last replication message, but the server might not yet have received confirmation
-        // from the client and could include the deletion in the this message.
-        let server_entity = deserialize_entity(cursor)?;
-        if let Some(client_entity) = params
-            .entity_map
-            .remove_by_server(server_entity)
-            .and_then(|entity| world.get_entity_mut(entity))
-        {
-            let ctx = DespawnCtx { message_tick };
-            (params.registry.despawn)(&ctx, client_entity);
-        }
+    // The entity might have already been despawned because of hierarchy or
+    // with the last replication message, but the server might not yet have received confirmation
+    // from the client and could include the deletion in the this message.
+    let server_entity = deserialize_entity(cursor)?;
+    if let Some(client_entity) = params
+        .entity_map
+        .remove_by_server(server_entity)
+        .and_then(|entity| world.get_entity_mut(entity))
+    {
+        let ctx = DespawnCtx { message_tick };
+        (params.registry.despawn)(&ctx, client_entity);
     }
 
     Ok(())
 }
 
-/// Deserializes replicated component updates and applies them to the `world`.
+/// Deserializes and applies component removals for an entity from init message.
+fn apply_removals(
+    world: &mut World,
+    params: &mut ReceiveParams,
+    cursor: &mut Cursor<&[u8]>,
+    message_tick: RepliconTick,
+) -> bincode::Result<()> {
+    let server_entity = deserialize_entity(cursor)?;
+    let data_size: usize = cursor.read_varint()?;
+
+    let client_entity = params
+        .entity_map
+        .get_by_server_or_insert(server_entity, || world.spawn(Replicated).id());
+
+    let (mut client_entity, mut commands) = read_entity(world, params.queue, client_entity);
+    params
+        .entity_markers
+        .read(params.command_markers, &*client_entity);
+
+    if let Some(mut history) = client_entity.get_mut::<ConfirmHistory>() {
+        history.set_last_tick(message_tick);
+    } else {
+        commands
+            .entity(client_entity.id())
+            .insert(ConfirmHistory::new(message_tick));
+    }
+
+    let end_pos = cursor.position() + data_size as u64;
+    let mut components_len = 0;
+    while cursor.position() < end_pos {
+        let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
+        let (component_id, component_fns, _) = params.registry.get(fns_id);
+        let mut ctx = RemoveCtx {
+            commands: &mut commands,
+            message_tick,
+            component_id,
+        };
+        component_fns.remove(&mut ctx, params.entity_markers, &mut client_entity);
+
+        components_len += 1;
+    }
+
+    if let Some(stats) = &mut params.stats {
+        stats.components_changed += components_len;
+    }
+
+    params.queue.apply(world);
+
+    Ok(())
+}
+
+/// Deserializes and applies component insertions or mutations for an entity from init message.
+fn apply_init_changes(
+    world: &mut World,
+    params: &mut ReceiveParams,
+    cursor: &mut Cursor<&[u8]>,
+    message_tick: RepliconTick,
+) -> bincode::Result<()> {
+    let server_entity = deserialize_entity(cursor)?;
+    let data_size: usize = cursor.read_varint()?;
+
+    let client_entity = params
+        .entity_map
+        .get_by_server_or_insert(server_entity, || world.spawn(Replicated).id());
+
+    let (mut client_entity, mut commands) = read_entity(world, params.queue, client_entity);
+    params
+        .entity_markers
+        .read(params.command_markers, &*client_entity);
+
+    if let Some(mut history) = client_entity.get_mut::<ConfirmHistory>() {
+        history.set_last_tick(message_tick);
+    } else {
+        commands
+            .entity(client_entity.id())
+            .insert(ConfirmHistory::new(message_tick));
+    }
+
+    let end_pos = cursor.position() + data_size as u64;
+    let mut components_len = 0;
+    while cursor.position() < end_pos {
+        let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
+        let (component_id, component_fns, rule_fns) = params.registry.get(fns_id);
+        let mut ctx = WriteCtx::new(&mut commands, params.entity_map, component_id, message_tick);
+
+        // SAFETY: `rule_fns` and `component_fns` were created for the same type.
+        unsafe {
+            component_fns.write(
+                &mut ctx,
+                rule_fns,
+                params.entity_markers,
+                &mut client_entity,
+                cursor,
+            )?;
+        }
+        components_len += 1;
+    }
+
+    if let Some(stats) = &mut params.stats {
+        stats.components_changed += components_len;
+    }
+
+    params.queue.apply(world);
+
+    Ok(())
+}
+
+/// Deserializes and applies component mutations for all entities from update message.
 ///
 /// Consumes all remaining bytes in the cursor.
-fn apply_update_components(
+fn apply_update_mutations(
     world: &mut World,
     params: &mut ReceiveParams,
     cursor: &mut Cursor<&[u8]>,
     message_tick: RepliconTick,
 ) -> bincode::Result<()> {
-    let message_end = cursor.get_ref().len() as u64;
-    while cursor.position() < message_end {
-        let server_entity = deserialize_entity(cursor)?;
-        let data_size: usize = cursor.read_varint()?;
+    let server_entity = deserialize_entity(cursor)?;
+    let data_size: usize = cursor.read_varint()?;
 
-        let Some(client_entity) = params.entity_map.get_by_server(server_entity) else {
-            // Update could arrive after a despawn from init message.
-            debug!("ignoring update received for unknown server's {server_entity:?}");
+    let Some(client_entity) = params.entity_map.get_by_server(server_entity) else {
+        // Update could arrive after a despawn from init message.
+        debug!("ignoring update received for unknown server's {server_entity:?}");
+        cursor.set_position(cursor.position() + data_size as u64);
+        return Ok(());
+    };
+
+    let (mut client_entity, mut commands) = read_entity(world, params.queue, client_entity);
+    params
+        .entity_markers
+        .read(params.command_markers, &*client_entity);
+
+    let mut history = client_entity
+        .get_mut::<ConfirmHistory>()
+        .expect("all entities from update should have confirmed ticks");
+    let new_entity = message_tick > history.last_tick();
+    if new_entity {
+        history.set_last_tick(message_tick);
+    } else {
+        if !params.entity_markers.need_history() {
+            trace!(
+                "ignoring outdated update for client's {:?}",
+                client_entity.id()
+            );
             cursor.set_position(cursor.position() + data_size as u64);
-            continue;
-        };
-
-        let (mut client_entity, mut commands) = read_entity(world, params.queue, client_entity);
-        params
-            .entity_markers
-            .read(params.command_markers, &*client_entity);
-
-        let mut history = client_entity
-            .get_mut::<ConfirmHistory>()
-            .expect("all entities from update should have confirmed ticks");
-        let new_entity = message_tick > history.last_tick();
-        if new_entity {
-            history.set_last_tick(message_tick);
-        } else {
-            if !params.entity_markers.need_history() {
-                trace!(
-                    "ignoring outdated update for client's {:?}",
-                    client_entity.id()
-                );
-                cursor.set_position(cursor.position() + data_size as u64);
-                continue;
-            }
-
-            let ago = history.last_tick().get().wrapping_sub(message_tick.get());
-            if ago >= u64::BITS {
-                trace!(
-                    "discarding update {ago} ticks old for client's {:?}",
-                    client_entity.id()
-                );
-                cursor.set_position(cursor.position() + data_size as u64);
-                continue;
-            }
-
-            history.set(ago);
+            return Ok(());
         }
 
-        let end_pos = cursor.position() + data_size as u64;
-        let mut components_count = 0;
-        while cursor.position() < end_pos {
-            let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
-            let (component_id, component_fns, rule_fns) = params.registry.get(fns_id);
-            let mut ctx =
-                WriteCtx::new(&mut commands, params.entity_map, component_id, message_tick);
-
-            // SAFETY: `rule_fns` and `component_fns` were created for the same type.
-            unsafe {
-                if new_entity {
-                    component_fns.write(
-                        &mut ctx,
-                        rule_fns,
-                        params.entity_markers,
-                        &mut client_entity,
-                        cursor,
-                    )?;
-                } else {
-                    component_fns.consume_or_write(
-                        &mut ctx,
-                        rule_fns,
-                        params.entity_markers,
-                        params.command_markers,
-                        &mut client_entity,
-                        cursor,
-                    )?;
-                }
-            }
-
-            components_count += 1;
+        let ago = history.last_tick().get().wrapping_sub(message_tick.get());
+        if ago >= u64::BITS {
+            trace!(
+                "discarding update {ago} ticks old for client's {:?}",
+                client_entity.id()
+            );
+            cursor.set_position(cursor.position() + data_size as u64);
+            return Ok(());
         }
 
-        if let Some(stats) = &mut params.stats {
-            stats.entities_changed += 1;
-            stats.components_changed += components_count;
-        }
-
-        params.queue.apply(world);
+        history.set(ago);
     }
+
+    let end_pos = cursor.position() + data_size as u64;
+    let mut components_count = 0;
+    while cursor.position() < end_pos {
+        let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
+        let (component_id, component_fns, rule_fns) = params.registry.get(fns_id);
+        let mut ctx = WriteCtx::new(&mut commands, params.entity_map, component_id, message_tick);
+
+        // SAFETY: `rule_fns` and `component_fns` were created for the same type.
+        unsafe {
+            if new_entity {
+                component_fns.write(
+                    &mut ctx,
+                    rule_fns,
+                    params.entity_markers,
+                    &mut client_entity,
+                    cursor,
+                )?;
+            } else {
+                component_fns.consume_or_write(
+                    &mut ctx,
+                    rule_fns,
+                    params.entity_markers,
+                    params.command_markers,
+                    &mut client_entity,
+                    cursor,
+                )?;
+            }
+        }
+
+        components_count += 1;
+    }
+
+    if let Some(stats) = &mut params.stats {
+        stats.components_changed += components_count;
+    }
+
+    params.queue.apply(world);
 
     Ok(())
 }
@@ -550,14 +619,6 @@ struct ReceiveParams<'a> {
     stats: Option<&'a mut ClientStats>,
     command_markers: &'a CommandMarkers,
     registry: &'a ReplicationRegistry,
-}
-
-/// Type of components replication.
-///
-/// Parameter for [`apply_components`].
-enum ComponentsKind {
-    Insert,
-    Removal,
 }
 
 /// Set with replication and event systems related to client.

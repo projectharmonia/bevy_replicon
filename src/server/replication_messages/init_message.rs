@@ -7,8 +7,8 @@ use super::{serialized_data::SerializedData, update_message::UpdateMessage};
 use crate::core::{
     channels::ReplicationChannel,
     replication::{
+        init_message_arrays::InitMessageArrays,
         replicated_clients::{client_visibility::Visibility, ReplicatedClient},
-        InitMessageArrays,
     },
     replicon_server::RepliconServer,
 };
@@ -27,6 +27,9 @@ use crate::core::{
 /// However, if the server sends a value larger than what a client can fit into `usize`
 /// (which is very unlikely), the client will panic. This is expected,
 /// as it means the client can't have an array of such a size anyway.
+///
+/// Additionally, we don't serialize the size for the last [`InitMessageArrays`] and
+/// on deserialization just consume all remaining bytes.
 ///
 /// Stored inside [`ReplicationMessages`](super::ReplicationMessages).
 #[derive(Default)]
@@ -191,74 +194,94 @@ impl InitMessage {
         serialized: &SerializedData,
         server_tick: Range<usize>,
     ) -> bincode::Result<()> {
-        let mut arrays = InitMessageArrays::default();
-        let mut message_size = size_of::<InitMessageArrays>() + server_tick.len();
+        let arrays = self.arrays();
+        let last_array = arrays.last();
 
-        if !self.mappings.is_empty() {
-            arrays |= InitMessageArrays::MAPPINGS;
-            message_size += self.mappings_len.required_space() + self.mappings.len();
-        }
-        if !self.despawns.is_empty() {
-            arrays |= InitMessageArrays::DESPAWNS;
-            message_size += self.despawns_len.required_space();
-            message_size += self.despawns.iter().map(|range| range.len()).sum::<usize>();
-        }
-        if !self.removals.is_empty() {
-            arrays |= InitMessageArrays::REMOVALS;
-            message_size += self.removals.len().required_space();
-            message_size += self
-                .removals
-                .iter()
-                .map(|(entity, components)| {
-                    entity.len() + components.len().required_space() + components.len()
-                })
-                .sum::<usize>();
-        }
-        if !self.changes.is_empty() {
-            arrays |= InitMessageArrays::CHANGES;
-            message_size += self.changes.len().required_space();
-            message_size += self
-                .changes
-                .iter()
-                .map(|(entity, components)| {
-                    let components_size = components.iter().map(|range| range.len()).sum::<usize>();
-                    entity.len() + components_size.required_space() + components_size
-                })
-                .sum::<usize>();
+        // Precalcualte size first to avoid extra allocations.
+        let mut message_size = size_of::<InitMessageArrays>() + server_tick.len();
+        for (_, array) in arrays.iter_names() {
+            match array {
+                InitMessageArrays::MAPPINGS => {
+                    if array != last_array {
+                        message_size += self.mappings_len.required_space();
+                    }
+                    message_size += self.mappings.len();
+                }
+                InitMessageArrays::DESPAWNS => {
+                    if array != last_array {
+                        message_size += self.despawns_len.required_space();
+                    }
+                    message_size += self.despawns.iter().map(|range| range.len()).sum::<usize>();
+                }
+                InitMessageArrays::REMOVALS => {
+                    if array != last_array {
+                        message_size += self.removals.len().required_space();
+                    }
+                    message_size += self
+                        .removals
+                        .iter()
+                        .map(|(entity, components)| {
+                            entity.len() + components.len().required_space() + components.len()
+                        })
+                        .sum::<usize>();
+                }
+                InitMessageArrays::CHANGES => {
+                    message_size += self
+                        .changes
+                        .iter()
+                        .map(|(entity, components)| {
+                            let components_size =
+                                components.iter().map(|range| range.len()).sum::<usize>();
+                            entity.len() + components_size.required_space() + components_size
+                        })
+                        .sum::<usize>();
+                }
+                _ => unreachable!("iteration should yield only named flags"),
+            }
         }
 
         let mut message = Vec::with_capacity(message_size);
-
         message.write_fixedint(arrays.bits())?;
         message.extend_from_slice(&serialized[server_tick]);
-
-        if !self.mappings.is_empty() {
-            message.write_varint(self.mappings_len)?;
-            message.extend_from_slice(&serialized[self.mappings.clone()]);
-        }
-        if !self.despawns.is_empty() {
-            message.write_varint(self.despawns_len)?;
-            for range in &self.despawns {
-                message.extend_from_slice(&serialized[range.clone()]);
-            }
-        }
-        if !self.removals.is_empty() {
-            message.write_varint(self.removals.len())?;
-            for (entity, components) in &self.removals {
-                message.extend_from_slice(&serialized[entity.clone()]);
-                message.write_varint(components.len())?;
-                message.extend_from_slice(&serialized[components.clone()]);
-            }
-        }
-        if !self.changes.is_empty() {
-            message.write_varint(self.changes.len())?;
-            for (entity, components) in &self.changes {
-                let components_size = components.iter().map(|range| range.len()).sum::<usize>();
-                message.extend_from_slice(&serialized[entity.clone()]);
-                message.write_varint(components_size)?;
-                for component in components {
-                    message.extend_from_slice(&serialized[component.clone()]);
+        for (_, array) in arrays.iter_names() {
+            match array {
+                InitMessageArrays::MAPPINGS => {
+                    if array != last_array {
+                        message.write_varint(self.mappings_len)?;
+                    }
+                    message.extend_from_slice(&serialized[self.mappings.clone()]);
                 }
+                InitMessageArrays::DESPAWNS => {
+                    if array != last_array {
+                        message.write_varint(self.despawns_len)?;
+                    }
+                    for range in &self.despawns {
+                        message.extend_from_slice(&serialized[range.clone()]);
+                    }
+                }
+                InitMessageArrays::REMOVALS => {
+                    if array != last_array {
+                        message.write_varint(self.removals.len())?;
+                    }
+                    for (entity, components) in &self.removals {
+                        message.extend_from_slice(&serialized[entity.clone()]);
+                        message.write_varint(components.len())?;
+                        message.extend_from_slice(&serialized[components.clone()]);
+                    }
+                }
+                InitMessageArrays::CHANGES => {
+                    // Changes are always the last array, don't write len for it.
+                    for (entity, components) in &self.changes {
+                        let components_size =
+                            components.iter().map(|range| range.len()).sum::<usize>();
+                        message.extend_from_slice(&serialized[entity.clone()]);
+                        message.write_varint(components_size)?;
+                        for component in components {
+                            message.extend_from_slice(&serialized[component.clone()]);
+                        }
+                    }
+                }
+                _ => unreachable!("iteration should yield only named flags"),
             }
         }
 
@@ -268,6 +291,25 @@ impl InitMessage {
         server.send(client.id(), ReplicationChannel::Init, message);
 
         Ok(())
+    }
+
+    fn arrays(&self) -> InitMessageArrays {
+        let mut header = InitMessageArrays::default();
+
+        if !self.mappings.is_empty() {
+            header |= InitMessageArrays::MAPPINGS;
+        }
+        if !self.despawns.is_empty() {
+            header |= InitMessageArrays::DESPAWNS;
+        }
+        if !self.removals.is_empty() {
+            header |= InitMessageArrays::REMOVALS;
+        }
+        if !self.changes.is_empty() {
+            header |= InitMessageArrays::CHANGES;
+        }
+
+        header
     }
 
     /// Clears all chunks.

@@ -1,5 +1,6 @@
 pub mod command_markers;
 pub mod deferred_entity;
+pub mod init_message_arrays;
 pub mod replicated_clients;
 pub mod replication_registry;
 pub mod replication_rules;
@@ -13,18 +14,3 @@ pub type Replication = Replicated;
 #[derive(Component, Clone, Copy, Default, Reflect, Debug)]
 #[reflect(Component)]
 pub struct Replicated;
-
-use bitflags::bitflags;
-
-bitflags! {
-    /// Types of arrays included in the init message if the bit is set.
-    ///
-    /// Serialized at the beginning of the message.
-    #[derive(Default, Clone, Copy)]
-    pub(crate) struct InitMessageArrays: u8 {
-        const MAPPINGS = 0b00000001;
-        const DESPAWNS = 0b00000010;
-        const REMOVALS = 0b00000100;
-        const CHANGES = 0b00001000;
-    }
-}

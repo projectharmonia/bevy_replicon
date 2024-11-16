@@ -42,10 +42,6 @@ pub(crate) struct UpdateMessage {
     /// Serialized as a list of pairs of entity chunk and multiple chunks with mutated components.
     /// Components are stored in multiple chunks because some clients may acknowledge mutations,
     /// while others may not.
-    ///
-    /// Unlike with [`InitMessage`](super::init_message::InitMessage::changes),
-    /// we don't serialize the number of entities and on deserialization just consume all remaining bytes.
-    /// TODO: use the same optimization for init messages.
     mutations: Vec<(Range<usize>, Vec<Range<usize>>)>,
 
     /// Indicates that an entity has been written since the
