@@ -1,6 +1,6 @@
+pub mod change_message_arrays;
 pub mod command_markers;
 pub mod deferred_entity;
-pub mod init_message_arrays;
 pub mod replicated_clients;
 pub mod replication_registry;
 pub mod replication_rules;

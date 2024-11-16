@@ -2,7 +2,7 @@ use std::io::Cursor;
 
 use bevy::{ecs::entity::MapEntities, prelude::*, utils::Duration};
 use bevy_replicon::{
-    client::{confirm_history::ConfirmHistory, ServerInitTick},
+    client::{confirm_history::ConfirmHistory, ServerChangeTick},
     core::{
         replication::{
             command_markers::MarkerConfig,
@@ -745,10 +745,10 @@ fn buffering() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    // Artificially reset the init tick to force the next received mutation to be buffered.
-    let mut init_tick = client_app.world_mut().resource_mut::<ServerInitTick>();
-    let previous_tick = *init_tick;
-    *init_tick = Default::default();
+    // Artificially reset the change tick to force the next received mutation to be buffered.
+    let mut change_tick = client_app.world_mut().resource_mut::<ServerChangeTick>();
+    let previous_tick = *change_tick;
+    *change_tick = Default::default();
     let mut component = server_app
         .world_mut()
         .get_mut::<BoolComponent>(server_entity)
@@ -766,8 +766,8 @@ fn buffering() {
         .single(client_app.world());
     assert!(!component.0, "client should buffer the mutation");
 
-    // Restore the init tick to let the buffered mutation apply
-    *client_app.world_mut().resource_mut::<ServerInitTick>() = previous_tick;
+    // Restore the change tick to let the buffered mutation apply
+    *client_app.world_mut().resource_mut::<ServerChangeTick>() = previous_tick;
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);

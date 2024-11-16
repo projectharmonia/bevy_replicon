@@ -1,13 +1,12 @@
 use std::ops::Range;
 
-use bevy::prelude::*;
 use integer_encoding::{FixedIntWriter, VarInt, VarIntWriter};
 
 use super::{mutate_message::MutateMessage, serialized_data::SerializedData};
 use crate::core::{
     channels::ReplicationChannel,
     replication::{
-        init_message_arrays::InitMessageArrays,
+        change_message_arrays::ChangeMessageArrays,
         replicated_clients::{client_visibility::Visibility, ReplicatedClient},
     },
     replicon_server::RepliconServer,
@@ -20,7 +19,7 @@ use crate::core::{
 ///
 /// The data is stored in the form of ranges from [`SerializedData`].
 ///
-/// Sent over [`ReplicationChannel::Init`] channel.
+/// Sent over [`ReplicationChannel::Changes`] channel.
 ///
 /// All sizes are serialized as `usize`, but we use variable integer encoding,
 /// so they are correctly deserialized even on a client with a different pointer size.
@@ -28,12 +27,12 @@ use crate::core::{
 /// (which is very unlikely), the client will panic. This is expected,
 /// as it means the client can't have an array of such a size anyway.
 ///
-/// Additionally, we don't serialize the size for the last [`InitMessageArrays`] and
+/// Additionally, we don't serialize the size for the last [`ChangeMessageArrays`] and
 /// on deserialization just consume all remaining bytes.
 ///
 /// Stored inside [`ReplicationMessages`](super::ReplicationMessages).
 #[derive(Default)]
-pub(crate) struct InitMessage {
+pub(crate) struct ChangeMessage {
     /// Mappings for client's pre-spawned entities.
     ///
     /// Serialized as single continuous chunk of entity pairs.
@@ -77,7 +76,7 @@ pub(crate) struct InitMessage {
     /// we serialize their size in bytes.
     ///
     /// Usually mutations stored in [`UpdateMessage`], but if an entity have any insertion or removal,
-    /// we serialize it as part of the init message to keep entity changes atomic.
+    /// we serialize it as part of the change message to keep entity changes atomic.
     changes: Vec<(Range<usize>, Vec<Range<usize>>)>,
 
     /// Visibility of the entity for which changes are being written.
@@ -93,7 +92,7 @@ pub(crate) struct InitMessage {
     buffer: Vec<Vec<Range<usize>>>,
 }
 
-impl InitMessage {
+impl ChangeMessage {
     pub(crate) fn set_mappings(&mut self, mappings: Range<usize>, len: usize) {
         self.mappings = mappings;
         self.mappings_len = len;
@@ -198,22 +197,22 @@ impl InitMessage {
         let last_array = arrays.last();
 
         // Precalcualte size first to avoid extra allocations.
-        let mut message_size = size_of::<InitMessageArrays>() + server_tick.len();
+        let mut message_size = size_of::<ChangeMessageArrays>() + server_tick.len();
         for (_, array) in arrays.iter_names() {
             match array {
-                InitMessageArrays::MAPPINGS => {
+                ChangeMessageArrays::MAPPINGS => {
                     if array != last_array {
                         message_size += self.mappings_len.required_space();
                     }
                     message_size += self.mappings.len();
                 }
-                InitMessageArrays::DESPAWNS => {
+                ChangeMessageArrays::DESPAWNS => {
                     if array != last_array {
                         message_size += self.despawns_len.required_space();
                     }
                     message_size += self.despawns.iter().map(|range| range.len()).sum::<usize>();
                 }
-                InitMessageArrays::REMOVALS => {
+                ChangeMessageArrays::REMOVALS => {
                     if array != last_array {
                         message_size += self.removals.len().required_space();
                     }
@@ -225,7 +224,7 @@ impl InitMessage {
                         })
                         .sum::<usize>();
                 }
-                InitMessageArrays::CHANGES => {
+                ChangeMessageArrays::CHANGES => {
                     message_size += self
                         .changes
                         .iter()
@@ -245,13 +244,13 @@ impl InitMessage {
         message.extend_from_slice(&serialized[server_tick]);
         for (_, array) in arrays.iter_names() {
             match array {
-                InitMessageArrays::MAPPINGS => {
+                ChangeMessageArrays::MAPPINGS => {
                     if array != last_array {
                         message.write_varint(self.mappings_len)?;
                     }
                     message.extend_from_slice(&serialized[self.mappings.clone()]);
                 }
-                InitMessageArrays::DESPAWNS => {
+                ChangeMessageArrays::DESPAWNS => {
                     if array != last_array {
                         message.write_varint(self.despawns_len)?;
                     }
@@ -259,7 +258,7 @@ impl InitMessage {
                         message.extend_from_slice(&serialized[range.clone()]);
                     }
                 }
-                InitMessageArrays::REMOVALS => {
+                ChangeMessageArrays::REMOVALS => {
                     if array != last_array {
                         message.write_varint(self.removals.len())?;
                     }
@@ -269,7 +268,7 @@ impl InitMessage {
                         message.extend_from_slice(&serialized[components.clone()]);
                     }
                 }
-                InitMessageArrays::CHANGES => {
+                ChangeMessageArrays::CHANGES => {
                     // Changes are always the last array, don't write len for it.
                     for (entity, components) in &self.changes {
                         let components_size =
@@ -287,26 +286,25 @@ impl InitMessage {
 
         debug_assert_eq!(message.len(), message_size);
 
-        trace!("sending init message to {:?}", client.id());
-        server.send(client.id(), ReplicationChannel::Init, message);
+        server.send(client.id(), ReplicationChannel::Changes, message);
 
         Ok(())
     }
 
-    fn arrays(&self) -> InitMessageArrays {
-        let mut header = InitMessageArrays::default();
+    fn arrays(&self) -> ChangeMessageArrays {
+        let mut header = ChangeMessageArrays::default();
 
         if !self.mappings.is_empty() {
-            header |= InitMessageArrays::MAPPINGS;
+            header |= ChangeMessageArrays::MAPPINGS;
         }
         if !self.despawns.is_empty() {
-            header |= InitMessageArrays::DESPAWNS;
+            header |= ChangeMessageArrays::DESPAWNS;
         }
         if !self.removals.is_empty() {
-            header |= InitMessageArrays::REMOVALS;
+            header |= ChangeMessageArrays::REMOVALS;
         }
         if !self.changes.is_empty() {
-            header |= InitMessageArrays::CHANGES;
+            header |= ChangeMessageArrays::CHANGES;
         }
 
         header

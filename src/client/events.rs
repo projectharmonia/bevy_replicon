@@ -1,4 +1,4 @@
-use super::{ClientPlugin, ClientSet, ServerInitTick};
+use super::{ClientPlugin, ClientSet, ServerChangeTick};
 use crate::core::{
     common_conditions::*,
     event_registry::{
@@ -85,7 +85,7 @@ impl ClientEventsPlugin {
             world.resource_scope(|world, registry: Mut<AppTypeRegistry>| {
                 world.resource_scope(|world, entity_map: Mut<ServerEntityMap>| {
                     world.resource_scope(|world, event_registry: Mut<EventRegistry>| {
-                        let init_tick = **world.resource::<ServerInitTick>();
+                        let change_tick = **world.resource::<ServerChangeTick>();
                         let mut ctx = ClientReceiveCtx {
                             registry: &registry.read(),
                             entity_map: &entity_map,
@@ -112,7 +112,7 @@ impl ClientEventsPlugin {
                                     events.into_inner(),
                                     queue.into_inner(),
                                     &mut client,
-                                    init_tick,
+                                    change_tick,
                                 )
                             };
                         }

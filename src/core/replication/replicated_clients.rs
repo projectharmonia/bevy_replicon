@@ -172,7 +172,7 @@ pub struct ReplicatedClient {
     id: ClientId,
 
     /// Lowest tick for use in change detection for each entity.
-    change_ticks: EntityHashMap<Tick>,
+    mutation_ticks: EntityHashMap<Tick>,
 
     /// Entity visibility settings.
     visibility: ClientVisibility,
@@ -180,9 +180,9 @@ pub struct ReplicatedClient {
     /// The last tick in which a replicated entity had an insertion, removal, or gained/lost a component from the
     /// perspective of the client.
     ///
-    /// It should be included in mutate messages and server events to avoid needless waiting for the next init
+    /// It should be included in mutate messages and server events to avoid needless waiting for the next change
     /// message to arrive.
-    init_tick: RepliconTick,
+    change_tick: RepliconTick,
 
     /// Mutate message indices mapped to their info.
     mutations: HashMap<u16, MutateInfo>,
@@ -197,9 +197,9 @@ impl ReplicatedClient {
     fn new(id: ClientId, policy: VisibilityPolicy) -> Self {
         Self {
             id,
-            change_ticks: Default::default(),
+            mutation_ticks: Default::default(),
             visibility: ClientVisibility::new(policy),
-            init_tick: Default::default(),
+            change_tick: Default::default(),
             mutations: Default::default(),
             next_mutate_index: Default::default(),
         }
@@ -220,15 +220,15 @@ impl ReplicatedClient {
         &mut self.visibility
     }
 
-    /// Sets the client's init tick.
-    pub(crate) fn set_init_tick(&mut self, tick: RepliconTick) {
-        self.init_tick = tick;
+    /// Sets the client's change tick.
+    pub(crate) fn set_change_tick(&mut self, tick: RepliconTick) {
+        self.change_tick = tick;
     }
 
     /// Returns the last tick in which a replicated entity had an insertion, removal, or gained/lost a component from the
     /// perspective of the client.
-    pub fn init_tick(&self) -> RepliconTick {
-        self.init_tick
+    pub fn change_tick(&self) -> RepliconTick {
+        self.change_tick
     }
 
     /// Clears all entities for unacknowledged mutate messages, returning them as an iterator.
@@ -246,7 +246,7 @@ impl ReplicatedClient {
     fn reset(&mut self, id: ClientId) {
         self.id = id;
         self.visibility.clear();
-        self.change_ticks.clear();
+        self.mutation_ticks.clear();
         self.mutations.clear();
         self.next_mutate_index = 0;
     }
@@ -284,13 +284,13 @@ impl ReplicatedClient {
     ///
     /// The change tick is the reference point for determining if components on an entity have changed and
     /// need to be replicated. Component changes older than the change limit are assumed to be acked by the client.
-    pub(crate) fn set_change_tick(&mut self, entity: Entity, tick: Tick) {
-        self.change_ticks.insert(entity, tick);
+    pub(crate) fn set_mutation_tick(&mut self, entity: Entity, tick: Tick) {
+        self.mutation_ticks.insert(entity, tick);
     }
 
     /// Gets the change tick for an entity that is replicated to this client.
-    pub fn get_change_tick(&self, entity: Entity) -> Option<Tick> {
-        self.change_ticks.get(&entity).copied()
+    pub fn mutation_tick(&self, entity: Entity) -> Option<Tick> {
+        self.mutation_ticks.get(&entity).copied()
     }
 
     /// Marks mutate message as acknowledged by its index.
@@ -313,7 +313,7 @@ impl ReplicatedClient {
         };
 
         for entity in &mutate_info.entities {
-            let Some(last_tick) = self.change_ticks.get_mut(entity) else {
+            let Some(last_tick) = self.mutation_ticks.get_mut(entity) else {
                 // We ignore missing entities, since they were probably despawned.
                 continue;
             };
@@ -335,7 +335,7 @@ impl ReplicatedClient {
 
     /// Removes a despawned entity tracked by this client.
     pub fn remove_despawned(&mut self, entity: Entity) {
-        self.change_ticks.remove(&entity);
+        self.mutation_ticks.remove(&entity);
         self.visibility.remove_despawned(entity);
         // We don't clean up `self.mutations` for efficiency reasons.
         // `Self::acknowledge()` will properly ignore despawned entities.
@@ -346,7 +346,7 @@ impl ReplicatedClient {
     /// Internal cleanup happens lazily during the iteration.
     pub(crate) fn drain_lost_visibility(&mut self) -> impl Iterator<Item = Entity> + '_ {
         self.visibility.drain_lost_visibility().inspect(|entity| {
-            self.change_ticks.remove(entity);
+            self.mutation_ticks.remove(entity);
         })
     }
 

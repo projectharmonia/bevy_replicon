@@ -49,7 +49,7 @@ fn replication<C: Component + Default + Serialize + DeserializeOwned + Clone>(c:
     name = &name[MODULE_PREFIX_LEN..];
 
     for clients in [1, 20] {
-        c.bench_function(&format!("{name}, init send, {clients} client(s)"), |b| {
+        c.bench_function(&format!("{name}, changes send, {clients} client(s)"), |b| {
             b.iter_custom(|iter| {
                 let mut elapsed = Duration::ZERO;
                 for _ in 0..iter {
@@ -82,53 +82,56 @@ fn replication<C: Component + Default + Serialize + DeserializeOwned + Clone>(c:
             })
         });
 
-        c.bench_function(&format!("{name}, mutate send, {clients} client(s)"), |b| {
-            b.iter_custom(|iter| {
-                let mut server_app = create_app::<C>();
-                let mut client_apps = Vec::new();
-                for _ in 0..clients {
-                    client_apps.push(create_app::<C>());
-                }
-
-                for client_app in &mut client_apps {
-                    server_app.connect_client(client_app);
-                }
-
-                server_app
-                    .world_mut()
-                    .spawn_batch(vec![(Replicated, C::default()); ENTITIES as usize]);
-                let mut query = server_app.world_mut().query::<&mut C>();
-
-                server_app.update();
-                for client_app in &mut client_apps {
-                    server_app.exchange_with_client(client_app);
-                    client_app.update();
-                    assert_eq!(client_app.world().entities().len(), ENTITIES);
-                }
-
-                let mut elapsed = Duration::ZERO;
-                for _ in 0..iter {
-                    for mut component in query.iter_mut(server_app.world_mut()) {
-                        component.set_changed();
+        c.bench_function(
+            &format!("{name}, mutations send, {clients} client(s)"),
+            |b| {
+                b.iter_custom(|iter| {
+                    let mut server_app = create_app::<C>();
+                    let mut client_apps = Vec::new();
+                    for _ in 0..clients {
+                        client_apps.push(create_app::<C>());
                     }
 
-                    let instant = Instant::now();
-                    server_app.update();
-                    elapsed += instant.elapsed();
+                    for client_app in &mut client_apps {
+                        server_app.connect_client(client_app);
+                    }
 
+                    server_app
+                        .world_mut()
+                        .spawn_batch(vec![(Replicated, C::default()); ENTITIES as usize]);
+                    let mut query = server_app.world_mut().query::<&mut C>();
+
+                    server_app.update();
                     for client_app in &mut client_apps {
                         server_app.exchange_with_client(client_app);
                         client_app.update();
                         assert_eq!(client_app.world().entities().len(), ENTITIES);
                     }
-                }
 
-                elapsed
-            })
-        });
+                    let mut elapsed = Duration::ZERO;
+                    for _ in 0..iter {
+                        for mut component in query.iter_mut(server_app.world_mut()) {
+                            component.set_changed();
+                        }
+
+                        let instant = Instant::now();
+                        server_app.update();
+                        elapsed += instant.elapsed();
+
+                        for client_app in &mut client_apps {
+                            server_app.exchange_with_client(client_app);
+                            client_app.update();
+                            assert_eq!(client_app.world().entities().len(), ENTITIES);
+                        }
+                    }
+
+                    elapsed
+                })
+            },
+        );
     }
 
-    c.bench_function(&format!("{name}, init receive"), |b| {
+    c.bench_function(&format!("{name}, changes receive"), |b| {
         b.iter_custom(|iter| {
             let mut elapsed = Duration::ZERO;
             for _ in 0..iter {
@@ -154,7 +157,7 @@ fn replication<C: Component + Default + Serialize + DeserializeOwned + Clone>(c:
         })
     });
 
-    c.bench_function(&format!("{name}, mutate receive"), |b| {
+    c.bench_function(&format!("{name}, mutations receive"), |b| {
         b.iter_custom(|iter| {
             let mut server_app = create_app::<C>();
             let mut client_app = create_app::<C>();

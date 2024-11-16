@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// All operations on it are wrapping.
 ///
-/// See also [`ServerInitTick`](crate::client::ServerInitTick) and
+/// See also [`ServerChangeTick`](crate::client::ServerChangeTick) and
 /// [`ServerTick`](crate::server::server_tick::ServerTick).
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub struct RepliconTick(u32);

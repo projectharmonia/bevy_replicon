@@ -234,7 +234,7 @@ impl ServerPlugin {
         mut replicated_clients: ResMut<ReplicatedClients>,
         mut client_buffers: ResMut<ClientBuffers>,
     ) {
-        for (client_id, message) in server.receive(ReplicationChannel::Init) {
+        for (client_id, message) in server.receive(ReplicationChannel::Changes) {
             let mut cursor = Cursor::new(&*message);
             let message_end = message.len() as u64;
             while cursor.position() < message_end {
@@ -353,17 +353,17 @@ fn send_messages(
     time: &Time,
 ) -> Result<(), Box<bincode::ErrorKind>> {
     let mut server_tick_range = None;
-    for ((init_message, mutate_message), client) in
+    for ((change_message, mutate_message), client) in
         messages.iter_mut().zip(replicated_clients.iter_mut())
     {
-        if !init_message.is_empty() {
-            client.set_init_tick(server_tick);
+        if !change_message.is_empty() {
+            client.set_change_tick(server_tick);
             let server_tick = write_tick_cached(&mut server_tick_range, serialized, server_tick)?;
 
-            trace!("sending init message to {:?}", client.id());
-            init_message.send(server, client, serialized, server_tick)?;
+            trace!("sending change message to {:?}", client.id());
+            change_message.send(server, client, serialized, server_tick)?;
         } else {
-            trace!("no init data to send for {:?}", client.id());
+            trace!("no change data to send for {:?}", client.id());
         }
 
         if !mutate_message.is_empty() {
@@ -407,7 +407,7 @@ fn collect_mappings(
     Ok(())
 }
 
-/// Collect entity despawns from this tick into init messages.
+/// Collect entity despawns from this tick into change messages.
 fn collect_despawns(
     messages: &mut ReplicationMessages,
     serialized: &mut SerializedData,
@@ -432,7 +432,7 @@ fn collect_despawns(
     Ok(())
 }
 
-/// Collects component removals from this tick into init messages.
+/// Collects component removals from this tick into change messages.
 fn collect_removals(
     messages: &mut ReplicationMessages,
     serialized: &mut SerializedData,
@@ -449,7 +449,7 @@ fn collect_removals(
     Ok(())
 }
 
-/// Collects component changes from this tick into init and mutate messages since the last entity tick.
+/// Collects component changes from this tick into change and mutate messages since the last entity tick.
 fn collect_changes(
     messages: &mut ReplicationMessages,
     serialized: &mut SerializedData,
@@ -480,11 +480,11 @@ fn collect_changes(
 
         for entity in archetype.entities() {
             let mut entity_range = None;
-            for ((init_message, mutate_message), client) in
+            for ((change_message, mutate_message), client) in
                 messages.iter_mut().zip(replicated_clients.iter())
             {
                 let visibility = client.visibility().visibility_state(entity.id());
-                init_message.start_entity_changes(visibility);
+                change_message.start_entity_changes(visibility);
                 mutate_message.start_entity_mutations();
             }
 
@@ -524,17 +524,17 @@ fn collect_changes(
                     component_id,
                 };
                 let mut component_range = None;
-                for ((init_message, mutate_message), client) in
+                for ((change_message, mutate_message), client) in
                     messages.iter_mut().zip(replicated_clients.iter())
                 {
-                    if init_message.entity_visibility() == Visibility::Hidden {
+                    if change_message.entity_visibility() == Visibility::Hidden {
                         continue;
                     }
 
                     if let Some(tick) = client
-                        .get_change_tick(entity.id())
+                        .mutation_tick(entity.id())
                         .filter(|_| !marker_added)
-                        .filter(|_| init_message.entity_visibility() != Visibility::Gained)
+                        .filter(|_| change_message.entity_visibility() != Visibility::Gained)
                         .filter(|_| !ticks.is_added(change_tick.last_run(), change_tick.this_run()))
                     {
                         if ticks.is_changed(tick, change_tick.this_run()) {
@@ -558,10 +558,10 @@ fn collect_changes(
                             mutate_message.add_mutated_component(component_range);
                         }
                     } else {
-                        if !init_message.entity_written() {
+                        if !change_message.entity_written() {
                             let entity_range =
                                 write_entity_cached(&mut entity_range, serialized, entity.id())?;
-                            init_message.add_changed_entity(entity_range);
+                            change_message.add_changed_entity(entity_range);
                         }
                         let component_range = write_component_cached(
                             &mut component_range,
@@ -572,35 +572,35 @@ fn collect_changes(
                             replicated_component,
                             component,
                         )?;
-                        init_message.add_changed_component(component_range);
+                        change_message.add_changed_component(component_range);
                     }
                 }
             }
 
-            for ((init_message, mutate_message), client) in
+            for ((change_message, mutate_message), client) in
                 messages.iter_mut().zip(replicated_clients.iter_mut())
             {
-                let visibility = init_message.entity_visibility();
+                let visibility = change_message.entity_visibility();
                 if visibility == Visibility::Hidden {
                     continue;
                 }
 
                 let new_entity = marker_added || visibility == Visibility::Gained;
                 if new_entity
-                    || init_message.entity_written()
+                    || change_message.entity_written()
                     || removal_buffer.contains_key(&entity.id())
                 {
-                    // If there is any insertion, removal, or we must initialize, include all mutations into init message.
-                    // and bump the last acknowledged tick to keep entity updates atomic.
-                    init_message.take_changes(mutate_message);
-                    client.set_change_tick(entity.id(), change_tick.this_run());
+                    // If there is any insertion, removal, or it's a new entity for a client, include all mutations
+                    // into change message and bump the last acknowledged tick to keep entity updates atomic.
+                    change_message.take_changes(mutate_message);
+                    client.set_mutation_tick(entity.id(), change_tick.this_run());
                 }
 
-                if new_entity && !init_message.entity_written() {
+                if new_entity && !change_message.entity_written() {
                     // Force-write new entity even if it doesn't have any components.
                     let entity_range =
                         write_entity_cached(&mut entity_range, serialized, entity.id())?;
-                    init_message.add_changed_entity(entity_range);
+                    change_message.add_changed_entity(entity_range);
                 }
             }
         }

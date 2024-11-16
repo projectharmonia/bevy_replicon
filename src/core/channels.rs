@@ -10,7 +10,7 @@ pub enum ReplicationChannel {
     /// For sending messages with entity mappings, inserts, removals and despawns.
     ///
     /// This is an ordered reliable channel.
-    Init,
+    Changes,
     /// For sending messages with component mutations.
     ///
     /// This is an unreliable channel.
@@ -20,7 +20,7 @@ pub enum ReplicationChannel {
 impl From<ReplicationChannel> for RepliconChannel {
     fn from(value: ReplicationChannel) -> Self {
         match value {
-            ReplicationChannel::Init => ChannelKind::Ordered.into(),
+            ReplicationChannel::Changes => ChannelKind::Ordered.into(),
             ReplicationChannel::Mutations => ChannelKind::Unreliable.into(),
         }
     }
@@ -53,11 +53,11 @@ impl Default for RepliconChannels {
     fn default() -> Self {
         Self {
             server: vec![
-                ReplicationChannel::Init.into(),
+                ReplicationChannel::Changes.into(),
                 ReplicationChannel::Mutations.into(),
             ],
             client: vec![
-                ReplicationChannel::Init.into(),
+                ReplicationChannel::Changes.into(),
                 ReplicationChannel::Mutations.into(),
             ],
             default_max_bytes: 5 * 1024 * 1024,

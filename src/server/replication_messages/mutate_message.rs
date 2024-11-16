@@ -17,7 +17,7 @@ use crate::core::{
 /// Contains change tick, current tick, mutate index and component mutations since
 /// the last acknowledged tick for each entity.
 ///
-/// Cannot be applied on the client until the init message matching this message change tick
+/// Cannot be applied on the client until the change message matching this message change tick
 /// has been applied to the client world.
 /// The message will be manually split into packets up to max size, and each packet will be applied
 /// independently on the client.
@@ -124,10 +124,10 @@ impl MutateMessage {
         timestamp: Duration,
     ) -> bincode::Result<()> {
         const MAX_TICK_SIZE: usize = mem::size_of::<RepliconTick>() + 1;
-        let mut init_tick = Cursor::new([0; MAX_TICK_SIZE]);
-        DefaultOptions::new().serialize_into(&mut init_tick, &client.init_tick())?;
-        let init_tick_size = init_tick.position() as usize;
-        let ticks_size = init_tick_size + server_tick.len();
+        let mut change_tick = Cursor::new([0; MAX_TICK_SIZE]);
+        DefaultOptions::new().serialize_into(&mut change_tick, &client.change_tick())?;
+        let change_tick_size = change_tick.position() as usize;
+        let ticks_size = change_tick_size + server_tick.len();
 
         let (mut mutate_index, mut entities) =
             client.register_mutate_message(client_buffers, tick, timestamp);
@@ -162,7 +162,7 @@ impl MutateMessage {
         for (mutate_index, message_size, mutations_range) in self.messages.drain(..) {
             let mut message = Vec::with_capacity(message_size);
 
-            message.extend_from_slice(&init_tick.get_ref()[..init_tick_size]);
+            message.extend_from_slice(&change_tick.get_ref()[..change_tick_size]);
             message.extend_from_slice(&serialized[server_tick.clone()]);
             message.write_varint(mutate_index)?;
             for (entity, components) in &self.mutations[mutations_range.clone()] {
