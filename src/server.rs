@@ -364,7 +364,7 @@ fn send_messages(
             trace!("sending change message to {:?}", client.id());
             change_message.send(server, client, serialized, server_tick)?;
         } else {
-            trace!("no change data to send for {:?}", client.id());
+            trace!("no changes to send for {:?}", client.id());
         }
 
         if !mutate_message.is_empty() {
@@ -573,7 +573,7 @@ fn collect_changes(
                             replicated_component,
                             component,
                         )?;
-                        change_message.add_changed_component(component_range);
+                        change_message.add_inserted_component(component_range);
                     }
                 }
             }
@@ -593,7 +593,7 @@ fn collect_changes(
                 {
                     // If there is any insertion, removal, or it's a new entity for a client, include all mutations
                     // into change message and bump the last acknowledged tick to keep entity updates atomic.
-                    change_message.take_changes(mutate_message);
+                    change_message.take_mutations(mutate_message);
                     client.set_mutation_tick(entity.id(), change_tick.this_run());
                 }
 
