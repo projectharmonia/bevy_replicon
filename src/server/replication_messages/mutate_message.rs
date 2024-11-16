@@ -53,7 +53,7 @@ pub(crate) struct MutateMessage {
 
     /// Intermediate buffer with mutate index, message size and a range for [`Self::mutations`].
     ///
-    /// We split messages first in order to know their number in advance.
+    /// We split messages first in order to know their count in advance.
     /// We plan to include it in the message in the future.
     messages: Vec<(u16, usize, Range<usize>)>,
 }

@@ -30,6 +30,8 @@ use crate::core::{
 /// Additionally, we don't serialize the size for the last [`ChangeMessageArrays`] and
 /// on deserialization just consume all remaining bytes.
 ///
+/// For all internal arrays, like components for an entity, we serialize their size in bytes.
+///
 /// Stored inside [`ReplicationMessages`](super::ReplicationMessages).
 #[derive(Default)]
 pub(crate) struct ChangeMessage {
@@ -48,7 +50,7 @@ pub(crate) struct ChangeMessage {
     /// Despawn happened on this tick.
     ///
     /// Since clients may see different entities, it's serialized as multiple chunks of entities.
-    /// I.e. serialized despawns may have holes due to visibility differences.
+    /// I.e. serialized server despawns may have holes for clients due to visibility differences.
     despawns: Vec<Range<usize>>,
 
     /// Number of depspawned entities.
@@ -61,9 +63,6 @@ pub(crate) struct ChangeMessage {
     /// Serialized as a list of pairs of entity chunk and a list of
     /// [`FnsId`](crate::core::replication::replication_registry::FnsId)
     /// serialized as a single chunk.
-    ///
-    /// For entities, we serialize their count like other data, but for IDs,
-    /// we serialize their size in bytes.
     removals: Vec<(Range<usize>, Range<usize>)>,
 
     /// Component insertions or mutations happened on this tick.
@@ -72,14 +71,11 @@ pub(crate) struct ChangeMessage {
     /// Components are stored in multiple chunks because newly connected clients may need to serialize all components,
     /// while previously connected clients only need the components spawned during this tick.
     ///
-    /// For entities, we serialize their count like other data, but for IDs,
-    /// we serialize their size in bytes.
-    ///
-    /// Usually mutations stored in [`UpdateMessage`], but if an entity have any insertion or removal,
-    /// we serialize it as part of the change message to keep entity changes atomic.
+    /// Usually mutations stored in [`MutateMessage`], but if an entity have any insertion, removal,
+    /// or just became visible for a client, we serialize it as part of the change message to keep entity updates atomic.
     changes: Vec<(Range<usize>, Vec<Range<usize>>)>,
 
-    /// Visibility of the entity for which changes are being written.
+    /// Visibility of the entity for which component changes are being written.
     ///
     /// Updated after [`Self::start_entity_changes`].
     entity_visibility: Visibility,
@@ -142,7 +138,7 @@ impl ChangeMessage {
     }
 
     /// Adds a component chunk to the last added entity from [`Self::add_changed_entity`].
-    pub(crate) fn add_changed_component(&mut self, component: Range<usize>) {
+    pub(crate) fn add_inserted_component(&mut self, component: Range<usize>) {
         let (_, components) = self
             .changes
             .last_mut()
@@ -159,10 +155,8 @@ impl ChangeMessage {
         components.push(component);
     }
 
-    /// Takes last changed entity with its component chunks.
-    ///
-    /// Needs to be called if an entity have any removal or insertion to keep entity updates atomic.
-    pub(crate) fn take_changes(&mut self, mutate_message: &mut MutateMessage) {
+    /// Takes last mutated entity with its component chunks from the mutate message.
+    pub(crate) fn take_mutations(&mut self, mutate_message: &mut MutateMessage) {
         if mutate_message.mutations_written() {
             let (entity, components_iter) = mutate_message
                 .pop_mutations()

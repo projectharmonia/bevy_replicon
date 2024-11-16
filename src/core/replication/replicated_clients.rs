@@ -253,7 +253,7 @@ impl ReplicatedClient {
 
     /// Registers mutate message at specified `tick` and `timestamp` and returns its index with entities to fill.
     ///
-    /// Used later to acknowledge the message.
+    /// Used later to acknowledge updated entities.
     #[must_use]
     pub(crate) fn register_mutate_message(
         &mut self,
