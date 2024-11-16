@@ -56,8 +56,8 @@ pub struct ServerPlugin {
 
     /// The time after which mutations will be considered lost if an acknowledgment is not received for them.
     ///
-    /// In practice mutations will live at least `mutate_timeout`, and at most `2*mutate_timeout`.
-    pub mutate_timeout: Duration,
+    /// In practice mutations will live at least `mutations_timeout`, and at most `2*mutations_timeout`.
+    pub mutations_timeout: Duration,
 
     /// If enabled, replication will be started automatically after connection.
     ///
@@ -74,7 +74,7 @@ impl Default for ServerPlugin {
         Self {
             tick_policy: TickPolicy::MaxTickRate(30),
             visibility_policy: Default::default(),
-            mutate_timeout: Duration::from_secs(10),
+            mutations_timeout: Duration::from_secs(10),
             replicate_after_connect: true,
         }
     }
@@ -123,7 +123,8 @@ impl Plugin for ServerPlugin {
                     Self::handle_connections,
                     Self::enable_replication,
                     Self::receive_acks,
-                    Self::cleanup_acks(self.mutate_timeout).run_if(on_timer(self.mutate_timeout)),
+                    Self::cleanup_acks(self.mutations_timeout)
+                        .run_if(on_timer(self.mutations_timeout)),
                 )
                     .chain()
                     .in_set(ServerSet::Receive)
@@ -216,12 +217,12 @@ impl ServerPlugin {
     }
 
     fn cleanup_acks(
-        mutate_timeout: Duration,
+        mutations_timeout: Duration,
     ) -> impl FnMut(ResMut<ReplicatedClients>, ResMut<ClientBuffers>, Res<Time>) {
         move |mut replicated_clients: ResMut<ReplicatedClients>,
               mut client_buffers: ResMut<ClientBuffers>,
               time: Res<Time>| {
-            let min_timestamp = time.elapsed().saturating_sub(mutate_timeout);
+            let min_timestamp = time.elapsed().saturating_sub(mutations_timeout);
             for client in replicated_clients.iter_mut() {
                 client.cleanup_older_mutations(&mut client_buffers, min_timestamp);
             }

@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Move replication-related modules from `core` module under `core::replication`.
 - Move `Replicated` to the `replication` module.
 - Split the `ctx` module and move event-related contexts under `core::events_registry::ctx` and replication-related contexts under `core::replication_registry::ctx`.
-- Rename `ServerPlugin::change_timeout` into `ServerPlugin::mutate_timeout`.
+- Rename `ServerPlugin::change_timeout` into `ServerPlugin::mutations_timeout`.
 - Rename `ServerInitTick` into `ServerChangeTick`.
 - Rename `ReplicatedClient::init_tick` into `ReplicatedClient::change_tick`.
 - Rename `ReplicatedClient::get_change_tick` into `ReplicatedClient::mutation_tick`.

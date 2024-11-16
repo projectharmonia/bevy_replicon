@@ -852,7 +852,7 @@ fn acknowledgment() {
             MinimalPlugins,
             RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
-                mutate_timeout: Duration::ZERO, // Will cause dropping updates after each frame.
+                mutations_timeout: Duration::ZERO, // Will cause dropping updates after each frame.
                 ..Default::default()
             }),
         ))
