@@ -178,10 +178,10 @@ impl InitMessage {
     }
 
     pub(crate) fn is_empty(&self) -> bool {
-        self.mappings.is_empty()
+        self.changes.is_empty()
             && self.despawns.is_empty()
             && self.removals.is_empty()
-            && self.changes.is_empty()
+            && self.mappings.is_empty()
     }
 
     pub(crate) fn send(
