@@ -64,7 +64,7 @@ pub(crate) struct InitMessage {
     /// we serialize their size in bytes.
     removals: Vec<(Range<usize>, Range<usize>)>,
 
-    /// Component insertions or changes happened on this tick.
+    /// Component insertions or mutations happened on this tick.
     ///
     /// Serialized as a list of pairs of entity chunk and multiple chunks with changed components.
     /// Components are stored in multiple chunks because newly connected clients may need to serialize all components,
@@ -73,7 +73,7 @@ pub(crate) struct InitMessage {
     /// For entities, we serialize their count like other data, but for IDs,
     /// we serialize their size in bytes.
     ///
-    /// Usually changes stored in [`UpdateMessage`], but if an entity have any insertion or removal,
+    /// Usually mutations stored in [`UpdateMessage`], but if an entity have any insertion or removal,
     /// we serialize it as part of the init message to keep entity changes atomic.
     changes: Vec<(Range<usize>, Vec<Range<usize>>)>,
 
@@ -112,7 +112,7 @@ impl InitMessage {
         self.removals.push((entity, fn_ids));
     }
 
-    /// Updates internal state to start writing changes for an entity with the given visibility.
+    /// Updates internal state to start writing changed components for an entity with the given visibility.
     ///
     /// Entities and their data written lazily during the iteration.
     /// See [`Self::add_changed_entity`] and [`Self::add_changed_component`].
@@ -161,9 +161,9 @@ impl InitMessage {
     ///
     /// Needs to be called if an entity have any removal or insertion to keep entity updates atomic.
     pub(crate) fn take_changes(&mut self, update_message: &mut UpdateMessage) {
-        if update_message.changes_written() {
+        if update_message.mutations_written() {
             let (entity, components_iter) = update_message
-                .pop_changes()
+                .pop_mutations()
                 .expect("entity should be written");
 
             if !self.entity_written {

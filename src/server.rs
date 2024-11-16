@@ -486,7 +486,7 @@ fn collect_changes(
             {
                 let visibility = client.visibility().visibility_state(entity.id());
                 init_message.start_entity_changes(visibility);
-                update_message.start_entity_changes();
+                update_message.start_entity_mutations();
             }
 
             // SAFETY: all replicated archetypes have marker component with table storage.
@@ -539,13 +539,13 @@ fn collect_changes(
                         .filter(|_| !ticks.is_added(change_tick.last_run(), change_tick.this_run()))
                     {
                         if ticks.is_changed(tick, change_tick.this_run()) {
-                            if !update_message.changes_written() {
+                            if !update_message.mutations_written() {
                                 let entity_range = write_entity_cached(
                                     &mut entity_range,
                                     serialized,
                                     entity.id(),
                                 )?;
-                                update_message.add_changed_entity(entity.id(), entity_range);
+                                update_message.add_mutated_entity(entity.id(), entity_range);
                             }
                             let component_range = write_component_cached(
                                 &mut component_range,
@@ -556,7 +556,7 @@ fn collect_changes(
                                 replicated_component,
                                 component,
                             )?;
-                            update_message.add_changed_component(component_range);
+                            update_message.add_mutated_component(component_range);
                         }
                     } else {
                         if !init_message.entity_written() {

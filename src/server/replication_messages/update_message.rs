@@ -26,36 +26,36 @@ use crate::core::{
 /// The data is stored in the form of ranges from [`SerializedData`].
 ///
 /// Sent over the [`ReplicationChannel::Update`] channel. If the update gets lost, we try to resend it manually,
-/// using the last up-to-date change to avoid re-sending old values.
+/// using the last up-to-date mutations to avoid re-sending old values.
 ///
 /// Stored inside [`ReplicationMessages`](super::ReplicationMessages).
 #[derive(Default)]
 pub(crate) struct UpdateMessage {
-    /// List of entity values for [`Self::changes`].
+    /// List of entity values for [`Self::mutations`].
     ///
     /// Used to associate entities with update indices that the client
-    /// needs to acknowledge to consider the changes as received.
+    /// needs to acknowledge to consider the mutations as received.
     entities: Vec<Entity>,
 
-    /// Component changes happened on this tick.
+    /// Component mutations happened on this tick.
     ///
-    /// Serialized as a list of pairs of entity chunk and multiple chunks with changed components.
-    /// Components are stored in multiple chunks because some clients may acknowledge changes,
+    /// Serialized as a list of pairs of entity chunk and multiple chunks with mutated components.
+    /// Components are stored in multiple chunks because some clients may acknowledge mutations,
     /// while others may not.
     ///
     /// Unlike with [`InitMessage`](super::init_message::InitMessage::changes),
     /// we don't serialize the number of entities and on deserialization just consume all remaining bytes.
     /// TODO: use the same optimization for init messages.
-    changes: Vec<(Range<usize>, Vec<Range<usize>>)>,
+    mutations: Vec<(Range<usize>, Vec<Range<usize>>)>,
 
     /// Indicates that an entity has been written since the
-    /// last call of [`Self::start_entity_changes`].
-    changes_written: bool,
+    /// last call of [`Self::start_entity_mutations`].
+    mutations_written: bool,
 
-    /// Intermediate buffer to reuse allocated memory from [`Self::changes`].
+    /// Intermediate buffer to reuse allocated memory from [`Self::mutations`].
     buffer: Vec<Vec<Range<usize>>>,
 
-    /// Intermediate buffer with update index, message size and a range for [`Self::changes`].
+    /// Intermediate buffer with update index, message size and a range for [`Self::mutations`].
     ///
     /// We split messages first in order to know the number of updates in advance.
     /// We plan to include it in the message in the future.
@@ -63,32 +63,32 @@ pub(crate) struct UpdateMessage {
 }
 
 impl UpdateMessage {
-    /// Updates internal state to start writing changes for an entity.
+    /// Updates internal state to start writing mutated components for an entity.
     ///
     /// Entities and their data written lazily during the iteration.
-    /// See [`Self::add_changed_entity`] and [`Self::add_changed_component`].
-    pub(crate) fn start_entity_changes(&mut self) {
-        self.changes_written = false;
+    /// See [`Self::add_mutated_entity`] and [`Self::add_mutated_component`].
+    pub(crate) fn start_entity_mutations(&mut self) {
+        self.mutations_written = false;
     }
 
-    /// Returns `true` if [`Self::add_changed_entity`] were called since the last
-    /// call of [`Self::start_entity_changes`].
-    pub(crate) fn changes_written(&mut self) -> bool {
-        self.changes_written
+    /// Returns `true` if [`Self::add_mutated_entity`] were called since the last
+    /// call of [`Self::start_entity_mutations`].
+    pub(crate) fn mutations_written(&mut self) -> bool {
+        self.mutations_written
     }
 
     /// Adds an entity chunk.
-    pub(crate) fn add_changed_entity(&mut self, entity: Entity, entity_range: Range<usize>) {
+    pub(crate) fn add_mutated_entity(&mut self, entity: Entity, entity_range: Range<usize>) {
         let components = self.buffer.pop().unwrap_or_default();
-        self.changes.push((entity_range, components));
+        self.mutations.push((entity_range, components));
         self.entities.push(entity);
-        self.changes_written = true;
+        self.mutations_written = true;
     }
 
-    /// Adds a component chunk to the last added entity from [`Self::add_changed_entity`].
-    pub(crate) fn add_changed_component(&mut self, component: Range<usize>) {
+    /// Adds a component chunk to the last added entity from [`Self::add_mutated_entity`].
+    pub(crate) fn add_mutated_component(&mut self, component: Range<usize>) {
         let (_, components) = self
-            .changes
+            .mutations
             .last_mut()
             .expect("entity should be written before adding components");
 
@@ -103,18 +103,18 @@ impl UpdateMessage {
         components.push(component);
     }
 
-    /// Removes and returns last changed entity with its component chunks.
-    pub(super) fn pop_changes(
+    /// Removes and returns last mutated entity with its component chunks.
+    pub(super) fn pop_mutations(
         &mut self,
     ) -> Option<(Range<usize>, impl Iterator<Item = Range<usize>> + '_)> {
-        let (entity, components) = self.changes.pop()?;
+        let (entity, components) = self.mutations.pop()?;
         self.buffer.push(components);
         let components = self.buffer.last_mut().unwrap();
         Some((entity, components.drain(..)))
     }
 
     pub(crate) fn is_empty(&self) -> bool {
-        self.changes.is_empty()
+        self.mutations.is_empty()
     }
 
     pub(crate) fn send(
@@ -136,39 +136,39 @@ impl UpdateMessage {
         let (mut update_index, mut entities) =
             client.register_update(client_buffers, tick, timestamp);
         let mut message_size = ticks_size + update_index.required_space();
-        let mut changes_range = Range::<usize>::default();
-        for (entity, (entity_range, components)) in self.entities.iter().zip(&self.changes) {
+        let mut mutations_range = Range::<usize>::default();
+        for (entity, (entity_range, components)) in self.entities.iter().zip(&self.mutations) {
             const MAX_PACKET_SIZE: usize = 1200; // TODO: make it configurable by the messaging backend.
             let components_size = components.iter().map(|range| range.len()).sum::<usize>();
             let data_size = entity_range.len() + components_size.required_space() + components_size;
 
             if message_size == 0 || message_size + data_size <= MAX_PACKET_SIZE {
                 entities.push(*entity);
-                changes_range.end += 1;
+                mutations_range.end += 1;
                 message_size += data_size;
             } else {
                 self.messages
-                    .push((update_index, message_size, changes_range.clone()));
+                    .push((update_index, message_size, mutations_range.clone()));
 
-                changes_range.start = changes_range.end;
+                mutations_range.start = mutations_range.end;
                 (update_index, entities) = client.register_update(client_buffers, tick, timestamp);
                 entities.push(*entity);
-                changes_range.end += 1;
+                mutations_range.end += 1;
                 message_size = ticks_size + update_index.required_space() + data_size;
             }
         }
-        if !changes_range.is_empty() {
+        if !mutations_range.is_empty() {
             self.messages
-                .push((update_index, message_size, changes_range.clone()));
+                .push((update_index, message_size, mutations_range.clone()));
         }
 
-        for (update_index, message_size, changes_range) in self.messages.drain(..) {
+        for (update_index, message_size, mutations_range) in self.messages.drain(..) {
             let mut message = Vec::with_capacity(message_size);
 
             message.extend_from_slice(&init_tick.get_ref()[..init_tick_size]);
             message.extend_from_slice(&serialized[server_tick.clone()]);
             message.write_varint(update_index)?;
-            for (entity, components) in &self.changes[changes_range.clone()] {
+            for (entity, components) in &self.mutations[mutations_range.clone()] {
                 let components_size = components.iter().map(|range| range.len()).sum::<usize>();
                 message.extend_from_slice(&serialized[entity.clone()]);
                 message.write_varint(components_size)?;
@@ -191,7 +191,7 @@ impl UpdateMessage {
     pub(super) fn clear(&mut self) {
         self.entities.clear();
         self.buffer
-            .extend(self.changes.drain(..).map(|(_, mut range)| {
+            .extend(self.mutations.drain(..).map(|(_, mut range)| {
                 range.clear();
                 range
             }));
