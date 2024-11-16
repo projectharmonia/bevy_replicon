@@ -8,7 +8,7 @@ use crate::core::{
     channels::ReplicationChannel,
     replication::{
         replicated_clients::{client_visibility::Visibility, ReplicatedClient},
-        InitMessageHeader,
+        InitMessageArrays,
     },
     replicon_server::RepliconServer,
 };
@@ -191,20 +191,20 @@ impl InitMessage {
         serialized: &SerializedData,
         server_tick: Range<usize>,
     ) -> bincode::Result<()> {
-        let mut header = InitMessageHeader::default();
-        let mut message_size = size_of::<InitMessageHeader>() + server_tick.len();
+        let mut arrays = InitMessageArrays::default();
+        let mut message_size = size_of::<InitMessageArrays>() + server_tick.len();
 
         if !self.mappings.is_empty() {
-            header |= InitMessageHeader::MAPPINGS;
+            arrays |= InitMessageArrays::MAPPINGS;
             message_size += self.mappings_len.required_space() + self.mappings.len();
         }
         if !self.despawns.is_empty() {
-            header |= InitMessageHeader::DESPAWNS;
+            arrays |= InitMessageArrays::DESPAWNS;
             message_size += self.despawns_len.required_space();
             message_size += self.despawns.iter().map(|range| range.len()).sum::<usize>();
         }
         if !self.removals.is_empty() {
-            header |= InitMessageHeader::REMOVALS;
+            arrays |= InitMessageArrays::REMOVALS;
             message_size += self.removals.len().required_space();
             message_size += self
                 .removals
@@ -215,7 +215,7 @@ impl InitMessage {
                 .sum::<usize>();
         }
         if !self.changes.is_empty() {
-            header |= InitMessageHeader::CHANGES;
+            arrays |= InitMessageArrays::CHANGES;
             message_size += self.changes.len().required_space();
             message_size += self
                 .changes
@@ -229,7 +229,7 @@ impl InitMessage {
 
         let mut message = Vec::with_capacity(message_size);
 
-        message.write_fixedint(header.bits())?;
+        message.write_fixedint(arrays.bits())?;
         message.extend_from_slice(&serialized[server_tick]);
 
         if !self.mappings.is_empty() {

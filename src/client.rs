@@ -20,7 +20,7 @@ use crate::core::{
             ctx::{DespawnCtx, RemoveCtx, WriteCtx},
             ReplicationRegistry,
         },
-        InitMessageHeader, Replicated,
+        InitMessageArrays, Replicated,
     },
     replicon_client::RepliconClient,
     replicon_tick::RepliconTick,
@@ -184,20 +184,20 @@ fn apply_init_message(
         stats.bytes += end_pos;
     }
 
-    let header = InitMessageHeader::from_bits_retain(cursor.read_fixedint()?);
+    let arrays = InitMessageArrays::from_bits_retain(cursor.read_fixedint()?);
     let message_tick = DefaultOptions::new().deserialize_from(&mut cursor)?;
     trace!("applying init message for {message_tick:?}");
     world.resource_mut::<ServerInitTick>().0 = message_tick;
 
-    if header.contains(InitMessageHeader::MAPPINGS) {
+    if arrays.contains(InitMessageArrays::MAPPINGS) {
         apply_entity_mappings(world, params, &mut cursor)?;
     }
 
-    if header.contains(InitMessageHeader::DESPAWNS) {
+    if arrays.contains(InitMessageArrays::DESPAWNS) {
         apply_despawns(world, params, &mut cursor, message_tick)?;
     }
 
-    if header.contains(InitMessageHeader::REMOVALS) {
+    if arrays.contains(InitMessageArrays::REMOVALS) {
         apply_init_components(
             world,
             params,
@@ -207,7 +207,7 @@ fn apply_init_message(
         )?;
     }
 
-    if header.contains(InitMessageHeader::CHANGES) {
+    if arrays.contains(InitMessageArrays::CHANGES) {
         apply_init_components(
             world,
             params,
