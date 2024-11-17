@@ -123,12 +123,9 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
         self.world_scope(|world| {
             world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
                 world.resource_scope(|world, registry: Mut<ReplicationRegistry>| {
-                    let world_cell = world.as_unsafe_world_cell();
-                    // SAFETY: have write access and the cell used only to get entities.
-                    let mut entity = unsafe { DeferredEntity::new(world_cell, entity) };
                     let mut queue = CommandQueue::default();
-                    let mut commands =
-                        Commands::new_from_entities(&mut queue, world_cell.entities());
+                    let mut entity = DeferredEntity::new(world, entity);
+                    let mut commands = entity.commands(&mut queue);
 
                     let (component_id, component_fns, rule_fns) = registry.get(fns_id);
                     let mut cursor = Cursor::new(data);
@@ -163,11 +160,9 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
         let entity = self.id();
         self.world_scope(|world| {
             world.resource_scope(|world, registry: Mut<ReplicationRegistry>| {
-                let world_cell = world.as_unsafe_world_cell();
-                // SAFETY: have write access and the cell used only to get entities.
-                let mut entity = unsafe { DeferredEntity::new(world_cell, entity) };
                 let mut queue = CommandQueue::default();
-                let mut commands = Commands::new_from_entities(&mut queue, world_cell.entities());
+                let mut entity = DeferredEntity::new(world, entity);
+                let mut commands = entity.commands(&mut queue);
 
                 let (component_id, component_fns, _) = registry.get(fns_id);
                 let mut ctx = RemoveCtx {

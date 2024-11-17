@@ -369,7 +369,8 @@ fn apply_removals(
         .entity_map
         .get_by_server_or_insert(server_entity, || world.spawn(Replicated).id());
 
-    let (mut client_entity, mut commands) = read_entity(world, params.queue, client_entity);
+    let mut client_entity = DeferredEntity::new(world, client_entity);
+    let mut commands = client_entity.commands(params.queue);
     params
         .entity_markers
         .read(params.command_markers, &*client_entity);
@@ -417,7 +418,8 @@ fn apply_changes(
         .entity_map
         .get_by_server_or_insert(server_entity, || world.spawn(Replicated).id());
 
-    let (mut client_entity, mut commands) = read_entity(world, params.queue, client_entity);
+    let mut client_entity = DeferredEntity::new(world, client_entity);
+    let mut commands = client_entity.commands(params.queue);
     params
         .entity_markers
         .read(params.command_markers, &*client_entity);
@@ -513,7 +515,8 @@ fn apply_mutations(
         return Ok(());
     };
 
-    let (mut client_entity, mut commands) = read_entity(world, params.queue, client_entity);
+    let mut client_entity = DeferredEntity::new(world, client_entity);
+    let mut commands = client_entity.commands(params.queue);
     params
         .entity_markers
         .read(params.command_markers, &*client_entity);
@@ -586,20 +589,6 @@ fn apply_mutations(
     params.queue.apply(world);
 
     Ok(())
-}
-
-/// Splits world access into entity that disallows structural ECS changes and commands.
-fn read_entity<'w, 's>(
-    world: &'w mut World,
-    queue: &'s mut CommandQueue,
-    client_entity: Entity,
-) -> (DeferredEntity<'w>, Commands<'w, 's>) {
-    let world_cell = world.as_unsafe_world_cell();
-    // SAFETY: have write access and the cell used only to get entities.
-    let client_entity = unsafe { DeferredEntity::new(world_cell, client_entity) };
-    let commands = Commands::new_from_entities(queue, world_cell.entities());
-
-    (client_entity, commands)
 }
 
 /// Deserializes `entity` from compressed index and generation.
