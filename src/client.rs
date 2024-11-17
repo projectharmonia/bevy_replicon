@@ -188,6 +188,8 @@ fn apply_change_message(
     }
 
     let arrays = ChangeMessageArrays::from_bits_retain(cursor.read_fixedint()?);
+    debug_assert!(!arrays.is_empty(), "message can't be empty");
+
     let message_tick = DefaultOptions::new().deserialize_from(&mut cursor)?;
     trace!("applying change message for {message_tick:?}");
     world.resource_mut::<ServerChangeTick>().0 = message_tick;
