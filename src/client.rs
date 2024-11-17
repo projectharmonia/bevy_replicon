@@ -198,15 +198,9 @@ fn apply_change_message(
     for (_, array) in arrays.iter_names() {
         match array {
             ChangeMessageArrays::MAPPINGS => {
-                let len = if array != last_array {
-                    apply_sized_array(&mut cursor, |cursor| {
-                        apply_entity_mapping(world, params, cursor)
-                    })?
-                } else {
-                    apply_dyn_array(&mut cursor, |cursor| {
-                        apply_entity_mapping(world, params, cursor)
-                    })?
-                };
+                let len = apply_sized_array(&mut cursor, |cursor| {
+                    apply_entity_mapping(world, params, cursor)
+                })?;
                 if let Some(stats) = &mut params.stats {
                     stats.mappings += len as u32;
                 }

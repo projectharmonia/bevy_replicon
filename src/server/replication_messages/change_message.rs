@@ -255,9 +255,11 @@ impl ChangeMessage {
         for (_, array) in arrays.iter_names() {
             match array {
                 ChangeMessageArrays::MAPPINGS => {
-                    if array != last_array {
-                        message.write_varint(self.mappings_len)?;
-                    }
+                    // Always write size since the message can't have only mappings array.
+                    // Otherwise this would mean that the client already received the mapped
+                    // entity and it's already mapped or server sends an invisible entity which
+                    // is an error.
+                    message.write_varint(self.mappings_len)?;
                     message.extend_from_slice(&serialized[self.mappings.clone()]);
                 }
                 ChangeMessageArrays::DESPAWNS => {
