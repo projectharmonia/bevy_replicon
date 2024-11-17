@@ -304,6 +304,38 @@ fn after_insertion() {
 }
 
 #[test]
+fn with_spawn() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<DummyComponent>();
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    server_app
+        .world_mut()
+        .spawn((Replicated, DummyComponent))
+        .remove::<DummyComponent>();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    client_app
+        .world_mut()
+        .query_filtered::<Entity, Without<DummyComponent>>()
+        .single(client_app.world());
+}
+
+#[test]
 fn with_despawn() {
     let mut server_app = App::new();
     let mut client_app = App::new();
