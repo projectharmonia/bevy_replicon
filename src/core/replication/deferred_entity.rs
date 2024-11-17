@@ -1,4 +1,4 @@
-use bevy::{ecs::world::unsafe_world_cell::UnsafeWorldCell, prelude::*};
+use bevy::{ecs::world::CommandQueue, prelude::*};
 
 /// An entity reference that disallows structural ECS changes.
 ///
@@ -11,18 +11,19 @@ pub struct DeferredEntity<'w> {
 }
 
 impl<'w> DeferredEntity<'w> {
-    /// Creates a new instance from a world cell.
-    ///
-    /// # Safety
-    ///
-    /// - The cell must have been created using [`World::as_unsafe_world_cell`].
-    /// - No structural ECS changes can be done using the cell.
-    /// - No other mutable references to the entity's components should exist.
-    pub(crate) unsafe fn new(world_cell: UnsafeWorldCell<'w>, entity: Entity) -> Self {
-        // Split access, `EntityMut` can't make structural changes and they share the lifetime.
-        let entity: EntityMut = world_cell.world_mut().entity_mut(entity).into();
-        let world = world_cell.world();
-        Self { entity, world }
+    pub(crate) fn new(world: &'w mut World, entity: Entity) -> Self {
+        let world_cell = world.as_unsafe_world_cell();
+        // SAFETY: access split, `EntityMut` cannot make structural ECS changes,
+        // and the world cannot be accessed simultaneously with the entity.
+        unsafe {
+            let entity: EntityMut = world_cell.world_mut().entity_mut(entity).into();
+            let world = world_cell.world();
+            Self { entity, world }
+        }
+    }
+
+    pub(crate) fn commands<'s>(&self, queue: &'s mut CommandQueue) -> Commands<'w, 's> {
+        Commands::new_from_entities(queue, self.world.entities())
     }
 
     /// Gets read-only access to the world that the current entity belongs to.
