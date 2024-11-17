@@ -441,9 +441,10 @@ fn collect_removals(
 ) -> bincode::Result<()> {
     for (&entity, remove_ids) in removal_buffer.iter() {
         let entity = serialized.write_entity(entity)?;
+        let ids_len = remove_ids.len();
         let fn_ids = serialized.write_fn_ids(remove_ids.iter().map(|&(_, fns_id)| fns_id))?;
         for (message, _) in messages.iter_mut() {
-            message.add_removals(entity.clone(), fn_ids.clone());
+            message.add_removals(entity.clone(), ids_len, fn_ids.clone());
         }
     }
 

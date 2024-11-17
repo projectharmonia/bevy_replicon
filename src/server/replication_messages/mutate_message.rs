@@ -4,7 +4,7 @@ use bevy::{ecs::component::Tick, prelude::*};
 use bincode::{DefaultOptions, Options};
 use integer_encoding::{VarInt, VarIntWriter};
 
-use super::serialized_data::SerializedData;
+use super::{component_changes::ComponentChanges, serialized_data::SerializedData};
 use crate::core::{
     channels::ReplicationChannel,
     replication::replicated_clients::{ClientBuffers, ReplicatedClient},
@@ -23,7 +23,8 @@ use crate::core::{
 /// independently on the client.
 /// Message splits only happen per-entity to avoid weird behavior from partial entity mutations.
 ///
-/// The data is stored in the form of ranges from [`SerializedData`].
+/// The data is serialized manyally and stored in the form of ranges
+/// from [`SerializedData`].
 ///
 /// Sent over the [`ReplicationChannel::Mutations`] channel. If the message gets lost, we try to resend it manually,
 /// using the last up-to-date mutations to avoid re-sending old values.
@@ -42,7 +43,12 @@ pub(crate) struct MutateMessage {
     /// Serialized as a list of pairs of entity chunk and multiple chunks with mutated components.
     /// Components are stored in multiple chunks because some clients may acknowledge mutations,
     /// while others may not.
-    mutations: Vec<(Range<usize>, Vec<Range<usize>>)>,
+    ///
+    /// Unlike [`ChangeMessage`](super::change_message::ChangeMessage), we serialize the number
+    /// of chunk bytes instead of the number of components. This is because, during deserialization,
+    /// some entities may be skipped if they have already been updated (as mutations are sent until
+    /// the client acknowledges them).
+    mutations: Vec<ComponentChanges>,
 
     /// Indicates that an entity has been written since the
     /// last call of [`Self::start_entity_mutations`].
@@ -76,37 +82,37 @@ impl MutateMessage {
     /// Adds an entity chunk.
     pub(crate) fn add_mutated_entity(&mut self, entity: Entity, entity_range: Range<usize>) {
         let components = self.buffer.pop().unwrap_or_default();
-        self.mutations.push((entity_range, components));
+        self.mutations.push(ComponentChanges {
+            entity: entity_range,
+            components_len: 0,
+            components,
+        });
         self.entities.push(entity);
         self.mutations_written = true;
     }
 
     /// Adds a component chunk to the last added entity from [`Self::add_mutated_entity`].
     pub(crate) fn add_mutated_component(&mut self, component: Range<usize>) {
-        let (_, components) = self
+        let mutations = self
             .mutations
             .last_mut()
             .expect("entity should be written before adding components");
 
-        if let Some(last) = components.last_mut() {
-            // Append to previous range if possible.
-            if last.end == component.start {
-                last.end = component.end;
-                return;
-            }
-        }
-
-        components.push(component);
+        mutations.add_component(component);
     }
 
-    /// Removes and returns last mutated entity with its component chunks.
-    pub(super) fn pop_mutations(
-        &mut self,
-    ) -> Option<(Range<usize>, impl Iterator<Item = Range<usize>> + '_)> {
-        let (entity, components) = self.mutations.pop()?;
-        self.buffer.push(components);
-        let components = self.buffer.last_mut().unwrap();
-        Some((entity, components.drain(..)))
+    /// Returns written mutations for the last entity from [`Self::add_mutated_entity`].
+    pub(super) fn last_mutations(&mut self) -> Option<&ComponentChanges> {
+        self.mutations.last()
+    }
+
+    /// Removes last added entity from [`Self::add_mutated_entity`] with associated components.
+    pub(super) fn pop_mutations(&mut self) {
+        self.entities.pop();
+        if let Some(mut mutations) = self.mutations.pop() {
+            mutations.components.clear();
+            self.buffer.push(mutations.components);
+        }
     }
 
     pub(crate) fn is_empty(&self) -> bool {
@@ -123,6 +129,8 @@ impl MutateMessage {
         tick: Tick,
         timestamp: Duration,
     ) -> bincode::Result<()> {
+        debug_assert_eq!(self.entities.len(), self.mutations.len());
+
         const MAX_TICK_SIZE: usize = mem::size_of::<RepliconTick>() + 1;
         let mut change_tick = Cursor::new([0; MAX_TICK_SIZE]);
         DefaultOptions::new().serialize_into(&mut change_tick, &client.change_tick())?;
@@ -133,15 +141,16 @@ impl MutateMessage {
             client.register_mutate_message(client_buffers, tick, timestamp);
         let mut message_size = ticks_size + mutate_index.required_space();
         let mut mutations_range = Range::<usize>::default();
-        for (entity, (entity_range, components)) in self.entities.iter().zip(&self.mutations) {
+        for (entity, mutations) in self.entities.iter().zip(&self.mutations) {
             const MAX_PACKET_SIZE: usize = 1200; // TODO: make it configurable by the messaging backend.
-            let components_size = components.iter().map(|range| range.len()).sum::<usize>();
-            let data_size = entity_range.len() + components_size.required_space() + components_size;
+            let components_size = mutations.components_size();
+            let mutations_size =
+                mutations.entity.len() + components_size.required_space() + components_size;
 
-            if message_size == 0 || message_size + data_size <= MAX_PACKET_SIZE {
+            if message_size == 0 || message_size + mutations_size <= MAX_PACKET_SIZE {
                 entities.push(*entity);
                 mutations_range.end += 1;
-                message_size += data_size;
+                message_size += mutations_size;
             } else {
                 self.messages
                     .push((mutate_index, message_size, mutations_range.clone()));
@@ -151,7 +160,7 @@ impl MutateMessage {
                     client.register_mutate_message(client_buffers, tick, timestamp);
                 entities.push(*entity);
                 mutations_range.end += 1;
-                message_size = ticks_size + mutate_index.required_space() + data_size;
+                message_size = ticks_size + mutate_index.required_space() + mutations_size;
             }
         }
         if !mutations_range.is_empty() {
@@ -165,11 +174,10 @@ impl MutateMessage {
             message.extend_from_slice(&change_tick.get_ref()[..change_tick_size]);
             message.extend_from_slice(&serialized[server_tick.clone()]);
             message.write_varint(mutate_index)?;
-            for (entity, components) in &self.mutations[mutations_range.clone()] {
-                let components_size = components.iter().map(|range| range.len()).sum::<usize>();
-                message.extend_from_slice(&serialized[entity.clone()]);
-                message.write_varint(components_size)?;
-                for component in components {
+            for mutations in &self.mutations[mutations_range.clone()] {
+                message.extend_from_slice(&serialized[mutations.entity.clone()]);
+                message.write_varint(mutations.components_size())?;
+                for component in &mutations.components {
                     message.extend_from_slice(&serialized[component.clone()]);
                 }
             }
@@ -188,9 +196,9 @@ impl MutateMessage {
     pub(super) fn clear(&mut self) {
         self.entities.clear();
         self.buffer
-            .extend(self.mutations.drain(..).map(|(_, mut range)| {
-                range.clear();
-                range
+            .extend(self.mutations.drain(..).map(|mut mutations| {
+                mutations.components.clear();
+                mutations.components
             }));
     }
 }

@@ -1,4 +1,5 @@
 pub(super) mod change_message;
+mod component_changes;
 pub(super) mod mutate_message;
 pub(super) mod serialized_data;
 

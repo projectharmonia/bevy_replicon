@@ -2,7 +2,10 @@ use std::ops::Range;
 
 use integer_encoding::{FixedIntWriter, VarInt, VarIntWriter};
 
-use super::{mutate_message::MutateMessage, serialized_data::SerializedData};
+use super::{
+    component_changes::ComponentChanges, mutate_message::MutateMessage,
+    serialized_data::SerializedData,
+};
 use crate::core::{
     channels::ReplicationChannel,
     replication::{
@@ -17,20 +20,23 @@ use crate::core::{
 /// Contains tick, mappings, insertions, removals and despawns that
 /// happened on this tick.
 ///
-/// The data is stored in the form of ranges from [`SerializedData`].
+/// The data is serialized manyally and stored in the form of ranges
+/// from [`SerializedData`].
 ///
 /// Sent over [`ReplicationChannel::Changes`] channel.
 ///
-/// All sizes are serialized as `usize`, but we use variable integer encoding,
-/// so they are correctly deserialized even on a client with a different pointer size.
-/// However, if the server sends a value larger than what a client can fit into `usize`
-/// (which is very unlikely), the client will panic. This is expected,
-/// as it means the client can't have an array of such a size anyway.
+/// All fields encoded as optional arrays, and their presence is encoded in
+/// the [`ChangeMessageArrays`] bitset. Removals and changes also have nested
+/// arrays for entity components.
 ///
-/// Additionally, we don't serialize the size for the last [`ChangeMessageArrays`] and
+/// To know how much data array takes, we serialize it's length. We use `usize`,
+/// but we use variable integer encoding, so they are correctly deserialized even
+/// on a client with a different pointer size. However, if the server sends a value
+/// larger than what a client can fit into `usize` (which is very unlikely), the client will panic.
+/// This is expected, as it means the client can't have an array of such a size anyway.
+///
+/// Additionally, we don't serialize the size for the last array and
 /// on deserialization just consume all remaining bytes.
-///
-/// For all internal arrays, like components for an entity, we serialize their size in bytes.
 ///
 /// Stored inside [`ReplicationMessages`](super::ReplicationMessages).
 #[derive(Default)]
@@ -63,7 +69,7 @@ pub(crate) struct ChangeMessage {
     /// Serialized as a list of pairs of entity chunk and a list of
     /// [`FnsId`](crate::core::replication::replication_registry::FnsId)
     /// serialized as a single chunk.
-    removals: Vec<(Range<usize>, Range<usize>)>,
+    removals: Vec<ComponentRemovals>,
 
     /// Component insertions or mutations happened on this tick.
     ///
@@ -73,7 +79,7 @@ pub(crate) struct ChangeMessage {
     ///
     /// Usually mutations stored in [`MutateMessage`], but if an entity have any insertion, removal,
     /// or just became visible for a client, we serialize it as part of the change message to keep entity updates atomic.
-    changes: Vec<(Range<usize>, Vec<Range<usize>>)>,
+    changes: Vec<ComponentChanges>,
 
     /// Visibility of the entity for which component changes are being written.
     ///
@@ -106,8 +112,17 @@ impl ChangeMessage {
         self.despawns.push(entity);
     }
 
-    pub(crate) fn add_removals(&mut self, entity: Range<usize>, fn_ids: Range<usize>) {
-        self.removals.push((entity, fn_ids));
+    pub(crate) fn add_removals(
+        &mut self,
+        entity: Range<usize>,
+        ids_len: usize,
+        fn_ids: Range<usize>,
+    ) {
+        self.removals.push(ComponentRemovals {
+            entity,
+            ids_len,
+            fn_ids,
+        });
     }
 
     /// Updates internal state to start writing changed components for an entity with the given visibility.
@@ -133,43 +148,46 @@ impl ChangeMessage {
     /// Adds an entity chunk.
     pub(crate) fn add_changed_entity(&mut self, entity: Range<usize>) {
         let components = self.buffer.pop().unwrap_or_default();
-        self.changes.push((entity, components));
+        self.changes.push(ComponentChanges {
+            entity,
+            components_len: 0,
+            components,
+        });
         self.entity_written = true;
     }
 
     /// Adds a component chunk to the last added entity from [`Self::add_changed_entity`].
     pub(crate) fn add_inserted_component(&mut self, component: Range<usize>) {
-        let (_, components) = self
+        let changes = self
             .changes
             .last_mut()
             .expect("entity should be written before adding components");
 
-        if let Some(last) = components.last_mut() {
-            // Append to previous range if possible.
-            if last.end == component.start {
-                last.end = component.end;
-                return;
-            }
-        }
-
-        components.push(component);
+        changes.add_component(component);
     }
 
     /// Takes last mutated entity with its component chunks from the mutate message.
     pub(crate) fn take_mutations(&mut self, mutate_message: &mut MutateMessage) {
         if mutate_message.mutations_written() {
-            let (entity, components_iter) = mutate_message
-                .pop_mutations()
+            let mutations = mutate_message
+                .last_mutations()
                 .expect("entity should be written");
 
             if !self.entity_written {
-                let mut components = self.buffer.pop().unwrap_or_default();
-                components.extend(components_iter);
-                self.changes.push((entity, components));
+                let components = self.buffer.pop().unwrap_or_default();
+                let mut changes = ComponentChanges {
+                    entity: mutations.entity.clone(),
+                    components_len: 0,
+                    components,
+                };
+                changes.extend(mutations);
+                self.changes.push(changes);
             } else {
-                let (_, components) = self.changes.last_mut().unwrap();
-                components.extend(components_iter);
+                let changes = self.changes.last_mut().unwrap();
+                changes.extend(mutations);
             }
+
+            mutate_message.pop_mutations();
         }
     }
 
@@ -213,19 +231,17 @@ impl ChangeMessage {
                     message_size += self
                         .removals
                         .iter()
-                        .map(|(entity, components)| {
-                            entity.len() + components.len().required_space() + components.len()
-                        })
+                        .map(|removals| removals.size())
                         .sum::<usize>();
                 }
                 ChangeMessageArrays::CHANGES => {
                     message_size += self
                         .changes
                         .iter()
-                        .map(|(entity, components)| {
-                            let components_size =
-                                components.iter().map(|range| range.len()).sum::<usize>();
-                            entity.len() + components_size.required_space() + components_size
+                        .map(|changes| {
+                            changes.entity.len()
+                                + changes.components_len.required_space()
+                                + changes.components_size()
                         })
                         .sum::<usize>();
                 }
@@ -256,20 +272,18 @@ impl ChangeMessage {
                     if array != last_array {
                         message.write_varint(self.removals.len())?;
                     }
-                    for (entity, components) in &self.removals {
-                        message.extend_from_slice(&serialized[entity.clone()]);
-                        message.write_varint(components.len())?;
-                        message.extend_from_slice(&serialized[components.clone()]);
+                    for removals in &self.removals {
+                        message.extend_from_slice(&serialized[removals.entity.clone()]);
+                        message.write_varint(removals.ids_len)?;
+                        message.extend_from_slice(&serialized[removals.fn_ids.clone()]);
                     }
                 }
                 ChangeMessageArrays::CHANGES => {
                     // Changes are always the last array, don't write len for it.
-                    for (entity, components) in &self.changes {
-                        let components_size =
-                            components.iter().map(|range| range.len()).sum::<usize>();
-                        message.extend_from_slice(&serialized[entity.clone()]);
-                        message.write_varint(components_size)?;
-                        for component in components {
+                    for changes in &self.changes {
+                        message.extend_from_slice(&serialized[changes.entity.clone()]);
+                        message.write_varint(changes.components_len)?;
+                        for component in &changes.components {
                             message.extend_from_slice(&serialized[component.clone()]);
                         }
                     }
@@ -314,9 +328,21 @@ impl ChangeMessage {
         self.despawns_len = 0;
         self.removals.clear();
         self.buffer
-            .extend(self.changes.drain(..).map(|(_, mut range)| {
-                range.clear();
-                range
+            .extend(self.changes.drain(..).map(|mut changes| {
+                changes.components.clear();
+                changes.components
             }));
+    }
+}
+
+struct ComponentRemovals {
+    entity: Range<usize>,
+    ids_len: usize,
+    fn_ids: Range<usize>,
+}
+
+impl ComponentRemovals {
+    fn size(&self) -> usize {
+        self.entity.len() + self.ids_len.required_space() + self.fn_ids.len()
     }
 }

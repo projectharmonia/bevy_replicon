@@ -382,7 +382,6 @@ fn apply_removals(
     message_tick: RepliconTick,
 ) -> bincode::Result<()> {
     let server_entity = deserialize_entity(cursor)?;
-    let data_size: usize = cursor.read_varint()?;
 
     let client_entity = params
         .entity_map
@@ -401,9 +400,7 @@ fn apply_removals(
             .insert(ConfirmHistory::new(message_tick));
     }
 
-    let end_pos = cursor.position() + data_size as u64;
-    let mut components_len = 0;
-    while cursor.position() < end_pos {
+    let len = apply_array(cursor, true, |cursor| {
         let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
         let (component_id, component_fns, _) = params.registry.get(fns_id);
         let mut ctx = RemoveCtx {
@@ -413,11 +410,11 @@ fn apply_removals(
         };
         component_fns.remove(&mut ctx, params.entity_markers, &mut client_entity);
 
-        components_len += 1;
-    }
+        Ok(())
+    })?;
 
     if let Some(stats) = &mut params.stats {
-        stats.components_changed += components_len;
+        stats.components_changed += len as u32;
     }
 
     params.queue.apply(world);
@@ -433,7 +430,6 @@ fn apply_changes(
     message_tick: RepliconTick,
 ) -> bincode::Result<()> {
     let server_entity = deserialize_entity(cursor)?;
-    let data_size: usize = cursor.read_varint()?;
 
     let client_entity = params
         .entity_map
@@ -452,9 +448,7 @@ fn apply_changes(
             .insert(ConfirmHistory::new(message_tick));
     }
 
-    let end_pos = cursor.position() + data_size as u64;
-    let mut components_len = 0;
-    while cursor.position() < end_pos {
+    let len = apply_array(cursor, true, |cursor| {
         let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
         let (component_id, component_fns, rule_fns) = params.registry.get(fns_id);
         let mut ctx = WriteCtx::new(&mut commands, params.entity_map, component_id, message_tick);
@@ -469,11 +463,12 @@ fn apply_changes(
                 cursor,
             )?;
         }
-        components_len += 1;
-    }
+
+        Ok(())
+    })?;
 
     if let Some(stats) = &mut params.stats {
-        stats.components_changed += components_len;
+        stats.components_changed += len as u32;
     }
 
     params.queue.apply(world);
