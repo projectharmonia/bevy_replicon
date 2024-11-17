@@ -196,31 +196,49 @@ fn apply_change_message(
     for (_, array) in arrays.iter_names() {
         match array {
             ChangeMessageArrays::MAPPINGS => {
-                let len = apply_array(&mut cursor, array != last_array, |cursor| {
-                    apply_entity_mapping(world, params, cursor)
-                })?;
+                let len = if array != last_array {
+                    apply_sized_array(&mut cursor, |cursor| {
+                        apply_entity_mapping(world, params, cursor)
+                    })?
+                } else {
+                    apply_dyn_array(&mut cursor, |cursor| {
+                        apply_entity_mapping(world, params, cursor)
+                    })?
+                };
                 if let Some(stats) = &mut params.stats {
                     stats.mappings += len as u32;
                 }
             }
             ChangeMessageArrays::DESPAWNS => {
-                let len = apply_array(&mut cursor, array != last_array, |cursor| {
-                    apply_despawn(world, params, cursor, message_tick)
-                })?;
+                let len = if array != last_array {
+                    apply_sized_array(&mut cursor, |cursor| {
+                        apply_despawn(world, params, cursor, message_tick)
+                    })?
+                } else {
+                    apply_dyn_array(&mut cursor, |cursor| {
+                        apply_despawn(world, params, cursor, message_tick)
+                    })?
+                };
                 if let Some(stats) = &mut params.stats {
                     stats.despawns += len as u32;
                 }
             }
             ChangeMessageArrays::REMOVALS => {
-                let len = apply_array(&mut cursor, array != last_array, |cursor| {
-                    apply_removals(world, params, cursor, message_tick)
-                })?;
+                let len = if array != last_array {
+                    apply_sized_array(&mut cursor, |cursor| {
+                        apply_removals(world, params, cursor, message_tick)
+                    })?
+                } else {
+                    apply_dyn_array(&mut cursor, |cursor| {
+                        apply_removals(world, params, cursor, message_tick)
+                    })?
+                };
                 if let Some(stats) = &mut params.stats {
                     stats.entities_changed += len as u32;
                 }
             }
             ChangeMessageArrays::CHANGES => {
-                let len = apply_array(&mut cursor, false, |cursor| {
+                let len = apply_dyn_array(&mut cursor, |cursor| {
                     apply_changes(world, params, cursor, message_tick)
                 })?;
                 if let Some(stats) = &mut params.stats {
@@ -281,7 +299,7 @@ fn apply_mutate_messages(
         }
 
         trace!("applying mutate message for {:?}", mutate.message_tick);
-        let len = apply_array(&mut Cursor::new(&*mutate.message), false, |cursor| {
+        let len = apply_dyn_array(&mut Cursor::new(&*mutate.message), |cursor| {
             apply_mutations(world, params, cursor, mutate.message_tick)
         });
 
@@ -298,36 +316,6 @@ fn apply_mutate_messages(
     });
 
     result
-}
-
-/// Reads received array from the message and applies `f` to its memebers.
-///
-/// If the array is serialized with the length, calls `f` the specified number of times.
-/// Otherwise, calls `f` until the end of the cursor.
-///
-/// See [`ChangeMessageArrays`] for details.
-fn apply_array(
-    cursor: &mut Cursor<&[u8]>,
-    with_len: bool,
-    mut f: impl FnMut(&mut Cursor<&[u8]>) -> bincode::Result<()>,
-) -> bincode::Result<usize> {
-    if with_len {
-        let len = cursor.read_varint()?;
-        for _ in 0..len {
-            (f)(cursor)?;
-        }
-
-        Ok(len)
-    } else {
-        let mut len = 0;
-        let end = cursor.get_ref().len() as u64;
-        while cursor.position() < end {
-            (f)(cursor)?;
-            len += 1;
-        }
-
-        Ok(len)
-    }
 }
 
 /// Deserializes and applies server mapping from client's pre-spawned entities.
@@ -400,7 +388,7 @@ fn apply_removals(
             .insert(ConfirmHistory::new(message_tick));
     }
 
-    let len = apply_array(cursor, true, |cursor| {
+    let len = apply_sized_array(cursor, |cursor| {
         let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
         let (component_id, component_fns, _) = params.registry.get(fns_id);
         let mut ctx = RemoveCtx {
@@ -448,7 +436,7 @@ fn apply_changes(
             .insert(ConfirmHistory::new(message_tick));
     }
 
-    let len = apply_array(cursor, true, |cursor| {
+    let len = apply_sized_array(cursor, |cursor| {
         let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
         let (component_id, component_fns, rule_fns) = params.registry.get(fns_id);
         let mut ctx = WriteCtx::new(&mut commands, params.entity_map, component_id, message_tick);
@@ -474,6 +462,35 @@ fn apply_changes(
     params.queue.apply(world);
 
     Ok(())
+}
+
+/// Reads a received array with its size and applies `f` to all members.
+fn apply_sized_array(
+    cursor: &mut Cursor<&[u8]>,
+    mut f: impl FnMut(&mut Cursor<&[u8]>) -> bincode::Result<()>,
+) -> bincode::Result<usize> {
+    let len = cursor.read_varint()?;
+    for _ in 0..len {
+        (f)(cursor)?;
+    }
+
+    Ok(len)
+}
+
+/// Like [`apply_sized_array`], but instead of relying on the size, applies `f`
+/// until the cursor reaches the end.
+fn apply_dyn_array(
+    cursor: &mut Cursor<&[u8]>,
+    mut f: impl FnMut(&mut Cursor<&[u8]>) -> bincode::Result<()>,
+) -> bincode::Result<usize> {
+    let mut len = 0;
+    let end = cursor.get_ref().len() as u64;
+    while cursor.position() < end {
+        (f)(cursor)?;
+        len += 1;
+    }
+
+    Ok(len)
 }
 
 /// Deserializes and applies component mutations for all entities.
