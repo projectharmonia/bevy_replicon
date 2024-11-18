@@ -9,7 +9,7 @@ use super::{
 use crate::core::{
     channels::ReplicationChannel,
     replication::{
-        change_message_arrays::ChangeMessageArrays,
+        change_message_flags::ChangeMessageFlags,
         replicated_clients::{client_visibility::Visibility, ReplicatedClient},
     },
     replicon_server::RepliconServer,
@@ -20,14 +20,12 @@ use crate::core::{
 /// Contains tick, mappings, insertions, removals and despawns that
 /// happened on this tick.
 ///
-/// The data is serialized manyally and stored in the form of ranges
+/// The data is serialized manually and stored in the form of ranges
 /// from [`SerializedData`].
 ///
 /// Sent over [`ReplicationChannel::Changes`] channel.
 ///
-/// All fields encoded as optional arrays, and their presence is encoded in
-/// the [`ChangeMessageArrays`] bitset. Removals and changes also have nested
-/// arrays for entity components.
+/// Some data is optional, and their presence is encoded in the [`ChangeMessageFlags`] bitset.
 ///
 /// To know how much data array takes, we serialize it's length. We use `usize`,
 /// but we use variable integer encoding, so they are correctly deserialized even
@@ -205,27 +203,27 @@ impl ChangeMessage {
         serialized: &SerializedData,
         server_tick: Range<usize>,
     ) -> bincode::Result<()> {
-        let arrays = self.arrays();
-        let last_array = arrays.last();
+        let flags = self.flags();
+        let last_flag = flags.last();
 
         // Precalcualte size first to avoid extra allocations.
-        let mut message_size = size_of::<ChangeMessageArrays>() + server_tick.len();
-        for (_, array) in arrays.iter_names() {
-            match array {
-                ChangeMessageArrays::MAPPINGS => {
-                    if array != last_array {
+        let mut message_size = size_of::<ChangeMessageFlags>() + server_tick.len();
+        for (_, flag) in flags.iter_names() {
+            match flag {
+                ChangeMessageFlags::MAPPINGS => {
+                    if flag != last_flag {
                         message_size += self.mappings_len.required_space();
                     }
                     message_size += self.mappings.len();
                 }
-                ChangeMessageArrays::DESPAWNS => {
-                    if array != last_array {
+                ChangeMessageFlags::DESPAWNS => {
+                    if flag != last_flag {
                         message_size += self.despawns_len.required_space();
                     }
                     message_size += self.despawns.iter().map(|range| range.len()).sum::<usize>();
                 }
-                ChangeMessageArrays::REMOVALS => {
-                    if array != last_array {
+                ChangeMessageFlags::REMOVALS => {
+                    if flag != last_flag {
                         message_size += self.removals.len().required_space();
                     }
                     message_size += self
@@ -234,7 +232,7 @@ impl ChangeMessage {
                         .map(|removals| removals.size())
                         .sum::<usize>();
                 }
-                ChangeMessageArrays::CHANGES => {
+                ChangeMessageFlags::CHANGES => {
                     message_size += self
                         .changes
                         .iter()
@@ -250,28 +248,28 @@ impl ChangeMessage {
         }
 
         let mut message = Vec::with_capacity(message_size);
-        message.write_fixedint(arrays.bits())?;
+        message.write_fixedint(flags.bits())?;
         message.extend_from_slice(&serialized[server_tick]);
-        for (_, array) in arrays.iter_names() {
-            match array {
-                ChangeMessageArrays::MAPPINGS => {
-                    // Always write size since the message can't have only mappings array.
+        for (_, flag) in flags.iter_names() {
+            match flag {
+                ChangeMessageFlags::MAPPINGS => {
+                    // Always write size since the message can't have only mappings.
                     // Otherwise this would mean that the client already received the mapped
                     // entity and it's already mapped or server sends an invisible entity which
                     // is an error.
                     message.write_varint(self.mappings_len)?;
                     message.extend_from_slice(&serialized[self.mappings.clone()]);
                 }
-                ChangeMessageArrays::DESPAWNS => {
-                    if array != last_array {
+                ChangeMessageFlags::DESPAWNS => {
+                    if flag != last_flag {
                         message.write_varint(self.despawns_len)?;
                     }
                     for range in &self.despawns {
                         message.extend_from_slice(&serialized[range.clone()]);
                     }
                 }
-                ChangeMessageArrays::REMOVALS => {
-                    if array != last_array {
+                ChangeMessageFlags::REMOVALS => {
+                    if flag != last_flag {
                         message.write_varint(self.removals.len())?;
                     }
                     for removals in &self.removals {
@@ -280,8 +278,8 @@ impl ChangeMessage {
                         message.extend_from_slice(&serialized[removals.fn_ids.clone()]);
                     }
                 }
-                ChangeMessageArrays::CHANGES => {
-                    // Changes are always the last array, don't write len for it.
+                ChangeMessageFlags::CHANGES => {
+                    // Changes are always last, don't write len for it.
                     for changes in &self.changes {
                         message.extend_from_slice(&serialized[changes.entity.clone()]);
                         message.write_varint(changes.components_len)?;
@@ -301,23 +299,23 @@ impl ChangeMessage {
         Ok(())
     }
 
-    fn arrays(&self) -> ChangeMessageArrays {
-        let mut header = ChangeMessageArrays::default();
+    fn flags(&self) -> ChangeMessageFlags {
+        let mut flags = ChangeMessageFlags::default();
 
         if !self.mappings.is_empty() {
-            header |= ChangeMessageArrays::MAPPINGS;
+            flags |= ChangeMessageFlags::MAPPINGS;
         }
         if !self.despawns.is_empty() {
-            header |= ChangeMessageArrays::DESPAWNS;
+            flags |= ChangeMessageFlags::DESPAWNS;
         }
         if !self.removals.is_empty() {
-            header |= ChangeMessageArrays::REMOVALS;
+            flags |= ChangeMessageFlags::REMOVALS;
         }
         if !self.changes.is_empty() {
-            header |= ChangeMessageArrays::CHANGES;
+            flags |= ChangeMessageFlags::CHANGES;
         }
 
-        header
+        flags
     }
 
     /// Clears all chunks.

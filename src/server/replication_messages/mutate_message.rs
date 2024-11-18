@@ -23,7 +23,7 @@ use crate::core::{
 /// independently on the client.
 /// Message splits only happen per-entity to avoid weird behavior from partial entity mutations.
 ///
-/// The data is serialized manyally and stored in the form of ranges
+/// The data is serialized manually and stored in the form of ranges
 /// from [`SerializedData`].
 ///
 /// Sent over the [`ReplicationChannel::Mutations`] channel. If the message gets lost, we try to resend it manually,

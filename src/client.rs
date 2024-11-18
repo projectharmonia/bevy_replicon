@@ -14,7 +14,7 @@ use crate::core::{
     channels::{ReplicationChannel, RepliconChannels},
     common_conditions::{client_connected, client_just_connected, client_just_disconnected},
     replication::{
-        change_message_arrays::ChangeMessageArrays,
+        change_message_flags::ChangeMessageFlags,
         command_markers::{CommandMarkers, EntityMarkers},
         deferred_entity::DeferredEntity,
         replication_registry::{
@@ -187,17 +187,17 @@ fn apply_change_message(
         stats.bytes += end_pos;
     }
 
-    let arrays = ChangeMessageArrays::from_bits_retain(cursor.read_fixedint()?);
-    debug_assert!(!arrays.is_empty(), "message can't be empty");
+    let flags = ChangeMessageFlags::from_bits_retain(cursor.read_fixedint()?);
+    debug_assert!(!flags.is_empty(), "message can't be empty");
 
     let message_tick = DefaultOptions::new().deserialize_from(&mut cursor)?;
     trace!("applying change message for {message_tick:?}");
     world.resource_mut::<ServerChangeTick>().0 = message_tick;
 
-    let last_array = arrays.last();
-    for (_, array) in arrays.iter_names() {
-        match array {
-            ChangeMessageArrays::MAPPINGS => {
+    let last_flag = flags.last();
+    for (_, flag) in flags.iter_names() {
+        match flag {
+            ChangeMessageFlags::MAPPINGS => {
                 let len = apply_sized_array(&mut cursor, |cursor| {
                     apply_entity_mapping(world, params, cursor)
                 })?;
@@ -205,8 +205,8 @@ fn apply_change_message(
                     stats.mappings += len as u32;
                 }
             }
-            ChangeMessageArrays::DESPAWNS => {
-                let len = if array != last_array {
+            ChangeMessageFlags::DESPAWNS => {
+                let len = if flag != last_flag {
                     apply_sized_array(&mut cursor, |cursor| {
                         apply_despawn(world, params, cursor, message_tick)
                     })?
@@ -219,8 +219,8 @@ fn apply_change_message(
                     stats.despawns += len as u32;
                 }
             }
-            ChangeMessageArrays::REMOVALS => {
-                let len = if array != last_array {
+            ChangeMessageFlags::REMOVALS => {
+                let len = if flag != last_flag {
                     apply_sized_array(&mut cursor, |cursor| {
                         apply_removals(world, params, cursor, message_tick)
                     })?
@@ -233,7 +233,7 @@ fn apply_change_message(
                     stats.entities_changed += len as u32;
                 }
             }
-            ChangeMessageArrays::CHANGES => {
+            ChangeMessageFlags::CHANGES => {
                 let len = apply_dyn_array(&mut cursor, |cursor| {
                     apply_changes(world, params, cursor, message_tick)
                 })?;
