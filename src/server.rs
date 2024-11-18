@@ -370,8 +370,7 @@ fn send_messages(
         if !mutate_message.is_empty() {
             let server_tick = write_tick_cached(&mut server_tick_range, serialized, server_tick)?;
 
-            trace!("sending mutate message(s) to {:?}", client.id());
-            mutate_message.send(
+            let messages_count = mutate_message.send(
                 server,
                 client,
                 client_buffers,
@@ -380,6 +379,10 @@ fn send_messages(
                 change_tick.this_run(),
                 time.elapsed(),
             )?;
+            trace!(
+                "sending {messages_count} mutate message(s) to {:?}",
+                client.id()
+            );
         } else {
             trace!("no mutations to send for {:?}", client.id());
         }

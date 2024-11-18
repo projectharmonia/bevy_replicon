@@ -128,7 +128,7 @@ impl MutateMessage {
         server_tick: Range<usize>,
         tick: Tick,
         timestamp: Duration,
-    ) -> bincode::Result<()> {
+    ) -> bincode::Result<usize> {
         debug_assert_eq!(self.entities.len(), self.mutations.len());
 
         const MAX_TICK_SIZE: usize = mem::size_of::<RepliconTick>() + 1;
@@ -168,6 +168,7 @@ impl MutateMessage {
                 .push((mutate_index, message_size, mutations_range.clone()));
         }
 
+        let messages_count = self.messages.len();
         for (mutate_index, message_size, mutations_range) in self.messages.drain(..) {
             let mut message = Vec::with_capacity(message_size);
 
@@ -187,7 +188,7 @@ impl MutateMessage {
             server.send(client.id(), ReplicationChannel::Mutations, message);
         }
 
-        Ok(())
+        Ok(messages_count)
     }
 
     /// Clears all chunks.
