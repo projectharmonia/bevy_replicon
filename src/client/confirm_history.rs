@@ -90,10 +90,11 @@ impl ConfirmHistory {
     pub fn confirm(&mut self, tick: RepliconTick) {
         if tick > self.last_tick {
             self.set_last_tick(tick);
-        }
-        let ago = self.last_tick - tick;
-        if ago < u64::BITS {
-            self.set(ago);
+        } else {
+            let ago = self.last_tick - tick;
+            if ago < u64::BITS {
+                self.set(ago);
+            }
         }
     }
 
