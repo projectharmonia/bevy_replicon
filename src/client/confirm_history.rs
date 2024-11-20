@@ -219,8 +219,8 @@ mod tests {
     #[test]
     fn confirm_newer() {
         let mut history = ConfirmHistory::new(RepliconTick::new(1));
-
         history.confirm(RepliconTick::new(2));
+        assert_eq!(history.mask(), 0b11);
 
         assert!(!history.contains(RepliconTick::new(0)));
         assert!(history.contains(RepliconTick::new(1)));
@@ -230,8 +230,6 @@ mod tests {
     #[test]
     fn confirm_older() {
         let mut history = ConfirmHistory::new(RepliconTick::new(1));
-        assert_eq!(history.mask(), 0b1);
-
         history.confirm(RepliconTick::new(0));
         assert_eq!(history.mask(), 0b11);
 
@@ -243,8 +241,8 @@ mod tests {
     #[test]
     fn confirm_same() {
         let mut history = ConfirmHistory::new(RepliconTick::new(1));
-
         history.confirm(RepliconTick::new(1));
+        assert_eq!(history.mask(), 0b1);
 
         assert!(!history.contains(RepliconTick::new(0)));
         assert!(history.contains(RepliconTick::new(1)));
@@ -254,8 +252,8 @@ mod tests {
     #[test]
     fn confirm_with_wrapping() {
         let mut history = ConfirmHistory::new(RepliconTick::new(1));
-
         history.confirm(RepliconTick::new(u64::BITS + 1));
+        assert_eq!(history.mask(), 0b1);
 
         assert!(history.contains(RepliconTick::new(0)));
         assert!(history.contains(RepliconTick::new(1)));
@@ -268,8 +266,8 @@ mod tests {
     #[test]
     fn confirm_with_overflow() {
         let mut history = ConfirmHistory::new(RepliconTick::new(u32::MAX));
-
         history.confirm(RepliconTick::new(1));
+        assert_eq!(history.mask(), 0b101);
 
         assert!(!history.contains(RepliconTick::new(0)));
         assert!(history.contains(RepliconTick::new(1)));
