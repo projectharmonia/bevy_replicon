@@ -100,7 +100,7 @@ impl ClientPlugin {
                 world.resource_scope(|world, mut buffered_mutations: Mut<BufferedMutations>| {
                     world.resource_scope(|world, command_markers: Mut<CommandMarkers>| {
                         world.resource_scope(|world, registry: Mut<ReplicationRegistry>| {
-                            let mut stats = world.remove_resource::<ClientStats>();
+                            let mut stats = world.remove_resource::<ClientReplicationStats>();
                             let mut params = ReceiveParams {
                                 queue: &mut queue,
                                 entity_markers: &mut entity_markers,
@@ -616,7 +616,7 @@ struct ReceiveParams<'a> {
     queue: &'a mut CommandQueue,
     entity_markers: &'a mut EntityMarkers,
     entity_map: &'a mut ServerEntityMap,
-    stats: Option<&'a mut ClientStats>,
+    stats: Option<&'a mut ClientReplicationStats>,
     command_markers: &'a CommandMarkers,
     registry: &'a ReplicationRegistry,
 }
@@ -725,7 +725,7 @@ pub(super) struct BufferedMutate {
 /// See also [`ClientDiagnosticsPlugin`](diagnostics::ClientDiagnosticsPlugin)
 /// for automatic integration with Bevy diagnostics.
 #[derive(Default, Resource, Debug)]
-pub struct ClientStats {
+pub struct ClientReplicationStats {
     /// Incremented per entity that changes.
     pub entities_changed: u32,
     /// Incremented for every component that changes.

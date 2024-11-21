@@ -656,7 +656,9 @@ pub mod prelude {
     };
 
     #[cfg(feature = "client")]
-    pub use super::client::{events::ClientEventsPlugin, ClientPlugin, ClientSet, ClientStats};
+    pub use super::client::{
+        events::ClientEventsPlugin, ClientPlugin, ClientReplicationStats, ClientSet,
+    };
 
     #[cfg(feature = "server")]
     pub use super::server::{
