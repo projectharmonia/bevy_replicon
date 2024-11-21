@@ -6,16 +6,16 @@ use bevy::{
 };
 use std::time::Duration;
 
-use super::ClientStats;
+use super::ClientReplicationStats;
 
-/// Plugin to write [`Diagnostics`] based on [`ClientStats`] every second.
+/// Plugin to write [`Diagnostics`] based on [`ClientReplicationStats`] every second.
 ///
-/// Adds [`ClientStats`] resource and automatically resets it to get diagnostics per second.
+/// Adds [`ClientReplicationStats`] resource and automatically resets it to get diagnostics per second.
 pub struct ClientDiagnosticsPlugin;
 
 impl Plugin for ClientDiagnosticsPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ClientStats>()
+        app.init_resource::<ClientReplicationStats>()
             .add_systems(
                 Update,
                 Self::add_measurements.run_if(on_timer(Duration::from_secs(1))),
@@ -72,13 +72,13 @@ impl ClientDiagnosticsPlugin {
     /// Max diagnostic history length.
     pub const DIAGNOSTIC_HISTORY_LEN: usize = 60;
 
-    fn add_measurements(mut stats: ResMut<ClientStats>, mut diagnostics: Diagnostics) {
+    fn add_measurements(mut stats: ResMut<ClientReplicationStats>, mut diagnostics: Diagnostics) {
         diagnostics.add_measurement(&Self::ENTITY_CHANGES, || stats.entities_changed as f64);
         diagnostics.add_measurement(&Self::COMPONENT_CHANGES, || stats.components_changed as f64);
         diagnostics.add_measurement(&Self::MAPPINGS, || stats.mappings as f64);
         diagnostics.add_measurement(&Self::DESPAWNS, || stats.despawns as f64);
         diagnostics.add_measurement(&Self::BYTES, || stats.bytes as f64);
         diagnostics.add_measurement(&Self::MESSAGES, || stats.messages as f64);
-        *stats = ClientStats::default();
+        *stats = ClientReplicationStats::default();
     }
 }

@@ -54,7 +54,7 @@ fn client_stats() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let stats = client_app.world().resource::<ClientStats>();
+    let stats = client_app.world().resource::<ClientReplicationStats>();
     assert_eq!(stats.entities_changed, 2);
     assert_eq!(stats.components_changed, 2);
     assert_eq!(stats.mappings, 1);
