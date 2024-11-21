@@ -21,12 +21,12 @@ impl Plugin for ClientDiagnosticsPlugin {
                 Self::add_measurements.run_if(on_timer(Duration::from_secs(1))),
             )
             .register_diagnostic(
-                Diagnostic::new(Self::ENTITY_CHANGES)
+                Diagnostic::new(Self::ENTITIES_CHANGED)
                     .with_suffix("entities changed per second")
                     .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
             )
             .register_diagnostic(
-                Diagnostic::new(Self::COMPONENT_CHANGES)
+                Diagnostic::new(Self::COMPONENTS_CHANGED)
                     .with_suffix("components changed per second")
                     .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
             )
@@ -41,13 +41,13 @@ impl Plugin for ClientDiagnosticsPlugin {
                     .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
             )
             .register_diagnostic(
-                Diagnostic::new(Self::MESSAGES)
-                    .with_suffix("messages per second")
+                Diagnostic::new(Self::REPLICATION_MESSAGES)
+                    .with_suffix("replication messages per second")
                     .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
             )
             .register_diagnostic(
-                Diagnostic::new(Self::BYTES)
-                    .with_suffix("bytes per second")
+                Diagnostic::new(Self::REPLICATION_BYTES)
+                    .with_suffix("replication bytes per second")
                     .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
             );
     }
@@ -55,30 +55,34 @@ impl Plugin for ClientDiagnosticsPlugin {
 
 impl ClientDiagnosticsPlugin {
     /// How many entities modified per second by replication.
-    pub const ENTITY_CHANGES: DiagnosticPath =
-        DiagnosticPath::const_new("client/replication/entity_changes");
+    pub const ENTITIES_CHANGED: DiagnosticPath =
+        DiagnosticPath::const_new("client/replication/entities_changed");
     /// How many components modified per second by replication.
-    pub const COMPONENT_CHANGES: DiagnosticPath =
-        DiagnosticPath::const_new("client/replication/component_changes");
+    pub const COMPONENTS_CHANGED: DiagnosticPath =
+        DiagnosticPath::const_new("client/replication/components_changed");
     /// How many client-mappings added per second by replication.
     pub const MAPPINGS: DiagnosticPath = DiagnosticPath::const_new("client/replication/mappings");
     /// How many despawns per second from replication.
     pub const DESPAWNS: DiagnosticPath = DiagnosticPath::const_new("client/replication/despawns");
-    /// How many replication messages processed per second.
-    pub const MESSAGES: DiagnosticPath = DiagnosticPath::const_new("client/replication/messages");
-    /// How many bytes of replication messages payloads per second.
-    pub const BYTES: DiagnosticPath = DiagnosticPath::const_new("client/replication/bytes");
+    /// How many replication messages received per second.
+    pub const REPLICATION_MESSAGES: DiagnosticPath =
+        DiagnosticPath::const_new("client/replication/messages");
+    /// How many replication bytes received per second.
+    pub const REPLICATION_BYTES: DiagnosticPath =
+        DiagnosticPath::const_new("client/replication/bytes");
 
     /// Max diagnostic history length.
     pub const DIAGNOSTIC_HISTORY_LEN: usize = 60;
 
     fn add_measurements(mut stats: ResMut<ClientReplicationStats>, mut diagnostics: Diagnostics) {
-        diagnostics.add_measurement(&Self::ENTITY_CHANGES, || stats.entities_changed as f64);
-        diagnostics.add_measurement(&Self::COMPONENT_CHANGES, || stats.components_changed as f64);
+        diagnostics.add_measurement(&Self::ENTITIES_CHANGED, || stats.entities_changed as f64);
+        diagnostics.add_measurement(&Self::COMPONENTS_CHANGED, || {
+            stats.components_changed as f64
+        });
         diagnostics.add_measurement(&Self::MAPPINGS, || stats.mappings as f64);
         diagnostics.add_measurement(&Self::DESPAWNS, || stats.despawns as f64);
-        diagnostics.add_measurement(&Self::BYTES, || stats.bytes as f64);
-        diagnostics.add_measurement(&Self::MESSAGES, || stats.messages as f64);
+        diagnostics.add_measurement(&Self::REPLICATION_MESSAGES, || stats.messages as f64);
+        diagnostics.add_measurement(&Self::REPLICATION_BYTES, || stats.bytes as f64);
         *stats = ClientReplicationStats::default();
     }
 }

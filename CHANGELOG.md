@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rename `ReplicationChannel::Init` into `ReplicationChannel::Changes`.
 - Rename `ReplicationChannel::Update` into `ReplicationChannel::Mutations`.
 - Rename `ClientStats` into `ClientReplicationStats`.
+- Rename `ClientDiagnosticsPlugin::MESSAGES` into `ClientDiagnosticsPlugin::REPLICATION_MESSAGES`.
+- Rename `ClientDiagnosticsPlugin::BYTES` into `ClientDiagnosticsPlugin::REPLICATION_BYTES`.
+- Rename `ClientDiagnosticsPlugin::ENTITY_CHANGES` into `ClientDiagnosticsPlugin::ENTITIES_CHANGED`.
+- Rename `ClientDiagnosticsPlugin::COMPONENT_CHANGES` into `ClientDiagnosticsPlugin::COMPONENTS_CHANGED`.
 
 ### Removed
 
