@@ -56,18 +56,18 @@ impl Plugin for ClientDiagnosticsPlugin {
 impl ClientDiagnosticsPlugin {
     /// How many entities modified per second by replication.
     pub const ENTITY_CHANGES: DiagnosticPath =
-        DiagnosticPath::const_new("replication.client.entity_changes");
+        DiagnosticPath::const_new("client/replication/entity_changes");
     /// How many components modified per second by replication.
     pub const COMPONENT_CHANGES: DiagnosticPath =
-        DiagnosticPath::const_new("replication.client.component_changes");
+        DiagnosticPath::const_new("client/replication/component_changes");
     /// How many client-mappings added per second by replication.
-    pub const MAPPINGS: DiagnosticPath = DiagnosticPath::const_new("replication.client.mappings");
+    pub const MAPPINGS: DiagnosticPath = DiagnosticPath::const_new("client/replication/mappings");
     /// How many despawns per second from replication.
-    pub const DESPAWNS: DiagnosticPath = DiagnosticPath::const_new("replication.client.despawns");
+    pub const DESPAWNS: DiagnosticPath = DiagnosticPath::const_new("client/replication/despawns");
     /// How many replication messages processed per second.
-    pub const MESSAGES: DiagnosticPath = DiagnosticPath::const_new("replication.client.messages");
+    pub const MESSAGES: DiagnosticPath = DiagnosticPath::const_new("client/replication/messages");
     /// How many bytes of replication messages payloads per second.
-    pub const BYTES: DiagnosticPath = DiagnosticPath::const_new("replication.client.bytes");
+    pub const BYTES: DiagnosticPath = DiagnosticPath::const_new("client/replication/bytes");
 
     /// Max diagnostic history length.
     pub const DIAGNOSTIC_HISTORY_LEN: usize = 60;
