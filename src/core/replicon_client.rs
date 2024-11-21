@@ -29,6 +29,9 @@ pub struct RepliconClient {
 
     /// List of sent messages and their channels since the last tick.
     sent_messages: Vec<(u8, Bytes)>,
+
+    rtt: f64,
+    packet_loss: f64,
 }
 
 impl RepliconClient {
@@ -174,6 +177,34 @@ impl RepliconClient {
             .unwrap_or_else(|| panic!("client should have a channel with id {channel_id}"));
 
         channel_messages.push(message.into());
+    }
+
+    /// Returns the round-time trip for the connection.
+    ///
+    /// Returns zero if not provided by the backend.
+    pub fn rtt(&self) -> f64 {
+        self.rtt
+    }
+
+    /// Sets the round-time trip for the connection.
+    ///
+    /// Should be called only from the messaging backend.
+    pub fn set_rtt(&mut self, rtt: f64) {
+        self.rtt = rtt;
+    }
+
+    /// Returns the packet loss for the connection.
+    ///
+    /// Returns zero if not provided by the backend.
+    pub fn packet_loss(&self) -> f64 {
+        self.packet_loss
+    }
+
+    /// Sets the packet loss for the connection.
+    ///
+    /// Should be called only from the messaging backend.
+    pub fn set_packet_loss(&mut self, packet_loss: f64) {
+        self.packet_loss = packet_loss;
     }
 }
 
