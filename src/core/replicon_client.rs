@@ -156,14 +156,22 @@ impl RepliconClient {
 
     /// Removes all sent messages, returning them as an iterator with channel.
     ///
-    /// Should be called only from the messaging backend.
+    /// <div class="warning">
+    ///
+    /// Should only be called from the messaging backend.
+    ///
+    /// </div>
     pub fn drain_sent(&mut self) -> impl Iterator<Item = (u8, Bytes)> + '_ {
         self.sent_messages.drain(..)
     }
 
     /// Adds a message from the server to the list of received messages.
     ///
-    /// Should be called only from the messaging backend.
+    /// <div class="warning">
+    ///
+    /// Should only be called from the messaging backend.
+    ///
+    /// </div>
     pub fn insert_received<I: Into<u8>, B: Into<Bytes>>(&mut self, channel_id: I, message: B) {
         if !self.is_connected() {
             warn!("trying to insert a received message when the client is not connected");
@@ -188,7 +196,11 @@ impl RepliconClient {
 
     /// Sets the round-time trip for the connection.
     ///
-    /// Should be called only from the messaging backend.
+    /// <div class="warning">
+    ///
+    /// Should only be called from the messaging backend.
+    ///
+    /// </div>
     pub fn set_rtt(&mut self, rtt: f64) {
         self.rtt = rtt;
     }
@@ -202,7 +214,11 @@ impl RepliconClient {
 
     /// Sets the packet loss for the connection.
     ///
-    /// Should be called only from the messaging backend.
+    /// <div class="warning">
+    ///
+    /// Should only be called from the messaging backend.
+    ///
+    /// </div>
     pub fn set_packet_loss(&mut self, packet_loss: f64) {
         self.packet_loss = packet_loss;
     }

@@ -62,7 +62,11 @@ impl ConnectedClient {
 
     /// Sets the round-time trip for the connection.
     ///
-    /// Should be called only from the messaging backend.
+    /// <div class="warning">
+    ///
+    /// Should only be called from the messaging backend.
+    ///
+    /// </div>
     pub fn set_rtt(&mut self, rtt: f64) {
         self.rtt = rtt;
     }
@@ -76,7 +80,11 @@ impl ConnectedClient {
 
     /// Sets the packet loss for the connection.
     ///
-    /// Should be called only from the messaging backend.
+    /// <div class="warning">
+    ///
+    /// Should only be called from the messaging backend.
+    ///
+    /// </div>
     pub fn set_packet_loss(&mut self, packet_loss: f64) {
         self.packet_loss = packet_loss;
     }
