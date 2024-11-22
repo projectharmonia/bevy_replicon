@@ -637,14 +637,14 @@ unsafe fn send_independent_event<E: Event>(
 
     match *mode {
         SendMode::Broadcast => {
-            for &client_id in connected_clients.iter() {
-                server.send(client_id, event_data.channel_id, message.clone());
+            for client in connected_clients.iter() {
+                server.send(client.id(), event_data.channel_id, message.clone());
             }
         }
         SendMode::BroadcastExcept(id) => {
-            for &client_id in connected_clients.iter() {
-                if client_id != id {
-                    server.send(client_id, event_data.channel_id, message.clone());
+            for client in connected_clients.iter() {
+                if client.id() != id {
+                    server.send(client.id(), event_data.channel_id, message.clone());
                 }
             }
         }
