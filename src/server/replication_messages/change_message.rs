@@ -176,17 +176,16 @@ impl ChangeMessage {
 
         if !self.entity_written {
             let components = self.buffer.pop().unwrap_or_default();
-            let mut changes = ComponentChanges {
+            let changes = ComponentChanges {
                 entity: mutations.entity.clone(),
                 components_len: 0,
                 components,
             };
-            changes.extend(mutations);
             self.changes.push(changes);
-        } else {
-            let changes = self.changes.last_mut().unwrap();
-            changes.extend(mutations);
         }
+        let changes = self.changes.last_mut().unwrap();
+        debug_assert_eq!(mutations.entity, changes.entity);
+        changes.extend(mutations);
 
         mutate_message.pop_mutations();
     }
