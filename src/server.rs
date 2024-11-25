@@ -644,7 +644,7 @@ unsafe fn get_component_unchecked<'w>(
     }
 }
 
-/// Writes an entity or re-uses previosly written range if exists.
+/// Writes an entity or re-uses previously written range if exists.
 fn write_entity_cached(
     entity_range: &mut Option<Range<usize>>,
     serialized: &mut SerializedData,
@@ -660,7 +660,7 @@ fn write_entity_cached(
     Ok(range)
 }
 
-/// Writes a component or re-uses previosly written range if exists.
+/// Writes a component or re-uses previously written range if exists.
 fn write_component_cached(
     component_range: &mut Option<Range<usize>>,
     serialized: &mut SerializedData,
@@ -686,7 +686,7 @@ fn write_component_cached(
     Ok(range)
 }
 
-/// Writes an entity or re-uses previosly written range if exists.
+/// Writes an entity or re-uses previously written range if exists.
 fn write_tick_cached(
     tick_range: &mut Option<Range<usize>>,
     serialized: &mut SerializedData,

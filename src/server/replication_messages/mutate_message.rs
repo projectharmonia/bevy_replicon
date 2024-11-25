@@ -17,7 +17,7 @@ use crate::core::{
 /// Contains change tick, current tick, mutate index and component mutations since
 /// the last acknowledged tick for each entity.
 ///
-/// Cannot be applied on the client until the change message matching this message change tick
+/// Cannot be applied on the client until the change message matching this message's change tick
 /// has been applied to the client world.
 /// The message will be manually split into packets up to max size, and each packet will be applied
 /// independently on the client.
@@ -38,7 +38,7 @@ pub(crate) struct MutateMessage {
     /// needs to acknowledge to consider entity mutations as received.
     entities: Vec<Entity>,
 
-    /// Component mutations happened on this tick.
+    /// Component mutations that happened in this tick.
     ///
     /// Serialized as a list of pairs of entity chunk and multiple chunks with mutated components.
     /// Components are stored in multiple chunks because some clients may acknowledge mutations,

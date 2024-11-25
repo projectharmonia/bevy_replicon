@@ -9,7 +9,7 @@ use mutate_message::MutateMessage;
 /// Accumulates replication messages.
 ///
 /// Messages are serialized manually into [`SerializedData`](serialized_data::SerializedData)
-/// and store only ranges that points to data. This helps reduce allocations and share
+/// and store only ranges that point to data. This helps reduce allocations and share
 /// serialized data across messages.
 #[derive(Default)]
 pub(crate) struct ReplicationMessages {

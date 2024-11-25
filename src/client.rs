@@ -82,7 +82,7 @@ impl ClientPlugin {
     /// Mutate messages are sent over [`ReplicationChannel::Mutations`], which means they may appear
     /// ahead-of or behind change messages from the same server tick. A mutation will only be applied if its
     /// change tick has already appeared in an change message, otherwise it will be buffered while waiting.
-    /// Since component mutations can arrive in any order, they will only be applied if correspond to a more
+    /// Since component mutations can arrive in any order, they will only be applied if they correspond to a more
     /// recent server tick than the last acked server tick for each entity.
     ///
     /// Buffered mutate messages are processed last.
@@ -172,7 +172,7 @@ fn apply_replication(
     apply_mutate_messages(world, params, buffered_mutations, change_tick)
 }
 
-/// Reads and applies change message.
+/// Reads and applies a change message.
 ///
 /// For details see [`replication_messages`](crate::server::replication_messages).
 fn apply_change_message(
@@ -406,7 +406,7 @@ fn apply_removals(
     Ok(())
 }
 
-/// Deserializes and applies component insertions or mutations for an entity.
+/// Deserializes and applies component insertions and/or mutations for an entity.
 fn apply_changes(
     world: &mut World,
     params: &mut ReceiveParams,
@@ -516,8 +516,8 @@ fn apply_mutations(
     let mut history = client_entity
         .get_mut::<ConfirmHistory>()
         .expect("all entities from mutate message should have confirmed ticks");
-    let new_entity = message_tick > history.last_tick();
-    if new_entity {
+    let new_tick = message_tick > history.last_tick();
+    if new_tick {
         history.set_last_tick(message_tick);
     } else {
         if !params.entity_markers.need_history() {
@@ -551,7 +551,7 @@ fn apply_mutations(
 
         // SAFETY: `rule_fns` and `component_fns` were created for the same type.
         unsafe {
-            if new_entity {
+            if new_tick {
                 component_fns.write(
                     &mut ctx,
                     rule_fns,
@@ -682,14 +682,14 @@ pub enum ClientSet {
     Reset,
 }
 
-/// Last received tick for change message from server.
+/// Last received tick for change messages from the server.
 ///
-/// In other words, last [`RepliconTick`] with a removal, insertion, spawn or despawn.
-/// When a component mutates, this value is not updated.
+/// In other words, the last [`RepliconTick`] with a removal, insertion, spawn or despawn.
+/// This value is not updated when mutation messages are received from the server.
 #[derive(Clone, Copy, Debug, Default, Deref, Resource)]
 pub struct ServerChangeTick(RepliconTick);
 
-/// Cached buffered mutate messages, used by the replicon client to align them with change messages.
+/// Cached buffered mutate messages, used to synchronize mutations with change messages.
 ///
 /// If [`ClientSet::Reset`] is disabled, then this needs to be cleaned up manually with [`Self::clear`].
 #[derive(Default, Resource)]

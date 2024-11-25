@@ -17,8 +17,8 @@ use crate::core::{
 
 /// A message with replicated data.
 ///
-/// Contains tick, mappings, insertions, removals and despawns that
-/// happened on this tick.
+/// Contains tick, mappings, insertions, removals, and despawns that
+/// happened in this tick.
 ///
 /// The data is serialized manually and stored in the form of ranges
 /// from [`SerializedData`].
@@ -31,7 +31,7 @@ use crate::core::{
 /// but we use variable integer encoding, so they are correctly deserialized even
 /// on a client with a different pointer size. However, if the server sends a value
 /// larger than what a client can fit into `usize` (which is very unlikely), the client will panic.
-/// This is expected, as it means the client can't have an array of such a size anyway.
+/// This is expected, as the client can't have an array of such a size anyway.
 ///
 /// Additionally, we don't serialize the size for the last array and
 /// on deserialization just consume all remaining bytes.
@@ -45,13 +45,13 @@ pub(crate) struct ChangeMessage {
     ///
     /// Mappings should be processed first, so all referenced entities after it will behave correctly.
     ///
-    /// See aslo [`ClientEntityMap`](crate::server::client_entity_map::ClientEntityMap).
+    /// See also [`ClientEntityMap`](crate::server::client_entity_map::ClientEntityMap).
     mappings: Range<usize>,
 
-    /// Number pairs encoded in [`Self::mappings`].
+    /// Number of pairs encoded in [`Self::mappings`].
     mappings_len: usize,
 
-    /// Despawn happened on this tick.
+    /// Despawns that happened in this tick.
     ///
     /// Since clients may see different entities, it's serialized as multiple chunks of entities.
     /// I.e. serialized server despawns may have holes for clients due to visibility differences.
@@ -62,21 +62,21 @@ pub(crate) struct ChangeMessage {
     /// May not be equal to the length of [`Self::despawns`] since adjacent ranges are merged together.
     despawns_len: usize,
 
-    /// Component removals happened on this tick.
+    /// Component removals that happened in this tick.
     ///
     /// Serialized as a list of pairs of entity chunk and a list of
     /// [`FnsId`](crate::core::replication::replication_registry::FnsId)
     /// serialized as a single chunk.
     removals: Vec<ComponentRemovals>,
 
-    /// Component insertions or mutations happened on this tick.
+    /// Component insertions or mutations that happened in this tick.
     ///
     /// Serialized as a list of pairs of entity chunk and multiple chunks with changed components.
     /// Components are stored in multiple chunks because newly connected clients may need to serialize all components,
     /// while previously connected clients only need the components spawned during this tick.
     ///
-    /// Usually mutations stored in [`MutateMessage`], but if an entity have any insertion, removal,
-    /// or just became visible for a client, we serialize it as part of the change message to keep entity updates atomic.
+    /// Usually mutations are stored in [`MutateMessage`], but if an entity has any insertions or removal,
+    /// or the entity just became visible for a client, we serialize it as part of the change message to keep entity updates atomic.
     changes: Vec<ComponentChanges>,
 
     /// Visibility of the entity for which component changes are being written.
@@ -125,7 +125,7 @@ impl ChangeMessage {
 
     /// Updates internal state to start writing changed components for an entity with the given visibility.
     ///
-    /// Entities and their data written lazily during the iteration.
+    /// Entities and their data are written lazily during the iteration.
     /// See [`Self::add_changed_entity`] and [`Self::add_changed_component`].
     pub(crate) fn start_entity_changes(&mut self, visibility: Visibility) {
         self.entity_visibility = visibility;
@@ -206,7 +206,7 @@ impl ChangeMessage {
         let flags = self.flags();
         let last_flag = flags.last();
 
-        // Precalcualte size first to avoid extra allocations.
+        // Precalculate size first to avoid extra allocations.
         let mut message_size = size_of::<ChangeMessageFlags>() + server_tick.len();
         for (_, flag) in flags.iter_names() {
             match flag {
