@@ -234,6 +234,7 @@ impl ChangeMessage {
                         .sum::<usize>();
                 }
                 ChangeMessageFlags::CHANGES => {
+                    debug_assert_eq!(flag, last_flag);
                     message_size += self
                         .changes
                         .iter()
@@ -258,6 +259,7 @@ impl ChangeMessage {
                     // Otherwise this would mean that the client already received the mapped
                     // entity and it's already mapped or server sends an invisible entity which
                     // is an error.
+                    debug_assert_ne!(flag, last_flag);
                     message.write_varint(self.mappings_len)?;
                     message.extend_from_slice(&serialized[self.mappings.clone()]);
                 }
