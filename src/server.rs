@@ -19,7 +19,6 @@ use bevy::{
     ptr::Ptr,
     time::common_conditions::on_timer,
 };
-use integer_encoding::VarIntReader;
 
 use crate::core::{
     channels::{ReplicationChannel, RepliconChannels},
@@ -239,7 +238,7 @@ impl ServerPlugin {
             let mut cursor = Cursor::new(&*message);
             let message_end = message.len() as u64;
             while cursor.position() < message_end {
-                match cursor.read_varint() {
+                match bincode::deserialize_from(&mut cursor) {
                     Ok(mutate_index) => {
                         let client = replicated_clients.client_mut(client_id);
                         client.ack_mutate_message(

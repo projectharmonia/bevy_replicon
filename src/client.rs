@@ -8,7 +8,7 @@ use std::{io::Cursor, mem};
 use bevy::{ecs::world::CommandQueue, prelude::*};
 use bincode::{DefaultOptions, Options};
 use bytes::Bytes;
-use integer_encoding::{FixedIntReader, VarIntReader, VarIntWriter};
+use integer_encoding::{FixedIntReader, VarIntReader};
 
 use crate::core::{
     channels::{ReplicationChannel, RepliconChannels},
@@ -164,7 +164,7 @@ fn apply_replication(
         let mut acks = Vec::with_capacity(acks_size);
         for message in client.receive(ReplicationChannel::Mutations) {
             let mutate_index = buffer_mutate_message(params, buffered_mutations, message)?;
-            acks.write_varint(mutate_index)?;
+            bincode::serialize_into(&mut acks, &mutate_index)?;
         }
         client.send(ReplicationChannel::Changes, acks);
     }
