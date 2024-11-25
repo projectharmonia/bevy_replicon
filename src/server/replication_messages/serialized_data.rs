@@ -97,7 +97,13 @@ impl SerializedData {
 
     pub(crate) fn write_tick(&mut self, tick: RepliconTick) -> bincode::Result<Range<usize>> {
         let start = self.len();
-        DefaultOptions::new().serialize_into(&mut self.0, &tick)?;
+
+        // Use fixedint encoding as serializing ticks as varints increases the average message size.
+        // A tick >= 2^16 will be 5 bytes: https://docs.rs/bincode/1.3.3/bincode/config/struct.VarintEncoding.html.
+        // At 60 ticks/sec, that will happen after 18 minutes.
+        // So any session over 36 minutes would transmit more total bytes with varint encoding.
+        // TODO: consider dynamically switching from varint to fixint encoding using one of the `ChangeMessageFlags` when tick sizes get large enough.
+        bincode::serialize_into(&mut self.0, &tick)?;
         let end = self.len();
 
         Ok(start..end)

@@ -60,7 +60,7 @@ fn client_stats() {
     assert_eq!(stats.mappings, 1);
     assert_eq!(stats.despawns, 1);
     assert_eq!(stats.messages, 2);
-    assert_eq!(stats.bytes, 16);
+    assert_eq!(stats.bytes, 25);
 }
 
 #[derive(Component, Deserialize, Serialize)]

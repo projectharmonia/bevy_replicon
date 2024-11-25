@@ -1,7 +1,6 @@
 use std::{io::Cursor, mem, ops::Range, time::Duration};
 
 use bevy::{ecs::component::Tick, prelude::*};
-use bincode::{DefaultOptions, Options};
 use integer_encoding::{VarInt, VarIntWriter};
 
 use super::{component_changes::ComponentChanges, serialized_data::SerializedData};
@@ -131,11 +130,9 @@ impl MutateMessage {
     ) -> bincode::Result<usize> {
         debug_assert_eq!(self.entities.len(), self.mutations.len());
 
-        const MAX_TICK_SIZE: usize = mem::size_of::<RepliconTick>() + 1;
-        let mut change_tick = Cursor::new([0; MAX_TICK_SIZE]);
-        DefaultOptions::new().serialize_into(&mut change_tick, &client.change_tick())?;
-        let change_tick_size = change_tick.position() as usize;
-        let ticks_size = change_tick_size + server_tick.len();
+        let mut change_tick = Cursor::new([0; mem::size_of::<RepliconTick>()]);
+        bincode::serialize_into(&mut change_tick, &client.change_tick())?;
+        let ticks_size = change_tick.get_ref().len() + server_tick.len();
 
         let (mut mutate_index, mut entities) =
             client.register_mutate_message(client_buffers, tick, timestamp);
@@ -172,7 +169,7 @@ impl MutateMessage {
         for (mutate_index, message_size, mutations_range) in self.messages.drain(..) {
             let mut message = Vec::with_capacity(message_size);
 
-            message.extend_from_slice(&change_tick.get_ref()[..change_tick_size]);
+            message.extend_from_slice(change_tick.get_ref());
             message.extend_from_slice(&serialized[server_tick.clone()]);
             message.write_varint(mutate_index)?;
             for mutations in &self.mutations[mutations_range.clone()] {

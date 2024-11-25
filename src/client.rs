@@ -190,7 +190,7 @@ fn apply_change_message(
     let flags = ChangeMessageFlags::from_bits_retain(cursor.read_fixedint()?);
     debug_assert!(!flags.is_empty(), "message can't be empty");
 
-    let message_tick = DefaultOptions::new().deserialize_from(&mut cursor)?;
+    let message_tick = bincode::deserialize_from(&mut cursor)?;
     trace!("applying change message for {message_tick:?}");
     world.resource_mut::<ServerChangeTick>().0 = message_tick;
 
@@ -265,8 +265,8 @@ fn buffer_mutate_message(
         stats.bytes += end_pos;
     }
 
-    let change_tick = DefaultOptions::new().deserialize_from(&mut cursor)?;
-    let message_tick = DefaultOptions::new().deserialize_from(&mut cursor)?;
+    let change_tick = bincode::deserialize_from(&mut cursor)?;
+    let message_tick = bincode::deserialize_from(&mut cursor)?;
     let mutate_index = cursor.read_varint()?;
     trace!("received mutate message for {message_tick:?}");
     buffered_mutations.insert(BufferedMutate {
