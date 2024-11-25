@@ -166,27 +166,29 @@ impl ChangeMessage {
 
     /// Takes last mutated entity with its component chunks from the mutate message.
     pub(crate) fn take_mutations(&mut self, mutate_message: &mut MutateMessage) {
-        if mutate_message.mutations_written() {
-            let mutations = mutate_message
-                .last_mutations()
-                .expect("entity should be written");
-
-            if !self.entity_written {
-                let components = self.buffer.pop().unwrap_or_default();
-                let mut changes = ComponentChanges {
-                    entity: mutations.entity.clone(),
-                    components_len: 0,
-                    components,
-                };
-                changes.extend(mutations);
-                self.changes.push(changes);
-            } else {
-                let changes = self.changes.last_mut().unwrap();
-                changes.extend(mutations);
-            }
-
-            mutate_message.pop_mutations();
+        if !mutate_message.mutations_written() {
+            return;
         }
+
+        let mutations = mutate_message
+            .last_mutations()
+            .expect("entity should be written");
+
+        if !self.entity_written {
+            let components = self.buffer.pop().unwrap_or_default();
+            let mut changes = ComponentChanges {
+                entity: mutations.entity.clone(),
+                components_len: 0,
+                components,
+            };
+            changes.extend(mutations);
+            self.changes.push(changes);
+        } else {
+            let changes = self.changes.last_mut().unwrap();
+            changes.extend(mutations);
+        }
+
+        mutate_message.pop_mutations();
     }
 
     pub(crate) fn is_empty(&self) -> bool {
