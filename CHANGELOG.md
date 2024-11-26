@@ -7,10 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- RTT and packet loss information for `RepliconClient` and `ConnectedClients`.
+
 ### Changed
 
 - Various optimizations for replication messages to use fewer bytes.
 - Accept `Vec<u8>` instead of `Cursor<Vec<u8>>` for serialization.
+- `ConnectedClients` now store `ConnectedClient` instead of `ClientId` with more information about the client.
 - All `TestFnsEntityExt` now accept `FnsId`.
 - Move replication-related modules from `core` module under `core::replication`.
 - Move `Replicated` to the `replication` module.

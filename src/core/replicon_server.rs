@@ -125,14 +125,22 @@ impl RepliconServer {
 
     /// Removes all sent messages, returning them as an iterator with client ID and channel.
     ///
-    /// Should be called only from the messaging backend.
+    /// <div class="warning">
+    ///
+    /// Should only be called from the messaging backend.
+    ///
+    /// </div>
     pub fn drain_sent(&mut self) -> impl Iterator<Item = (ClientId, u8, Bytes)> + '_ {
         self.sent_messages.drain(..)
     }
 
     /// Adds a message from a client to the list of received messages.
     ///
-    /// Should be called only from the messaging backend.
+    /// <div class="warning">
+    ///
+    /// Should only be called from the messaging backend.
+    ///
+    /// </div>
     pub fn insert_received<I: Into<u8>, B: Into<Bytes>>(
         &mut self,
         client_id: ClientId,

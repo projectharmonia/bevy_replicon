@@ -29,6 +29,9 @@ pub struct RepliconClient {
 
     /// List of sent messages and their channels since the last tick.
     sent_messages: Vec<(u8, Bytes)>,
+
+    rtt: f64,
+    packet_loss: f64,
 }
 
 impl RepliconClient {
@@ -153,14 +156,22 @@ impl RepliconClient {
 
     /// Removes all sent messages, returning them as an iterator with channel.
     ///
-    /// Should be called only from the messaging backend.
+    /// <div class="warning">
+    ///
+    /// Should only be called from the messaging backend.
+    ///
+    /// </div>
     pub fn drain_sent(&mut self) -> impl Iterator<Item = (u8, Bytes)> + '_ {
         self.sent_messages.drain(..)
     }
 
     /// Adds a message from the server to the list of received messages.
     ///
-    /// Should be called only from the messaging backend.
+    /// <div class="warning">
+    ///
+    /// Should only be called from the messaging backend.
+    ///
+    /// </div>
     pub fn insert_received<I: Into<u8>, B: Into<Bytes>>(&mut self, channel_id: I, message: B) {
         if !self.is_connected() {
             warn!("trying to insert a received message when the client is not connected");
@@ -174,6 +185,42 @@ impl RepliconClient {
             .unwrap_or_else(|| panic!("client should have a channel with id {channel_id}"));
 
         channel_messages.push(message.into());
+    }
+
+    /// Returns the round-time trip for the connection.
+    ///
+    /// Returns zero if not provided by the backend.
+    pub fn rtt(&self) -> f64 {
+        self.rtt
+    }
+
+    /// Sets the round-time trip for the connection.
+    ///
+    /// <div class="warning">
+    ///
+    /// Should only be called from the messaging backend.
+    ///
+    /// </div>
+    pub fn set_rtt(&mut self, rtt: f64) {
+        self.rtt = rtt;
+    }
+
+    /// Returns the packet loss for the connection.
+    ///
+    /// Returns zero if not provided by the backend.
+    pub fn packet_loss(&self) -> f64 {
+        self.packet_loss
+    }
+
+    /// Sets the packet loss for the connection.
+    ///
+    /// <div class="warning">
+    ///
+    /// Should only be called from the messaging backend.
+    ///
+    /// </div>
+    pub fn set_packet_loss(&mut self, packet_loss: f64) {
+        self.packet_loss = packet_loss;
     }
 }
 
