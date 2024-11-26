@@ -145,14 +145,10 @@ impl MutateMessage {
                 mutations.entity.len() + components_size.required_space() + components_size;
 
             // Try to pack back first, then try to pack forward.
-            if body_size == 0
-                || can_pack(header_size + body_size, mutations_size)
-                || can_pack(header_size + mutations_size, body_size)
+            if body_size != 0
+                && !can_pack(header_size + body_size, mutations_size)
+                && !can_pack(header_size + mutations_size, body_size)
             {
-                entities.push(*entity);
-                mutations_range.end += 1;
-                body_size += mutations_size;
-            } else {
                 self.messages.push((
                     mutate_index,
                     body_size + header_size,
@@ -162,11 +158,13 @@ impl MutateMessage {
                 mutations_range.start = mutations_range.end;
                 (mutate_index, entities) =
                     client.register_mutate_message(client_buffers, tick, timestamp);
-                entities.push(*entity);
-                mutations_range.end += 1;
                 header_size = ticks_size + mutate_index.required_space(); // Recalculate since the mutate index changed.
-                body_size = mutations_size;
+                body_size = 0;
             }
+
+            entities.push(*entity);
+            mutations_range.end += 1;
+            body_size += mutations_size;
         }
         if !mutations_range.is_empty() {
             // When the loop ends, pack all leftovers into a message.
