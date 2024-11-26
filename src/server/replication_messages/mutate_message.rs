@@ -136,33 +136,45 @@ impl MutateMessage {
 
         let (mut mutate_index, mut entities) =
             client.register_mutate_message(client_buffers, tick, timestamp);
-        let mut message_size = ticks_size + mutate_index.required_space();
+        let mut header_size = ticks_size + mutate_index.required_space();
+        let mut body_size = 0;
         let mut mutations_range = Range::<usize>::default();
         for (entity, mutations) in self.entities.iter().zip(&self.mutations) {
-            const MAX_PACKET_SIZE: usize = 1200; // TODO: make it configurable by the messaging backend.
             let components_size = mutations.components_size();
             let mutations_size =
                 mutations.entity.len() + components_size.required_space() + components_size;
 
-            if message_size == 0 || message_size + mutations_size <= MAX_PACKET_SIZE {
+            // Try to pack back first, then try to pack forward.
+            if body_size == 0
+                || can_pack(header_size + body_size, mutations_size)
+                || can_pack(header_size + mutations_size, body_size)
+            {
                 entities.push(*entity);
                 mutations_range.end += 1;
-                message_size += mutations_size;
+                body_size += mutations_size;
             } else {
-                self.messages
-                    .push((mutate_index, message_size, mutations_range.clone()));
+                self.messages.push((
+                    mutate_index,
+                    body_size + header_size,
+                    mutations_range.clone(),
+                ));
 
                 mutations_range.start = mutations_range.end;
                 (mutate_index, entities) =
                     client.register_mutate_message(client_buffers, tick, timestamp);
                 entities.push(*entity);
                 mutations_range.end += 1;
-                message_size = ticks_size + mutate_index.required_space() + mutations_size;
+                header_size = ticks_size + mutate_index.required_space(); // Recalculate since the mutate index changed.
+                body_size = mutations_size;
             }
         }
         if !mutations_range.is_empty() {
-            self.messages
-                .push((mutate_index, message_size, mutations_range.clone()));
+            // When the loop ends, pack all leftovers into a message.
+            self.messages.push((
+                mutate_index,
+                body_size + header_size,
+                mutations_range.clone(),
+            ));
         }
 
         let messages_count = self.messages.len();
@@ -198,5 +210,30 @@ impl MutateMessage {
                 mutations.components.clear();
                 mutations.components
             }));
+    }
+}
+
+fn can_pack(message_size: usize, add: usize) -> bool {
+    const MAX_PACKET_SIZE: usize = 1200; // TODO: make it configurable by the messaging backend.
+
+    let dangling = message_size % MAX_PACKET_SIZE;
+    (dangling > 0) && ((dangling + add) <= MAX_PACKET_SIZE)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn packing() {
+        assert!(can_pack(10, 5));
+        assert!(can_pack(10, 1190));
+        assert!(!can_pack(10, 1191));
+        assert!(!can_pack(10, 3000));
+
+        assert!(can_pack(1199, 1));
+        assert!(!can_pack(1200, 0));
+        assert!(!can_pack(1200, 1));
+        assert!(!can_pack(1200, 3000));
     }
 }
