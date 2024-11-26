@@ -196,9 +196,16 @@ fn apply_change_message(
 
     let last_flag = flags.last();
     for (_, flag) in flags.iter_names() {
+        let array_kind = if flag != last_flag {
+            ArrayKind::Sized
+        } else {
+            ArrayKind::Dynamic
+        };
+
         match flag {
             ChangeMessageFlags::MAPPINGS => {
-                let len = apply_sized_array(&mut cursor, |cursor| {
+                debug_assert_eq!(array_kind, ArrayKind::Sized);
+                let len = apply_array(array_kind, &mut cursor, |cursor| {
                     apply_entity_mapping(world, params, cursor)
                 })?;
                 if let Some(stats) = &mut params.stats {
@@ -206,35 +213,24 @@ fn apply_change_message(
                 }
             }
             ChangeMessageFlags::DESPAWNS => {
-                let len = if flag != last_flag {
-                    apply_sized_array(&mut cursor, |cursor| {
-                        apply_despawn(world, params, cursor, message_tick)
-                    })?
-                } else {
-                    apply_dyn_array(&mut cursor, |cursor| {
-                        apply_despawn(world, params, cursor, message_tick)
-                    })?
-                };
+                let len = apply_array(array_kind, &mut cursor, |cursor| {
+                    apply_despawn(world, params, cursor, message_tick)
+                })?;
                 if let Some(stats) = &mut params.stats {
                     stats.despawns += len as u32;
                 }
             }
             ChangeMessageFlags::REMOVALS => {
-                let len = if flag != last_flag {
-                    apply_sized_array(&mut cursor, |cursor| {
-                        apply_removals(world, params, cursor, message_tick)
-                    })?
-                } else {
-                    apply_dyn_array(&mut cursor, |cursor| {
-                        apply_removals(world, params, cursor, message_tick)
-                    })?
-                };
+                let len = apply_array(array_kind, &mut cursor, |cursor| {
+                    apply_removals(world, params, cursor, message_tick)
+                })?;
                 if let Some(stats) = &mut params.stats {
                     stats.entities_changed += len as u32;
                 }
             }
             ChangeMessageFlags::CHANGES => {
-                let len = apply_dyn_array(&mut cursor, |cursor| {
+                debug_assert_eq!(array_kind, ArrayKind::Dynamic);
+                let len = apply_array(array_kind, &mut cursor, |cursor| {
                     apply_changes(world, params, cursor, message_tick)
                 })?;
                 if let Some(stats) = &mut params.stats {
@@ -295,9 +291,11 @@ fn apply_mutate_messages(
         }
 
         trace!("applying mutate message for {:?}", mutate.message_tick);
-        let len = apply_dyn_array(&mut Cursor::new(&*mutate.message), |cursor| {
-            apply_mutations(world, params, cursor, mutate.message_tick)
-        });
+        let len = apply_array(
+            ArrayKind::Dynamic,
+            &mut Cursor::new(&*mutate.message),
+            |cursor| apply_mutations(world, params, cursor, mutate.message_tick),
+        );
 
         match len {
             Ok(len) => {
@@ -384,7 +382,7 @@ fn apply_removals(
             .insert(ConfirmHistory::new(message_tick));
     }
 
-    let len = apply_sized_array(cursor, |cursor| {
+    let len = apply_array(ArrayKind::Sized, cursor, |cursor| {
         let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
         let (component_id, component_fns, _) = params.registry.get(fns_id);
         let mut ctx = RemoveCtx {
@@ -432,7 +430,7 @@ fn apply_changes(
             .insert(ConfirmHistory::new(message_tick));
     }
 
-    let len = apply_sized_array(cursor, |cursor| {
+    let len = apply_array(ArrayKind::Sized, cursor, |cursor| {
         let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
         let (component_id, component_fns, rule_fns) = params.registry.get(fns_id);
         let mut ctx = WriteCtx::new(&mut commands, params.entity_map, component_id, message_tick);
@@ -460,33 +458,40 @@ fn apply_changes(
     Ok(())
 }
 
-/// Reads a received array with its size and applies `f` to all members.
-fn apply_sized_array(
+fn apply_array(
+    kind: ArrayKind,
     cursor: &mut Cursor<&[u8]>,
     mut f: impl FnMut(&mut Cursor<&[u8]>) -> bincode::Result<()>,
 ) -> bincode::Result<usize> {
-    let len = cursor.read_varint()?;
-    for _ in 0..len {
-        (f)(cursor)?;
-    }
+    match kind {
+        ArrayKind::Sized => {
+            let len = cursor.read_varint()?;
+            for _ in 0..len {
+                (f)(cursor)?;
+            }
 
-    Ok(len)
+            Ok(len)
+        }
+        ArrayKind::Dynamic => {
+            let mut len = 0;
+            let end = cursor.get_ref().len() as u64;
+            while cursor.position() < end {
+                (f)(cursor)?;
+                len += 1;
+            }
+
+            Ok(len)
+        }
+    }
 }
 
-/// Like [`apply_sized_array`], but instead of relying on the size, applies `f`
-/// until the cursor reaches the end.
-fn apply_dyn_array(
-    cursor: &mut Cursor<&[u8]>,
-    mut f: impl FnMut(&mut Cursor<&[u8]>) -> bincode::Result<()>,
-) -> bincode::Result<usize> {
-    let mut len = 0;
-    let end = cursor.get_ref().len() as u64;
-    while cursor.position() < end {
-        (f)(cursor)?;
-        len += 1;
-    }
-
-    Ok(len)
+/// Type of serialized array.
+#[derive(PartialEq, Eq, Debug)]
+enum ArrayKind {
+    /// Size is serialized before the array.
+    Sized,
+    /// Size is unknown, means that all bytes needs to be consumed.
+    Dynamic,
 }
 
 /// Deserializes and applies component mutations for all entities.
