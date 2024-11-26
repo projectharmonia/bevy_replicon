@@ -1,3 +1,4 @@
+pub mod change_message_flags;
 pub mod command_markers;
 pub mod deferred_entity;
 pub mod replicated_clients;

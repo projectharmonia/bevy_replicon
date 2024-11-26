@@ -98,9 +98,9 @@ pub trait AppRuleExt {
     fn serialize_translation(
         _ctx: &SerializeCtx,
         transform: &Transform,
-        cursor: &mut Cursor<Vec<u8>>,
+        message: &mut Vec<u8>,
     ) -> bincode::Result<()> {
-        bincode::serialize_into(cursor, &transform.translation)
+        bincode::serialize_into(message, &transform.translation)
     }
 
     /// Deserializes `translation` and creates [`Transform`] from it.
@@ -317,7 +317,7 @@ impl GroupReplication for PlayerBundle {
     }
 }
 
-# fn serialize_translation(_: &SerializeCtx, _: &Transform, _: &mut Cursor<Vec<u8>>) -> bincode::Result<()> { unimplemented!() }
+# fn serialize_translation(_: &SerializeCtx, _: &Transform, _: &mut Vec<u8>) -> bincode::Result<()> { unimplemented!() }
 # fn deserialize_translation(_: &mut WriteCtx, _: &mut Cursor<&[u8]>) -> bincode::Result<Transform> { unimplemented!() }
 ```
 **/

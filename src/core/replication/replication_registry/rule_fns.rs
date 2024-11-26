@@ -125,9 +125,9 @@ impl<C: Component> RuleFns<C> {
         &self,
         ctx: &SerializeCtx,
         component: &C,
-        cursor: &mut Cursor<Vec<u8>>,
+        message: &mut Vec<u8>,
     ) -> bincode::Result<()> {
-        (self.serialize)(ctx, component, cursor)
+        (self.serialize)(ctx, component, message)
     }
 
     /// Deserializes a component from a cursor.
@@ -187,7 +187,7 @@ impl<C: Component + Serialize + DeserializeOwned> Default for RuleFns<C> {
 }
 
 /// Signature of component serialization functions.
-pub type SerializeFn<C> = fn(&SerializeCtx, &C, &mut Cursor<Vec<u8>>) -> bincode::Result<()>;
+pub type SerializeFn<C> = fn(&SerializeCtx, &C, &mut Vec<u8>) -> bincode::Result<()>;
 
 /// Signature of component deserialization functions.
 pub type DeserializeFn<C> = fn(&mut WriteCtx, &mut Cursor<&[u8]>) -> bincode::Result<C>;
@@ -204,7 +204,7 @@ pub type ConsumeFn<C> =
 pub fn default_serialize<C: Component + Serialize>(
     _ctx: &SerializeCtx,
     component: &C,
-    cursor: &mut Cursor<Vec<u8>>,
+    cursor: &mut Vec<u8>,
 ) -> bincode::Result<()> {
     DefaultOptions::new().serialize_into(cursor, component)
 }

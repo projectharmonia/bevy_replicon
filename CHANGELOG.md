@@ -13,11 +13,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Various optimizations for replication messages to use fewer bytes.
+- Accept `Vec<u8>` instead of `Cursor<Vec<u8>>` for serialization.
 - `ConnectedClients` now store `ConnectedClient` instead of `ClientId` with more information about the client.
 - All `TestFnsEntityExt` now accept `FnsId`.
 - Move replication-related modules from `core` module under `core::replication`.
 - Move `Replicated` to the `replication` module.
 - Split the `ctx` module and move event-related contexts under `core::events_registry::ctx` and replication-related contexts under `core::replication_registry::ctx`.
+- Rename `ServerPlugin::change_timeout` into `ServerPlugin::mutations_timeout`.
+- Rename `ServerInitTick` into `ServerChangeTick`.
+- Rename `ReplicatedClient::init_tick` into `ReplicatedClient::change_tick`.
+- Rename `ReplicatedClient::get_change_tick` into `ReplicatedClient::mutation_tick`.
+- Rename `ReplicationChannel::Init` into `ReplicationChannel::Changes`.
+- Rename `ReplicationChannel::Update` into `ReplicationChannel::Mutations`.
 
 ### Removed
 

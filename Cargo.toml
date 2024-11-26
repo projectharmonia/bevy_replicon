@@ -31,6 +31,7 @@ bincode = "1.3"
 serde = "1.0"
 integer-encoding = "4.0"
 ordered-multimap = "0.7"
+bitflags = "2.6"
 
 [dev-dependencies]
 bevy = { version = "0.14", default-features = false, features = [
@@ -66,7 +67,7 @@ name = "replication"
 harness = false
 
 [[test]]
-name = "changes"
+name = "mutations"
 required-features = ["client", "server"]
 
 [[test]]

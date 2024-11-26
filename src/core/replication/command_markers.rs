@@ -231,11 +231,11 @@ pub struct MarkerConfig {
     /// By default set to `0`.
     pub priority: usize,
 
-    /// Represents whether a marker needs to process old updates.
+    /// Represents whether a marker needs to process old mutations.
     ///
-    /// Since updates use [`ChannelKind::Unreliable`](crate::core::channels::ChannelKind),
-    /// a client may receive an older update for an entity. By default these updates are discarded,
-    /// but some markers may need them. If this field is set to `true`, old component updates will
+    /// Since mutations use [`ChannelKind::Unreliable`](crate::core::channels::ChannelKind),
+    /// a client may receive an older mutation for an entity component. By default these mutations are discarded,
+    /// but some markers may need them. If this field is set to `true`, old component mutations will
     /// be passed to the writing function for this marker.
     ///
     /// By default set to `false`.
