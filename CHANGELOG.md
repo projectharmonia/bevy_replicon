@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- RTT and packet loss information for `RepliconClient` and `ConnectedClients`.
+- RTT, bytes per second and packet loss information for `RepliconClient` and `ConnectedClients`.
 - `ClientSet::Diagnostics` for systems that collect client diagnostics.
 
 ### Changed
