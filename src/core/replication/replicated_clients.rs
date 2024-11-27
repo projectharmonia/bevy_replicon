@@ -345,7 +345,7 @@ impl ReplicatedClient {
     ///
     /// Internal cleanup happens lazily during the iteration.
     pub(crate) fn drain_lost_visibility(&mut self) -> impl Iterator<Item = Entity> + '_ {
-        self.visibility.drain_lost_visibility().inspect(|entity| {
+        self.visibility.drain_lost().inspect(|entity| {
             self.mutation_ticks.remove(entity);
         })
     }

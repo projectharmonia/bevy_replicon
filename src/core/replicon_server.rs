@@ -48,6 +48,12 @@ impl RepliconServer {
     /// Receives all available messages from clients over a channel.
     ///
     /// All messages will be drained.
+    ///
+    /// <div class="warning">
+    ///
+    /// Should only be called from the messaging backend.
+    ///
+    /// </div>
     pub fn receive<I: Into<u8>>(
         &mut self,
         channel_id: I,
@@ -72,6 +78,12 @@ impl RepliconServer {
     }
 
     /// Sends a message to a client over a channel.
+    ///
+    /// <div class="warning">
+    ///
+    /// Should only be called from the messaging backend.
+    ///
+    /// </div>
     pub fn send<I: Into<u8>, B: Into<Bytes>>(
         &mut self,
         client_id: ClientId,
@@ -93,7 +105,11 @@ impl RepliconServer {
 
     /// Marks the server as running or stopped.
     ///
-    /// Should be called only from the messaging backend when the server changes its state.
+    /// <div class="warning">
+    ///
+    /// Should only be called from the messaging backend when the server changes its state.
+    ///
+    /// </div>
     pub fn set_running(&mut self, running: bool) {
         debug!("changing `RepliconServer` running status to `{running}`");
 

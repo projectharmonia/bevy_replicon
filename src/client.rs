@@ -54,7 +54,7 @@ impl Plugin for ClientPlugin {
                         ClientSet::Reset.run_if(client_just_disconnected),
                     ),
                     ClientSet::Receive,
-                    ClientSet::SyncHierarchy,
+                    (ClientSet::Diagnostics, ClientSet::SyncHierarchy),
                 )
                     .chain(),
             )
@@ -113,7 +113,8 @@ impl ClientPlugin {
                         world.resource_scope(|world, registry: Mut<ReplicationRegistry>| {
                             world.resource_scope(
                                 |world, mut history_events: Mut<Events<HistoryConfirmed>>| {
-                                    let mut stats = world.remove_resource::<ClientStats>();
+                                    let mut stats =
+                                        world.remove_resource::<ClientReplicationStats>();
                                     let mut mutate_ticks =
                                         world.remove_resource::<ServerMutateTicks>();
                                     let mut params = ReceiveParams {
@@ -155,10 +156,12 @@ impl ClientPlugin {
         mut change_tick: ResMut<ServerChangeTick>,
         mut entity_map: ResMut<ServerEntityMap>,
         mut buffered_mutations: ResMut<BufferedMutations>,
+        mut stats: ResMut<ClientReplicationStats>,
     ) {
         *change_tick = Default::default();
         entity_map.clear();
         buffered_mutations.clear();
+        *stats = Default::default();
     }
 }
 
@@ -202,7 +205,7 @@ fn apply_change_message(
     params: &mut ReceiveParams,
     message: &[u8],
 ) -> bincode::Result<()> {
-    let end_pos: u64 = message.len().try_into().unwrap();
+    let end_pos = message.len();
     let mut cursor = Cursor::new(message);
     if let Some(stats) = &mut params.stats {
         stats.messages += 1;
@@ -231,7 +234,7 @@ fn apply_change_message(
                     apply_entity_mapping(world, params, cursor)
                 })?;
                 if let Some(stats) = &mut params.stats {
-                    stats.mappings += len as u32;
+                    stats.mappings += len;
                 }
             }
             ChangeMessageFlags::DESPAWNS => {
@@ -239,7 +242,7 @@ fn apply_change_message(
                     apply_despawn(world, params, cursor, message_tick)
                 })?;
                 if let Some(stats) = &mut params.stats {
-                    stats.despawns += len as u32;
+                    stats.despawns += len;
                 }
             }
             ChangeMessageFlags::REMOVALS => {
@@ -247,7 +250,7 @@ fn apply_change_message(
                     apply_removals(world, params, cursor, message_tick)
                 })?;
                 if let Some(stats) = &mut params.stats {
-                    stats.entities_changed += len as u32;
+                    stats.entities_changed += len;
                 }
             }
             ChangeMessageFlags::CHANGES => {
@@ -256,7 +259,7 @@ fn apply_change_message(
                     apply_changes(world, params, cursor, message_tick)
                 })?;
                 if let Some(stats) = &mut params.stats {
-                    stats.entities_changed += len as u32;
+                    stats.entities_changed += len;
                 }
             }
             _ => unreachable!("iteration should yield only named flags"),
@@ -276,7 +279,7 @@ fn buffer_mutate_message(
     buffered_mutations: &mut BufferedMutations,
     message: Bytes,
 ) -> bincode::Result<u16> {
-    let end_pos: u64 = message.len().try_into().unwrap();
+    let end_pos = message.len();
     let mut cursor = Cursor::new(&*message);
     if let Some(stats) = &mut params.stats {
         stats.messages += 1;
@@ -328,7 +331,7 @@ fn apply_mutate_messages(
         match len {
             Ok(len) => {
                 if let Some(stats) = &mut params.stats {
-                    stats.entities_changed += len as u32;
+                    stats.entities_changed += len;
                 }
             }
             Err(e) => result = Err(e),
@@ -432,7 +435,7 @@ fn apply_removals(
     })?;
 
     if let Some(stats) = &mut params.stats {
-        stats.components_changed += len as u32;
+        stats.components_changed += len;
     }
 
     params.queue.apply(world);
@@ -486,7 +489,7 @@ fn apply_changes(
     })?;
 
     if let Some(stats) = &mut params.stats {
-        stats.components_changed += len as u32;
+        stats.components_changed += len;
     }
 
     params.queue.apply(world);
@@ -675,7 +678,7 @@ struct ReceiveParams<'a> {
     entity_map: &'a mut ServerEntityMap,
     history_events: &'a mut Events<HistoryConfirmed>,
     mutate_ticks: Option<&'a mut ServerMutateTicks>,
-    stats: Option<&'a mut ClientStats>,
+    stats: Option<&'a mut ClientReplicationStats>,
     command_markers: &'a CommandMarkers,
     registry: &'a ReplicationRegistry,
 }
@@ -695,6 +698,12 @@ pub enum ClientSet {
     ///
     /// Runs in [`PreUpdate`].
     Receive,
+    /// Systems that populate Bevy's [`Diagnostics`](bevy::diagnostic::Diagnostics).
+    ///
+    /// Used by `bevy_replicon`.
+    ///
+    /// Runs in [`PreUpdate`].
+    Diagnostics,
     /// Systems that synchronize hierarchy changes in [`ParentSync`](super::parent_sync::ParentSync).
     ///
     /// Used by `bevy_replicon`.
@@ -791,17 +800,17 @@ pub(super) struct BufferedMutate {
 /// See also [`ClientDiagnosticsPlugin`](diagnostics::ClientDiagnosticsPlugin)
 /// for automatic integration with Bevy diagnostics.
 #[derive(Default, Resource, Debug)]
-pub struct ClientStats {
+pub struct ClientReplicationStats {
     /// Incremented per entity that changes.
-    pub entities_changed: u32,
+    pub entities_changed: usize,
     /// Incremented for every component that changes.
-    pub components_changed: u32,
+    pub components_changed: usize,
     /// Incremented per client mapping added.
-    pub mappings: u32,
+    pub mappings: usize,
     /// Incremented per entity despawn.
-    pub despawns: u32,
+    pub despawns: usize,
     /// Replication messages received.
-    pub messages: u32,
+    pub messages: usize,
     /// Replication bytes received in message payloads (without internal messaging plugin data).
-    pub bytes: u64,
+    pub bytes: usize,
 }
