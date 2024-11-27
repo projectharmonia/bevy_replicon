@@ -2,6 +2,7 @@ pub mod confirm_history;
 #[cfg(feature = "client_diagnostics")]
 pub mod diagnostics;
 pub mod events;
+pub mod server_mutate_ticks;
 
 use std::{io::Cursor, mem};
 
@@ -21,13 +22,15 @@ use crate::core::{
             ctx::{DespawnCtx, RemoveCtx, WriteCtx},
             ReplicationRegistry,
         },
+        track_mutate_messages::TrackMutateMessages,
         Replicated,
     },
     replicon_client::RepliconClient,
     replicon_tick::RepliconTick,
     server_entity_map::ServerEntityMap,
 };
-use confirm_history::ConfirmHistory;
+use confirm_history::{ConfirmHistory, HistoryConfirmed};
+use server_mutate_ticks::{MutateTickConfirmed, ServerMutateTicks};
 
 /// Client functionality and replication receiving.
 ///
@@ -40,6 +43,8 @@ impl Plugin for ClientPlugin {
             .init_resource::<ServerEntityMap>()
             .init_resource::<ServerChangeTick>()
             .init_resource::<BufferedMutations>()
+            .add_event::<HistoryConfirmed>()
+            .add_event::<MutateTickConfirmed>()
             .configure_sets(
                 PreUpdate,
                 (
@@ -66,6 +71,12 @@ impl Plugin for ClientPlugin {
                     .run_if(client_connected),
             )
             .add_systems(PreUpdate, Self::reset.in_set(ClientSet::Reset));
+    }
+
+    fn finish(&self, app: &mut App) {
+        if **app.world().resource::<TrackMutateMessages>() {
+            app.init_resource::<ServerMutateTicks>();
+        }
     }
 }
 
@@ -100,28 +111,39 @@ impl ClientPlugin {
                 world.resource_scope(|world, mut buffered_mutations: Mut<BufferedMutations>| {
                     world.resource_scope(|world, command_markers: Mut<CommandMarkers>| {
                         world.resource_scope(|world, registry: Mut<ReplicationRegistry>| {
-                            let mut stats = world.remove_resource::<ClientStats>();
-                            let mut params = ReceiveParams {
-                                queue: &mut queue,
-                                entity_markers: &mut entity_markers,
-                                entity_map: &mut entity_map,
-                                stats: stats.as_mut(),
-                                command_markers: &command_markers,
-                                registry: &registry,
-                            };
+                            world.resource_scope(
+                                |world, mut history_events: Mut<Events<HistoryConfirmed>>| {
+                                    let mut stats = world.remove_resource::<ClientStats>();
+                                    let mut mutate_ticks =
+                                        world.remove_resource::<ServerMutateTicks>();
+                                    let mut params = ReceiveParams {
+                                        queue: &mut queue,
+                                        entity_markers: &mut entity_markers,
+                                        entity_map: &mut entity_map,
+                                        history_events: &mut history_events,
+                                        mutate_ticks: mutate_ticks.as_mut(),
+                                        stats: stats.as_mut(),
+                                        command_markers: &command_markers,
+                                        registry: &registry,
+                                    };
 
-                            apply_replication(
-                                world,
-                                &mut params,
-                                &mut client,
-                                &mut buffered_mutations,
-                            )?;
+                                    apply_replication(
+                                        world,
+                                        &mut params,
+                                        &mut client,
+                                        &mut buffered_mutations,
+                                    )?;
 
-                            if let Some(stats) = stats {
-                                world.insert_resource(stats);
-                            }
+                                    if let Some(stats) = stats {
+                                        world.insert_resource(stats);
+                                    }
+                                    if let Some(mutate_ticks) = mutate_ticks {
+                                        world.insert_resource(mutate_ticks);
+                                    }
 
-                            Ok(())
+                                    Ok(())
+                                },
+                            )
                         })
                     })
                 })
@@ -263,11 +285,17 @@ fn buffer_mutate_message(
 
     let change_tick = bincode::deserialize_from(&mut cursor)?;
     let message_tick = bincode::deserialize_from(&mut cursor)?;
+    let messages_count = if params.mutate_ticks.is_some() {
+        cursor.read_varint()?
+    } else {
+        1
+    };
     let mutate_index = cursor.read_varint()?;
     trace!("received mutate message for {message_tick:?}");
     buffered_mutations.insert(BufferedMutate {
         change_tick,
         message_tick,
+        messages_count,
         message: message.slice(cursor.position() as usize..),
     });
 
@@ -304,6 +332,14 @@ fn apply_mutate_messages(
                 }
             }
             Err(e) => result = Err(e),
+        }
+
+        if let Some(mutate_ticks) = &mut params.mutate_ticks {
+            if mutate_ticks.confirm(mutate.message_tick, mutate.messages_count) {
+                world.send_event(MutateTickConfirmed {
+                    tick: mutate.message_tick,
+                });
+            }
         }
 
         false
@@ -375,13 +411,12 @@ fn apply_removals(
         .entity_markers
         .read(params.command_markers, &*client_entity);
 
-    if let Some(mut history) = client_entity.get_mut::<ConfirmHistory>() {
-        history.set_last_tick(message_tick);
-    } else {
-        commands
-            .entity(client_entity.id())
-            .insert(ConfirmHistory::new(message_tick));
-    }
+    confirm_tick(
+        &mut commands,
+        &mut client_entity,
+        params.history_events,
+        message_tick,
+    );
 
     let len = apply_array(ArrayKind::Sized, cursor, |cursor| {
         let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
@@ -424,13 +459,12 @@ fn apply_changes(
         .entity_markers
         .read(params.command_markers, &*client_entity);
 
-    if let Some(mut history) = client_entity.get_mut::<ConfirmHistory>() {
-        history.set_last_tick(message_tick);
-    } else {
-        commands
-            .entity(client_entity.id())
-            .insert(ConfirmHistory::new(message_tick));
-    }
+    confirm_tick(
+        &mut commands,
+        &mut client_entity,
+        params.history_events,
+        message_tick,
+    );
 
     let len = apply_array(ArrayKind::Sized, cursor, |cursor| {
         let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
@@ -496,6 +530,25 @@ enum ArrayKind {
     Dynamic,
 }
 
+fn confirm_tick(
+    commands: &mut Commands,
+    entity: &mut DeferredEntity,
+    history_events: &mut Events<HistoryConfirmed>,
+    tick: RepliconTick,
+) {
+    if let Some(mut history) = entity.get_mut::<ConfirmHistory>() {
+        history.set_last_tick(tick);
+    } else {
+        commands
+            .entity(entity.id())
+            .insert(ConfirmHistory::new(tick));
+    }
+    history_events.send(HistoryConfirmed {
+        entity: entity.id(),
+        tick,
+    });
+}
+
 /// Deserializes and applies component mutations for all entities.
 ///
 /// Consumes all remaining bytes in the cursor.
@@ -549,6 +602,10 @@ fn apply_mutations(
 
         history.set(ago);
     }
+    params.history_events.send(HistoryConfirmed {
+        entity: client_entity.id(),
+        tick: message_tick,
+    });
 
     let end_pos = cursor.position() + data_size as u64;
     let mut components_count = 0;
@@ -616,6 +673,8 @@ struct ReceiveParams<'a> {
     queue: &'a mut CommandQueue,
     entity_markers: &'a mut EntityMarkers,
     entity_map: &'a mut ServerEntityMap,
+    history_events: &'a mut Events<HistoryConfirmed>,
+    mutate_ticks: Option<&'a mut ServerMutateTicks>,
     stats: Option<&'a mut ClientStats>,
     command_markers: &'a CommandMarkers,
     registry: &'a ReplicationRegistry,
@@ -680,6 +739,8 @@ pub enum ClientSet {
 ///
 /// In other words, the last [`RepliconTick`] with a removal, insertion, spawn or despawn.
 /// This value is not updated when mutation messages are received from the server.
+///
+/// See also [`ServerMutateTicks`].
 #[derive(Clone, Copy, Debug, Default, Deref, Resource)]
 pub struct ServerChangeTick(RepliconTick);
 
@@ -712,6 +773,11 @@ pub(super) struct BufferedMutate {
 
     /// The tick this mutations corresponds to.
     message_tick: RepliconTick,
+
+    /// Number of all mutate messages sent by server for this tick.
+    ///
+    /// May not be equal to the number of received messages.
+    messages_count: usize,
 
     /// Mutations data.
     message: Bytes,

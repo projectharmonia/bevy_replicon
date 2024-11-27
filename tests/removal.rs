@@ -2,11 +2,13 @@ use std::io::Cursor;
 
 use bevy::prelude::*;
 use bevy_replicon::{
+    client::confirm_history::{ConfirmHistory, HistoryConfirmed},
     core::replication::{
         deferred_entity::DeferredEntity,
         replication_registry::{command_fns, ctx::WriteCtx, rule_fns::RuleFns},
     },
     prelude::*,
+    server::server_tick::ServerTick,
     test_app::ServerTestAppExt,
 };
 use serde::{Deserialize, Serialize};
@@ -376,6 +378,73 @@ fn with_despawn() {
     client_app.update();
 
     assert!(client_app.world().entities().is_empty());
+}
+
+#[test]
+fn confirm_history() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<DummyComponent>();
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    let server_entity = server_app
+        .world_mut()
+        .spawn((Replicated, DummyComponent))
+        .id();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    let client_entity = client_app
+        .world_mut()
+        .query_filtered::<Entity, With<DummyComponent>>()
+        .single(client_app.world());
+
+    server_app
+        .world_mut()
+        .entity_mut(server_entity)
+        .remove::<DummyComponent>();
+
+    // Clear previous events.
+    client_app
+        .world_mut()
+        .resource_mut::<Events<HistoryConfirmed>>()
+        .clear();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    let tick = **server_app.world().resource::<ServerTick>();
+
+    let confirm_history = client_app
+        .world_mut()
+        .get::<ConfirmHistory>(client_entity)
+        .unwrap();
+    assert!(confirm_history.contains(tick));
+
+    let mut history_events = client_app
+        .world_mut()
+        .resource_mut::<Events<HistoryConfirmed>>();
+    let [event] = history_events
+        .drain()
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap();
+    assert_eq!(event.entity, client_entity);
+    assert_eq!(event.tick, tick);
 }
 
 #[derive(Component, Deserialize, Serialize)]

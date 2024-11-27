@@ -59,7 +59,6 @@ pub(crate) struct MutateMessage {
     /// Intermediate buffer with mutate index, message size and a range for [`Self::mutations`].
     ///
     /// We split messages first in order to know their count in advance.
-    /// We plan to include it in the message in the future.
     messages: Vec<(u16, usize, Range<usize>)>,
 }
 
@@ -124,19 +123,24 @@ impl MutateMessage {
         client: &mut ReplicatedClient,
         client_buffers: &mut ClientBuffers,
         serialized: &SerializedData,
+        track_mutate_messages: bool,
         server_tick: Range<usize>,
         tick: Tick,
         timestamp: Duration,
     ) -> bincode::Result<usize> {
         debug_assert_eq!(self.entities.len(), self.mutations.len());
 
+        const MAX_COUNT_SIZE: usize = mem::size_of::<usize>() + 1;
         let mut change_tick = Cursor::new([0; mem::size_of::<RepliconTick>()]);
         bincode::serialize_into(&mut change_tick, &client.change_tick())?;
-        let ticks_size = change_tick.get_ref().len() + server_tick.len();
+        let mut metadata_size = change_tick.get_ref().len() + server_tick.len();
+        if track_mutate_messages {
+            metadata_size += MAX_COUNT_SIZE;
+        }
 
         let (mut mutate_index, mut entities) =
             client.register_mutate_message(client_buffers, tick, timestamp);
-        let mut header_size = ticks_size + mutate_index.required_space();
+        let mut header_size = metadata_size + mutate_index.required_space();
         let mut body_size = 0;
         let mut mutations_range = Range::<usize>::default();
         for (entity, mutations) in self.entities.iter().zip(&self.mutations) {
@@ -158,7 +162,7 @@ impl MutateMessage {
                 mutations_range.start = mutations_range.end;
                 (mutate_index, entities) =
                     client.register_mutate_message(client_buffers, tick, timestamp);
-                header_size = ticks_size + mutate_index.required_space(); // Recalculate since the mutate index changed.
+                header_size = metadata_size + mutate_index.required_space(); // Recalculate since the mutate index changed.
                 body_size = 0;
             }
 
@@ -166,7 +170,7 @@ impl MutateMessage {
             mutations_range.end += 1;
             body_size += mutations_size;
         }
-        if !mutations_range.is_empty() {
+        if !mutations_range.is_empty() || track_mutate_messages {
             // When the loop ends, pack all leftovers into a message.
             self.messages.push((
                 mutate_index,
@@ -176,11 +180,18 @@ impl MutateMessage {
         }
 
         let messages_count = self.messages.len();
-        for (mutate_index, message_size, mutations_range) in self.messages.drain(..) {
+        for (mutate_index, mut message_size, mutations_range) in self.messages.drain(..) {
+            if track_mutate_messages {
+                // Update message counter size based on actual value.
+                message_size -= MAX_COUNT_SIZE - messages_count.required_space();
+            }
             let mut message = Vec::with_capacity(message_size);
 
             message.extend_from_slice(change_tick.get_ref());
             message.extend_from_slice(&serialized[server_tick.clone()]);
+            if track_mutate_messages {
+                message.write_varint(messages_count)?;
+            }
             message.write_varint(mutate_index)?;
             for mutations in &self.mutations[mutations_range.clone()] {
                 message.extend_from_slice(&serialized[mutations.entity.clone()]);
