@@ -172,6 +172,7 @@ impl MutateMessage {
         }
         if !mutations_range.is_empty() || track_mutate_messages {
             // When the loop ends, pack all leftovers into a message.
+            // Or create an empty message if tracking mutate messages is enabled.
             self.messages.push((
                 mutate_index,
                 body_size + header_size,
