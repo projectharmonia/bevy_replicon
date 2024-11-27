@@ -5,6 +5,7 @@ use bevy::{
 };
 
 use super::{ClientReplicationStats, ClientSet};
+use crate::core::replicon_client::RepliconClient;
 
 /// Plugin to write [`Diagnostics`] based on [`ClientReplicationStats`] every second.
 ///
@@ -17,6 +18,26 @@ impl Plugin for ClientDiagnosticsPlugin {
             .add_systems(
                 PreUpdate,
                 Self::add_measurements.in_set(ClientSet::Diagnostics),
+            )
+            .register_diagnostic(
+                Diagnostic::new(Self::RTT)
+                    .with_suffix("ms")
+                    .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
+            )
+            .register_diagnostic(
+                Diagnostic::new(Self::PACKET_LOSS)
+                    .with_suffix("%")
+                    .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
+            )
+            .register_diagnostic(
+                Diagnostic::new(Self::SENT_BPS)
+                    .with_suffix("byte/s")
+                    .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
+            )
+            .register_diagnostic(
+                Diagnostic::new(Self::RECEIVED_BPS)
+                    .with_suffix("byte/s")
+                    .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
             )
             .register_diagnostic(
                 Diagnostic::new(Self::ENTITIES_CHANGED)
@@ -52,6 +73,15 @@ impl Plugin for ClientDiagnosticsPlugin {
 }
 
 impl ClientDiagnosticsPlugin {
+    /// Round-trip time.
+    pub const RTT: DiagnosticPath = DiagnosticPath::const_new("client/rtt");
+    /// The percent of packet loss.
+    pub const PACKET_LOSS: DiagnosticPath = DiagnosticPath::const_new("client/packet_loss");
+    /// How many messages sent per second.
+    pub const SENT_BPS: DiagnosticPath = DiagnosticPath::const_new("client/sent_bps");
+    /// How many bytes received per second.
+    pub const RECEIVED_BPS: DiagnosticPath = DiagnosticPath::const_new("client/received_bps");
+
     /// How many entities changed by replication.
     pub const ENTITIES_CHANGED: DiagnosticPath =
         DiagnosticPath::const_new("client/replication/entities_changed");
@@ -72,7 +102,16 @@ impl ClientDiagnosticsPlugin {
     /// Max diagnostic history length.
     pub const DIAGNOSTIC_HISTORY_LEN: usize = 60;
 
-    fn add_measurements(mut diagnostics: Diagnostics, stats: Res<ClientReplicationStats>) {
+    fn add_measurements(
+        mut diagnostics: Diagnostics,
+        stats: Res<ClientReplicationStats>,
+        client: Res<RepliconClient>,
+    ) {
+        diagnostics.add_measurement(&Self::RTT, || client.rtt());
+        diagnostics.add_measurement(&Self::PACKET_LOSS, || client.packet_loss());
+        diagnostics.add_measurement(&Self::SENT_BPS, || client.sent_bps());
+        diagnostics.add_measurement(&Self::RECEIVED_BPS, || client.received_bps());
+
         diagnostics.add_measurement(&Self::ENTITIES_CHANGED, || stats.entities_changed as f64);
         diagnostics.add_measurement(&Self::COMPONENTS_CHANGED, || {
             stats.components_changed as f64
