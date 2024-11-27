@@ -195,7 +195,7 @@ impl AppRuleExt for App {
 
 /// All registered rules for components replication.
 #[derive(Default, Deref, Resource)]
-pub(crate) struct ReplicationRules(Vec<ReplicationRule>);
+pub struct ReplicationRules(Vec<ReplicationRule>);
 
 impl ReplicationRules {
     /// Inserts a new rule, maintaining sorting by their priority in descending order.

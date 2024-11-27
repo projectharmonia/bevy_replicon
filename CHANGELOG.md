@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - RTT and packet loss information for `RepliconClient` and `ConnectedClients`.
+- Made `core::replication::replication_rules::ReplicationRules` available
 
 ### Changed
 
