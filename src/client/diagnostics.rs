@@ -5,7 +5,7 @@ use bevy::{
 };
 
 use super::{ClientReplicationStats, ClientSet};
-use crate::core::replicon_client::RepliconClient;
+use crate::core::{common_conditions::client_connected, replicon_client::RepliconClient};
 
 /// Plugin to write [`Diagnostics`] based on [`ClientReplicationStats`] every second.
 ///
@@ -17,7 +17,9 @@ impl Plugin for ClientDiagnosticsPlugin {
         app.init_resource::<ClientReplicationStats>()
             .add_systems(
                 PreUpdate,
-                Self::add_measurements.in_set(ClientSet::Diagnostics),
+                Self::add_measurements
+                    .in_set(ClientSet::Diagnostics)
+                    .run_if(client_connected),
             )
             .register_diagnostic(
                 Diagnostic::new(Self::RTT)
