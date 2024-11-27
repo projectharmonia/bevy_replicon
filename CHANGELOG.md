@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - RTT and packet loss information for `RepliconClient` and `ConnectedClients`.
+- `ClientSet::Diagnostics` for systems that collect client diagnostics.
 
 ### Changed
 
@@ -22,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Move `Replicated` to the `replication` module.
 - Split the `ctx` module and move event-related contexts under `core::events_registry::ctx` and replication-related contexts under `core::replication_registry::ctx`.
 - Separate paths from `diagnostics` module by `/` and their parent path now `client/replication` instead of `replication/client`.
+- Provide replication statistics by sum instead of per second and use `usize` for it.
 - Rename `ServerPlugin::change_timeout` into `ServerPlugin::mutations_timeout`.
 - Rename `ServerInitTick` into `ServerChangeTick`.
 - Rename `ReplicatedClient::init_tick` into `ReplicatedClient::change_tick`.
