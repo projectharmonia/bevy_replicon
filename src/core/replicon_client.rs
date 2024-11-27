@@ -123,6 +123,11 @@ impl RepliconClient {
                 channel_messages.clear();
             }
             self.sent_messages.clear();
+
+            self.rtt = 0.0;
+            self.packet_loss = 0.0;
+            self.sent_bps = 0.0;
+            self.received_bps = 0.0;
         }
 
         self.status = status;
