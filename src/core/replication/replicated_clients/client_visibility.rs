@@ -121,7 +121,7 @@ impl ClientVisibility {
     }
 
     /// Drains all entities for which visibility was lost during this tick.
-    pub(super) fn drain_lost_visibility(&mut self) -> impl Iterator<Item = Entity> + '_ {
+    pub(super) fn drain_lost(&mut self) -> impl Iterator<Item = Entity> + '_ {
         match &mut self.filter {
             VisibilityFilter::All { .. } => VisibilityLostIter::AllVisible,
             VisibilityFilter::Blacklist { added, .. } => VisibilityLostIter::Lost(added.drain()),
@@ -219,14 +219,14 @@ impl ClientVisibility {
 
     /// Checks if a specific entity is visible.
     pub fn is_visible(&self, entity: Entity) -> bool {
-        match self.visibility_state(entity) {
+        match self.state(entity) {
             Visibility::Hidden => false,
             Visibility::Gained | Visibility::Visible => true,
         }
     }
 
     /// Returns visibility of a specific entity.
-    pub(crate) fn visibility_state(&self, entity: Entity) -> Visibility {
+    pub(crate) fn state(&self, entity: Entity) -> Visibility {
         match &self.filter {
             VisibilityFilter::All => Visibility::Visible,
             VisibilityFilter::Blacklist { list, .. } => match list.get(&entity) {

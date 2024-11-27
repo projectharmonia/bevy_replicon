@@ -420,8 +420,11 @@ fn collect_despawns(
     for entity in despawn_buffer.drain(..) {
         let entity_range = serialized.write_entity(entity)?;
         for ((message, _), client) in messages.iter_mut().zip(replicated_clients.iter_mut()) {
+            let visibility = client.visibility().state(entity);
+            if visibility != Visibility::Hidden {
+                message.add_despawn(entity_range.clone());
+            }
             client.remove_despawned(entity);
-            message.add_despawn(entity_range.clone());
         }
     }
 
@@ -487,7 +490,7 @@ fn collect_changes(
             for ((change_message, mutate_message), client) in
                 messages.iter_mut().zip(replicated_clients.iter())
             {
-                let visibility = client.visibility().visibility_state(entity.id());
+                let visibility = client.visibility().state(entity.id());
                 change_message.start_entity_changes(visibility);
                 mutate_message.start_entity_mutations();
             }
