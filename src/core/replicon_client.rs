@@ -32,6 +32,8 @@ pub struct RepliconClient {
 
     rtt: f64,
     packet_loss: f64,
+    sent_bps: f64,
+    received_bps: f64,
 }
 
 impl RepliconClient {
@@ -221,6 +223,42 @@ impl RepliconClient {
     /// </div>
     pub fn set_packet_loss(&mut self, packet_loss: f64) {
         self.packet_loss = packet_loss;
+    }
+
+    /// Returns the bytes sent per second for the connection.
+    ///
+    /// Returns zero if not provided by the backend.
+    pub fn sent_bps(&self) -> f64 {
+        self.sent_bps
+    }
+
+    /// Sets the bytes sent per second for the connection.
+    ///
+    /// <div class="warning">
+    ///
+    /// Should only be called from the messaging backend.
+    ///
+    /// </div>
+    pub fn set_sent_bps(&mut self, sent_bps: f64) {
+        self.sent_bps = sent_bps;
+    }
+
+    /// Returns the bytes received per second for the connection.
+    ///
+    /// Returns zero if not provided by the backend.
+    pub fn received_bps(&self) -> f64 {
+        self.received_bps
+    }
+
+    /// Sets the bytes received per second for the connection.
+    ///
+    /// <div class="warning">
+    ///
+    /// Should only be called from the messaging backend.
+    ///
+    /// </div>
+    pub fn set_received_bps(&mut self, received_bps: f64) {
+        self.received_bps = received_bps;
     }
 }
 
