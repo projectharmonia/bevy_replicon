@@ -10,10 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - RTT and packet loss information for `RepliconClient` and `ConnectedClients`.
-- Made `core::replication::replication_rules::ReplicationRules` available
 
 ### Changed
 
+- Make `core::replication::replication_rules::ReplicationRules` available
 - Various optimizations for replication messages to use fewer bytes.
 - Accept `Vec<u8>` instead of `Cursor<Vec<u8>>` for serialization.
 - `ConnectedClients` now store `ConnectedClient` instead of `ClientId` with more information about the client.
