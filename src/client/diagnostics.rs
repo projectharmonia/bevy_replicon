@@ -21,52 +21,52 @@ impl Plugin for ClientDiagnosticsPlugin {
             )
             .register_diagnostic(
                 Diagnostic::new(Self::RTT)
-                    .with_suffix("ms")
+                    .with_suffix(" ms")
                     .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
             )
             .register_diagnostic(
                 Diagnostic::new(Self::PACKET_LOSS)
-                    .with_suffix("%")
+                    .with_suffix(" %")
                     .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
             )
             .register_diagnostic(
                 Diagnostic::new(Self::SENT_BPS)
-                    .with_suffix("byte/s")
+                    .with_suffix(" byte/s")
                     .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
             )
             .register_diagnostic(
                 Diagnostic::new(Self::RECEIVED_BPS)
-                    .with_suffix("byte/s")
+                    .with_suffix(" byte/s")
                     .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
             )
             .register_diagnostic(
                 Diagnostic::new(Self::ENTITIES_CHANGED)
-                    .with_suffix("entities changed")
+                    .with_suffix(" entities changed")
                     .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
             )
             .register_diagnostic(
                 Diagnostic::new(Self::COMPONENTS_CHANGED)
-                    .with_suffix("components changed")
+                    .with_suffix(" components changed")
                     .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
             )
             .register_diagnostic(
                 Diagnostic::new(Self::MAPPINGS)
-                    .with_suffix("mappings")
+                    .with_suffix(" mappings")
                     .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
             )
             .register_diagnostic(
                 Diagnostic::new(Self::DESPAWNS)
-                    .with_suffix("despawns")
+                    .with_suffix(" despawns")
                     .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
             )
             .register_diagnostic(
                 Diagnostic::new(Self::REPLICATION_MESSAGES)
-                    .with_suffix("replication messages")
+                    .with_suffix(" replication messages")
                     .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
             )
             .register_diagnostic(
                 Diagnostic::new(Self::REPLICATION_BYTES)
-                    .with_suffix("replication bytes")
+                    .with_suffix(" replication bytes")
                     .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
             );
     }
