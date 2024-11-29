@@ -1,6 +1,6 @@
 use bevy::{ecs::entity::EntityHashMap, prelude::*, scene::DynamicEntity};
 
-use crate::{core::replication_rules::ReplicationRules, Replicated};
+use crate::{core::replication::replication_rules::ReplicationRules, Replicated};
 
 /**
 Fills scene with all replicated entities and their components.
@@ -73,7 +73,7 @@ pub fn replicate_into(scene: &mut DynamicScene, world: &World) {
             for component_id in rule
                 .components
                 .iter()
-                .map(|fns_info| fns_info.component_id())
+                .map(|&(component_id, _)| component_id)
             {
                 // SAFETY: replication rules can be registered only with valid component IDs.
                 let replicated_component =

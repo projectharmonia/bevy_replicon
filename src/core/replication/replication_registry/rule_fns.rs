@@ -8,11 +8,11 @@ use bevy::{ecs::entity::MapEntities, prelude::*};
 use bincode::{DefaultOptions, Options};
 use serde::{de::DeserializeOwned, Serialize};
 
-use crate::core::ctx::{SerializeCtx, WriteCtx};
+use super::ctx::{SerializeCtx, WriteCtx};
 
 /// Type-erased version of [`RuleFns`].
 ///
-/// Stored inside [`ReplicationFns`](super::ReplicationFns) after registration.
+/// Stored inside [`ReplicationRegistry`](super::ReplicationRegistry) after registration.
 pub(crate) struct UntypedRuleFns {
     type_id: TypeId,
     type_name: &'static str,
@@ -71,8 +71,8 @@ impl<C: Component> From<RuleFns<C>> for UntypedRuleFns {
 
 /// Serialization and deserialization functions for a component.
 ///
-/// See also [`AppRuleExt`](crate::core::replication_rules::AppRuleExt)
-/// and [`ReplicationRule`](crate::core::replication_rules::ReplicationRule).
+/// See also [`AppRuleExt`](crate::core::replication::replication_rules::AppRuleExt)
+/// and [`ReplicationRule`](crate::core::replication::replication_rules::ReplicationRule).
 pub struct RuleFns<C> {
     serialize: SerializeFn<C>,
     deserialize: DeserializeFn<C>,
@@ -113,7 +113,7 @@ impl<C: Component> RuleFns<C> {
     /// If you want to ignore a component, just use its expected size to advance the cursor
     /// without deserializing (but be careful if the component is dynamically sized).
     ///
-    /// See [`MarkerConfig::need_history`](crate::core::command_markers::MarkerConfig::need_history)
+    /// See [`MarkerConfig::need_history`](crate::core::replication::command_markers::MarkerConfig::need_history)
     /// for details.
     pub fn with_consume(mut self, consume: ConsumeFn<C>) -> Self {
         self.consume = consume;
@@ -125,9 +125,9 @@ impl<C: Component> RuleFns<C> {
         &self,
         ctx: &SerializeCtx,
         component: &C,
-        cursor: &mut Cursor<Vec<u8>>,
+        message: &mut Vec<u8>,
     ) -> bincode::Result<()> {
-        (self.serialize)(ctx, component, cursor)
+        (self.serialize)(ctx, component, message)
     }
 
     /// Deserializes a component from a cursor.
@@ -187,7 +187,7 @@ impl<C: Component + Serialize + DeserializeOwned> Default for RuleFns<C> {
 }
 
 /// Signature of component serialization functions.
-pub type SerializeFn<C> = fn(&SerializeCtx, &C, &mut Cursor<Vec<u8>>) -> bincode::Result<()>;
+pub type SerializeFn<C> = fn(&SerializeCtx, &C, &mut Vec<u8>) -> bincode::Result<()>;
 
 /// Signature of component deserialization functions.
 pub type DeserializeFn<C> = fn(&mut WriteCtx, &mut Cursor<&[u8]>) -> bincode::Result<C>;
@@ -204,7 +204,7 @@ pub type ConsumeFn<C> =
 pub fn default_serialize<C: Component + Serialize>(
     _ctx: &SerializeCtx,
     component: &C,
-    cursor: &mut Cursor<Vec<u8>>,
+    cursor: &mut Vec<u8>,
 ) -> bincode::Result<()> {
     DefaultOptions::new().serialize_into(cursor, component)
 }

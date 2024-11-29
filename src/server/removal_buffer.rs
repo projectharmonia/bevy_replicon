@@ -13,8 +13,8 @@ use bevy::{
 
 use super::{ServerPlugin, ServerSet};
 use crate::core::{
-    common_conditions::server_running, replication_registry::FnsInfo,
-    replication_rules::ReplicationRules, Replicated,
+    common_conditions::server_running,
+    replication::{replication_registry::FnsId, replication_rules::ReplicationRules, Replicated},
 };
 
 /// Buffers all replicated component removals in [`RemovalBuffer`] resource.
@@ -131,7 +131,7 @@ impl FromWorld for ReplicatedComponents {
         let component_ids = rules
             .iter()
             .flat_map(|rule| &rule.components)
-            .map(|fns_info| fns_info.component_id())
+            .map(|&(component_id, _)| component_id)
             .collect();
 
         Self(component_ids)
@@ -139,26 +139,20 @@ impl FromWorld for ReplicatedComponents {
 }
 
 /// Buffer with removed components.
-#[derive(Default, Resource)]
+#[derive(Default, Resource, Deref)]
 pub(crate) struct RemovalBuffer {
     /// Component removals grouped by entity.
-    removals: Vec<(Entity, Vec<FnsInfo>)>,
+    #[deref]
+    removals: EntityHashMap<Vec<(ComponentId, FnsId)>>,
 
     /// [`Vec`]s from removals.
     ///
     /// All data is cleared before the insertion.
     /// Stored to reuse allocated capacity.
-    ids_buffer: Vec<Vec<FnsInfo>>,
+    ids_buffer: Vec<Vec<(ComponentId, FnsId)>>,
 }
 
 impl RemovalBuffer {
-    /// Returns an iterator over entities and their removed components.
-    pub(super) fn iter(&self) -> impl Iterator<Item = (Entity, &[FnsInfo])> {
-        self.removals
-            .iter()
-            .map(|(entity, remove_ids)| (*entity, &**remove_ids))
-    }
-
     /// Registers component removals that match replication rules for an entity.
     fn update(
         &mut self,
@@ -172,15 +166,15 @@ impl RemovalBuffer {
             .iter()
             .filter(|rule| rule.matches_removals(archetype, components))
         {
-            for &fns_info in &rule.components {
+            for &(component_id, fns_id) in &rule.components {
                 // Since rules are sorted by priority,
                 // we are inserting only new components that aren't present.
                 if removed_ids
                     .iter()
-                    .all(|removed_info| removed_info.component_id() != fns_info.component_id())
-                    && !archetype.contains(fns_info.component_id())
+                    .all(|&(removed_id, _)| removed_id != component_id)
+                    && !archetype.contains(component_id)
                 {
-                    removed_ids.push(fns_info);
+                    removed_ids.push((component_id, fns_id));
                 }
             }
         }
@@ -188,7 +182,7 @@ impl RemovalBuffer {
         if removed_ids.is_empty() {
             self.ids_buffer.push(removed_ids);
         } else {
-            self.removals.push((entity, removed_ids));
+            self.removals.insert(entity, removed_ids);
         }
     }
 
@@ -197,7 +191,7 @@ impl RemovalBuffer {
     /// Keeps the allocated memory for reuse.
     pub(super) fn clear(&mut self) {
         self.ids_buffer
-            .extend(self.removals.drain(..).map(|(_, mut components)| {
+            .extend(self.removals.drain().map(|(_, mut components)| {
                 components.clear();
                 components
             }));
@@ -210,8 +204,10 @@ mod tests {
 
     use super::*;
     use crate::core::{
-        replication_registry::ReplicationRegistry, replication_rules::AppRuleExt,
-        replicon_server::RepliconServer, Replicated,
+        replication::{
+            replication_registry::ReplicationRegistry, replication_rules::AppRuleExt, Replicated,
+        },
+        replicon_server::RepliconServer,
     };
 
     #[test]
@@ -253,16 +249,18 @@ mod tests {
 
         app.update();
 
-        app.world_mut()
+        let entity = app
+            .world_mut()
             .spawn((Replicated, ComponentA))
-            .remove::<ComponentA>();
+            .remove::<ComponentA>()
+            .id();
 
         app.update();
 
         let removal_buffer = app.world().resource::<RemovalBuffer>();
         assert_eq!(removal_buffer.removals.len(), 1);
 
-        let (_, removals_id) = removal_buffer.removals.first().unwrap();
+        let removals_id = removal_buffer.removals.get(&entity).unwrap();
         assert_eq!(removals_id.len(), 1);
     }
 
@@ -281,16 +279,18 @@ mod tests {
 
         app.update();
 
-        app.world_mut()
+        let entity = app
+            .world_mut()
             .spawn((Replicated, ComponentA, ComponentB))
-            .remove::<(ComponentA, ComponentB)>();
+            .remove::<(ComponentA, ComponentB)>()
+            .id();
 
         app.update();
 
         let removal_buffer = app.world().resource::<RemovalBuffer>();
         assert_eq!(removal_buffer.removals.len(), 1);
 
-        let (_, removals_id) = removal_buffer.removals.first().unwrap();
+        let removals_id = removal_buffer.removals.get(&entity).unwrap();
         assert_eq!(removals_id.len(), 2);
     }
 
@@ -309,16 +309,18 @@ mod tests {
 
         app.update();
 
-        app.world_mut()
+        let entity = app
+            .world_mut()
             .spawn((Replicated, ComponentA, ComponentB))
-            .remove::<ComponentA>();
+            .remove::<ComponentA>()
+            .id();
 
         app.update();
 
         let removal_buffer = app.world().resource::<RemovalBuffer>();
         assert_eq!(removal_buffer.removals.len(), 1);
 
-        let (_, removals_id) = removal_buffer.removals.first().unwrap();
+        let removals_id = removal_buffer.removals.get(&entity).unwrap();
         assert_eq!(removals_id.len(), 1);
     }
 
@@ -338,16 +340,18 @@ mod tests {
 
         app.update();
 
-        app.world_mut()
+        let entity = app
+            .world_mut()
             .spawn((Replicated, ComponentA, ComponentB))
-            .remove::<(ComponentA, ComponentB)>();
+            .remove::<(ComponentA, ComponentB)>()
+            .id();
 
         app.update();
 
         let removal_buffer = app.world().resource::<RemovalBuffer>();
         assert_eq!(removal_buffer.removals.len(), 1);
 
-        let (_, removals_id) = removal_buffer.removals.first().unwrap();
+        let removals_id = removal_buffer.removals.get(&entity).unwrap();
         assert_eq!(removals_id.len(), 2);
     }
 
@@ -367,16 +371,18 @@ mod tests {
 
         app.update();
 
-        app.world_mut()
+        let entity = app
+            .world_mut()
             .spawn((Replicated, ComponentA, ComponentB))
-            .remove::<ComponentA>();
+            .remove::<ComponentA>()
+            .id();
 
         app.update();
 
         let removal_buffer = app.world().resource::<RemovalBuffer>();
         assert_eq!(removal_buffer.removals.len(), 1);
 
-        let (_, removals_id) = removal_buffer.removals.first().unwrap();
+        let removals_id = removal_buffer.removals.get(&entity).unwrap();
         assert_eq!(removals_id.len(), 1);
     }
 

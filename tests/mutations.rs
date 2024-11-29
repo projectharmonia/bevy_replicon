@@ -2,12 +2,13 @@ use std::io::Cursor;
 
 use bevy::{ecs::entity::MapEntities, prelude::*, utils::Duration};
 use bevy_replicon::{
-    client::{confirm_history::ConfirmHistory, ServerInitTick},
+    client::{confirm_history::ConfirmHistory, ServerChangeTick},
     core::{
-        command_markers::MarkerConfig,
-        ctx::WriteCtx,
-        deferred_entity::DeferredEntity,
-        replication_registry::{command_fns, rule_fns::RuleFns},
+        replication::{
+            command_markers::MarkerConfig,
+            deferred_entity::DeferredEntity,
+            replication_registry::{command_fns, ctx::WriteCtx, rule_fns::RuleFns},
+        },
         server_entity_map::ServerEntityMap,
     },
     prelude::*,
@@ -58,7 +59,7 @@ fn small_component() {
         .world_mut()
         .query::<&BoolComponent>()
         .single(client_app.world());
-    assert!(component.0, "changed value should be updated on client");
+    assert!(component.0, "mutated value should be updated on client");
 }
 
 #[test]
@@ -110,6 +111,60 @@ fn package_size_component() {
         .query::<&VecComponent>()
         .single(client_app.world());
     assert_eq!(component.0, BIG_DATA);
+}
+
+#[test]
+fn many_components() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<BoolComponent>()
+        .replicate::<VecComponent>();
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    let server_entity = server_app
+        .world_mut()
+        .spawn((Replicated, BoolComponent(false), VecComponent::default()))
+        .id();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    let mut server_entity = server_app.world_mut().entity_mut(server_entity);
+
+    let mut bool_component = server_entity.get_mut::<BoolComponent>().unwrap();
+    bool_component.0 = true;
+
+    const VEC_VALUE: &[u8] = &[1; 10];
+    let mut vec_component = server_entity.get_mut::<VecComponent>().unwrap();
+    vec_component.0 = VEC_VALUE.to_vec();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    let (bool_component, vec_component) = client_app
+        .world_mut()
+        .query::<(&BoolComponent, &VecComponent)>()
+        .single(client_app.world());
+    assert!(bool_component.0);
+    assert_eq!(vec_component.0, VEC_VALUE);
 }
 
 #[test]
@@ -286,7 +341,7 @@ fn marker_with_history() {
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    // Change value again to generate another update.
+    // Change value again to trigger another message.
     let mut component = server_app
         .world_mut()
         .get_mut::<BoolComponent>(server_entity)
@@ -302,8 +357,8 @@ fn marker_with_history() {
     assert_eq!(
         history.0,
         [false, false, true],
-        "the initial value should come first, then the latest update, \
-        and after that the older update because recent updates processed first"
+        "the initial value should come first, then the latest mutation, \
+        and after that the older mutation because recent mutations processed first"
     );
 }
 
@@ -363,38 +418,38 @@ fn marker_with_history_consume() {
     server_app.exchange_with_client(&mut client_app);
 
     // Change value, but don't process it on client.
-    let update_entity1 = server_app.world_mut().spawn_empty().id();
+    let dummy_entity1 = server_app.world_mut().spawn_empty().id();
     let mut component = server_app
         .world_mut()
         .get_mut::<MappedComponent>(server_entity)
         .unwrap();
-    component.0 = update_entity1;
+    component.0 = dummy_entity1;
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    // Change value again to generate another update.
-    let update_entity2 = server_app.world_mut().spawn_empty().id();
+    // Change value again to trigger another message.
+    let dummy_entity2 = server_app.world_mut().spawn_empty().id();
     let mut component = server_app
         .world_mut()
         .get_mut::<MappedComponent>(server_entity)
         .unwrap();
-    component.0 = update_entity2;
+    component.0 = dummy_entity2;
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let entity_map = client_app.world().resource::<ServerEntityMap>();
-    assert!(entity_map.to_client().contains_key(&update_entity2));
+    assert!(entity_map.to_client().contains_key(&dummy_entity2));
     assert!(
-        !entity_map.to_client().contains_key(&update_entity1),
-        "client should consume older update for other components with marker that requested history"
+        !entity_map.to_client().contains_key(&dummy_entity1),
+        "client should consume older mutations for other components with marker that requested history"
     );
     assert_eq!(
         client_app.world().entities().len(),
         3,
-        "client should have 2 initial entities and 1 from update"
+        "client should have 2 initial entities and 1 from mutate message"
     );
 }
 
@@ -448,7 +503,7 @@ fn marker_with_history_old_update() {
     server_app.exchange_with_client(&mut client_app);
 
     // Artificially make the last confirmed tick too large
-    // so that the next update for this entity is discarded.
+    // so that the next mutation for this entity is discarded.
     let mut tick = **server_app.world().resource::<ServerTick>();
     tick += u64::BITS + 1;
     let mut history = client_app
@@ -475,7 +530,7 @@ fn marker_with_history_old_update() {
     assert_eq!(
         history.0,
         [false],
-        "update should be considered too old and discarded"
+        "mutation should be considered too old and discarded"
     );
 }
 
@@ -649,7 +704,7 @@ fn with_despawn() {
         .unwrap();
     component.0 = true;
 
-    // Update without client to send update message.
+    // Update without client to send mutate message.
     server_app.update();
 
     server_app.world_mut().despawn(server_entity);
@@ -690,10 +745,10 @@ fn buffering() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    // Artificially reset the init tick to force the next received update to be buffered.
-    let mut init_tick = client_app.world_mut().resource_mut::<ServerInitTick>();
-    let previous_tick = *init_tick;
-    *init_tick = Default::default();
+    // Artificially reset the change tick to force the next received mutation to be buffered.
+    let mut change_tick = client_app.world_mut().resource_mut::<ServerChangeTick>();
+    let previous_tick = *change_tick;
+    *change_tick = Default::default();
     let mut component = server_app
         .world_mut()
         .get_mut::<BoolComponent>(server_entity)
@@ -709,10 +764,10 @@ fn buffering() {
         .world_mut()
         .query::<&BoolComponent>()
         .single(client_app.world());
-    assert!(!component.0, "client should buffer the update");
+    assert!(!component.0, "client should buffer the mutation");
 
-    // Restore the init tick to let the buffered update apply
-    *client_app.world_mut().resource_mut::<ServerInitTick>() = previous_tick;
+    // Restore the change tick to let the buffered mutation apply
+    *client_app.world_mut().resource_mut::<ServerChangeTick>() = previous_tick;
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -722,7 +777,7 @@ fn buffering() {
         .world_mut()
         .query::<&BoolComponent>()
         .single(client_app.world());
-    assert!(component.0, "buffered update should be applied");
+    assert!(component.0, "buffered mutation should be applied");
 }
 
 #[test]
@@ -754,23 +809,23 @@ fn old_ignored() {
     server_app.exchange_with_client(&mut client_app);
 
     // Change the value, but don't process it on client.
-    let update_entity1 = server_app.world_mut().spawn_empty().id();
+    let dummy_entity1 = server_app.world_mut().spawn_empty().id();
     let mut component = server_app
         .world_mut()
         .get_mut::<MappedComponent>(server_entity)
         .unwrap();
-    component.0 = update_entity1;
+    component.0 = dummy_entity1;
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    // Change the value again to generate another update.
-    let update_entity2 = server_app.world_mut().spawn_empty().id();
+    // Change the value again to trigger another message.
+    let dummy_entity2 = server_app.world_mut().spawn_empty().id();
     let mut component = server_app
         .world_mut()
         .get_mut::<MappedComponent>(server_entity)
         .unwrap();
-    component.0 = update_entity2;
+    component.0 = dummy_entity2;
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -778,13 +833,13 @@ fn old_ignored() {
 
     let entity_map = client_app.world().resource::<ServerEntityMap>();
     assert!(
-        !entity_map.to_client().contains_key(&update_entity1),
-        "client should ignore older update"
+        !entity_map.to_client().contains_key(&dummy_entity1),
+        "client should ignore older mutation"
     );
     assert_eq!(
         client_app.world().entities().len(),
         3,
-        "client should have 2 initial entities and 1 from update"
+        "client should have 2 initial entities and 1 from mutation"
     );
 }
 
@@ -797,7 +852,7 @@ fn acknowledgment() {
             MinimalPlugins,
             RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
-                update_timeout: Duration::ZERO, // Will cause dropping updates after each frame.
+                mutations_timeout: Duration::ZERO, // Will cause dropping updates after each frame.
                 ..Default::default()
             }),
         ))
@@ -849,7 +904,7 @@ fn acknowledgment() {
 
     assert!(
         tick1.get() < tick2.get(),
-        "client should receive the same update twice because server missed the ack"
+        "client should receive the same mutation twice because server missed the ack"
     );
 
     server_app.update();
@@ -865,7 +920,7 @@ fn acknowledgment() {
     assert_eq!(
         tick2.get(),
         tick3.get(),
-        "client shouldn't receive acked update"
+        "client shouldn't receive acked mutation"
     );
 }
 

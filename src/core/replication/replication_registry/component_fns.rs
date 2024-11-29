@@ -2,10 +2,13 @@ use std::io::Cursor;
 
 use bevy::{prelude::*, ptr::Ptr};
 
-use super::{command_fns::UntypedCommandFns, rule_fns::UntypedRuleFns};
-use crate::core::{
-    command_markers::{CommandMarkerIndex, CommandMarkers, EntityMarkers},
+use super::{
+    command_fns::UntypedCommandFns,
     ctx::{RemoveCtx, SerializeCtx, WriteCtx},
+    rule_fns::UntypedRuleFns,
+};
+use crate::core::replication::{
+    command_markers::{CommandMarkerIndex, CommandMarkers, EntityMarkers},
     deferred_entity::DeferredEntity,
 };
 
@@ -85,9 +88,9 @@ impl ComponentFns {
         ctx: &SerializeCtx,
         rule_fns: &UntypedRuleFns,
         ptr: Ptr,
-        cursor: &mut Cursor<Vec<u8>>,
+        message: &mut Vec<u8>,
     ) -> bincode::Result<()> {
-        (self.serialize)(ctx, rule_fns, ptr, cursor)
+        (self.serialize)(ctx, rule_fns, ptr, message)
     }
 
     /// Calls the assigned writing function based on entity markers.
@@ -171,7 +174,7 @@ impl ComponentFns {
 
 /// Signature of component serialization functions that restore the original type.
 type UntypedSerializeFn =
-    unsafe fn(&SerializeCtx, &UntypedRuleFns, Ptr, &mut Cursor<Vec<u8>>) -> bincode::Result<()>;
+    unsafe fn(&SerializeCtx, &UntypedRuleFns, Ptr, &mut Vec<u8>) -> bincode::Result<()>;
 
 /// Signature of component writing functions that restore the original type.
 type UntypedWriteFn = unsafe fn(
@@ -195,10 +198,10 @@ unsafe fn untyped_serialize<C: Component>(
     ctx: &SerializeCtx,
     rule_fns: &UntypedRuleFns,
     ptr: Ptr,
-    cursor: &mut Cursor<Vec<u8>>,
+    message: &mut Vec<u8>,
 ) -> bincode::Result<()> {
     let rule_fns = rule_fns.typed::<C>();
-    rule_fns.serialize(ctx, ptr.deref::<C>(), cursor)
+    rule_fns.serialize(ctx, ptr.deref::<C>(), message)
 }
 
 /// Resolves `rule_fns` to `C` and calls [`UntypedCommandFns::write`] for `C`.

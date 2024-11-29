@@ -7,7 +7,7 @@ use bevy::{
 };
 use serde::{de::DeserializeOwned, Serialize};
 
-use super::replication_registry::{rule_fns::RuleFns, FnsInfo, ReplicationRegistry};
+use super::replication_registry::{rule_fns::RuleFns, FnsId, ReplicationRegistry};
 
 /// Replication functions for [`App`].
 pub trait AppRuleExt {
@@ -80,9 +80,9 @@ pub trait AppRuleExt {
 
     use bevy::prelude::*;
     use bevy_replicon::{
-        core::{
+        core::replication::replication_registry::{
             ctx::{SerializeCtx, WriteCtx},
-            replication_registry::rule_fns::RuleFns,
+            rule_fns::RuleFns,
         },
         prelude::*,
     };
@@ -98,9 +98,9 @@ pub trait AppRuleExt {
     fn serialize_translation(
         _ctx: &SerializeCtx,
         transform: &Transform,
-        cursor: &mut Cursor<Vec<u8>>,
+        message: &mut Vec<u8>,
     ) -> bincode::Result<()> {
-        bincode::serialize_into(cursor, &transform.translation)
+        bincode::serialize_into(message, &transform.translation)
     }
 
     /// Deserializes `translation` and creates [`Transform`] from it.
@@ -195,7 +195,7 @@ impl AppRuleExt for App {
 
 /// All registered rules for components replication.
 #[derive(Default, Deref, Resource)]
-pub(crate) struct ReplicationRules(Vec<ReplicationRule>);
+pub struct ReplicationRules(Vec<ReplicationRule>);
 
 impl ReplicationRules {
     /// Inserts a new rule, maintaining sorting by their priority in descending order.
@@ -217,12 +217,12 @@ pub struct ReplicationRule {
     pub priority: usize,
 
     /// Rule components and their serialization/deserialization/removal functions.
-    pub components: Vec<FnsInfo>,
+    pub components: Vec<(ComponentId, FnsId)>,
 }
 
 impl ReplicationRule {
     /// Creates a new rule with priority equal to the number of serializable components.
-    pub fn new(components: Vec<FnsInfo>) -> Self {
+    pub fn new(components: Vec<(ComponentId, FnsId)>) -> Self {
         Self {
             priority: components.len(),
             components,
@@ -233,7 +233,7 @@ impl ReplicationRule {
     pub(crate) fn matches(&self, archetype: &Archetype) -> bool {
         self.components
             .iter()
-            .all(|fns_info| archetype.contains(fns_info.component_id()))
+            .all(|&(component_id, _)| archetype.contains(component_id))
     }
 
     /// Determines whether the rule is applicable to an archetype with removals included and contains at least one removal.
@@ -248,10 +248,10 @@ impl ReplicationRule {
         removed_components: &HashSet<ComponentId>,
     ) -> bool {
         let mut matches = false;
-        for fns_info in &self.components {
-            if removed_components.contains(&fns_info.component_id()) {
+        for &(component_id, _) in &self.components {
+            if removed_components.contains(&component_id) {
                 matches = true;
-            } else if !post_removal_archetype.contains(fns_info.component_id()) {
+            } else if !post_removal_archetype.contains(component_id) {
                 return false;
             }
         }
@@ -272,9 +272,12 @@ use std::io::Cursor;
 
 use bevy::prelude::*;
 use bevy_replicon::{
-    core::{
-        ctx::{SerializeCtx, WriteCtx},
-        replication_registry::{rule_fns::RuleFns, ReplicationFns},
+    core::replication::{
+        replication_registry::{
+            ctx::{SerializeCtx, WriteCtx},
+            rule_fns::RuleFns,
+            ReplicationRegistry,
+        },
         replication_rules::{GroupReplication, ReplicationRule},
     },
     prelude::*,
@@ -296,7 +299,7 @@ struct PlayerBundle {
 struct Player;
 
 impl GroupReplication for PlayerBundle {
-    fn register(world: &mut World, registry: &mut ReplicationFns) -> ReplicationRule {
+    fn register(world: &mut World, registry: &mut ReplicationRegistry) -> ReplicationRule {
         // Customize serlialization to serialize only `translation`.
         let transform_info = registry.register_rule_fns(
             world,
@@ -314,7 +317,7 @@ impl GroupReplication for PlayerBundle {
     }
 }
 
-# fn serialize_translation(_: &SerializeCtx, _: &Transform, _: &mut Cursor<Vec<u8>>) -> bincode::Result<()> { unimplemented!() }
+# fn serialize_translation(_: &SerializeCtx, _: &Transform, _: &mut Vec<u8>) -> bincode::Result<()> { unimplemented!() }
 # fn deserialize_translation(_: &mut WriteCtx, _: &mut Cursor<&[u8]>) -> bincode::Result<Transform> { unimplemented!() }
 ```
 **/
@@ -347,7 +350,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::{core::replication_registry::ReplicationRegistry, AppRuleExt};
+    use crate::AppRuleExt;
 
     #[test]
     fn sorting() {

@@ -4,7 +4,7 @@ use bevy::{
     time::TimePlugin,
 };
 use bevy_replicon::{
-    client::ServerInitTick, core::server_entity_map::ServerEntityMap, prelude::*,
+    client::ServerChangeTick, core::server_entity_map::ServerEntityMap, prelude::*,
     server::server_tick::ServerTick, test_app::ServerTestAppExt,
 };
 use serde::{Deserialize, Serialize};
@@ -264,10 +264,10 @@ fn event_queue() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    // Artificially reset the init tick to force the next received event to be queued.
-    let mut init_tick = client_app.world_mut().resource_mut::<ServerInitTick>();
-    let previous_tick = *init_tick;
-    *init_tick = Default::default();
+    // Artificially reset the change tick to force the next received event to be queued.
+    let mut change_tick = client_app.world_mut().resource_mut::<ServerChangeTick>();
+    let previous_tick = *change_tick;
+    *change_tick = Default::default();
     server_app.world_mut().send_event(ToClients {
         mode: SendMode::Broadcast,
         event: DummyEvent,
@@ -280,8 +280,8 @@ fn event_queue() {
     let events = client_app.world().resource::<Events<DummyEvent>>();
     assert!(events.is_empty());
 
-    // Restore the init tick to receive the event.
-    *client_app.world_mut().resource_mut::<ServerInitTick>() = previous_tick;
+    // Restore the change tick to receive the event.
+    *client_app.world_mut().resource_mut::<ServerChangeTick>() = previous_tick;
 
     client_app.update();
 
@@ -318,10 +318,10 @@ fn event_queue_and_mapping() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    // Artificially reset the init tick to force the next received event to be queued.
-    let mut init_tick = client_app.world_mut().resource_mut::<ServerInitTick>();
-    let previous_tick = *init_tick;
-    *init_tick = Default::default();
+    // Artificially reset the change tick to force the next received event to be queued.
+    let mut change_tick = client_app.world_mut().resource_mut::<ServerChangeTick>();
+    let previous_tick = *change_tick;
+    *change_tick = Default::default();
     server_app.world_mut().send_event(ToClients {
         mode: SendMode::Broadcast,
         event: EntityEvent(server_entity),
@@ -334,8 +334,8 @@ fn event_queue_and_mapping() {
     let events = client_app.world().resource::<Events<EntityEvent>>();
     assert!(events.is_empty());
 
-    // Restore the init tick to receive the event.
-    *client_app.world_mut().resource_mut::<ServerInitTick>() = previous_tick;
+    // Restore the change tick to receive the event.
+    *client_app.world_mut().resource_mut::<ServerChangeTick>() = previous_tick;
 
     client_app.update();
 
@@ -374,10 +374,10 @@ fn multiple_event_queues() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    // Artificially reset the init tick to force the next received event to be queued.
-    let mut init_tick = client_app.world_mut().resource_mut::<ServerInitTick>();
-    let previous_tick = *init_tick;
-    *init_tick = Default::default();
+    // Artificially reset the change tick to force the next received event to be queued.
+    let mut change_tick = client_app.world_mut().resource_mut::<ServerChangeTick>();
+    let previous_tick = *change_tick;
+    *change_tick = Default::default();
     server_app.world_mut().send_event(ToClients {
         mode: SendMode::Broadcast,
         event: DummyEvent,
@@ -397,8 +397,8 @@ fn multiple_event_queues() {
     let mapped_events = client_app.world().resource::<Events<EntityEvent>>();
     assert!(mapped_events.is_empty());
 
-    // Restore the init tick to receive the event.
-    *client_app.world_mut().resource_mut::<ServerInitTick>() = previous_tick;
+    // Restore the change tick to receive the event.
+    *client_app.world_mut().resource_mut::<ServerChangeTick>() = previous_tick;
 
     client_app.update();
 
@@ -435,10 +435,10 @@ fn independent() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    // Artificially reset the init tick.
+    // Artificially reset the change tick.
     // Normal events would be queued and not triggered yet,
     // but our independent event should be triggered immediately.
-    *client_app.world_mut().resource_mut::<ServerInitTick>() = Default::default();
+    *client_app.world_mut().resource_mut::<ServerChangeTick>() = Default::default();
 
     let client = client_app.world().resource::<RepliconClient>();
     let client_id = client.id().unwrap();
@@ -570,7 +570,7 @@ fn different_ticks() {
     server_app.exchange_with_client(&mut client_app1);
 
     // Connect client 2 later to make it have a higher replicon tick than client 1,
-    // since only client 1 will recieve an init message here.
+    // since only client 1 will recieve a change message here.
     server_app.connect_client(&mut client_app2);
 
     server_app.world_mut().send_event(ToClients {

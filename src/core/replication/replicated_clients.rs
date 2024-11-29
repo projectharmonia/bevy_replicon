@@ -16,7 +16,7 @@ use client_visibility::ClientVisibility;
 ///
 /// Inserted as resource by [`ServerPlugin`](crate::server::ServerPlugin).
 ///
-/// See also [ConnectedClients](super::connected_clients::ConnectedClients).
+/// See also [ConnectedClients](crate::core::connected_clients::ConnectedClients).
 #[derive(Resource, Default)]
 pub struct ReplicatedClients {
     clients: Vec<ReplicatedClient>,
@@ -172,7 +172,7 @@ pub struct ReplicatedClient {
     id: ClientId,
 
     /// Lowest tick for use in change detection for each entity.
-    change_ticks: EntityHashMap<Tick>,
+    mutation_ticks: EntityHashMap<Tick>,
 
     /// Entity visibility settings.
     visibility: ClientVisibility,
@@ -180,28 +180,28 @@ pub struct ReplicatedClient {
     /// The last tick in which a replicated entity had an insertion, removal, or gained/lost a component from the
     /// perspective of the client.
     ///
-    /// It should be included in update messages and server events to avoid needless waiting for the next init
+    /// It should be included in mutate messages and server events to avoid needless waiting for the next change
     /// message to arrive.
-    init_tick: RepliconTick,
+    change_tick: RepliconTick,
 
-    /// Update message indexes mapped to their info.
-    updates: HashMap<u16, UpdateInfo>,
+    /// Mutate message indices mapped to their info.
+    mutations: HashMap<u16, MutateInfo>,
 
-    /// Index for the next update message to be sent to this client.
+    /// Index for the next mutate message to be sent to this client.
     ///
-    /// See also [`Self::register_update`].
-    next_update_index: u16,
+    /// See also [`Self::register_mutate_message`].
+    next_mutate_index: u16,
 }
 
 impl ReplicatedClient {
     fn new(id: ClientId, policy: VisibilityPolicy) -> Self {
         Self {
             id,
-            change_ticks: Default::default(),
+            mutation_ticks: Default::default(),
             visibility: ClientVisibility::new(policy),
-            init_tick: Default::default(),
-            updates: Default::default(),
-            next_update_index: Default::default(),
+            change_tick: Default::default(),
+            mutations: Default::default(),
+            next_mutate_index: Default::default(),
         }
     }
 
@@ -220,24 +220,24 @@ impl ReplicatedClient {
         &mut self.visibility
     }
 
-    /// Sets the client's init tick.
-    pub(crate) fn set_init_tick(&mut self, tick: RepliconTick) {
-        self.init_tick = tick;
+    /// Sets the client's change tick.
+    pub(crate) fn set_change_tick(&mut self, tick: RepliconTick) {
+        self.change_tick = tick;
     }
 
     /// Returns the last tick in which a replicated entity had an insertion, removal, or gained/lost a component from the
     /// perspective of the client.
-    pub fn init_tick(&self) -> RepliconTick {
-        self.init_tick
+    pub fn change_tick(&self) -> RepliconTick {
+        self.change_tick
     }
 
-    /// Clears all entities for unacknowledged updates, returning them as an iterator.
+    /// Clears all entities for unacknowledged mutate messages, returning them as an iterator.
     ///
     /// Keeps the allocated memory for reuse.
     fn drain_entities(&mut self) -> impl Iterator<Item = Vec<Entity>> + '_ {
-        self.updates
+        self.mutations
             .drain()
-            .map(|(_, update_info)| update_info.entities)
+            .map(|(_, mutate_info)| mutate_info.entities)
     }
 
     /// Resets all data.
@@ -246,98 +246,98 @@ impl ReplicatedClient {
     fn reset(&mut self, id: ClientId) {
         self.id = id;
         self.visibility.clear();
-        self.change_ticks.clear();
-        self.updates.clear();
-        self.next_update_index = 0;
+        self.mutation_ticks.clear();
+        self.mutations.clear();
+        self.next_mutate_index = 0;
     }
 
-    /// Registers update at specified `tick` and `timestamp` and returns its index with entities to fill.
+    /// Registers mutate message at specified `tick` and `timestamp` and returns its index with entities to fill.
     ///
     /// Used later to acknowledge updated entities.
     #[must_use]
-    pub(crate) fn register_update(
+    pub(crate) fn register_mutate_message(
         &mut self,
         client_buffers: &mut ClientBuffers,
         tick: Tick,
         timestamp: Duration,
     ) -> (u16, &mut Vec<Entity>) {
-        let update_index = self.next_update_index;
-        self.next_update_index = self.next_update_index.overflowing_add(1).0;
+        let mutate_index = self.next_mutate_index;
+        self.next_mutate_index = self.next_mutate_index.overflowing_add(1).0;
 
         let mut entities = client_buffers.entities.pop().unwrap_or_default();
         entities.clear();
-        let update_info = UpdateInfo {
+        let mutate_info = MutateInfo {
             tick,
             timestamp,
             entities,
         };
-        let update_info = self
-            .updates
-            .entry(update_index)
-            .insert(update_info)
+        let mutate_info = self
+            .mutations
+            .entry(mutate_index)
+            .insert(mutate_info)
             .into_mut();
 
-        (update_index, &mut update_info.entities)
+        (mutate_index, &mut mutate_info.entities)
     }
 
     /// Sets the change tick for an entity that is replicated to this client.
     ///
     /// The change tick is the reference point for determining if components on an entity have changed and
     /// need to be replicated. Component changes older than the change limit are assumed to be acked by the client.
-    pub(crate) fn set_change_tick(&mut self, entity: Entity, tick: Tick) {
-        self.change_ticks.insert(entity, tick);
+    pub(crate) fn set_mutation_tick(&mut self, entity: Entity, tick: Tick) {
+        self.mutation_ticks.insert(entity, tick);
     }
 
     /// Gets the change tick for an entity that is replicated to this client.
-    pub fn get_change_tick(&mut self, entity: Entity) -> Option<Tick> {
-        self.change_ticks.get(&entity).copied()
+    pub fn mutation_tick(&self, entity: Entity) -> Option<Tick> {
+        self.mutation_ticks.get(&entity).copied()
     }
 
-    /// Marks update with the specified index as acknowledged.
+    /// Marks mutate message as acknowledged by its index.
     ///
-    /// Change limits for all entities from this update will be set to the update's tick if it's higher.
+    /// Change tick for all entities from this mutate message will be set to the message tick if it's higher.
     ///
     /// Keeps allocated memory in the buffers for reuse.
-    pub(crate) fn acknowledge(
+    pub(crate) fn ack_mutate_message(
         &mut self,
         client_buffers: &mut ClientBuffers,
         tick: Tick,
-        update_index: u16,
+        mutate_index: u16,
     ) {
-        let Some(update_info) = self.updates.remove(&update_index) else {
+        let Some(mutate_info) = self.mutations.remove(&mutate_index) else {
             debug!(
-                "received unknown update index {update_index} from {:?}",
+                "received unknown mutate index {mutate_index} from {:?}",
                 self.id
             );
             return;
         };
 
-        for entity in &update_info.entities {
-            let Some(last_tick) = self.change_ticks.get_mut(entity) else {
+        for entity in &mutate_info.entities {
+            let Some(last_tick) = self.mutation_ticks.get_mut(entity) else {
                 // We ignore missing entities, since they were probably despawned.
                 continue;
             };
 
             // Received tick could be outdated because we bump it
             // if we detect any insertion on the entity in `collect_changes`.
-            if !last_tick.is_newer_than(update_info.tick, tick) {
-                *last_tick = update_info.tick;
+            if !last_tick.is_newer_than(mutate_info.tick, tick) {
+                *last_tick = mutate_info.tick;
             }
         }
-        client_buffers.entities.push(update_info.entities);
+        client_buffers.entities.push(mutate_info.entities);
 
         trace!(
-            "{:?} acknowledged an update with {:?}",
+            "{:?} acknowledged mutate message with {:?}",
             self.id,
-            update_info.tick,
+            mutate_info.tick,
         );
     }
 
     /// Removes a despawned entity tracked by this client.
     pub fn remove_despawned(&mut self, entity: Entity) {
-        self.change_ticks.remove(&entity);
+        self.mutation_ticks.remove(&entity);
         self.visibility.remove_despawned(entity);
-        // We don't clean up `self.updates` for efficiency reasons.
+        // We don't clean up `self.mutations` for efficiency reasons.
         // `Self::acknowledge()` will properly ignore despawned entities.
     }
 
@@ -345,24 +345,24 @@ impl ReplicatedClient {
     ///
     /// Internal cleanup happens lazily during the iteration.
     pub(crate) fn drain_lost_visibility(&mut self) -> impl Iterator<Item = Entity> + '_ {
-        self.visibility.drain_lost_visibility().inspect(|entity| {
-            self.change_ticks.remove(entity);
+        self.visibility.drain_lost().inspect(|entity| {
+            self.mutation_ticks.remove(entity);
         })
     }
 
-    /// Removes all updates older then `min_timestamp`.
+    /// Removes all mutate messages older then `min_timestamp`.
     ///
     /// Keeps allocated memory in the buffers for reuse.
-    pub(crate) fn remove_older_updates(
+    pub(crate) fn cleanup_older_mutations(
         &mut self,
         client_buffers: &mut ClientBuffers,
         min_timestamp: Duration,
     ) {
-        self.updates.retain(|_, update_info| {
-            if update_info.timestamp < min_timestamp {
+        self.mutations.retain(|_, mutate_info| {
+            if mutate_info.timestamp < min_timestamp {
                 client_buffers
                     .entities
-                    .push(mem::take(&mut update_info.entities));
+                    .push(mem::take(&mut mutate_info.entities));
                 false
             } else {
                 true
@@ -379,13 +379,13 @@ pub(crate) struct ClientBuffers {
     /// Stored to reuse allocated memory.
     clients: Vec<ReplicatedClient>,
 
-    /// [`Vec`]'s from acknowledged update indexes from [`ReplicatedClient`].
+    /// [`Vec`]'s from acknowledged [`MutateInfo`]'s.
     ///
     /// Stored to reuse allocated capacity.
     entities: Vec<Vec<Entity>>,
 }
 
-struct UpdateInfo {
+struct MutateInfo {
     tick: Tick,
     timestamp: Duration,
     entities: Vec<Entity>,

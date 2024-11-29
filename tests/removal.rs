@@ -2,10 +2,9 @@ use std::io::Cursor;
 
 use bevy::prelude::*;
 use bevy_replicon::{
-    core::{
-        ctx::WriteCtx,
+    core::replication::{
         deferred_entity::DeferredEntity,
-        replication_registry::{command_fns, rule_fns::RuleFns},
+        replication_registry::{command_fns, ctx::WriteCtx, rule_fns::RuleFns},
     },
     prelude::*,
     test_app::ServerTestAppExt,
@@ -302,6 +301,38 @@ fn after_insertion() {
 
     let client_entity = client_app.world().entity(client_entity);
     assert!(!client_entity.contains::<DummyComponent>());
+}
+
+#[test]
+fn with_spawn() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<DummyComponent>();
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    server_app
+        .world_mut()
+        .spawn((Replicated, DummyComponent))
+        .remove::<DummyComponent>();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    client_app
+        .world_mut()
+        .query_filtered::<Entity, Without<DummyComponent>>()
+        .single(client_app.world());
 }
 
 #[test]

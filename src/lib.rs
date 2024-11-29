@@ -579,26 +579,17 @@ For a higher level API consider using [`bevy_replicon_attributes`](https://docs.
 
 All events, inserts, removals and despawns will be applied to clients in the same order as on the server.
 
-Entity component updates are grouped by entity, and component groupings may be applied to clients in a different order than on the server.
-For example, if two entities are spawned in tick 1 on the server and their components are updated in tick 2,
-then the client is guaranteed to see the spawns at the same time, but the component updates may appear in different client ticks.
+Entity component mutations are grouped by entity, and component groupings may be applied to clients in a different order than on the server.
+For example, if two entities are spawned in tick 1 on the server and their components are mutated in tick 2,
+then the client is guaranteed to see the spawns at the same time, but the component mutations may appear in different client ticks.
 
-If a component is dependent on other data, updates to the component will only be applied to the client when that data has arrived.
-So if your component references another entity, updates to that component will only be applied when the referenced entity has been spawned on the client.
+If a component is dependent on other data, mutations to the component will only be applied to the client when that data has arrived.
+So if your component references another entity, mutations to that component will only be applied when the referenced entity has been spawned on the client.
 
-Updates for despawned entities will be discarded automatically, but events or components may reference despawned entities and should be handled with that in mind.
+Mutations for despawned entities will be discarded automatically, but events or components may reference despawned entities and should be handled with that in mind.
 
 Clients should never assume their world state is the same as the server's on any given tick value-wise.
 World state on the client is only "eventually consistent" with the server's.
-
-# Limits
-
-To reduce packet size there are the following limits per replication update:
-
-- Up to [`u16::MAX`] entities that have added components with up to [`u16::MAX`] bytes of component data.
-- Up to [`u16::MAX`] entities that have changed components with up to [`u16::MAX`] bytes of component data.
-- Up to [`u16::MAX`] entities that have removed components with up to [`u16::MAX`] bytes of component data.
-- Up to [`u16::MAX`] entities that were despawned.
 
 # Troubleshooting
 
@@ -633,32 +624,37 @@ pub mod test_app;
 
 pub mod prelude {
     #[allow(deprecated)]
-    pub use super::core::Replication;
+    pub use super::core::replication::Replication;
 
     pub use super::{
         core::{
             channels::{ChannelKind, RepliconChannel, RepliconChannels},
-            command_markers::AppMarkerExt,
             common_conditions::*,
             connected_clients::ConnectedClients,
             event_registry::{
                 client_event::{ClientEventAppExt, FromClient},
                 server_event::{SendMode, ServerEventAppExt, ToClients},
             },
-            replicated_clients::{
-                client_visibility::ClientVisibility, ReplicatedClient, ReplicatedClients,
-                VisibilityPolicy,
+            replication::{
+                command_markers::AppMarkerExt,
+                replicated_clients::{
+                    client_visibility::ClientVisibility, ReplicatedClient, ReplicatedClients,
+                    VisibilityPolicy,
+                },
+                replication_rules::AppRuleExt,
+                Replicated,
             },
-            replication_rules::AppRuleExt,
             replicon_client::{RepliconClient, RepliconClientStatus},
             replicon_server::RepliconServer,
-            ClientId, Replicated, RepliconCorePlugin,
+            ClientId, RepliconCorePlugin,
         },
         RepliconPlugins,
     };
 
     #[cfg(feature = "client")]
-    pub use super::client::{events::ClientEventsPlugin, ClientPlugin, ClientSet, ClientStats};
+    pub use super::client::{
+        events::ClientEventsPlugin, ClientPlugin, ClientReplicationStats, ClientSet,
+    };
 
     #[cfg(feature = "server")]
     pub use super::server::{

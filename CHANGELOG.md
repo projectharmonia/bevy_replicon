@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- RTT, bytes per second and packet loss information for `RepliconClient` and `ConnectedClients`.
+- `ClientSet::Diagnostics` for systems that collect client diagnostics.
+
+### Changed
+
+- Make `core::replication::replication_rules::ReplicationRules` public.
+- Various optimizations for replication messages to use fewer bytes.
+- Accept `Vec<u8>` instead of `Cursor<Vec<u8>>` for serialization.
+- `ConnectedClients` now store `ConnectedClient` instead of `ClientId` with more information about the client.
+- All `TestFnsEntityExt` now accept `FnsId`.
+- Move replication-related modules from `core` module under `core::replication`.
+- Move `Replicated` to the `replication` module.
+- Split the `ctx` module and move event-related contexts under `core::events_registry::ctx` and replication-related contexts under `core::replication_registry::ctx`.
+- Separate paths from `diagnostics` module by `/` and their parent path now `client/replication` instead of `replication/client`.
+- Provide replication statistics by sum instead of per second and use `usize` for it.
+- Rename `ServerPlugin::change_timeout` into `ServerPlugin::mutations_timeout`.
+- Rename `ServerInitTick` into `ServerChangeTick`.
+- Rename `ReplicatedClient::init_tick` into `ReplicatedClient::change_tick`.
+- Rename `ReplicatedClient::get_change_tick` into `ReplicatedClient::mutation_tick`.
+- Rename `ReplicationChannel::Init` into `ReplicationChannel::Changes`.
+- Rename `ReplicationChannel::Update` into `ReplicationChannel::Mutations`.
+- Rename `ClientStats` into `ClientReplicationStats`.
+- Rename `ClientDiagnosticsPlugin::MESSAGES` into `ClientDiagnosticsPlugin::REPLICATION_MESSAGES`.
+- Rename `ClientDiagnosticsPlugin::BYTES` into `ClientDiagnosticsPlugin::REPLICATION_BYTES`.
+- Rename `ClientDiagnosticsPlugin::ENTITY_CHANGES` into `ClientDiagnosticsPlugin::ENTITIES_CHANGED`.
+- Rename `ClientDiagnosticsPlugin::COMPONENT_CHANGES` into `ClientDiagnosticsPlugin::COMPONENTS_CHANGED`.
+
+### Removed
+
+- `FnsInfo`, use `(ComponentId, FnsId)` instead.
+
 ## [0.28.4] - 2024-10-15
 
 ### Added

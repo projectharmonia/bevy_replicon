@@ -54,13 +54,13 @@ fn client_stats() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let stats = client_app.world().resource::<ClientStats>();
+    let stats = client_app.world().resource::<ClientReplicationStats>();
     assert_eq!(stats.entities_changed, 2);
     assert_eq!(stats.components_changed, 2);
     assert_eq!(stats.mappings, 1);
     assert_eq!(stats.despawns, 1);
     assert_eq!(stats.messages, 2);
-    assert_eq!(stats.bytes, 33);
+    assert_eq!(stats.bytes, 25);
 }
 
 #[derive(Component, Deserialize, Serialize)]

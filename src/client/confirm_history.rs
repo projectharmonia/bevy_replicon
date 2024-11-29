@@ -90,10 +90,11 @@ impl ConfirmHistory {
     pub fn confirm(&mut self, tick: RepliconTick) {
         if tick > self.last_tick {
             self.set_last_tick(tick);
-        }
-        let ago = self.last_tick - tick;
-        if ago < u64::BITS {
-            self.set(ago);
+        } else {
+            let ago = self.last_tick - tick;
+            if ago < u64::BITS {
+                self.set(ago);
+            }
         }
     }
 
@@ -195,11 +196,11 @@ mod tests {
     }
 
     #[test]
-    fn contains_any_with_set() {
+    fn contains_any_with_older() {
         let mut history = ConfirmHistory::new(RepliconTick::new(1));
         assert_eq!(history.mask(), 0b1);
 
-        history.set(2);
+        history.confirm(RepliconTick::new(u32::MAX));
         assert_eq!(history.mask(), 0b101);
 
         assert!(history.contains_any(RepliconTick::new(0), RepliconTick::new(1)));
@@ -216,10 +217,21 @@ mod tests {
     }
 
     #[test]
-    fn set() {
+    fn confirm_newer() {
         let mut history = ConfirmHistory::new(RepliconTick::new(1));
+        history.confirm(RepliconTick::new(2));
+        assert_eq!(history.mask(), 0b11);
 
-        history.set(1);
+        assert!(!history.contains(RepliconTick::new(0)));
+        assert!(history.contains(RepliconTick::new(1)));
+        assert!(history.contains(RepliconTick::new(2)));
+    }
+
+    #[test]
+    fn confirm_older() {
+        let mut history = ConfirmHistory::new(RepliconTick::new(1));
+        history.confirm(RepliconTick::new(0));
+        assert_eq!(history.mask(), 0b11);
 
         assert!(history.contains(RepliconTick::new(0)));
         assert!(history.contains(RepliconTick::new(1)));
@@ -227,21 +239,10 @@ mod tests {
     }
 
     #[test]
-    fn resize() {
-        let mut confirmed = ConfirmHistory::new(RepliconTick::new(1));
-
-        confirmed.set_last_tick(RepliconTick::new(2));
-
-        assert!(!confirmed.contains(RepliconTick::new(0)));
-        assert!(confirmed.contains(RepliconTick::new(1)));
-        assert!(confirmed.contains(RepliconTick::new(2)));
-    }
-
-    #[test]
-    fn resize_to_same() {
+    fn confirm_same() {
         let mut history = ConfirmHistory::new(RepliconTick::new(1));
-
-        history.set_last_tick(RepliconTick::new(1));
+        history.confirm(RepliconTick::new(1));
+        assert_eq!(history.mask(), 0b1);
 
         assert!(!history.contains(RepliconTick::new(0)));
         assert!(history.contains(RepliconTick::new(1)));
@@ -249,10 +250,10 @@ mod tests {
     }
 
     #[test]
-    fn resize_with_wrapping() {
+    fn confirm_with_wrapping() {
         let mut history = ConfirmHistory::new(RepliconTick::new(1));
-
-        history.set_last_tick(RepliconTick::new(u64::BITS + 1));
+        history.confirm(RepliconTick::new(u64::BITS + 1));
+        assert_eq!(history.mask(), 0b1);
 
         assert!(history.contains(RepliconTick::new(0)));
         assert!(history.contains(RepliconTick::new(1)));
@@ -263,38 +264,14 @@ mod tests {
     }
 
     #[test]
-    fn resize_with_overflow() {
+    fn confirm_with_overflow() {
         let mut history = ConfirmHistory::new(RepliconTick::new(u32::MAX));
-
-        history.set_last_tick(RepliconTick::new(1));
+        history.confirm(RepliconTick::new(1));
+        assert_eq!(history.mask(), 0b101);
 
         assert!(!history.contains(RepliconTick::new(0)));
         assert!(history.contains(RepliconTick::new(1)));
         assert!(!history.contains(RepliconTick::new(3)));
         assert!(history.contains(RepliconTick::new(u32::MAX)));
-    }
-
-    #[test]
-    fn confirm_with_resize() {
-        let mut history = ConfirmHistory::new(RepliconTick::new(1));
-
-        history.confirm(RepliconTick::new(2));
-
-        assert!(!history.contains(RepliconTick::new(0)));
-        assert!(history.contains(RepliconTick::new(1)));
-        assert!(history.contains(RepliconTick::new(2)));
-    }
-
-    #[test]
-    fn confirm_with_set() {
-        let mut history = ConfirmHistory::new(RepliconTick::new(1));
-        assert_eq!(history.mask(), 0b1);
-
-        history.confirm(RepliconTick::new(0));
-        assert_eq!(history.mask(), 0b11);
-
-        assert!(history.contains(RepliconTick::new(0)));
-        assert!(history.contains(RepliconTick::new(1)));
-        assert!(!history.contains(RepliconTick::new(2)));
     }
 }

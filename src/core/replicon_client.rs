@@ -29,6 +29,11 @@ pub struct RepliconClient {
 
     /// List of sent messages and their channels since the last tick.
     sent_messages: Vec<(u8, Bytes)>,
+
+    rtt: f64,
+    packet_loss: f64,
+    sent_bps: f64,
+    received_bps: f64,
 }
 
 impl RepliconClient {
@@ -53,6 +58,12 @@ impl RepliconClient {
     /// Receives all available messages from the server over a channel.
     ///
     /// All messages will be drained.
+    ///
+    /// <div class="warning">
+    ///
+    /// Should only be called from the messaging backend.
+    ///
+    /// </div>
     pub fn receive<I: Into<u8>>(&mut self, channel_id: I) -> impl Iterator<Item = Bytes> + '_ {
         if !self.is_connected() {
             // We can't return here because we need to return an empty iterator.
@@ -74,6 +85,12 @@ impl RepliconClient {
     }
 
     /// Sends a message to the server over a channel.
+    ///
+    /// <div class="warning">
+    ///
+    /// Should only be called from the messaging backend.
+    ///
+    /// </div>
     pub fn send<I: Into<u8>, B: Into<Bytes>>(&mut self, channel_id: I, message: B) {
         if !self.is_connected() {
             warn!("trying to send a message when the client is not connected");
@@ -90,9 +107,14 @@ impl RepliconClient {
 
     /// Sets the client connection status.
     ///
-    /// Should be called only from the messaging backend when the client status changes.
     /// Discards all messages if the state changes from [`RepliconClientStatus::Connected`].
     /// See also [`Self::status`].
+    ///
+    /// <div class="warning">
+    ///
+    /// Should only be called from the messaging backend when the client status changes.
+    ///
+    /// </div>
     pub fn set_status(&mut self, status: RepliconClientStatus) {
         debug!("changing `RepliconClient` status to `{status:?}`");
 
@@ -101,6 +123,11 @@ impl RepliconClient {
                 channel_messages.clear();
             }
             self.sent_messages.clear();
+
+            self.rtt = 0.0;
+            self.packet_loss = 0.0;
+            self.sent_bps = 0.0;
+            self.received_bps = 0.0;
         }
 
         self.status = status;
@@ -153,14 +180,22 @@ impl RepliconClient {
 
     /// Removes all sent messages, returning them as an iterator with channel.
     ///
-    /// Should be called only from the messaging backend.
+    /// <div class="warning">
+    ///
+    /// Should only be called from the messaging backend.
+    ///
+    /// </div>
     pub fn drain_sent(&mut self) -> impl Iterator<Item = (u8, Bytes)> + '_ {
         self.sent_messages.drain(..)
     }
 
     /// Adds a message from the server to the list of received messages.
     ///
-    /// Should be called only from the messaging backend.
+    /// <div class="warning">
+    ///
+    /// Should only be called from the messaging backend.
+    ///
+    /// </div>
     pub fn insert_received<I: Into<u8>, B: Into<Bytes>>(&mut self, channel_id: I, message: B) {
         if !self.is_connected() {
             warn!("trying to insert a received message when the client is not connected");
@@ -174,6 +209,78 @@ impl RepliconClient {
             .unwrap_or_else(|| panic!("client should have a channel with id {channel_id}"));
 
         channel_messages.push(message.into());
+    }
+
+    /// Returns the round-time trip for the connection.
+    ///
+    /// Returns zero if not provided by the backend.
+    pub fn rtt(&self) -> f64 {
+        self.rtt
+    }
+
+    /// Sets the round-time trip for the connection.
+    ///
+    /// <div class="warning">
+    ///
+    /// Should only be called from the messaging backend.
+    ///
+    /// </div>
+    pub fn set_rtt(&mut self, rtt: f64) {
+        self.rtt = rtt;
+    }
+
+    /// Returns the packet loss for the connection.
+    ///
+    /// Returns zero if not provided by the backend.
+    pub fn packet_loss(&self) -> f64 {
+        self.packet_loss
+    }
+
+    /// Sets the packet loss for the connection.
+    ///
+    /// <div class="warning">
+    ///
+    /// Should only be called from the messaging backend.
+    ///
+    /// </div>
+    pub fn set_packet_loss(&mut self, packet_loss: f64) {
+        self.packet_loss = packet_loss;
+    }
+
+    /// Returns the bytes sent per second for the connection.
+    ///
+    /// Returns zero if not provided by the backend.
+    pub fn sent_bps(&self) -> f64 {
+        self.sent_bps
+    }
+
+    /// Sets the bytes sent per second for the connection.
+    ///
+    /// <div class="warning">
+    ///
+    /// Should only be called from the messaging backend.
+    ///
+    /// </div>
+    pub fn set_sent_bps(&mut self, sent_bps: f64) {
+        self.sent_bps = sent_bps;
+    }
+
+    /// Returns the bytes received per second for the connection.
+    ///
+    /// Returns zero if not provided by the backend.
+    pub fn received_bps(&self) -> f64 {
+        self.received_bps
+    }
+
+    /// Sets the bytes received per second for the connection.
+    ///
+    /// <div class="warning">
+    ///
+    /// Should only be called from the messaging backend.
+    ///
+    /// </div>
+    pub fn set_received_bps(&mut self, received_bps: f64) {
+        self.received_bps = received_bps;
     }
 }
 
