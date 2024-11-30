@@ -92,7 +92,8 @@ impl ServerMutateTicks {
             .any(|tick| tick.all_received())
     }
 
-    /// Confirms a received message a tick and initializes the number of sent messages for it.
+    /// Confirms a message was received for a tick and initializes the number of sent
+    /// messages for it.
     ///
     /// Return `true` if the number of received messages matches `messages_count`.
     ///

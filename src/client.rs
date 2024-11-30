@@ -783,7 +783,7 @@ pub(super) struct BufferedMutate {
     /// The tick this mutations corresponds to.
     message_tick: RepliconTick,
 
-    /// Number of all mutate messages sent by server for this tick.
+    /// Total number of mutate messages sent by the server for this tick.
     ///
     /// May not be equal to the number of received messages.
     messages_count: usize,
