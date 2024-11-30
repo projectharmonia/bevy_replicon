@@ -3,7 +3,7 @@ use std::io::Cursor;
 use bevy::{ecs::entity::MapEntities, prelude::*, utils::Duration};
 use bevy_replicon::{
     client::{
-        confirm_history::{ConfirmHistory, HistoryConfirmed},
+        confirm_history::{ConfirmHistory, EntityReplicated},
         ServerChangeTick,
     },
     core::{
@@ -965,7 +965,7 @@ fn confirm_history() {
     // Clear previous events.
     client_app
         .world_mut()
-        .resource_mut::<Events<HistoryConfirmed>>()
+        .resource_mut::<Events<EntityReplicated>>()
         .clear();
 
     server_app.update();
@@ -980,10 +980,10 @@ fn confirm_history() {
         .single(client_app.world());
     assert!(confirm_history.contains(tick));
 
-    let mut history_events = client_app
+    let mut replicated_events = client_app
         .world_mut()
-        .resource_mut::<Events<HistoryConfirmed>>();
-    let [event] = history_events
+        .resource_mut::<Events<EntityReplicated>>();
+    let [event] = replicated_events
         .drain()
         .collect::<Vec<_>>()
         .try_into()

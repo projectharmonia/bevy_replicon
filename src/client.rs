@@ -29,7 +29,7 @@ use crate::core::{
     replicon_tick::RepliconTick,
     server_entity_map::ServerEntityMap,
 };
-use confirm_history::{ConfirmHistory, HistoryConfirmed};
+use confirm_history::{ConfirmHistory, EntityReplicated};
 use server_mutate_ticks::{MutateTickConfirmed, ServerMutateTicks};
 
 /// Client functionality and replication receiving.
@@ -43,7 +43,7 @@ impl Plugin for ClientPlugin {
             .init_resource::<ServerEntityMap>()
             .init_resource::<ServerChangeTick>()
             .init_resource::<BufferedMutations>()
-            .add_event::<HistoryConfirmed>()
+            .add_event::<EntityReplicated>()
             .add_event::<MutateTickConfirmed>()
             .configure_sets(
                 PreUpdate,
@@ -112,7 +112,7 @@ impl ClientPlugin {
                     world.resource_scope(|world, command_markers: Mut<CommandMarkers>| {
                         world.resource_scope(|world, registry: Mut<ReplicationRegistry>| {
                             world.resource_scope(
-                                |world, mut history_events: Mut<Events<HistoryConfirmed>>| {
+                                |world, mut replicated_events: Mut<Events<EntityReplicated>>| {
                                     let mut stats =
                                         world.remove_resource::<ClientReplicationStats>();
                                     let mut mutate_ticks =
@@ -121,7 +121,7 @@ impl ClientPlugin {
                                         queue: &mut queue,
                                         entity_markers: &mut entity_markers,
                                         entity_map: &mut entity_map,
-                                        history_events: &mut history_events,
+                                        replicated_events: &mut replicated_events,
                                         mutate_ticks: mutate_ticks.as_mut(),
                                         stats: stats.as_mut(),
                                         command_markers: &command_markers,
@@ -417,7 +417,7 @@ fn apply_removals(
     confirm_tick(
         &mut commands,
         &mut client_entity,
-        params.history_events,
+        params.replicated_events,
         message_tick,
     );
 
@@ -465,7 +465,7 @@ fn apply_changes(
     confirm_tick(
         &mut commands,
         &mut client_entity,
-        params.history_events,
+        params.replicated_events,
         message_tick,
     );
 
@@ -536,7 +536,7 @@ enum ArrayKind {
 fn confirm_tick(
     commands: &mut Commands,
     entity: &mut DeferredEntity,
-    history_events: &mut Events<HistoryConfirmed>,
+    replicated_events: &mut Events<EntityReplicated>,
     tick: RepliconTick,
 ) {
     if let Some(mut history) = entity.get_mut::<ConfirmHistory>() {
@@ -546,7 +546,7 @@ fn confirm_tick(
             .entity(entity.id())
             .insert(ConfirmHistory::new(tick));
     }
-    history_events.send(HistoryConfirmed {
+    replicated_events.send(EntityReplicated {
         entity: entity.id(),
         tick,
     });
@@ -605,7 +605,7 @@ fn apply_mutations(
 
         history.set(ago);
     }
-    params.history_events.send(HistoryConfirmed {
+    params.replicated_events.send(EntityReplicated {
         entity: client_entity.id(),
         tick: message_tick,
     });
@@ -676,7 +676,7 @@ struct ReceiveParams<'a> {
     queue: &'a mut CommandQueue,
     entity_markers: &'a mut EntityMarkers,
     entity_map: &'a mut ServerEntityMap,
-    history_events: &'a mut Events<HistoryConfirmed>,
+    replicated_events: &'a mut Events<EntityReplicated>,
     mutate_ticks: Option<&'a mut ServerMutateTicks>,
     stats: Option<&'a mut ClientReplicationStats>,
     command_markers: &'a CommandMarkers,
