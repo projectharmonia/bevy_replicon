@@ -9,8 +9,8 @@ use super::{
 use crate::core::{
     channels::ReplicationChannel,
     replication::{
-        change_message_flags::ChangeMessageFlags,
         replicated_clients::{client_visibility::Visibility, ReplicatedClient},
+        update_message_flags::UpdateMessageFlags,
     },
     replicon_server::RepliconServer,
 };
@@ -23,9 +23,9 @@ use crate::core::{
 /// The data is serialized manually and stored in the form of ranges
 /// from [`SerializedData`].
 ///
-/// Sent over [`ReplicationChannel::Changes`] channel.
+/// Sent over [`ReplicationChannel::Updates`] channel.
 ///
-/// Some data is optional, and their presence is encoded in the [`ChangeMessageFlags`] bitset.
+/// Some data is optional, and their presence is encoded in the [`UpdateMessageFlags`] bitset.
 ///
 /// To know how much data array takes, we serialize it's length. We use `usize`,
 /// but we use variable integer encoding, so they are correctly deserialized even
@@ -38,7 +38,7 @@ use crate::core::{
 ///
 /// Stored inside [`ReplicationMessages`](super::ReplicationMessages).
 #[derive(Default)]
-pub(crate) struct ChangeMessage {
+pub(crate) struct UpdateMessage {
     /// Mappings for client's pre-spawned entities.
     ///
     /// Serialized as single continuous chunk of entity pairs.
@@ -76,7 +76,7 @@ pub(crate) struct ChangeMessage {
     /// while previously connected clients only need the components spawned during this tick.
     ///
     /// Usually mutations are stored in [`MutateMessage`], but if an entity has any insertions or removal,
-    /// or the entity just became visible for a client, we serialize it as part of the change message to keep entity updates atomic.
+    /// or the entity just became visible for a client, we serialize it as part of the update message to keep entity updates atomic.
     changes: Vec<ComponentChanges>,
 
     /// Visibility of the entity for which component changes are being written.
@@ -92,7 +92,7 @@ pub(crate) struct ChangeMessage {
     buffer: Vec<Vec<Range<usize>>>,
 }
 
-impl ChangeMessage {
+impl UpdateMessage {
     pub(crate) fn set_mappings(&mut self, mappings: Range<usize>, len: usize) {
         self.mappings = mappings;
         self.mappings_len = len;
@@ -208,22 +208,22 @@ impl ChangeMessage {
         let last_flag = flags.last();
 
         // Precalculate size first to avoid extra allocations.
-        let mut message_size = size_of::<ChangeMessageFlags>() + server_tick.len();
+        let mut message_size = size_of::<UpdateMessageFlags>() + server_tick.len();
         for (_, flag) in flags.iter_names() {
             match flag {
-                ChangeMessageFlags::MAPPINGS => {
+                UpdateMessageFlags::MAPPINGS => {
                     if flag != last_flag {
                         message_size += self.mappings_len.required_space();
                     }
                     message_size += self.mappings.len();
                 }
-                ChangeMessageFlags::DESPAWNS => {
+                UpdateMessageFlags::DESPAWNS => {
                     if flag != last_flag {
                         message_size += self.despawns_len.required_space();
                     }
                     message_size += self.despawns.iter().map(|range| range.len()).sum::<usize>();
                 }
-                ChangeMessageFlags::REMOVALS => {
+                UpdateMessageFlags::REMOVALS => {
                     if flag != last_flag {
                         message_size += self.removals.len().required_space();
                     }
@@ -233,7 +233,7 @@ impl ChangeMessage {
                         .map(|removals| removals.size())
                         .sum::<usize>();
                 }
-                ChangeMessageFlags::CHANGES => {
+                UpdateMessageFlags::CHANGES => {
                     debug_assert_eq!(flag, last_flag);
                     message_size += self
                         .changes
@@ -254,7 +254,7 @@ impl ChangeMessage {
         message.extend_from_slice(&serialized[server_tick]);
         for (_, flag) in flags.iter_names() {
             match flag {
-                ChangeMessageFlags::MAPPINGS => {
+                UpdateMessageFlags::MAPPINGS => {
                     // Always write size since the message can't have only mappings.
                     // Otherwise this would mean that the client already received the mapped
                     // entity and it's already mapped or server sends an invisible entity which
@@ -263,7 +263,7 @@ impl ChangeMessage {
                     message.write_varint(self.mappings_len)?;
                     message.extend_from_slice(&serialized[self.mappings.clone()]);
                 }
-                ChangeMessageFlags::DESPAWNS => {
+                UpdateMessageFlags::DESPAWNS => {
                     if flag != last_flag {
                         message.write_varint(self.despawns_len)?;
                     }
@@ -271,7 +271,7 @@ impl ChangeMessage {
                         message.extend_from_slice(&serialized[range.clone()]);
                     }
                 }
-                ChangeMessageFlags::REMOVALS => {
+                UpdateMessageFlags::REMOVALS => {
                     if flag != last_flag {
                         message.write_varint(self.removals.len())?;
                     }
@@ -281,7 +281,7 @@ impl ChangeMessage {
                         message.extend_from_slice(&serialized[removals.fn_ids.clone()]);
                     }
                 }
-                ChangeMessageFlags::CHANGES => {
+                UpdateMessageFlags::CHANGES => {
                     // Changes are always last, don't write len for it.
                     for changes in &self.changes {
                         message.extend_from_slice(&serialized[changes.entity.clone()]);
@@ -297,25 +297,25 @@ impl ChangeMessage {
 
         debug_assert_eq!(message.len(), message_size);
 
-        server.send(client.id(), ReplicationChannel::Changes, message);
+        server.send(client.id(), ReplicationChannel::Updates, message);
 
         Ok(())
     }
 
-    fn flags(&self) -> ChangeMessageFlags {
-        let mut flags = ChangeMessageFlags::default();
+    fn flags(&self) -> UpdateMessageFlags {
+        let mut flags = UpdateMessageFlags::default();
 
         if !self.mappings.is_empty() {
-            flags |= ChangeMessageFlags::MAPPINGS;
+            flags |= UpdateMessageFlags::MAPPINGS;
         }
         if !self.despawns.is_empty() {
-            flags |= ChangeMessageFlags::DESPAWNS;
+            flags |= UpdateMessageFlags::DESPAWNS;
         }
         if !self.removals.is_empty() {
-            flags |= ChangeMessageFlags::REMOVALS;
+            flags |= UpdateMessageFlags::REMOVALS;
         }
         if !self.changes.is_empty() {
-            flags |= ChangeMessageFlags::CHANGES;
+            flags |= UpdateMessageFlags::CHANGES;
         }
 
         flags

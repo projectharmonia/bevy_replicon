@@ -30,10 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Provide replication statistics by sum instead of per second and use `usize` for it.
 - Use fixed integer encoding for ticks for server events.
 - Rename `ServerPlugin::change_timeout` into `ServerPlugin::mutations_timeout`.
-- Rename `ServerInitTick` into `ServerChangeTick`.
+- Rename `ServerInitTick` into `ServerUpdateTick`.
 - Rename `ReplicatedClient::init_tick` into `ReplicatedClient::change_tick`.
 - Rename `ReplicatedClient::get_change_tick` into `ReplicatedClient::mutation_tick`.
-- Rename `ReplicationChannel::Init` into `ReplicationChannel::Changes`.
+- Rename `ReplicationChannel::Init` into `ReplicationChannel::Updates`.
 - Rename `ReplicationChannel::Update` into `ReplicationChannel::Mutations`.
 - Rename `ClientStats` into `ClientReplicationStats`.
 - Rename `ClientDiagnosticsPlugin::MESSAGES` into `ClientDiagnosticsPlugin::REPLICATION_MESSAGES`.

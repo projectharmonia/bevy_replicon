@@ -16,7 +16,7 @@ use crate::{
 
 /// Single continuous buffer that stores serialized data for messages.
 ///
-/// See [`ChangeMessage`](super::change_message::ChangeMessage) and
+/// See [`UpdateMessage`](super::update_message::UpdateMessage) and
 /// [`MutateMessage`](super::mutate_message::MutateMessage).
 #[derive(Default, Deref, DerefMut)]
 pub(crate) struct SerializedData(Vec<u8>);
@@ -102,7 +102,7 @@ impl SerializedData {
         // A tick >= 2^16 will be 5 bytes: https://docs.rs/bincode/1.3.3/bincode/config/struct.VarintEncoding.html.
         // At 60 ticks/sec, that will happen after 18 minutes.
         // So any session over 36 minutes would transmit more total bytes with varint encoding.
-        // TODO: consider dynamically switching from varint to fixint encoding using one of the `ChangeMessageFlags` when tick sizes get large enough.
+        // TODO: consider dynamically switching from varint to fixint encoding using one of the `UpdateMessageFlags` when tick sizes get large enough.
         bincode::serialize_into(&mut self.0, &tick)?;
         let end = self.len();
 

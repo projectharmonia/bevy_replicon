@@ -3,7 +3,7 @@ use std::ops::Range;
 /// Component insertions or mutations for an entity in form of serialized ranges
 /// from [`SerializedData`](super::serialized_data::SerializedData).
 ///
-/// Used inside [`ChangeMessage`](super::change_message::ChangeMessage) and
+/// Used inside [`UpdateMessage`](super::update_message::UpdateMessage) and
 /// [`MutateMessage`](super::mutate_message::MutateMessage).
 pub(super) struct ComponentChanges {
     pub(super) entity: Range<usize>,
