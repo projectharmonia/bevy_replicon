@@ -39,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - `FnsInfo`, use `(ComponentId, FnsId)` instead.
+- Deprecated functions and structs from previous releases.
 
 ## [0.28.4] - 2024-10-15
 
