@@ -131,7 +131,7 @@ jobs:
   codecov:
     name: Upload to Codecov
     if: github.actor != 'dependabot[bot]'
-    needs: [format, lint, doctest, feature-combinations, test]
+    needs: [typos, format, lint, doctest, feature-combinations, test]
     runs-on: ubuntu-latest
     steps:
       - name: Clone repo
