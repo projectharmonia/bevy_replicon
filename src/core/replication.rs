@@ -8,9 +8,6 @@ pub mod track_mutate_messages;
 
 use bevy::prelude::*;
 
-#[deprecated(note = "use `Replicated` instead")]
-pub type Replication = Replicated;
-
 /// Marks entity for replication.
 #[derive(Component, Clone, Copy, Default, Reflect, Debug)]
 #[reflect(Component)]

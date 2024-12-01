@@ -126,9 +126,6 @@ impl ConfirmHistory {
     }
 }
 
-#[deprecated(note = "use `ConfirmHistory` instead")]
-pub type Confirmed = ConfirmHistory;
-
 /// Triggered for an entity when it receives changes for a tick.
 ///
 /// See also [`ConfirmHistory`].
