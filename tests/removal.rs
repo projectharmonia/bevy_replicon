@@ -378,6 +378,49 @@ fn with_despawn() {
     assert!(client_app.world().entities().is_empty());
 }
 
+#[test]
+fn hidden() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                visibility_policy: VisibilityPolicy::Whitelist, // Hide all spawned entities by default.
+                ..Default::default()
+            }),
+        ))
+        .replicate::<DummyComponent>();
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    let server_entity = server_app
+        .world_mut()
+        .spawn((Replicated, DummyComponent))
+        .id();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    server_app
+        .world_mut()
+        .entity_mut(server_entity)
+        .remove::<DummyComponent>();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    assert!(
+        client_app.world().entities().is_empty(),
+        "client shouldn't know about hidden entity"
+    );
+}
+
 #[derive(Component, Deserialize, Serialize)]
 struct DummyComponent;
 
