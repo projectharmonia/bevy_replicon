@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy_replicon::{
-    client::server_mutate_ticks::{MutateTickConfirmed, ServerMutateTicks},
+    client::server_mutate_ticks::{MutateTickReceived, ServerMutateTicks},
     core::replication::track_mutate_messages::TrackAppExt,
     prelude::*,
     server::server_tick::ServerTick,
@@ -34,7 +34,7 @@ fn without_changes() {
 
     let events_count = client_app
         .world_mut()
-        .resource_mut::<Events<MutateTickConfirmed>>()
+        .resource_mut::<Events<MutateTickReceived>>()
         .drain()
         .count();
     assert_eq!(
@@ -72,11 +72,11 @@ fn one_message() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    let mut mutate_events = client_app
+    let mut tick_events = client_app
         .world_mut()
-        .resource_mut::<Events<MutateTickConfirmed>>();
+        .resource_mut::<Events<MutateTickReceived>>();
     assert_eq!(
-        mutate_events.drain().count(),
+        tick_events.drain().count(),
         2,
         "should receive one event for connection and one for spawn"
     );
@@ -91,7 +91,7 @@ fn one_message() {
     // Clear previous events.
     client_app
         .world_mut()
-        .resource_mut::<Events<MutateTickConfirmed>>()
+        .resource_mut::<Events<MutateTickReceived>>()
         .clear();
 
     server_app.update();
@@ -100,14 +100,10 @@ fn one_message() {
 
     let tick = **server_app.world().resource::<ServerTick>();
 
-    let mut mutate_events = client_app
+    let mut tick_events = client_app
         .world_mut()
-        .resource_mut::<Events<MutateTickConfirmed>>();
-    let [event] = mutate_events
-        .drain()
-        .collect::<Vec<_>>()
-        .try_into()
-        .unwrap();
+        .resource_mut::<Events<MutateTickReceived>>();
+    let [event] = tick_events.drain().collect::<Vec<_>>().try_into().unwrap();
     assert_eq!(event.tick, tick);
 
     let mutate_ticks = client_app.world().resource::<ServerMutateTicks>();
@@ -146,11 +142,11 @@ fn multiple_messages() {
 
     assert_eq!(client_app.world().entities().len(), ENTITIES_COUNT);
 
-    let mut mutate_events = client_app
+    let mut tick_events = client_app
         .world_mut()
-        .resource_mut::<Events<MutateTickConfirmed>>();
+        .resource_mut::<Events<MutateTickReceived>>();
     assert_eq!(
-        mutate_events.drain().count(),
+        tick_events.drain().count(),
         2,
         "should receive one event for connection and one for spawns"
     );
@@ -169,14 +165,10 @@ fn multiple_messages() {
 
     let tick = **server_app.world().resource::<ServerTick>();
 
-    let mut mutate_events = client_app
+    let mut tick_events = client_app
         .world_mut()
-        .resource_mut::<Events<MutateTickConfirmed>>();
-    let [event] = mutate_events
-        .drain()
-        .collect::<Vec<_>>()
-        .try_into()
-        .unwrap();
+        .resource_mut::<Events<MutateTickReceived>>();
+    let [event] = tick_events.drain().collect::<Vec<_>>().try_into().unwrap();
     assert_eq!(event.tick, tick);
 
     let mutate_ticks = client_app.world().resource::<ServerMutateTicks>();

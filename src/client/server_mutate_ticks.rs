@@ -14,7 +14,7 @@ use crate::core::replicon_tick::RepliconTick;
 /// [`TrackAppExt::track_mutate_messages`](crate::core::replication::track_mutate_messages::TrackAppExt::track_mutate_messages)
 /// were called.
 ///
-/// See also [`MutateTickConfirmed`] and [`ServerChangeTick`](super::ServerChangeTick).
+/// See also [`MutateTickReceived`] and [`ServerChangeTick`](super::ServerChangeTick).
 #[derive(Debug, Resource)]
 pub struct ServerMutateTicks {
     ticks: VecDeque<TickMessages>,
@@ -172,7 +172,7 @@ impl TickMessages {
 ///
 /// See also [`ServerMutateTicks`].
 #[derive(Debug, Event, Clone, Copy)]
-pub struct MutateTickConfirmed {
+pub struct MutateTickReceived {
     /// Message(s) tick.
     pub tick: RepliconTick,
 }

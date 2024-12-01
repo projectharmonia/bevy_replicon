@@ -30,7 +30,7 @@ use crate::core::{
     server_entity_map::ServerEntityMap,
 };
 use confirm_history::{ConfirmHistory, EntityReplicated};
-use server_mutate_ticks::{MutateTickConfirmed, ServerMutateTicks};
+use server_mutate_ticks::{MutateTickReceived, ServerMutateTicks};
 
 /// Client functionality and replication receiving.
 ///
@@ -44,7 +44,7 @@ impl Plugin for ClientPlugin {
             .init_resource::<ServerChangeTick>()
             .init_resource::<BufferedMutations>()
             .add_event::<EntityReplicated>()
-            .add_event::<MutateTickConfirmed>()
+            .add_event::<MutateTickReceived>()
             .configure_sets(
                 PreUpdate,
                 (
@@ -341,7 +341,7 @@ fn apply_mutate_messages(
 
         if let Some(mutate_ticks) = &mut params.mutate_ticks {
             if mutate_ticks.confirm(mutate.message_tick, mutate.messages_count) {
-                world.send_event(MutateTickConfirmed {
+                world.send_event(MutateTickReceived {
                     tick: mutate.message_tick,
                 });
             }
