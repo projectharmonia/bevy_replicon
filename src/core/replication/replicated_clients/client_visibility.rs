@@ -134,10 +134,10 @@ impl ClientVisibility {
     /// Sets visibility for a specific entity.
     ///
     /// Does nothing if the visibility policy for the server plugin is set to [`VisibilityPolicy::All`].
-    pub fn set_visibility(&mut self, entity: Entity, visibile: bool) {
+    pub fn set_visibility(&mut self, entity: Entity, visible: bool) {
         match &mut self.filter {
             VisibilityFilter::All { .. } => {
-                if visibile {
+                if visible {
                     debug!(
                         "ignoring visibility enable due to {:?}",
                         VisibilityPolicy::All
@@ -154,8 +154,8 @@ impl ClientVisibility {
                 added,
                 removed,
             } => {
-                if visibile {
-                    // If the entity is already visibile, do nothing.
+                if visible {
+                    // If the entity is already visible, do nothing.
                     let Entry::Occupied(mut entry) = list.entry(entity) else {
                         return;
                     };
@@ -187,7 +187,7 @@ impl ClientVisibility {
                 added,
                 removed,
             } => {
-                if visibile {
+                if visible {
                     // Similar to blacklist removal, we don't just add the entity to the list.
                     // Instead we mark it as `WhitelistInfo::JustAdded` and then set it to
                     // 'WhitelistInfo::Visible' in `Self::update`.

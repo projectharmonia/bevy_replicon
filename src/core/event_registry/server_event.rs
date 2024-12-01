@@ -690,7 +690,7 @@ enum SerializedMessage {
     Raw(Vec<u8>),
     /// A message with serialized tick.
     ///
-    /// `tick | messsage`
+    /// `tick | message`
     Resolved { tick: RepliconTick, bytes: Bytes },
 }
 

@@ -42,7 +42,7 @@ fn single() {
 }
 
 #[test]
-fn with_heirarchy() {
+fn with_hierarchy() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {

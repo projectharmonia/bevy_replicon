@@ -15,6 +15,16 @@ on:
 env:
   CARGO_TERM_COLOR: always
 jobs:
+  typos:
+    name: Typos
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repo
+        uses: actions/checkout@v4
+
+      - name: Check typos
+        uses: crate-ci/typos@v1.28.1
+
   format:
     name: Format
     runs-on: ubuntu-latest
@@ -121,7 +131,7 @@ jobs:
   codecov:
     name: Upload to Codecov
     if: github.actor != 'dependabot[bot]'
-    needs: [format, lint, doctest, feature-combinations, test]
+    needs: [typos, format, lint, doctest, feature-combinations, test]
     runs-on: ubuntu-latest
     steps:
       - name: Clone repo

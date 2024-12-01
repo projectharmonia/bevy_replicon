@@ -215,7 +215,7 @@ mod tests {
     }
 
     #[test]
-    fn grup_with_subset() {
+    fn group_with_subset() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()

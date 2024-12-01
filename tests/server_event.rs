@@ -50,7 +50,7 @@ fn sending_receiving() {
         assert_eq!(
             events.drain().count(),
             events_count,
-            "event should be emited {events_count} times for {mode:?}"
+            "event should be emitted {events_count} times for {mode:?}"
         );
     }
 }
@@ -150,7 +150,7 @@ fn sending_receiving_without_plugins() {
         assert_eq!(
             events.drain().count(),
             events_count,
-            "event should be emited {events_count} times for {mode:?}"
+            "event should be emitted {events_count} times for {mode:?}"
         );
     }
 }
@@ -189,7 +189,7 @@ fn local_resending() {
         assert_eq!(
             dummy_events.drain().count(),
             events_count,
-            "event should be emited {events_count} times for {mode:?}"
+            "event should be emitted {events_count} times for {mode:?}"
         );
     }
 }
@@ -466,7 +466,7 @@ fn independent() {
         assert_eq!(
             events.drain().count(),
             events_count,
-            "event should be emited {events_count} times for {mode:?}"
+            "event should be emitted {events_count} times for {mode:?}"
         );
     }
 }
@@ -570,7 +570,7 @@ fn different_ticks() {
     server_app.exchange_with_client(&mut client_app1);
 
     // Connect client 2 later to make it have a higher replicon tick than client 1,
-    // since only client 1 will recieve a update message here.
+    // since only client 1 will receive a update message here.
     server_app.connect_client(&mut client_app2);
 
     server_app.world_mut().send_event(ToClients {
