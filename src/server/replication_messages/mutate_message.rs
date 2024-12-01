@@ -13,10 +13,10 @@ use crate::core::{
 
 /// A message with replicated component mutations.
 ///
-/// Contains change tick, current tick, mutate index and component mutations since
+/// Contains update tick, current tick, mutate index and component mutations since
 /// the last acknowledged tick for each entity.
 ///
-/// Cannot be applied on the client until the change message matching this message's change tick
+/// Cannot be applied on the client until the update message matching this message's update tick
 /// has been applied to the client world.
 /// The message will be manually split into packets up to max size, and each packet will be applied
 /// independently on the client.
@@ -43,7 +43,7 @@ pub(crate) struct MutateMessage {
     /// Components are stored in multiple chunks because some clients may acknowledge mutations,
     /// while others may not.
     ///
-    /// Unlike [`ChangeMessage`](super::change_message::ChangeMessage), we serialize the number
+    /// Unlike [`UpdateMessage`](super::update_message::UpdateMessage), we serialize the number
     /// of chunk bytes instead of the number of components. This is because, during deserialization,
     /// some entities may be skipped if they have already been updated (as mutations are sent until
     /// the client acknowledges them).
@@ -131,9 +131,9 @@ impl MutateMessage {
         debug_assert_eq!(self.entities.len(), self.mutations.len());
 
         const MAX_COUNT_SIZE: usize = mem::size_of::<usize>() + 1;
-        let mut change_tick = Cursor::new([0; mem::size_of::<RepliconTick>()]);
-        bincode::serialize_into(&mut change_tick, &client.change_tick())?;
-        let mut metadata_size = change_tick.get_ref().len() + server_tick.len();
+        let mut update_tick = Cursor::new([0; mem::size_of::<RepliconTick>()]);
+        bincode::serialize_into(&mut update_tick, &client.update_tick())?;
+        let mut metadata_size = update_tick.get_ref().len() + server_tick.len();
         if track_mutate_messages {
             metadata_size += MAX_COUNT_SIZE;
         }
@@ -188,7 +188,7 @@ impl MutateMessage {
             }
             let mut message = Vec::with_capacity(message_size);
 
-            message.extend_from_slice(change_tick.get_ref());
+            message.extend_from_slice(update_tick.get_ref());
             message.extend_from_slice(&serialized[server_tick.clone()]);
             if track_mutate_messages {
                 message.write_varint(messages_count)?;
