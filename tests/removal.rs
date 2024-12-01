@@ -489,6 +489,7 @@ fn hidden() {
         "client shouldn't know about hidden entity"
     );
 }
+
 #[derive(Component, Deserialize, Serialize)]
 struct DummyComponent;
 
