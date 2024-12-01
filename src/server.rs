@@ -34,6 +34,7 @@ use crate::core::{
             ReplicationRegistry,
         },
         replication_rules::ReplicationRules,
+        track_mutate_messages::TrackMutateMessages,
     },
     replicon_server::RepliconServer,
     replicon_tick::RepliconTick,
@@ -268,6 +269,7 @@ impl ServerPlugin {
             ResMut<DespawnBuffer>,
             ResMut<RepliconServer>,
         )>,
+        track_mutate_messages: Res<TrackMutateMessages>,
         registry: Res<ReplicationRegistry>,
         rules: Res<ReplicationRules>,
         server_tick: Res<ServerTick>,
@@ -318,6 +320,7 @@ impl ServerPlugin {
             &mut replicated_clients,
             &mut set.p6(),
             **server_tick,
+            **track_mutate_messages,
             &mut serialized,
             &mut client_buffers,
             change_tick,
@@ -352,6 +355,7 @@ fn send_messages(
     replicated_clients: &mut ReplicatedClients,
     server: &mut RepliconServer,
     server_tick: RepliconTick,
+    track_mutate_messages: bool,
     serialized: &mut SerializedData,
     client_buffers: &mut ClientBuffers,
     change_tick: SystemChangeTick,
@@ -371,7 +375,7 @@ fn send_messages(
             trace!("no changes to send for {:?}", client.id());
         }
 
-        if !mutate_message.is_empty() {
+        if !mutate_message.is_empty() || track_mutate_messages {
             let server_tick = write_tick_cached(&mut server_tick_range, serialized, server_tick)?;
 
             let messages_count = mutate_message.send(
@@ -379,6 +383,7 @@ fn send_messages(
                 client,
                 client_buffers,
                 serialized,
+                track_mutate_messages,
                 server_tick,
                 change_tick.this_run(),
                 time.elapsed(),
