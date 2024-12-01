@@ -296,7 +296,12 @@ impl ServerPlugin {
             &mut replicated_clients,
             &mut set.p5(),
         )?;
-        collect_removals(&mut messages, &mut serialized, &removal_buffer)?;
+        collect_removals(
+            &mut messages,
+            &mut serialized,
+            &replicated_clients,
+            &removal_buffer,
+        )?;
         collect_changes(
             &mut messages,
             &mut serialized,
@@ -425,8 +430,7 @@ fn collect_despawns(
     for entity in despawn_buffer.drain(..) {
         let entity_range = serialized.write_entity(entity)?;
         for ((message, _), client) in messages.iter_mut().zip(replicated_clients.iter_mut()) {
-            let visibility = client.visibility().state(entity);
-            if visibility != Visibility::Hidden {
+            if client.visibility().is_visible(entity) {
                 message.add_despawn(entity_range.clone());
             }
             client.remove_despawned(entity);
@@ -447,14 +451,17 @@ fn collect_despawns(
 fn collect_removals(
     messages: &mut ReplicationMessages,
     serialized: &mut SerializedData,
+    replicated_clients: &ReplicatedClients,
     removal_buffer: &RemovalBuffer,
 ) -> bincode::Result<()> {
     for (&entity, remove_ids) in removal_buffer.iter() {
-        let entity = serialized.write_entity(entity)?;
+        let entity_range = serialized.write_entity(entity)?;
         let ids_len = remove_ids.len();
         let fn_ids = serialized.write_fn_ids(remove_ids.iter().map(|&(_, fns_id)| fns_id))?;
-        for (message, _) in messages.iter_mut() {
-            message.add_removals(entity.clone(), ids_len, fn_ids.clone());
+        for ((message, _), client) in messages.iter_mut().zip(replicated_clients.iter()) {
+            if client.visibility().is_visible(entity) {
+                message.add_removals(entity_range.clone(), ids_len, fn_ids.clone());
+            }
         }
     }
 
