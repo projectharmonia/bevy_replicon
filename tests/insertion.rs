@@ -2,6 +2,7 @@ use std::io::Cursor;
 
 use bevy::{ecs::entity::MapEntities, prelude::*};
 use bevy_replicon::{
+    client::confirm_history::{ConfirmHistory, EntityReplicated},
     core::{
         replication::{
             deferred_entity::DeferredEntity,
@@ -10,6 +11,7 @@ use bevy_replicon::{
         server_entity_map::ServerEntityMap,
     },
     prelude::*,
+    server::server_tick::ServerTick,
     test_app::ServerTestAppExt,
 };
 use serde::{Deserialize, Serialize};
@@ -499,6 +501,65 @@ fn after_started_replication() {
         .world_mut()
         .query_filtered::<(), With<DummyComponent>>()
         .single(client_app.world());
+}
+
+#[test]
+fn confirm_history() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<DummyComponent>();
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    let server_entity = server_app.world_mut().spawn(Replicated).id();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    server_app
+        .world_mut()
+        .entity_mut(server_entity)
+        .insert(DummyComponent);
+
+    // Clear previous events.
+    client_app
+        .world_mut()
+        .resource_mut::<Events<EntityReplicated>>()
+        .clear();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    let tick = **server_app.world().resource::<ServerTick>();
+
+    let (client_entity, confirm_history) = client_app
+        .world_mut()
+        .query::<(Entity, &ConfirmHistory)>()
+        .single(client_app.world());
+    assert!(confirm_history.contains(tick));
+
+    let mut replicated_events = client_app
+        .world_mut()
+        .resource_mut::<Events<EntityReplicated>>();
+    let [event] = replicated_events
+        .drain()
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap();
+    assert_eq!(event.entity, client_entity);
+    assert_eq!(event.tick, tick);
 }
 
 #[derive(Component, Deserialize, Serialize)]

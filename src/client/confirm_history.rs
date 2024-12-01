@@ -8,6 +8,8 @@ use crate::core::replicon_tick::RepliconTick;
 ///
 /// For efficiency we store only the last received tick and
 /// a bitmask indicating whether the most recent 64 ticks were received.
+///
+/// See also [`EntityReplicated`].
 #[derive(Component)]
 pub struct ConfirmHistory {
     /// Previously confirmed ticks, including the last tick at position 0.
@@ -122,6 +124,18 @@ impl ConfirmHistory {
         self.last_tick = tick;
         self.mask |= 1;
     }
+}
+
+/// Triggered for an entity when it receives changes for a tick.
+///
+/// See also [`ConfirmHistory`].
+#[derive(Debug, Event, Clone, Copy)]
+pub struct EntityReplicated {
+    /// Entity that received changes.
+    pub entity: Entity,
+
+    /// Message tick.
+    pub tick: RepliconTick,
 }
 
 #[cfg(test)]

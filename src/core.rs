@@ -15,14 +15,16 @@ use channels::RepliconChannels;
 use event_registry::EventRegistry;
 use replication::{
     command_markers::CommandMarkers, replication_registry::ReplicationRegistry,
-    replication_rules::ReplicationRules, Replicated,
+    replication_rules::ReplicationRules, track_mutate_messages::TrackMutateMessages, Replicated,
 };
 
+/// Initializes types and resources needed for both client and server.
 pub struct RepliconCorePlugin;
 
 impl Plugin for RepliconCorePlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<Replicated>()
+            .init_resource::<TrackMutateMessages>()
             .init_resource::<RepliconChannels>()
             .init_resource::<ReplicationRegistry>()
             .init_resource::<ReplicationRules>()

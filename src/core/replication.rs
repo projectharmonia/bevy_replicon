@@ -4,6 +4,7 @@ pub mod deferred_entity;
 pub mod replicated_clients;
 pub mod replication_registry;
 pub mod replication_rules;
+pub mod track_mutate_messages;
 
 use bevy::prelude::*;
 
