@@ -594,7 +594,7 @@ World state on the client is only "eventually consistent" with the server's.
 # Troubleshooting
 
 If you face any issue, try to enable logging to see what is going on.
-To enable logging, you can temporarely set `RUST_LOG` environment variable to `bevy_replicon=debug`
+To enable logging, you can temporarily set `RUST_LOG` environment variable to `bevy_replicon=debug`
 (or `bevy_replicon=trace` for more noisy output) like this:
 
 ```bash

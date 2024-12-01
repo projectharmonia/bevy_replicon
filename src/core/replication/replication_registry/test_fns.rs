@@ -79,7 +79,7 @@ pub trait TestFnsEntityExt {
     /// See also [`AppMarkerExt`](crate::core::replication::command_markers::AppMarkerExt).
     fn apply_write(&mut self, data: &[u8], fns_id: FnsId, message_tick: RepliconTick) -> &mut Self;
 
-    /// Remvoes a component using a registered function for it.
+    /// Removes a component using a registered function for it.
     ///
     /// See also [`AppMarkerExt`](crate::core::replication::command_markers::AppMarkerExt).
     fn apply_remove(&mut self, fns_id: FnsId, message_tick: RepliconTick) -> &mut Self;

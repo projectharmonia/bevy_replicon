@@ -14,7 +14,7 @@ use crate::{
     server::client_entity_map::ClientMapping,
 };
 
-/// Single continious buffer that stores serialized data for messages.
+/// Single continuous buffer that stores serialized data for messages.
 ///
 /// See [`UpdateMessage`](super::update_message::UpdateMessage) and
 /// [`MutateMessage`](super::mutate_message::MutateMessage).

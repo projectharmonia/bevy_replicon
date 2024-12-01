@@ -82,7 +82,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn tick_comparsion() {
+    fn tick_comparison() {
         assert_eq!(RepliconTick::new(0), RepliconTick::new(0));
         assert!(RepliconTick::new(0) < RepliconTick::new(1));
         assert!(RepliconTick::new(0) > RepliconTick::new(u32::MAX));
