@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - RTT, bytes per second and packet loss information for `RepliconClient` and `ConnectedClients`.
 - `ClientSet::Diagnostics` for systems that collect client diagnostics.
 
+### Fixed
+
+- Sending removals and despawns for hidden entities.
+
 ### Changed
 
 - Make `core::replication::replication_rules::ReplicationRules` public.
@@ -24,11 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Split the `ctx` module and move event-related contexts under `core::events_registry::ctx` and replication-related contexts under `core::replication_registry::ctx`.
 - Separate paths from `diagnostics` module by `/` and their parent path now `client/replication` instead of `replication/client`.
 - Provide replication statistics by sum instead of per second and use `usize` for it.
+- Use fixed integer encoding for ticks for server events.
 - Rename `ServerPlugin::change_timeout` into `ServerPlugin::mutations_timeout`.
-- Rename `ServerInitTick` into `ServerChangeTick`.
+- Rename `ServerInitTick` into `ServerUpdateTick`.
 - Rename `ReplicatedClient::init_tick` into `ReplicatedClient::change_tick`.
 - Rename `ReplicatedClient::get_change_tick` into `ReplicatedClient::mutation_tick`.
-- Rename `ReplicationChannel::Init` into `ReplicationChannel::Changes`.
+- Rename `ReplicationChannel::Init` into `ReplicationChannel::Updates`.
 - Rename `ReplicationChannel::Update` into `ReplicationChannel::Mutations`.
 - Rename `ClientStats` into `ClientReplicationStats`.
 - Rename `ClientDiagnosticsPlugin::MESSAGES` into `ClientDiagnosticsPlugin::REPLICATION_MESSAGES`.
@@ -39,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - `FnsInfo`, use `(ComponentId, FnsId)` instead.
+- Deprecated functions and structs from previous releases.
 
 ## [0.28.4] - 2024-10-15
 

@@ -34,6 +34,7 @@ use crate::core::{
             ReplicationRegistry,
         },
         replication_rules::ReplicationRules,
+        track_mutate_messages::TrackMutateMessages,
     },
     replicon_server::RepliconServer,
     replicon_tick::RepliconTick,
@@ -234,7 +235,7 @@ impl ServerPlugin {
         mut replicated_clients: ResMut<ReplicatedClients>,
         mut client_buffers: ResMut<ClientBuffers>,
     ) {
-        for (client_id, message) in server.receive(ReplicationChannel::Changes) {
+        for (client_id, message) in server.receive(ReplicationChannel::Updates) {
             let mut cursor = Cursor::new(&*message);
             let message_end = message.len() as u64;
             while cursor.position() < message_end {
@@ -268,6 +269,7 @@ impl ServerPlugin {
             ResMut<DespawnBuffer>,
             ResMut<RepliconServer>,
         )>,
+        track_mutate_messages: Res<TrackMutateMessages>,
         registry: Res<ReplicationRegistry>,
         rules: Res<ReplicationRules>,
         server_tick: Res<ServerTick>,
@@ -294,7 +296,12 @@ impl ServerPlugin {
             &mut replicated_clients,
             &mut set.p5(),
         )?;
-        collect_removals(&mut messages, &mut serialized, &removal_buffer)?;
+        collect_removals(
+            &mut messages,
+            &mut serialized,
+            &replicated_clients,
+            &removal_buffer,
+        )?;
         collect_changes(
             &mut messages,
             &mut serialized,
@@ -313,6 +320,7 @@ impl ServerPlugin {
             &mut replicated_clients,
             &mut set.p6(),
             **server_tick,
+            **track_mutate_messages,
             &mut serialized,
             &mut client_buffers,
             change_tick,
@@ -347,26 +355,27 @@ fn send_messages(
     replicated_clients: &mut ReplicatedClients,
     server: &mut RepliconServer,
     server_tick: RepliconTick,
+    track_mutate_messages: bool,
     serialized: &mut SerializedData,
     client_buffers: &mut ClientBuffers,
     change_tick: SystemChangeTick,
     time: &Time,
 ) -> Result<(), Box<bincode::ErrorKind>> {
     let mut server_tick_range = None;
-    for ((change_message, mutate_message), client) in
+    for ((update_message, mutate_message), client) in
         messages.iter_mut().zip(replicated_clients.iter_mut())
     {
-        if !change_message.is_empty() {
-            client.set_change_tick(server_tick);
+        if !update_message.is_empty() {
+            client.set_update_tick(server_tick);
             let server_tick = write_tick_cached(&mut server_tick_range, serialized, server_tick)?;
 
-            trace!("sending change message to {:?}", client.id());
-            change_message.send(server, client, serialized, server_tick)?;
+            trace!("sending update message to {:?}", client.id());
+            update_message.send(server, client, serialized, server_tick)?;
         } else {
-            trace!("no changes to send for {:?}", client.id());
+            trace!("no updates to send for {:?}", client.id());
         }
 
-        if !mutate_message.is_empty() {
+        if !mutate_message.is_empty() || track_mutate_messages {
             let server_tick = write_tick_cached(&mut server_tick_range, serialized, server_tick)?;
 
             let messages_count = mutate_message.send(
@@ -374,6 +383,7 @@ fn send_messages(
                 client,
                 client_buffers,
                 serialized,
+                track_mutate_messages,
                 server_tick,
                 change_tick.this_run(),
                 time.elapsed(),
@@ -410,7 +420,7 @@ fn collect_mappings(
     Ok(())
 }
 
-/// Collect entity despawns from this tick into change messages.
+/// Collect entity despawns from this tick into update messages.
 fn collect_despawns(
     messages: &mut ReplicationMessages,
     serialized: &mut SerializedData,
@@ -420,8 +430,7 @@ fn collect_despawns(
     for entity in despawn_buffer.drain(..) {
         let entity_range = serialized.write_entity(entity)?;
         for ((message, _), client) in messages.iter_mut().zip(replicated_clients.iter_mut()) {
-            let visibility = client.visibility().state(entity);
-            if visibility != Visibility::Hidden {
+            if client.visibility().is_visible(entity) {
                 message.add_despawn(entity_range.clone());
             }
             client.remove_despawned(entity);
@@ -438,25 +447,28 @@ fn collect_despawns(
     Ok(())
 }
 
-/// Collects component removals from this tick into change messages.
+/// Collects component removals from this tick into update messages.
 fn collect_removals(
     messages: &mut ReplicationMessages,
     serialized: &mut SerializedData,
+    replicated_clients: &ReplicatedClients,
     removal_buffer: &RemovalBuffer,
 ) -> bincode::Result<()> {
     for (&entity, remove_ids) in removal_buffer.iter() {
-        let entity = serialized.write_entity(entity)?;
+        let entity_range = serialized.write_entity(entity)?;
         let ids_len = remove_ids.len();
         let fn_ids = serialized.write_fn_ids(remove_ids.iter().map(|&(_, fns_id)| fns_id))?;
-        for (message, _) in messages.iter_mut() {
-            message.add_removals(entity.clone(), ids_len, fn_ids.clone());
+        for ((message, _), client) in messages.iter_mut().zip(replicated_clients.iter()) {
+            if client.visibility().is_visible(entity) {
+                message.add_removals(entity_range.clone(), ids_len, fn_ids.clone());
+            }
         }
     }
 
     Ok(())
 }
 
-/// Collects component changes from this tick into change and mutate messages since the last entity tick.
+/// Collects component changes from this tick into update and mutate messages since the last entity tick.
 fn collect_changes(
     messages: &mut ReplicationMessages,
     serialized: &mut SerializedData,
@@ -487,11 +499,11 @@ fn collect_changes(
 
         for entity in archetype.entities() {
             let mut entity_range = None;
-            for ((change_message, mutate_message), client) in
+            for ((update_message, mutate_message), client) in
                 messages.iter_mut().zip(replicated_clients.iter())
             {
                 let visibility = client.visibility().state(entity.id());
-                change_message.start_entity_changes(visibility);
+                update_message.start_entity_changes(visibility);
                 mutate_message.start_entity_mutations();
             }
 
@@ -531,17 +543,17 @@ fn collect_changes(
                     component_id,
                 };
                 let mut component_range = None;
-                for ((change_message, mutate_message), client) in
+                for ((update_message, mutate_message), client) in
                     messages.iter_mut().zip(replicated_clients.iter())
                 {
-                    if change_message.entity_visibility() == Visibility::Hidden {
+                    if update_message.entity_visibility() == Visibility::Hidden {
                         continue;
                     }
 
                     if let Some(tick) = client
                         .mutation_tick(entity.id())
                         .filter(|_| !marker_added)
-                        .filter(|_| change_message.entity_visibility() != Visibility::Gained)
+                        .filter(|_| update_message.entity_visibility() != Visibility::Gained)
                         .filter(|_| !ticks.is_added(change_tick.last_run(), change_tick.this_run()))
                     {
                         if ticks.is_changed(tick, change_tick.this_run()) {
@@ -565,10 +577,10 @@ fn collect_changes(
                             mutate_message.add_mutated_component(component_range);
                         }
                     } else {
-                        if !change_message.entity_written() {
+                        if !update_message.entity_written() {
                             let entity_range =
                                 write_entity_cached(&mut entity_range, serialized, entity.id())?;
-                            change_message.add_changed_entity(entity_range);
+                            update_message.add_changed_entity(entity_range);
                         }
                         let component_range = write_component_cached(
                             &mut component_range,
@@ -579,35 +591,35 @@ fn collect_changes(
                             replicated_component,
                             component,
                         )?;
-                        change_message.add_inserted_component(component_range);
+                        update_message.add_inserted_component(component_range);
                     }
                 }
             }
 
-            for ((change_message, mutate_message), client) in
+            for ((update_message, mutate_message), client) in
                 messages.iter_mut().zip(replicated_clients.iter_mut())
             {
-                let visibility = change_message.entity_visibility();
+                let visibility = update_message.entity_visibility();
                 if visibility == Visibility::Hidden {
                     continue;
                 }
 
                 let new_entity = marker_added || visibility == Visibility::Gained;
                 if new_entity
-                    || change_message.entity_written()
+                    || update_message.entity_written()
                     || removal_buffer.contains_key(&entity.id())
                 {
                     // If there is any insertion, removal, or it's a new entity for a client, include all mutations
-                    // into change message and bump the last acknowledged tick to keep entity updates atomic.
-                    change_message.take_mutations(mutate_message);
+                    // into update message and bump the last acknowledged tick to keep entity updates atomic.
+                    update_message.take_mutations(mutate_message);
                     client.set_mutation_tick(entity.id(), change_tick.this_run());
                 }
 
-                if new_entity && !change_message.entity_written() {
+                if new_entity && !update_message.entity_written() {
                     // Force-write new entity even if it doesn't have any components.
                     let entity_range =
                         write_entity_cached(&mut entity_range, serialized, entity.id())?;
-                    change_message.add_changed_entity(entity_range);
+                    update_message.add_changed_entity(entity_range);
                 }
             }
         }

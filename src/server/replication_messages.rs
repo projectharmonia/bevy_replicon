@@ -1,10 +1,10 @@
-pub(super) mod change_message;
 mod component_changes;
 pub(super) mod mutate_message;
 pub(super) mod serialized_data;
+pub(super) mod update_message;
 
-use change_message::ChangeMessage;
 use mutate_message::MutateMessage;
+use update_message::UpdateMessage;
 
 /// Accumulates replication messages.
 ///
@@ -13,7 +13,7 @@ use mutate_message::MutateMessage;
 /// serialized data across messages.
 #[derive(Default)]
 pub(crate) struct ReplicationMessages {
-    messages: Vec<(ChangeMessage, MutateMessage)>,
+    messages: Vec<(UpdateMessage, MutateMessage)>,
     len: usize,
 }
 
@@ -31,8 +31,8 @@ impl ReplicationMessages {
         self.messages.reserve(additional);
 
         for index in 0..clients_count {
-            if let Some((change_message, mutate_message)) = self.messages.get_mut(index) {
-                change_message.clear();
+            if let Some((update_message, mutate_message)) = self.messages.get_mut(index) {
+                update_message.clear();
                 mutate_message.clear();
             } else {
                 self.messages.push(Default::default());
@@ -41,7 +41,7 @@ impl ReplicationMessages {
     }
 
     /// Returns iterator over messages for each client.
-    pub(super) fn iter_mut(&mut self) -> impl Iterator<Item = &mut (ChangeMessage, MutateMessage)> {
+    pub(super) fn iter_mut(&mut self) -> impl Iterator<Item = &mut (UpdateMessage, MutateMessage)> {
         self.messages.iter_mut().take(self.len)
     }
 }
