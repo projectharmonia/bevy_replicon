@@ -1,4 +1,4 @@
-use std::array;
+use std::collections::VecDeque;
 
 use bevy::prelude::*;
 
@@ -17,7 +17,7 @@ use crate::core::replicon_tick::RepliconTick;
 /// See also [`MutateTickConfirmed`] and [`ServerChangeTick`](super::ServerChangeTick).
 #[derive(Debug, Resource)]
 pub struct ServerMutateTicks {
-    ticks: [TickMessages; 64],
+    ticks: VecDeque<TickMessages>,
 
     /// The last received server tick with mutation.
     last_tick: RepliconTick,
@@ -87,8 +87,8 @@ impl ServerMutateTicks {
         // array are stored in decreasing order.
         let end = (self.last_tick - start_tick) as usize;
         let start = (self.last_tick - end_tick) as usize;
-        self.ticks[start..=end]
-            .iter()
+        self.ticks
+            .range(start..=end)
             .any(|tick| tick.all_received())
     }
 
@@ -107,11 +107,13 @@ impl ServerMutateTicks {
             let ago = (tick - self.last_tick) as usize;
             if ago >= len {
                 // If the difference exceeds the size, clear all ticks.
-                self.ticks.fill(Default::default());
+                self.ticks.clear();
+                self.ticks.resize(u64::BITS as usize, Default::default());
             } else {
-                // Shift all ticks.
-                self.ticks.copy_within(..len - ago, ago);
-                self.ticks[..ago].fill(Default::default());
+                for _ in 0..ago {
+                    self.ticks.pop_back();
+                    self.ticks.push_front(Default::default());
+                }
             }
 
             self.last_tick = tick;
@@ -130,7 +132,7 @@ impl ServerMutateTicks {
 impl Default for ServerMutateTicks {
     fn default() -> Self {
         Self {
-            ticks: array::from_fn(|_| Default::default()),
+            ticks: VecDeque::from([Default::default(); u64::BITS as usize]),
             last_tick: Default::default(),
         }
     }
