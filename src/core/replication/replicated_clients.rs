@@ -180,9 +180,9 @@ pub struct ReplicatedClient {
     /// The last tick in which a replicated entity had an insertion, removal, or gained/lost a component from the
     /// perspective of the client.
     ///
-    /// It should be included in mutate messages and server events to avoid needless waiting for the next change
+    /// It should be included in mutate messages and server events to avoid needless waiting for the next update
     /// message to arrive.
-    change_tick: RepliconTick,
+    update_tick: RepliconTick,
 
     /// Mutate message indices mapped to their info.
     mutations: HashMap<u16, MutateInfo>,
@@ -199,7 +199,7 @@ impl ReplicatedClient {
             id,
             mutation_ticks: Default::default(),
             visibility: ClientVisibility::new(policy),
-            change_tick: Default::default(),
+            update_tick: Default::default(),
             mutations: Default::default(),
             next_mutate_index: Default::default(),
         }
@@ -220,15 +220,15 @@ impl ReplicatedClient {
         &mut self.visibility
     }
 
-    /// Sets the client's change tick.
-    pub(crate) fn set_change_tick(&mut self, tick: RepliconTick) {
-        self.change_tick = tick;
+    /// Sets the client's update tick.
+    pub(crate) fn set_update_tick(&mut self, tick: RepliconTick) {
+        self.update_tick = tick;
     }
 
     /// Returns the last tick in which a replicated entity had an insertion, removal, or gained/lost a component from the
     /// perspective of the client.
-    pub fn change_tick(&self) -> RepliconTick {
-        self.change_tick
+    pub fn update_tick(&self) -> RepliconTick {
+        self.update_tick
     }
 
     /// Clears all entities for unacknowledged mutate messages, returning them as an iterator.
@@ -280,22 +280,22 @@ impl ReplicatedClient {
         (mutate_index, &mut mutate_info.entities)
     }
 
-    /// Sets the change tick for an entity that is replicated to this client.
+    /// Sets the mutation tick for an entity that is replicated to this client.
     ///
-    /// The change tick is the reference point for determining if components on an entity have changed and
-    /// need to be replicated. Component changes older than the change limit are assumed to be acked by the client.
+    /// The mutation tick is the reference point for determining if components on an entity have mutated and
+    /// need to be replicated. Component mutations older than the update tick are assumed to be acked by the client.
     pub(crate) fn set_mutation_tick(&mut self, entity: Entity, tick: Tick) {
         self.mutation_ticks.insert(entity, tick);
     }
 
-    /// Gets the change tick for an entity that is replicated to this client.
+    /// Gets the mutation tick for an entity that is replicated to this client.
     pub fn mutation_tick(&self, entity: Entity) -> Option<Tick> {
         self.mutation_ticks.get(&entity).copied()
     }
 
     /// Marks mutate message as acknowledged by its index.
     ///
-    /// Change tick for all entities from this mutate message will be set to the message tick if it's higher.
+    /// Mutation tick for all entities from this mutate message will be set to the message tick if it's higher.
     ///
     /// Keeps allocated memory in the buffers for reuse.
     pub(crate) fn ack_mutate_message(

@@ -14,7 +14,7 @@ use crate::core::replicon_tick::RepliconTick;
 /// This value can be used to represent your simulation step, and is made available to the client in
 /// the custom deserialization, despawn, and component removal functions.
 ///
-/// See [`ServerChangeTick`](crate::client::ServerChangeTick) for tracking the last received
+/// See [`ServerUpdateTick`](crate::client::ServerUpdateTick) for tracking the last received
 /// tick on clients.
 #[derive(Clone, Copy, Deref, Debug, Default, Deserialize, Resource, Serialize)]
 pub struct ServerTick(RepliconTick);

@@ -4,7 +4,7 @@ use bevy::{ecs::entity::MapEntities, prelude::*, utils::Duration};
 use bevy_replicon::{
     client::{
         confirm_history::{ConfirmHistory, EntityReplicated},
-        ServerChangeTick,
+        ServerUpdateTick,
     },
     core::{
         replication::{
@@ -748,10 +748,10 @@ fn buffering() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    // Artificially reset the change tick to force the next received mutation to be buffered.
-    let mut change_tick = client_app.world_mut().resource_mut::<ServerChangeTick>();
-    let previous_tick = *change_tick;
-    *change_tick = Default::default();
+    // Artificially reset the update tick to force the next received mutation to be buffered.
+    let mut update_tick = client_app.world_mut().resource_mut::<ServerUpdateTick>();
+    let previous_tick = *update_tick;
+    *update_tick = Default::default();
     let mut component = server_app
         .world_mut()
         .get_mut::<BoolComponent>(server_entity)
@@ -769,8 +769,8 @@ fn buffering() {
         .single(client_app.world());
     assert!(!component.0, "client should buffer the mutation");
 
-    // Restore the change tick to let the buffered mutation apply
-    *client_app.world_mut().resource_mut::<ServerChangeTick>() = previous_tick;
+    // Restore the update tick to let the buffered mutation apply
+    *client_app.world_mut().resource_mut::<ServerUpdateTick>() = previous_tick;
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
