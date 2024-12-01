@@ -519,7 +519,7 @@ unsafe fn receive<E: Event>(
     for message in client.receive(event_data.channel_id) {
         let mut cursor = Cursor::new(&*message);
         if !event_data.is_independent() {
-            let tick = match DefaultOptions::new().deserialize_from(&mut cursor) {
+            let tick = match bincode::deserialize_from(&mut cursor) {
                 Ok(tick) => tick,
                 Err(e) => {
                     error!(
@@ -671,7 +671,7 @@ unsafe fn serialize_with_padding<E: Event>(
     event: &E,
 ) -> bincode::Result<SerializedMessage> {
     let mut cursor = Cursor::new(Vec::new());
-    let padding = [0u8; RepliconTick::MAX_SERIALIZED_SIZE];
+    let padding = [0; mem::size_of::<RepliconTick>()];
     cursor.write_all(&padding)?;
     event_data.serialize(ctx, event, &mut cursor)?;
     let message = SerializedMessage::Raw(cursor.into_inner());
@@ -685,17 +685,13 @@ enum SerializedMessage {
     ///
     /// `padding | message`
     ///
-    /// The padding length equals max serialized bytes of [`RepliconTick`]. It should be overwritten before sending
+    /// The padding length equals to serialized bytes of [`RepliconTick`]. It should be overwritten before sending
     /// to clients.
     Raw(Vec<u8>),
     /// A message with serialized tick.
     ///
     /// `tick | messsage`
-    Resolved {
-        tick: RepliconTick,
-        tick_size: usize,
-        bytes: Bytes,
-    },
+    Resolved { tick: RepliconTick, bytes: Bytes },
 }
 
 impl SerializedMessage {
@@ -705,32 +701,27 @@ impl SerializedMessage {
         match self {
             // Resolve the raw value into a message with serialized tick.
             Self::Raw(raw) => {
-                let mut bytes = std::mem::take(raw);
-                let tick_size = DefaultOptions::new().serialized_size(&change_tick)? as usize;
-                let padding = RepliconTick::MAX_SERIALIZED_SIZE - tick_size;
-                DefaultOptions::new().serialize_into(&mut bytes[padding..], &change_tick)?;
-                let bytes = Bytes::from(bytes).slice(padding..);
+                let mut bytes = mem::take(raw);
+                bincode::serialize_into(
+                    &mut bytes[..mem::size_of::<RepliconTick>()],
+                    &change_tick,
+                )?;
+                let bytes = Bytes::from(bytes);
                 *self = Self::Resolved {
                     tick: change_tick,
-                    tick_size,
                     bytes: bytes.clone(),
                 };
                 Ok(bytes)
             }
             // Get the already-resolved value or reserialize with a different tick.
-            Self::Resolved {
-                tick,
-                tick_size,
-                bytes,
-            } => {
+            Self::Resolved { tick, bytes } => {
                 if *tick == change_tick {
                     return Ok(bytes.clone());
                 }
 
-                let new_tick_size = DefaultOptions::new().serialized_size(&change_tick)? as usize;
-                let mut new_bytes = Vec::with_capacity(new_tick_size + bytes.len() - *tick_size);
-                DefaultOptions::new().serialize_into(&mut new_bytes, &change_tick)?;
-                new_bytes.extend_from_slice(&bytes[*tick_size..]);
+                let mut new_bytes = Vec::with_capacity(bytes.len());
+                bincode::serialize_into(&mut new_bytes, &change_tick)?;
+                new_bytes.extend_from_slice(&bytes[mem::size_of::<RepliconTick>()..]);
                 Ok(new_bytes.into())
             }
         }
