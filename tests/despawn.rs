@@ -118,5 +118,42 @@ fn after_spawn() {
     assert!(client_app.world().entities().is_empty());
 }
 
+#[test]
+fn hidden() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                visibility_policy: VisibilityPolicy::Whitelist, // Hide all spawned entities by default.
+                ..Default::default()
+            }),
+        ));
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    let server_entity = server_app.world_mut().spawn(Replicated).id();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    server_app.world_mut().despawn(server_entity);
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    assert_eq!(
+        client_app.world().entities().total_count(),
+        0,
+        "client shouldn't spawn or despawn hidden entity"
+    );
+}
+
 #[derive(Component, Deserialize, Serialize)]
 struct DummyComponent;
