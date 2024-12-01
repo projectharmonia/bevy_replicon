@@ -156,12 +156,14 @@ impl ClientPlugin {
         mut change_tick: ResMut<ServerChangeTick>,
         mut entity_map: ResMut<ServerEntityMap>,
         mut buffered_mutations: ResMut<BufferedMutations>,
-        mut stats: ResMut<ClientReplicationStats>,
+        stats: Option<ResMut<ClientReplicationStats>>,
     ) {
         *change_tick = Default::default();
         entity_map.clear();
         buffered_mutations.clear();
-        *stats = Default::default();
+        if let Some(mut stats) = stats {
+            *stats = Default::default();
+        }
     }
 }
 
