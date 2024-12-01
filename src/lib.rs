@@ -627,9 +627,6 @@ pub mod server;
 pub mod test_app;
 
 pub mod prelude {
-    #[allow(deprecated)]
-    pub use super::core::replication::Replication;
-
     pub use super::{
         core::{
             channels::{ChannelKind, RepliconChannel, RepliconChannels},

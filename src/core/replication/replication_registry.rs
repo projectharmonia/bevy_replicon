@@ -158,9 +158,6 @@ impl Default for ReplicationRegistry {
     }
 }
 
-#[deprecated(note = "use `ReplicationRegistry` instead")]
-pub type ReplicationFns = ReplicationRegistry;
-
 /// ID of replicaton functions for a component.
 ///
 /// Can be obtained from [`ReplicationRegistry::register_rule_fns`].

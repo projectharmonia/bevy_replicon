@@ -124,9 +124,6 @@ impl ConfirmHistory {
     }
 }
 
-#[deprecated(note = "use `ConfirmHistory` instead")]
-pub type Confirmed = ConfirmHistory;
-
 #[cfg(test)]
 mod tests {
     use super::*;
