@@ -23,7 +23,7 @@ impl Plugin for ClientDiagnosticsPlugin {
             )
             .register_diagnostic(
                 Diagnostic::new(Self::RTT)
-                    .with_suffix(" ms")
+                    .with_suffix(" s")
                     .with_max_history_length(Self::DIAGNOSTIC_HISTORY_LEN),
             )
             .register_diagnostic(
