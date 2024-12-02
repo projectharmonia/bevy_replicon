@@ -57,14 +57,14 @@ impl ConnectedClient {
         self.id
     }
 
-    /// Returns the round-time trip for the connection.
+    /// Returns the round-time trip in seconds for the connection.
     ///
     /// Returns zero if not provided by the backend.
     pub fn rtt(&self) -> f64 {
         self.rtt
     }
 
-    /// Sets the round-time trip for the connection.
+    /// Sets the round-time trip in seconds for the connection.
     ///
     /// <div class="warning">
     ///
@@ -75,14 +75,14 @@ impl ConnectedClient {
         self.rtt = rtt;
     }
 
-    /// Returns the packet loss for the connection.
+    /// Returns the packet loss % for the connection.
     ///
     /// Returns zero if not provided by the backend.
     pub fn packet_loss(&self) -> f64 {
         self.packet_loss
     }
 
-    /// Sets the packet loss for the connection.
+    /// Sets the packet loss % for the connection.
     ///
     /// <div class="warning">
     ///
