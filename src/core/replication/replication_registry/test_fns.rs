@@ -97,7 +97,7 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
             server_tick,
             component_id,
         };
-        let ptr = self.get_by_id(component_id).unwrap_or_else(|| {
+        let ptr = self.get_by_id(component_id).unwrap_or_else(|_| {
             let components = self.world().components();
             let component_name = components
                 .get_name(component_id)

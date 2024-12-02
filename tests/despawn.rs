@@ -61,14 +61,14 @@ fn with_hierarchy() {
     let server_entity = server_app
         .world_mut()
         .spawn(Replicated)
-        .push_children(&[server_child_entity])
+        .add_children(&[server_child_entity])
         .id();
 
     let client_child_entity = client_app.world_mut().spawn(Replicated).id();
     let client_entity = client_app
         .world_mut()
         .spawn(Replicated)
-        .push_children(&[client_child_entity])
+        .add_children(&[client_child_entity])
         .id();
 
     let mut entity_map = client_app.world_mut().resource_mut::<ServerEntityMap>();

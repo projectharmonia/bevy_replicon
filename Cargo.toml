@@ -1,6 +1,6 @@
 [package]
 name = "bevy_replicon"
-version = "0.28.4"
+version = "0.29.0"
 authors = [
   "Hennadii Chernyshchyk <genaloner@gmail.com>",
   "koe <ukoe@protonmail.com>",
@@ -25,7 +25,9 @@ rustdoc-args = ["-Zunstable-options", "--cfg", "docsrs"]
 all-features = true
 
 [dependencies]
-bevy = { version = "0.14", default-features = false, features = ["serialize"] }
+bevy = { version = "0.15.0", default-features = false, features = [
+  "serialize",
+] }
 bytes = "1.5"
 bincode = "1.3"
 serde = "1.0"
@@ -34,7 +36,7 @@ ordered-multimap = "0.7"
 bitflags = "2.6"
 
 [dev-dependencies]
-bevy = { version = "0.14", default-features = false, features = [
+bevy = { version = "0.15.0", default-features = false, features = [
   "serialize",
   "bevy_asset",
   "bevy_scene",

@@ -76,7 +76,7 @@ pub trait ServerEventAppExt {
 
     # Examples
 
-    Register an event with [`Box<dyn Reflect>`]:
+    Register an event with [`Box<dyn PartialReflect>`]:
 
     ```
     use std::io::Cursor;
@@ -119,7 +119,7 @@ pub trait ServerEventAppExt {
     }
 
     #[derive(Event)]
-    struct ReflectEvent(Box<dyn Reflect>);
+    struct ReflectEvent(Box<dyn PartialReflect>);
     ```
     */
     fn add_server_event_with<E: Event>(
@@ -469,7 +469,7 @@ unsafe fn send_or_buffer<E: Event>(
     let events: &Events<ToClients<E>> = server_events.deref();
     // For server events we don't track read events because
     // all of them will always be drained in the local resending system.
-    for ToClients { event, mode } in events.get_reader().read(events) {
+    for ToClients { event, mode } in events.get_cursor().read(events) {
         trace!("sending event `{}` with `{mode:?}`", any::type_name::<E>());
 
         if event_data.is_independent() {

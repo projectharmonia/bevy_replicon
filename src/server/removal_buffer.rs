@@ -3,7 +3,7 @@ use bevy::{
         archetype::{Archetype, Archetypes},
         component::ComponentId,
         entity::{Entities, EntityHashMap},
-        event::ManualEventReader,
+        event::EventCursor,
         removal_detection::{RemovedComponentEntity, RemovedComponentEvents},
         system::SystemParam,
     },
@@ -62,7 +62,7 @@ struct RemovalReader<'w, 's> {
     components: Local<'s, ReplicatedComponents>,
 
     /// Individual readers for each component.
-    readers: Local<'s, HashMap<ComponentId, ManualEventReader<RemovedComponentEntity>>>,
+    readers: Local<'s, HashMap<ComponentId, EventCursor<RemovedComponentEntity>>>,
 
     /// Component removals grouped by entity.
     removals: Local<'s, EntityHashMap<HashSet<ComponentId>>>,
