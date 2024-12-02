@@ -642,6 +642,7 @@ unsafe fn get_component_unchecked<'w>(
 ) -> (Ptr<'w>, ComponentTicks) {
     match storage_type {
         StorageType::Table => {
+            // TODO: re-use column lookup, asked in https://github.com/bevyengine/bevy/issues/16593.
             let component: Ptr<'w> = table
                 .get_component(component_id, entity.table_row())
                 .unwrap_unchecked();
