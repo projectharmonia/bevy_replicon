@@ -76,7 +76,7 @@ pub trait ServerEventAppExt {
 
     # Examples
 
-    Register an event with [`Box<dyn Reflect>`]:
+    Register an event with [`Box<dyn PartialReflect>`]:
 
     ```
     use std::io::Cursor;
