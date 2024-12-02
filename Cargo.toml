@@ -25,7 +25,7 @@ rustdoc-args = ["-Zunstable-options", "--cfg", "docsrs"]
 all-features = true
 
 [dependencies]
-bevy = { version = "0.15.0", default-features = false, features = [
+bevy = { version = "0.15", default-features = false, features = [
   "serialize",
 ] }
 bytes = "1.5"
@@ -36,7 +36,7 @@ ordered-multimap = "0.7"
 bitflags = "2.6"
 
 [dev-dependencies]
-bevy = { version = "0.15.0", default-features = false, features = [
+bevy = { version = "0.15", default-features = false, features = [
   "serialize",
   "bevy_asset",
   "bevy_scene",
