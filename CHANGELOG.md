@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.29.0] - 2024-12-02
+
 ### Added
 
 - RTT, bytes per second and packet loss information for `RepliconClient` and `ConnectedClients`.
@@ -18,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Update to Bevy 0.15.
 - Make `core::replication::replication_rules::ReplicationRules` public.
 - Various optimizations for replication messages to use fewer bytes.
 - Accept `Vec<u8>` instead of `Cursor<Vec<u8>>` for serialization.
@@ -635,7 +638,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release after separation from [Project Harmonia](https://github.com/projectharmonia/project_harmonia).
 
-[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.28.4...HEAD
+[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.29.0...HEAD
+[0.29.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.28.4...v0.29.0
 [0.28.4]: https://github.com/projectharmonia/bevy_replicon/compare/v0.28.3...v0.28.4
 [0.28.3]: https://github.com/projectharmonia/bevy_replicon/compare/v0.28.2...v0.28.3
 [0.28.2]: https://github.com/projectharmonia/bevy_replicon/compare/v0.28.1...v0.28.2
