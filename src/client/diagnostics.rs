@@ -107,6 +107,7 @@ impl ClientDiagnosticsPlugin {
     fn add_measurements(
         mut diagnostics: Diagnostics,
         stats: Res<ClientReplicationStats>,
+        mut last_stats: Local<ClientReplicationStats>,
         client: Res<RepliconClient>,
     ) {
         diagnostics.add_measurement(&Self::RTT, || client.rtt());
@@ -114,13 +115,24 @@ impl ClientDiagnosticsPlugin {
         diagnostics.add_measurement(&Self::SENT_BPS, || client.sent_bps());
         diagnostics.add_measurement(&Self::RECEIVED_BPS, || client.received_bps());
 
-        diagnostics.add_measurement(&Self::ENTITIES_CHANGED, || stats.entities_changed as f64);
-        diagnostics.add_measurement(&Self::COMPONENTS_CHANGED, || {
-            stats.components_changed as f64
+        diagnostics.add_measurement(&Self::ENTITIES_CHANGED, || {
+            stats.entities_changed - last_stats.entities_changed as f64
         });
-        diagnostics.add_measurement(&Self::MAPPINGS, || stats.mappings as f64);
-        diagnostics.add_measurement(&Self::DESPAWNS, || stats.despawns as f64);
-        diagnostics.add_measurement(&Self::REPLICATION_MESSAGES, || stats.messages as f64);
-        diagnostics.add_measurement(&Self::REPLICATION_BYTES, || stats.bytes as f64);
+        diagnostics.add_measurement(&Self::COMPONENTS_CHANGED, || {
+            stats.components_changed - last_stats.components_changed as f64
+        });
+        diagnostics.add_measurement(&Self::MAPPINGS, || {
+            stats.mappings - last_stats.mappings as f64
+        });
+        diagnostics.add_measurement(&Self::DESPAWNS, || {
+            stats.despawns - last_stats.despawns as f64
+        });
+        diagnostics.add_measurement(&Self::REPLICATION_MESSAGES, || {
+            stats.messages - last_stats.messages as f64
+        });
+        diagnostics.add_measurement(&Self::REPLICATION_BYTES, || {
+            stats.bytes - last_stats.bytes as f64
+        });
+        *last_stats = *stats;
     }
 }
