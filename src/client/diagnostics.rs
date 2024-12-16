@@ -116,22 +116,22 @@ impl ClientDiagnosticsPlugin {
         diagnostics.add_measurement(&Self::RECEIVED_BPS, || client.received_bps());
 
         diagnostics.add_measurement(&Self::ENTITIES_CHANGED, || {
-            stats.entities_changed - last_stats.entities_changed as f64
+            (stats.entities_changed - last_stats.entities_changed) as f64
         });
         diagnostics.add_measurement(&Self::COMPONENTS_CHANGED, || {
-            stats.components_changed - last_stats.components_changed as f64
+            (stats.components_changed - last_stats.components_changed) as f64
         });
         diagnostics.add_measurement(&Self::MAPPINGS, || {
-            stats.mappings - last_stats.mappings as f64
+            (stats.mappings - last_stats.mappings) as f64
         });
         diagnostics.add_measurement(&Self::DESPAWNS, || {
-            stats.despawns - last_stats.despawns as f64
+            (stats.despawns - last_stats.despawns) as f64
         });
         diagnostics.add_measurement(&Self::REPLICATION_MESSAGES, || {
-            stats.messages - last_stats.messages as f64
+            (stats.messages - last_stats.messages) as f64
         });
         diagnostics.add_measurement(&Self::REPLICATION_BYTES, || {
-            stats.bytes - last_stats.bytes as f64
+            (stats.bytes - last_stats.bytes) as f64
         });
         *last_stats = *stats;
     }
