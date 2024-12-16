@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.29.1] - 2024-12-16
+
 ### Fixed
 
 - Report bevy diagnostics correctly as a delta since last measurement collection.
@@ -642,7 +644,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release after separation from [Project Harmonia](https://github.com/projectharmonia/project_harmonia).
 
-[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.29.0...HEAD
+[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.29.1...HEAD
+[0.29.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.29.0...v0.29.1
 [0.29.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.28.4...v0.29.0
 [0.28.4]: https://github.com/projectharmonia/bevy_replicon/compare/v0.28.3...v0.28.4
 [0.28.3]: https://github.com/projectharmonia/bevy_replicon/compare/v0.28.2...v0.28.3
