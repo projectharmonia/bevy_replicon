@@ -801,7 +801,7 @@ pub(super) struct BufferedMutate {
 ///
 /// See also [`ClientDiagnosticsPlugin`](diagnostics::ClientDiagnosticsPlugin)
 /// for automatic integration with Bevy diagnostics.
-#[derive(Default, Resource, Debug)]
+#[derive(Clone, Copy, Default, Resource, Debug)]
 pub struct ClientReplicationStats {
     /// Incremented per entity that changes.
     pub entities_changed: usize,
