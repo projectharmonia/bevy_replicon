@@ -104,7 +104,7 @@ pub fn replicate_into(scene: &mut DynamicScene, world: &World) {
                     // deserialize.
                     let component = from_reflect
                         .from_reflect(component.as_partial_reflect())
-                        .unwrap_or_else(|| panic!("`{type_name}` should be dynamically clonable"));
+                        .unwrap_or_else(|| panic!("`{type_name}` should be dynamically cloneable"));
 
                     let components = entities
                         .get_mut(&entity.id())
