@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Use `FromReflect` when replicating components into dynamic scenes.
+
 ## [0.29.1] - 2024-12-16
 
 ### Fixed
