@@ -90,18 +90,28 @@ pub fn replicate_into(scene: &mut DynamicScene, world: &World) {
                     debug!("ignoring `{type_name}` because it's missing `#[reflect(Component)]`");
                     continue;
                 };
+                let from_reflect = registration
+                    .data::<ReflectFromReflect>()
+                    .unwrap_or_else(|| panic!("`{type_name}` should reflect `FromReflect`"));
 
                 for entity in archetype.entities() {
                     let component = reflect_component
                         .reflect(world.entity(entity.id()))
                         .unwrap_or_else(|| panic!("entity should have `{type_name}`"));
 
+                    // Clone via `FromReflect`. Unlike `PartialReflect::clone_value` this
+                    // retains the original type and `ReflectSerialize` type data which is needed to
+                    // deserialize.
+                    let component = from_reflect
+                        .from_reflect(component.as_partial_reflect())
+                        .unwrap_or_else(|| panic!("`{type_name}` should be dynamically cloneable"));
+
                     let components = entities
                         .get_mut(&entity.id())
                         .expect("all entities should be populated ahead of time");
 
                     debug!("adding `{type_name}` to `{}`", entity.id());
-                    components.push(component.clone_value());
+                    components.push(component.into_partial_reflect());
                 }
             }
         }
