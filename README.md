@@ -2,6 +2,7 @@
 
 [![crates.io](https://img.shields.io/crates/v/bevy_replicon)](https://crates.io/crates/bevy_replicon)
 [![docs.rs](https://docs.rs/bevy_replicon/badge.svg)](https://docs.rs/bevy_replicon)
+[![license](https://img.shields.io/crates/l/bevy_replicon)](#license)
 [![codecov](https://codecov.io/gh/projectharmonia/bevy_replicon/graph/badge.svg?token=N1G28NQB1L)](https://codecov.io/gh/projectharmonia/bevy_replicon)
 
 Server-authoritative networking crate for the [Bevy game engine](https://bevyengine.org).
@@ -84,3 +85,7 @@ Have any questions? Feel free to ask in the dedicated [`bevy_replicon` channel](
 | 0.11.0 | 0.6-0.17      |
 | 0.10.1 | 0.2-0.6       |
 | 0.10.0 | 0.1           |
+
+## License
+
+Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or [MIT License](LICENSE-MIT) at your option.
