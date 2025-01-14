@@ -186,7 +186,9 @@ fn mapped_new_entity() {
         .query::<&MappedComponent>()
         .single(client_app.world());
     assert!(client_app.world().get_entity(mapped_component.0).is_ok());
-    assert_eq!(client_app.world().entities().len(), 2);
+
+    let mut replicated = client_app.world_mut().query::<&Replicated>();
+    assert_eq!(replicated.iter(client_app.world()).count(), 2);
 }
 
 #[test]
@@ -446,9 +448,7 @@ fn before_started_replication() {
 
     let client = client_app.world().resource::<RepliconClient>();
     let client_id = client.id().unwrap();
-    server_app
-        .world_mut()
-        .send_event(StartReplication(client_id));
+    server_app.world_mut().trigger(StartReplication(client_id));
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -481,9 +481,7 @@ fn after_started_replication() {
 
     let client = client_app.world().resource::<RepliconClient>();
     let client_id = client.id().unwrap();
-    server_app
-        .world_mut()
-        .send_event(StartReplication(client_id));
+    server_app.world_mut().trigger(StartReplication(client_id));
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);

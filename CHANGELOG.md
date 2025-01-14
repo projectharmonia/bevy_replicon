@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `StartReplication` is now a trigger-event.
+- `ServerEvent` is now a trigger-event.
+
 ## [0.29.2] - 2025-01-06
 
 ### Fixed

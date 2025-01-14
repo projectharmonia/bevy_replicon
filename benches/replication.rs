@@ -42,7 +42,7 @@ impl Default for StructComponent {
 }
 
 fn replication<C: Component + Default + Serialize + DeserializeOwned + Clone>(c: &mut Criterion) {
-    const ENTITIES: u32 = 1000;
+    const ENTITIES: usize = 1000;
     const MODULE_PREFIX_LEN: usize = module_path!().len() + 2;
 
     let mut name = any::type_name::<C>();
@@ -65,7 +65,7 @@ fn replication<C: Component + Default + Serialize + DeserializeOwned + Clone>(c:
 
                     server_app
                         .world_mut()
-                        .spawn_batch(vec![(Replicated, C::default()); ENTITIES as usize]);
+                        .spawn_batch(vec![(Replicated, C::default()); ENTITIES]);
 
                     let instant = Instant::now();
                     server_app.update();
@@ -74,7 +74,9 @@ fn replication<C: Component + Default + Serialize + DeserializeOwned + Clone>(c:
                     for client_app in &mut client_apps {
                         server_app.exchange_with_client(client_app);
                         client_app.update();
-                        assert_eq!(client_app.world().entities().len(), ENTITIES);
+
+                        let mut replicated = client_app.world_mut().query::<&Replicated>();
+                        assert_eq!(replicated.iter(client_app.world()).count(), ENTITIES);
                     }
                 }
 
@@ -98,14 +100,16 @@ fn replication<C: Component + Default + Serialize + DeserializeOwned + Clone>(c:
 
                     server_app
                         .world_mut()
-                        .spawn_batch(vec![(Replicated, C::default()); ENTITIES as usize]);
+                        .spawn_batch(vec![(Replicated, C::default()); ENTITIES]);
                     let mut query = server_app.world_mut().query::<&mut C>();
 
                     server_app.update();
                     for client_app in &mut client_apps {
                         server_app.exchange_with_client(client_app);
                         client_app.update();
-                        assert_eq!(client_app.world().entities().len(), ENTITIES);
+
+                        let mut replicated = client_app.world_mut().query::<&Replicated>();
+                        assert_eq!(replicated.iter(client_app.world()).count(), ENTITIES);
                     }
 
                     let mut elapsed = Duration::ZERO;
@@ -121,7 +125,9 @@ fn replication<C: Component + Default + Serialize + DeserializeOwned + Clone>(c:
                         for client_app in &mut client_apps {
                             server_app.exchange_with_client(client_app);
                             client_app.update();
-                            assert_eq!(client_app.world().entities().len(), ENTITIES);
+
+                            let mut replicated = client_app.world_mut().query::<&Replicated>();
+                            assert_eq!(replicated.iter(client_app.world()).count(), ENTITIES);
                         }
                     }
 
@@ -142,7 +148,7 @@ fn replication<C: Component + Default + Serialize + DeserializeOwned + Clone>(c:
 
                 server_app
                     .world_mut()
-                    .spawn_batch(vec![(Replicated, C::default()); ENTITIES as usize]);
+                    .spawn_batch(vec![(Replicated, C::default()); ENTITIES]);
 
                 server_app.update();
                 server_app.exchange_with_client(&mut client_app);
@@ -150,7 +156,9 @@ fn replication<C: Component + Default + Serialize + DeserializeOwned + Clone>(c:
                 let instant = Instant::now();
                 client_app.update();
                 elapsed += instant.elapsed();
-                assert_eq!(client_app.world().entities().len(), ENTITIES);
+
+                let mut replicated = client_app.world_mut().query::<&Replicated>();
+                assert_eq!(replicated.iter(client_app.world()).count(), ENTITIES);
             }
 
             elapsed
@@ -166,13 +174,14 @@ fn replication<C: Component + Default + Serialize + DeserializeOwned + Clone>(c:
 
             server_app
                 .world_mut()
-                .spawn_batch(vec![(Replicated, C::default()); ENTITIES as usize]);
+                .spawn_batch(vec![(Replicated, C::default()); ENTITIES]);
             let mut query = server_app.world_mut().query::<&mut C>();
 
             server_app.update();
             server_app.exchange_with_client(&mut client_app);
             client_app.update();
-            assert_eq!(client_app.world().entities().len(), ENTITIES);
+            let mut replicated = client_app.world_mut().query::<&Replicated>();
+            assert_eq!(replicated.iter(client_app.world()).count(), ENTITIES);
 
             let mut elapsed = Duration::ZERO;
             for _ in 0..iter {
@@ -187,7 +196,9 @@ fn replication<C: Component + Default + Serialize + DeserializeOwned + Clone>(c:
 
                 client_app.update();
                 elapsed += instant.elapsed();
-                assert_eq!(client_app.world().entities().len(), ENTITIES);
+
+                let mut replicated = client_app.world_mut().query::<&Replicated>();
+                assert_eq!(replicated.iter(client_app.world()).count(), ENTITIES);
             }
 
             elapsed

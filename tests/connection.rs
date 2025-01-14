@@ -231,14 +231,7 @@ fn deferred_replication() {
 
     let client = client_app.world().resource::<RepliconClient>();
     let client_id = client.id().unwrap();
-    server_app
-        .world_mut()
-        .send_event(StartReplication(client_id));
-
-    server_app.update();
-    server_app.exchange_with_client(&mut client_app);
-    client_app.update();
-    server_app.exchange_with_client(&mut client_app);
+    server_app.world_mut().trigger(StartReplication(client_id));
 
     let replicated_clients = server_app.world().resource::<ReplicatedClients>();
     assert!(
@@ -247,14 +240,7 @@ fn deferred_replication() {
     );
 
     // Make sure that enabling replication twice do nothing.
-    server_app
-        .world_mut()
-        .send_event(StartReplication(client_id));
-
-    server_app.update();
-    server_app.exchange_with_client(&mut client_app);
-    client_app.update();
-    server_app.exchange_with_client(&mut client_app);
+    server_app.world_mut().trigger(StartReplication(client_id));
 
     let replicated_clients = server_app.world().resource::<ReplicatedClients>();
     assert_eq!(replicated_clients.len(), 1);

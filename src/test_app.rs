@@ -44,8 +44,9 @@ server_app.update();
 server_app.exchange_with_client(&mut client_app);
 client_app.update();
 
+let mut relicated = client_app.world_mut().query::<&Replicated>();
 assert_eq!(
-    client_app.world().entities().len(),
+    relicated.iter(client_app.world()).count(),
     1,
     "client should replicate spawned entity"
 );
@@ -110,9 +111,9 @@ impl ServerTestAppExt for App {
         server.set_running(true);
 
         self.world_mut()
-            .send_event(ServerEvent::ClientConnected { client_id });
+            .trigger(ServerEvent::ClientConnected { client_id });
 
-        self.update(); // Will update `ReplicatedClients`, otherwise next call will assign the same ID.
+        self.update();
         client_app.update();
     }
 
@@ -124,11 +125,10 @@ impl ServerTestAppExt for App {
 
         client.set_status(RepliconClientStatus::Disconnected);
 
-        self.world_mut()
-            .send_event(ServerEvent::ClientDisconnected {
-                client_id,
-                reason: "Disconnected by server".to_string(),
-            });
+        self.world_mut().trigger(ServerEvent::ClientDisconnected {
+            client_id,
+            reason: "Disconnected by server".to_string(),
+        });
 
         self.update();
         client_app.update();

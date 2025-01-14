@@ -333,7 +333,7 @@ fn with_spawn() {
 
     client_app
         .world_mut()
-        .query_filtered::<Entity, Without<DummyComponent>>()
+        .query_filtered::<Entity, (With<Replicated>, Without<DummyComponent>)>()
         .single(client_app.world());
 }
 
@@ -364,7 +364,10 @@ fn with_despawn() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    assert_eq!(client_app.world().entities().len(), 1);
+    client_app
+        .world_mut()
+        .query::<&Replicated>()
+        .single(client_app.world());
 
     // Un-replicate and remove at the same time.
     server_app
@@ -377,7 +380,8 @@ fn with_despawn() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert!(client_app.world().entities().is_empty());
+    let mut replicated = client_app.world_mut().query::<&Replicated>();
+    assert!(replicated.iter(client_app.world()).next().is_none());
 }
 
 #[test]
@@ -484,8 +488,9 @@ fn hidden() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
+    let mut replicated = client_app.world_mut().query::<&Replicated>();
     assert!(
-        client_app.world().entities().is_empty(),
+        replicated.iter(client_app.world()).next().is_none(),
         "client shouldn't know about hidden entity"
     );
 }

@@ -99,7 +99,8 @@ fn with_old_component() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    assert!(client_app.world().entities().is_empty());
+    let mut replicated = client_app.world_mut().query::<&Replicated>();
+    assert!(replicated.iter(client_app.world()).next().is_none());
 
     // Enable replication for previously spawned entity
     server_app
@@ -214,8 +215,9 @@ fn pre_spawn() {
         "component from server should be replicated"
     );
 
+    let mut replicated = client_app.world_mut().query::<&Replicated>();
     assert_eq!(
-        client_app.world().entities().len(),
+        replicated.iter(client_app.world()).count(),
         1,
         "new entity shouldn't be spawned on client"
     );
