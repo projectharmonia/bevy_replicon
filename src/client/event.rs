@@ -14,9 +14,9 @@ use bevy::prelude::*;
 ///
 /// Requires [`ClientPlugin`].
 /// Can be disabled for apps that act only as servers.
-pub struct ClientEventsPlugin;
+pub struct ClientEventPlugin;
 
-impl Plugin for ClientEventsPlugin {
+impl Plugin for ClientEventPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             PreUpdate,
@@ -40,7 +40,7 @@ impl Plugin for ClientEventsPlugin {
     }
 }
 
-impl ClientEventsPlugin {
+impl ClientEventPlugin {
     fn send(world: &mut World) {
         world.resource_scope(|world, mut client: Mut<RepliconClient>| {
             world.resource_scope(|world, registry: Mut<AppTypeRegistry>| {
