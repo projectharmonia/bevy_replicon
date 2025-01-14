@@ -1,9 +1,9 @@
 use super::{ClientPlugin, ClientSet, ServerUpdateTick};
 use crate::core::{
     common_conditions::*,
-    event_registry::{
+    event::{
         ctx::{ClientReceiveCtx, ClientSendCtx},
-        EventRegistry,
+        event_registry::EventRegistry,
     },
     replicon_client::RepliconClient,
     server_entity_map::ServerEntityMap,

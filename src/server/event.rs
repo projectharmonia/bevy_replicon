@@ -4,8 +4,11 @@ use super::{server_tick::ServerTick, ServerPlugin, ServerSet};
 use crate::core::{
     common_conditions::*,
     connected_clients::ConnectedClients,
-    event_registry::ctx::{ServerReceiveCtx, ServerSendCtx},
-    event_registry::{server_event::BufferedServerEvents, EventRegistry},
+    event::{
+        ctx::{ServerReceiveCtx, ServerSendCtx},
+        event_registry::EventRegistry,
+        server_event::BufferedServerEvents,
+    },
     replication::replicated_clients::ReplicatedClients,
     replicon_server::RepliconServer,
 };

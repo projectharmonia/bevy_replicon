@@ -628,7 +628,7 @@ pub mod prelude {
             channels::{ChannelKind, RepliconChannel, RepliconChannels},
             common_conditions::*,
             connected_clients::ConnectedClients,
-            event_registry::{
+            event::{
                 client_event::{ClientEventAppExt, FromClient},
                 server_event::{SendMode, ServerEventAppExt, ToClients},
             },
