@@ -51,7 +51,7 @@ fn table_storage() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), With<DummyComponent>>()
+        .query::<&DummyComponent>()
         .single(client_app.world());
 }
 
@@ -90,7 +90,7 @@ fn sparse_set_storage() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), With<SparseSetComponent>>()
+        .query::<&SparseSetComponent>()
         .single(client_app.world());
 }
 
@@ -227,7 +227,7 @@ fn command_fns() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), (With<ReplacedComponent>, Without<OriginalComponent>)>()
+        .query_filtered::<&ReplacedComponent, Without<OriginalComponent>>()
         .single(client_app.world());
 }
 
@@ -322,7 +322,7 @@ fn group() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), (With<GroupComponentA>, With<GroupComponentB>)>()
+        .query::<(&GroupComponentA, &GroupComponentB)>()
         .single(client_app.world());
 }
 
@@ -360,7 +360,7 @@ fn not_replicated() {
 
     let components = client_app
         .world_mut()
-        .query_filtered::<(), With<DummyComponent>>()
+        .query::<&DummyComponent>()
         .iter(client_app.world())
         .count();
     assert_eq!(components, 0);
@@ -406,7 +406,7 @@ fn after_removal() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), With<DummyComponent>>()
+        .query::<&DummyComponent>()
         .single(client_app.world());
 }
 
@@ -437,7 +437,7 @@ fn before_started_replication() {
 
     let replicated_components = client_app
         .world_mut()
-        .query_filtered::<(), With<DummyComponent>>()
+        .query::<&DummyComponent>()
         .iter(client_app.world())
         .count();
 
@@ -457,7 +457,7 @@ fn before_started_replication() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), With<DummyComponent>>()
+        .query::<&DummyComponent>()
         .single(client_app.world());
 }
 
@@ -497,7 +497,7 @@ fn after_started_replication() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), With<DummyComponent>>()
+        .query::<&DummyComponent>()
         .single(client_app.world());
 }
 

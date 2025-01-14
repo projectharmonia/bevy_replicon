@@ -70,7 +70,7 @@ fn with_component() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), (With<Replicated>, With<DummyComponent>)>()
+        .query::<(&Replicated, &DummyComponent)>()
         .single(client_app.world());
 }
 
@@ -114,7 +114,7 @@ fn with_old_component() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), (With<Replicated>, With<DummyComponent>)>()
+        .query::<(&Replicated, &DummyComponent)>()
         .single(client_app.world());
 }
 
@@ -143,7 +143,7 @@ fn before_connection() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), (With<Replicated>, With<DummyComponent>)>()
+        .query::<(&Replicated, &DummyComponent)>()
         .single(client_app.world());
 }
 
@@ -253,7 +253,7 @@ fn after_despawn() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), (With<Replicated>, With<DummyComponent>)>()
+        .query::<(&Replicated, &DummyComponent)>()
         .single(client_app.world());
 }
 

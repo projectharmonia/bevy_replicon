@@ -37,7 +37,7 @@ fn all() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), (With<Replicated>, With<DummyComponent>)>()
+        .query::<(&Replicated, &DummyComponent)>()
         .single(client_app.world());
 
     // Reverse visibility back.
@@ -51,7 +51,7 @@ fn all() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), (With<Replicated>, With<DummyComponent>)>()
+        .query::<(&Replicated, &DummyComponent)>()
         .single(client_app.world());
 }
 
@@ -81,7 +81,7 @@ fn empty_blacklist() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), (With<Replicated>, With<DummyComponent>)>()
+        .query::<(&Replicated, &DummyComponent)>()
         .single(client_app.world());
 }
 
@@ -133,7 +133,7 @@ fn blacklist() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), (With<Replicated>, With<DummyComponent>)>()
+        .query::<(&Replicated, &DummyComponent)>()
         .single(client_app.world());
 }
 
