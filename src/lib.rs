@@ -172,8 +172,8 @@ If you want to separate the client and server, you can use the `client` and `ser
 (both enabled by default), which control enabled plugins.
 
 It's also possible to do it at runtime via [`PluginGroupBuilder::disable()`].
-For server disable [`ClientPlugin`] and [`ClientEventsPlugin`].
-For client disable [`ServerPlugin`] and [`ServerEventsPlugin`].
+For server disable [`ClientPlugin`] and [`ClientEventPlugin`].
+For client disable [`ServerPlugin`] and [`ServerEventPlugin`].
 
 You will need to disable similar features or plugins on your messaing library of choice too.
 
@@ -650,13 +650,13 @@ pub mod prelude {
 
     #[cfg(feature = "client")]
     pub use super::client::{
-        events::ClientEventsPlugin, ClientPlugin, ClientReplicationStats, ClientSet,
+        event::ClientEventPlugin, ClientPlugin, ClientReplicationStats, ClientSet,
     };
 
     #[cfg(feature = "server")]
     pub use super::server::{
         client_entity_map::{ClientEntityMap, ClientMapping},
-        events::ServerEventsPlugin,
+        event::ServerEventPlugin,
         ServerEvent, ServerPlugin, ServerSet, StartReplication, TickPolicy,
     };
 
@@ -676,9 +676,9 @@ use prelude::*;
 /// Contains the following:
 /// * [`RepliconCorePlugin`].
 /// * [`ServerPlugin`] - with feature `server`.
-/// * [`ServerEventsPlugin`] - with feature `server`.
+/// * [`ServerEventPlugin`] - with feature `server`.
 /// * [`ClientPlugin`] - with feature `client`.
-/// * [`ClientEventsPlugin`] - with feature `client`.
+/// * [`ClientEventPlugin`] - with feature `client`.
 /// * [`ParentSyncPlugin`] - with feature `parent_sync`.
 /// * [`ClientDiagnosticsPlugin`] - with feature `client_diagnostics`.
 pub struct RepliconPlugins;
@@ -690,12 +690,12 @@ impl PluginGroup for RepliconPlugins {
 
         #[cfg(feature = "server")]
         {
-            group = group.add(ServerPlugin::default()).add(ServerEventsPlugin);
+            group = group.add(ServerPlugin::default()).add(ServerEventPlugin);
         }
 
         #[cfg(feature = "client")]
         {
-            group = group.add(ClientPlugin).add(ClientEventsPlugin);
+            group = group.add(ClientPlugin).add(ClientEventPlugin);
         }
 
         #[cfg(feature = "parent_sync")]

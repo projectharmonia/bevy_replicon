@@ -111,7 +111,7 @@ fn sending_receiving_without_plugins() {
                     ..Default::default()
                 })
                 .disable::<ClientPlugin>()
-                .disable::<ClientEventsPlugin>(),
+                .disable::<ClientEventPlugin>(),
         ))
         .add_server_event::<DummyEvent>(ChannelKind::Ordered);
     client_app
@@ -120,7 +120,7 @@ fn sending_receiving_without_plugins() {
             RepliconPlugins
                 .build()
                 .disable::<ServerPlugin>()
-                .disable::<ServerEventsPlugin>(),
+                .disable::<ServerEventPlugin>(),
         ))
         .add_server_event::<DummyEvent>(ChannelKind::Ordered);
 
