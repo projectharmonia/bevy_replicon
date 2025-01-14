@@ -14,9 +14,9 @@ use crate::core::{
 ///
 /// Requires [`ServerPlugin`].
 /// Can be disabled for apps that act only as clients.
-pub struct ServerEventsPlugin;
+pub struct ServerEventPlugin;
 
-impl Plugin for ServerEventsPlugin {
+impl Plugin for ServerEventPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             PreUpdate,
@@ -40,7 +40,7 @@ impl Plugin for ServerEventsPlugin {
     }
 }
 
-impl ServerEventsPlugin {
+impl ServerEventPlugin {
     fn send_or_buffer(world: &mut World) {
         world.resource_scope(|world, mut server: Mut<RepliconServer>| {
             world.resource_scope(|world, mut buffered_events: Mut<BufferedServerEvents>| {

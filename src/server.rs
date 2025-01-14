@@ -1,6 +1,6 @@
 pub mod client_entity_map;
 pub(super) mod despawn_buffer;
-pub mod events;
+pub mod event;
 pub(super) mod removal_buffer;
 pub(super) mod replicated_archetypes;
 pub(super) mod replication_messages;

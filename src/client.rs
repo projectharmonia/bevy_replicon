@@ -1,7 +1,7 @@
 pub mod confirm_history;
 #[cfg(feature = "client_diagnostics")]
 pub mod diagnostics;
-pub mod events;
+pub mod event;
 pub mod server_mutate_ticks;
 
 use std::{io::Cursor, mem};
