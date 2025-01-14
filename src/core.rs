@@ -1,7 +1,7 @@
 pub mod channels;
 pub mod common_conditions;
 pub mod connected_clients;
-pub mod event_registry;
+pub mod event;
 pub mod replication;
 pub mod replicon_client;
 pub mod replicon_server;
@@ -12,7 +12,7 @@ use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use channels::RepliconChannels;
-use event_registry::EventRegistry;
+use event::event_registry::EventRegistry;
 use replication::{
     command_markers::CommandMarkers, replication_registry::ReplicationRegistry,
     replication_rules::ReplicationRules, track_mutate_messages::TrackMutateMessages, Replicated,

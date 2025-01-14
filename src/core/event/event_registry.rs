@@ -1,10 +1,6 @@
-pub(crate) mod client_event;
-pub mod ctx;
-pub(crate) mod server_event;
-
 use bevy::{ecs::component::ComponentId, prelude::*};
-use client_event::ClientEvent;
-use server_event::ServerEvent;
+
+use super::{client_event::ClientEvent, server_event::ServerEvent};
 
 /// Registered server and client events.
 #[derive(Resource, Default)]
