@@ -23,17 +23,14 @@ use super::{
     ctx::{ClientReceiveCtx, ServerSendCtx},
     EventRegistry,
 };
-use crate::{
-    core::{
-        channels::{RepliconChannel, RepliconChannels},
-        connected_clients::ConnectedClients,
-        replication::replicated_clients::ReplicatedClients,
-        replicon_client::RepliconClient,
-        replicon_server::RepliconServer,
-        replicon_tick::RepliconTick,
-        ClientId,
-    },
-    ReplicatedClient,
+use crate::core::{
+    channels::{RepliconChannel, RepliconChannels},
+    connected_clients::ConnectedClients,
+    replication::replicated_clients::{ReplicatedClient, ReplicatedClients},
+    replicon_client::RepliconClient,
+    replicon_server::RepliconServer,
+    replicon_tick::RepliconTick,
+    ClientId,
 };
 
 /// An extension trait for [`App`] for creating client events.
