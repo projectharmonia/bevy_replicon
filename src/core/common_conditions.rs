@@ -4,7 +4,7 @@ use super::{replicon_client::RepliconClient, replicon_server::RepliconServer};
 
 /// Returns `true` if the server is running.
 pub fn server_running(server: Option<Res<RepliconServer>>) -> bool {
-    server.filter(|server| server.is_running()).is_some()
+    server.is_some_and(|server| server.is_running())
 }
 
 /// Returns `true` if there is no client or if the existing client is disconnected.
@@ -20,12 +20,12 @@ pub fn server_or_singleplayer(client: Option<Res<RepliconClient>>) -> bool {
 
 /// Returns `true` when the client is connecting.
 pub fn client_connecting(client: Option<Res<RepliconClient>>) -> bool {
-    client.filter(|client| client.is_connecting()).is_some()
+    client.is_some_and(|client| client.is_connecting())
 }
 
 /// Returns `true` when the client is connected.
 pub fn client_connected(client: Option<Res<RepliconClient>>) -> bool {
-    client.filter(|client| client.is_connected()).is_some()
+    client.is_some_and(|client| client.is_connected())
 }
 
 /// Returns `true` if the server stopped on this tick.
@@ -33,7 +33,7 @@ pub fn server_just_stopped(
     mut last_running: Local<bool>,
     server: Option<Res<RepliconServer>>,
 ) -> bool {
-    let running = server.filter(|server| server.is_running()).is_some();
+    let running = server.is_some_and(|server| server.is_running());
 
     let just_stopped = *last_running && !running;
     *last_running = running;
@@ -45,7 +45,7 @@ pub fn client_started_connecting(
     mut last_connecting: Local<bool>,
     client: Option<Res<RepliconClient>>,
 ) -> bool {
-    let connecting = client.filter(|client| client.is_connecting()).is_some();
+    let connecting = client.is_some_and(|client| client.is_connecting());
 
     let started_connecting = !*last_connecting && connecting;
     *last_connecting = connecting;
@@ -57,7 +57,7 @@ pub fn client_just_connected(
     mut last_connected: Local<bool>,
     client: Option<Res<RepliconClient>>,
 ) -> bool {
-    let connected = client.filter(|client| client.is_connected()).is_some();
+    let connected = client.is_some_and(|client| client.is_connected());
 
     let just_connected = !*last_connected && connected;
     *last_connected = connected;
@@ -69,7 +69,7 @@ pub fn client_just_disconnected(
     mut last_not_disconnected: Local<bool>,
     client: Option<Res<RepliconClient>>,
 ) -> bool {
-    let disconnected = client.filter(|client| client.is_disconnected()).is_some();
+    let disconnected = client.is_some_and(|client| client.is_disconnected());
 
     let just_disconnected = *last_not_disconnected && disconnected;
     *last_not_disconnected = !disconnected;
