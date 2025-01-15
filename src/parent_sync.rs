@@ -73,7 +73,7 @@ impl ParentSyncPlugin {
     }
 
     #[cfg(feature = "server")]
-    fn store_changes(mut hierarchy: Query<(Ref<Parent>, &mut ParentSync), Changed<Parent>>) {
+    fn store_changes(mut hierarchy: Query<(&Parent, &mut ParentSync), Changed<Parent>>) {
         for (parent, mut parent_sync) in &mut hierarchy {
             parent_sync.set_if_neq(ParentSync(Some(**parent)));
         }
