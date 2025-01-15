@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rename `client::events` into `client::event` (singular).
 - Rename `server::events` into `server::event` (singular).
 
+### Fixed
+
+`ParentSync` now correctly syncs the hierarchy if spawned before `ClientSet::SyncHierarchy`.
+
 ## [0.29.2] - 2025-01-06
 
 ### Fixed

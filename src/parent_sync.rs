@@ -9,7 +9,10 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "client")]
 use crate::client::ClientSet;
-use crate::core::{common_conditions::*, replication::replication_rules::AppRuleExt};
+use crate::core::{
+    common_conditions::*, replication::replication_rules::AppRuleExt,
+    replicon_client::RepliconClient,
+};
 #[cfg(feature = "server")]
 use crate::server::ServerSet;
 
@@ -36,12 +39,14 @@ impl Plugin for ParentSyncPlugin {
         );
 
         #[cfg(feature = "server")]
-        app.add_systems(
-            PostUpdate,
-            (Self::store_changes, Self::store_removals)
-                .run_if(server_or_singleplayer)
-                .in_set(ServerSet::StoreHierarchy),
-        );
+        app.add_observer(Self::store_insertions)
+            .add_observer(Self::store_removals)
+            .add_systems(
+                PostUpdate,
+                Self::store_changes
+                    .run_if(server_or_singleplayer)
+                    .in_set(ServerSet::StoreHierarchy),
+            );
     }
 }
 
@@ -56,7 +61,7 @@ impl ParentSyncPlugin {
     ) {
         for (entity, parent_sync, parent) in &hierarchy {
             if let Some(sync_entity) = parent_sync.0 {
-                if parent.filter(|&parent| **parent == sync_entity).is_none() {
+                if parent.is_some_and(|parent| **parent != sync_entity) {
                     commands.entity(entity).set_parent(sync_entity);
                 }
             } else if parent.is_some() {
@@ -66,21 +71,44 @@ impl ParentSyncPlugin {
     }
 
     #[cfg(feature = "server")]
-    fn store_changes(mut hierarchy: Query<(&Parent, &mut ParentSync), Changed<Parent>>) {
+    fn store_changes(mut hierarchy: Query<(Ref<Parent>, &mut ParentSync), Changed<Parent>>) {
         for (parent, mut parent_sync) in &mut hierarchy {
+            if parent.is_added() {
+                // Already handled by `store_insertions` to make it work correctly
+                // when an entity is spawned before `ClientSet::SyncHierarchy`.
+                continue;
+            }
+            parent_sync.set_if_neq(ParentSync(Some(**parent)));
+        }
+    }
+
+    #[cfg(feature = "server")]
+    fn store_insertions(
+        trigger: Trigger<OnAdd, Parent>,
+        client: Option<Res<RepliconClient>>,
+        mut hierarchy: Query<(&Parent, &mut ParentSync)>,
+    ) {
+        if !server_or_singleplayer(client) {
+            return;
+        }
+
+        if let Ok((parent, mut parent_sync)) = hierarchy.get_mut(trigger.entity()) {
             parent_sync.0 = Some(**parent);
         }
     }
 
     #[cfg(feature = "server")]
     fn store_removals(
-        mut removed_parents: RemovedComponents<Parent>,
+        trigger: Trigger<OnRemove, Parent>,
+        client: Option<Res<RepliconClient>>,
         mut hierarchy: Query<&mut ParentSync>,
     ) {
-        for entity in removed_parents.read() {
-            if let Ok(mut parent_sync) = hierarchy.get_mut(entity) {
-                parent_sync.0 = None;
-            }
+        if !server_or_singleplayer(client) {
+            return;
+        }
+
+        if let Ok(mut parent_sync) = hierarchy.get_mut(trigger.entity()) {
+            parent_sync.0 = None;
         }
     }
 }
@@ -104,7 +132,7 @@ impl ParentSyncPlugin {
 /// });
 /// # world.flush();
 /// ```
-#[derive(Component, Default, Reflect, Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Component, Default, Reflect, Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
 #[reflect(Component, MapEntities)]
 pub struct ParentSync(Option<Entity>);
 
@@ -124,24 +152,23 @@ mod tests {
     use crate::core::RepliconCorePlugin;
 
     #[test]
-    fn update() {
+    fn insertion() {
         let mut app = App::new();
         app.add_plugins((RepliconCorePlugin, ParentSyncPlugin));
 
-        let child_entity = app.world_mut().spawn_empty().id();
-        app.world_mut().spawn_empty().add_child(child_entity);
-
-        app.add_systems(Update, move |mut commands: Commands| {
-            // Should be inserted in `Update` to avoid sync in `PreUpdate`.
-            commands.entity(child_entity).insert(ParentSync::default());
-        });
+        let parent_entity = app.world_mut().spawn_empty().id();
+        let child_entity = app
+            .world_mut()
+            .spawn(ParentSync::default())
+            .set_parent(parent_entity)
+            .id();
 
         app.update();
 
         let child_entity = app.world().entity(child_entity);
-        let parent = child_entity.get::<Parent>().unwrap();
-        let parent_sync = child_entity.get::<ParentSync>().unwrap();
-        assert!(parent_sync.0.is_some_and(|entity| entity == **parent));
+        let (parent, parent_sync) = child_entity.components::<(&Parent, &ParentSync)>();
+        assert_eq!(**parent, parent_entity);
+        assert!(parent_sync.0.is_some_and(|entity| entity == parent_entity));
     }
 
     #[test]
@@ -152,63 +179,49 @@ mod tests {
         let parent_entity = app.world_mut().spawn_empty().id();
         let child_entity = app
             .world_mut()
-            .spawn_empty()
+            .spawn(ParentSync::default())
             .set_parent(parent_entity)
-            .remove_parent()
             .id();
-
-        app.add_systems(Update, move |mut commands: Commands| {
-            // Should be inserted in `Update` to avoid sync in `PreUpdate`.
-            commands
-                .entity(child_entity)
-                .insert(ParentSync(Some(parent_entity)));
-        });
 
         app.update();
 
-        let parent_sync = app.world().get::<ParentSync>(child_entity).unwrap();
+        app.world_mut().entity_mut(child_entity).remove_parent();
+
+        let child_entity = app.world().entity(child_entity);
+        let (has_parent, parent_sync) = child_entity.components::<(Has<Parent>, &ParentSync)>();
+        assert!(!has_parent);
         assert!(parent_sync.0.is_none());
     }
 
     #[test]
-    fn update_sync() {
+    fn change() {
         let mut app = App::new();
         app.add_plugins((RepliconCorePlugin, ParentSyncPlugin));
 
         let parent_entity = app.world_mut().spawn_empty().id();
-        let child_entity = app.world_mut().spawn(ParentSync(Some(parent_entity))).id();
+        let child_entity = app
+            .world_mut()
+            .spawn(ParentSync::default())
+            .set_parent(parent_entity)
+            .id();
 
         app.update();
 
-        let child_entity = app.world().entity(child_entity);
-        let parent = child_entity.get::<Parent>().unwrap();
-        let parent_sync = child_entity.get::<ParentSync>().unwrap();
-        assert!(parent_sync.0.is_some_and(|entity| entity == **parent));
-    }
-
-    #[test]
-    fn removal_sync() {
-        let mut app = App::new();
-        app.add_plugins((RepliconCorePlugin, ParentSyncPlugin));
-
-        let child_entity = app.world_mut().spawn_empty().id();
-        app.world_mut().spawn_empty().add_child(child_entity);
-
-        app.update();
-
+        let new_entity = app.world_mut().spawn_empty().id();
         app.world_mut()
             .entity_mut(child_entity)
-            .insert(ParentSync::default());
+            .set_parent(new_entity);
 
         app.update();
 
         let child_entity = app.world().entity(child_entity);
-        assert!(!child_entity.contains::<Parent>());
-        assert!(child_entity.get::<ParentSync>().unwrap().0.is_none());
+        let (parent, parent_sync) = child_entity.components::<(&Parent, &ParentSync)>();
+        assert_eq!(**parent, new_entity);
+        assert!(parent_sync.0.is_some_and(|entity| entity == new_entity));
     }
 
     #[test]
-    fn scene_update_sync() {
+    fn scene_spawn() {
         let mut app = App::new();
         app.add_plugins((
             AssetPlugin::default(),
@@ -219,16 +232,17 @@ mod tests {
 
         let mut scene_world = World::new();
         scene_world.insert_resource(app.world().resource::<AppTypeRegistry>().clone());
-        let parent_entity = scene_world.spawn_empty().id();
-        scene_world.spawn(ParentSync(Some(parent_entity)));
-        let dynamic_scene = DynamicScene::from_world(&scene_world);
+
+        app.world_mut().spawn_empty().with_children(|parent| {
+            parent.spawn(ParentSync::default());
+        });
 
         let mut scenes = app.world_mut().resource_mut::<Assets<DynamicScene>>();
+        let dynamic_scene = DynamicScene::from_world(&scene_world);
         let scene_handle = scenes.add(dynamic_scene);
         let mut scene_spawner = app.world_mut().resource_mut::<SceneSpawner>();
         scene_spawner.spawn_dynamic(scene_handle);
 
-        app.update();
         app.update();
 
         let (parent, parent_sync) = app
