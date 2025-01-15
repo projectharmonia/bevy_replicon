@@ -38,8 +38,10 @@ impl Plugin for ParentSyncPlugin {
             Self::sync_hierarchy.in_set(ClientSet::SyncHierarchy),
         );
 
+        // Trigger on both `Parent` and `ParentSync` to initialize depending on what inserted last.
         #[cfg(feature = "server")]
-        app.add_observer(Self::store_insertions)
+        app.add_observer(Self::init::<ParentSync>)
+            .add_observer(Self::init::<Parent>)
             .add_observer(Self::store_removals)
             .add_systems(
                 PostUpdate,
@@ -73,18 +75,13 @@ impl ParentSyncPlugin {
     #[cfg(feature = "server")]
     fn store_changes(mut hierarchy: Query<(Ref<Parent>, &mut ParentSync), Changed<Parent>>) {
         for (parent, mut parent_sync) in &mut hierarchy {
-            if parent.is_added() {
-                // Already handled by `store_insertions` to make it work correctly
-                // when an entity is spawned before `ClientSet::SyncHierarchy`.
-                continue;
-            }
             parent_sync.set_if_neq(ParentSync(Some(**parent)));
         }
     }
 
     #[cfg(feature = "server")]
-    fn store_insertions(
-        trigger: Trigger<OnAdd, Parent>,
+    fn init<C: Component>(
+        trigger: Trigger<OnAdd, C>,
         client: Option<Res<RepliconClient>>,
         mut hierarchy: Query<(&Parent, &mut ParentSync)>,
     ) {
@@ -93,7 +90,7 @@ impl ParentSyncPlugin {
         }
 
         if let Ok((parent, mut parent_sync)) = hierarchy.get_mut(trigger.entity()) {
-            parent_sync.0 = Some(**parent);
+            parent_sync.set_if_neq(ParentSync(Some(**parent)));
         }
     }
 
@@ -152,7 +149,7 @@ mod tests {
     use crate::core::RepliconCorePlugin;
 
     #[test]
-    fn insertion() {
+    fn spawn() {
         let mut app = App::new();
         app.add_plugins((RepliconCorePlugin, ParentSyncPlugin));
 
@@ -161,6 +158,27 @@ mod tests {
             .world_mut()
             .spawn(ParentSync::default())
             .set_parent(parent_entity)
+            .id();
+
+        app.update();
+
+        let child_entity = app.world().entity(child_entity);
+        let (parent, parent_sync) = child_entity.components::<(&Parent, &ParentSync)>();
+        assert_eq!(**parent, parent_entity);
+        assert!(parent_sync.0.is_some_and(|entity| entity == parent_entity));
+    }
+
+    #[test]
+    fn insertion() {
+        let mut app = App::new();
+        app.add_plugins((RepliconCorePlugin, ParentSyncPlugin));
+
+        let parent_entity = app.world_mut().spawn_empty().id();
+        let child_entity = app
+            .world_mut()
+            .spawn_empty()
+            .set_parent(parent_entity)
+            .insert(ParentSync::default())
             .id();
 
         app.update();
