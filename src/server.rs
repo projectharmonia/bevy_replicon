@@ -718,6 +718,14 @@ pub enum ServerSet {
     ///
     /// Runs in [`PreUpdate`].
     ReceivePackets,
+    /// Systems that trigger [`ServerEvent`]s.
+    ///
+    /// The messaging backend should convert its own server events in this set.
+    ///
+    /// Needed only for backends that use batched events instead of triggers.
+    ///
+    /// Runs in [`PreUpdate`].
+    TriggerServerEvents,
     /// Systems that receive data from [`RepliconServer`].
     ///
     /// Used by `bevy_replicon`.
