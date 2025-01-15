@@ -1,5 +1,7 @@
 use std::ops::Range;
 
+use bevy::prelude::*;
+
 use integer_encoding::{FixedIntWriter, VarInt, VarIntWriter};
 
 use super::{
@@ -259,7 +261,12 @@ impl UpdateMessage {
                     // Otherwise this would mean that the client already received the mapped
                     // entity and it's already mapped or server sends an invisible entity which
                     // is an error.
-                    debug_assert_ne!(flag, last_flag);
+                    if flag == last_flag {
+                        error!("skipping the sending of a message with mappings but without any entity data,
+                                which could be caused by mapping invisible or non-replicatable entities for `{:?}", client.id());
+                        return Ok(());
+                    }
+
                     message.write_varint(self.mappings_len)?;
                     message.extend_from_slice(&serialized[self.mappings.clone()]);
                 }
