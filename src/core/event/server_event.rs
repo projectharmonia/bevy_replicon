@@ -21,7 +21,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use super::{
     ctx::{ClientReceiveCtx, ServerSendCtx},
-    EventRegistry,
+    event_registry::EventRegistry,
 };
 use crate::core::{
     channels::{RepliconChannel, RepliconChannels},
@@ -83,7 +83,7 @@ pub trait ServerEventAppExt {
         reflect::serde::{ReflectSerializer, ReflectDeserializer},
     };
     use bevy_replicon::{
-        core::event_registry::ctx::{ClientReceiveCtx, ServerSendCtx},
+        core::event::ctx::{ClientReceiveCtx, ServerSendCtx},
         prelude::*,
     };
     use bincode::{DefaultOptions, Options};

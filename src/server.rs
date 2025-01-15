@@ -24,7 +24,7 @@ use crate::core::{
     channels::{ReplicationChannel, RepliconChannels},
     common_conditions::{server_just_stopped, server_running},
     connected_clients::ConnectedClients,
-    event_registry::server_event::BufferedServerEvents,
+    event::server_event::BufferedServerEvents,
     replication::{
         replicated_clients::{
             client_visibility::Visibility, ClientBuffers, ReplicatedClients, VisibilityPolicy,
@@ -65,7 +65,7 @@ pub struct ServerPlugin {
     /// Until replication has started, the client and server can still exchange network events.
     ///
     /// All events from server will be buffered on client until replication starts, except the ones marked as independent.
-    /// See also [`ServerEventAppExt::make_independent`](crate::core::event_registry::server_event::ServerEventAppExt::make_independent).
+    /// See also [`ServerEventAppExt::make_independent`](crate::core::event::server_event::ServerEventAppExt::make_independent).
     pub replicate_after_connect: bool,
 }
 

@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `StartReplication` is now a trigger-event.
 - `ServerEvent` is now a trigger-event.
 - Rename `ServerEvent::SendEvents` into `ServerEvent::TriggerServerEvents`.
+- Rename `core::event_registry` into `core::event`.
 - Rename `ClientEventsPlugin` into `ClientEventPlugin` (singular).
 - Rename `ServerEventsPlugin` into `ServerEventPlugin` (singular).
 - Rename `ClientEventsPlugin` into `ClientEventPlugin` (singular).
