@@ -63,7 +63,7 @@ impl ParentSyncPlugin {
     ) {
         for (entity, parent_sync, parent) in &hierarchy {
             if let Some(sync_entity) = parent_sync.0 {
-                if parent.is_some_and(|parent| **parent != sync_entity) {
+                if parent.is_none_or(|parent| **parent != sync_entity) {
                     commands.entity(entity).set_parent(sync_entity);
                 }
             } else if parent.is_some() {
