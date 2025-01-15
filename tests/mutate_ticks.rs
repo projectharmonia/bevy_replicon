@@ -130,17 +130,18 @@ fn multiple_messages() {
     server_app.connect_client(&mut client_app);
 
     // Spawn many entities to cover message splitting.
-    const ENTITIES_COUNT: u32 = 300;
+    const ENTITIES_COUNT: usize = 300;
     server_app
         .world_mut()
-        .spawn_batch([(Replicated, BoolComponent(false)); ENTITIES_COUNT as usize]);
+        .spawn_batch([(Replicated, BoolComponent(false)); ENTITIES_COUNT]);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    assert_eq!(client_app.world().entities().len(), ENTITIES_COUNT);
+    let mut replicated = client_app.world_mut().query::<&Replicated>();
+    assert_eq!(replicated.iter(client_app.world()).len(), ENTITIES_COUNT);
 
     let mut tick_events = client_app
         .world_mut()

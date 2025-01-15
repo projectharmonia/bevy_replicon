@@ -51,7 +51,7 @@ fn table_storage() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), With<DummyComponent>>()
+        .query::<&DummyComponent>()
         .single(client_app.world());
 }
 
@@ -90,7 +90,7 @@ fn sparse_set_storage() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), With<SparseSetComponent>>()
+        .query::<&SparseSetComponent>()
         .single(client_app.world());
 }
 
@@ -186,7 +186,9 @@ fn mapped_new_entity() {
         .query::<&MappedComponent>()
         .single(client_app.world());
     assert!(client_app.world().get_entity(mapped_component.0).is_ok());
-    assert_eq!(client_app.world().entities().len(), 2);
+
+    let mut replicated = client_app.world_mut().query::<&Replicated>();
+    assert_eq!(replicated.iter(client_app.world()).count(), 2);
 }
 
 #[test]
@@ -225,7 +227,7 @@ fn command_fns() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), (With<ReplacedComponent>, Without<OriginalComponent>)>()
+        .query_filtered::<&ReplacedComponent, Without<OriginalComponent>>()
         .single(client_app.world());
 }
 
@@ -320,7 +322,7 @@ fn group() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), (With<GroupComponentA>, With<GroupComponentB>)>()
+        .query::<(&GroupComponentA, &GroupComponentB)>()
         .single(client_app.world());
 }
 
@@ -358,7 +360,7 @@ fn not_replicated() {
 
     let components = client_app
         .world_mut()
-        .query_filtered::<(), With<DummyComponent>>()
+        .query::<&DummyComponent>()
         .iter(client_app.world())
         .count();
     assert_eq!(components, 0);
@@ -404,7 +406,7 @@ fn after_removal() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), With<DummyComponent>>()
+        .query::<&DummyComponent>()
         .single(client_app.world());
 }
 
@@ -435,7 +437,7 @@ fn before_started_replication() {
 
     let replicated_components = client_app
         .world_mut()
-        .query_filtered::<(), With<DummyComponent>>()
+        .query::<&DummyComponent>()
         .iter(client_app.world())
         .count();
 
@@ -446,9 +448,7 @@ fn before_started_replication() {
 
     let client = client_app.world().resource::<RepliconClient>();
     let client_id = client.id().unwrap();
-    server_app
-        .world_mut()
-        .send_event(StartReplication(client_id));
+    server_app.world_mut().trigger(StartReplication(client_id));
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -457,7 +457,7 @@ fn before_started_replication() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), With<DummyComponent>>()
+        .query::<&DummyComponent>()
         .single(client_app.world());
 }
 
@@ -481,9 +481,7 @@ fn after_started_replication() {
 
     let client = client_app.world().resource::<RepliconClient>();
     let client_id = client.id().unwrap();
-    server_app
-        .world_mut()
-        .send_event(StartReplication(client_id));
+    server_app.world_mut().trigger(StartReplication(client_id));
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -499,7 +497,7 @@ fn after_started_replication() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), With<DummyComponent>>()
+        .query::<&DummyComponent>()
         .single(client_app.world());
 }
 

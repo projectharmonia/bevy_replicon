@@ -96,16 +96,9 @@ impl Plugin for ServerPlugin {
                 self.replicate_after_connect,
             ))
             .init_resource::<BufferedServerEvents>()
-            .add_event::<ServerEvent>()
-            .add_event::<StartReplication>()
             .configure_sets(
                 PreUpdate,
-                (
-                    ServerSet::ReceivePackets,
-                    ServerSet::SendEvents,
-                    ServerSet::Receive,
-                )
-                    .chain(),
+                (ServerSet::ReceivePackets, ServerSet::Receive).chain(),
             )
             .configure_sets(
                 PostUpdate,
@@ -116,12 +109,12 @@ impl Plugin for ServerPlugin {
                 )
                     .chain(),
             )
+            .add_observer(Self::handle_connections)
+            .add_observer(Self::enable_replication)
             .add_systems(Startup, Self::setup_channels)
             .add_systems(
                 PreUpdate,
                 (
-                    Self::handle_connections,
-                    Self::enable_replication,
                     Self::receive_acks,
                     Self::cleanup_acks(self.mutations_timeout)
                         .run_if(on_timer(self.mutations_timeout)),
@@ -178,42 +171,38 @@ impl ServerPlugin {
     }
 
     fn handle_connections(
-        mut server_events: EventReader<ServerEvent>,
+        trigger: Trigger<ServerEvent>,
+        mut commands: Commands,
         mut entity_map: ResMut<ClientEntityMap>,
         mut connected_clients: ResMut<ConnectedClients>,
         mut replicated_clients: ResMut<ReplicatedClients>,
         mut server: ResMut<RepliconServer>,
         mut client_buffers: ResMut<ClientBuffers>,
         mut buffered_events: ResMut<BufferedServerEvents>,
-        mut enable_replication: EventWriter<StartReplication>,
     ) {
-        for event in server_events.read() {
-            match *event {
-                ServerEvent::ClientDisconnected { client_id, .. } => {
-                    entity_map.0.remove(&client_id);
-                    connected_clients.remove(client_id);
-                    replicated_clients.remove(&mut client_buffers, client_id);
-                    server.remove_client(client_id);
+        match *trigger.event() {
+            ServerEvent::ClientDisconnected { client_id, .. } => {
+                entity_map.0.remove(&client_id);
+                connected_clients.remove(client_id);
+                replicated_clients.remove(&mut client_buffers, client_id);
+                server.remove_client(client_id);
+            }
+            ServerEvent::ClientConnected { client_id } => {
+                connected_clients.add(client_id);
+                if replicated_clients.replicate_after_connect() {
+                    commands.trigger(StartReplication(client_id));
                 }
-                ServerEvent::ClientConnected { client_id } => {
-                    connected_clients.add(client_id);
-                    if replicated_clients.replicate_after_connect() {
-                        enable_replication.send(StartReplication(client_id));
-                    }
-                    buffered_events.exclude_client(client_id);
-                }
+                buffered_events.exclude_client(client_id);
             }
         }
     }
 
     fn enable_replication(
-        mut enable_replication: EventReader<StartReplication>,
+        trigger: Trigger<StartReplication>,
         mut replicated_clients: ResMut<ReplicatedClients>,
         mut client_buffers: ResMut<ClientBuffers>,
     ) {
-        for event in enable_replication.read() {
-            replicated_clients.add(&mut client_buffers, event.0);
-        }
+        replicated_clients.add(&mut client_buffers, **trigger.event());
     }
 
     fn cleanup_acks(
@@ -729,13 +718,14 @@ pub enum ServerSet {
     ///
     /// Runs in [`PreUpdate`].
     ReceivePackets,
-    /// Systems that emit [`ServerEvent`].
+    /// Systems that trigger [`ServerEvent`]s.
     ///
-    /// The messaging backend should convert its own connection events into [`ServerEvents`](ServerEvent)
-    /// in this set.
+    /// The messaging backend should convert its own server events in this set.
+    ///
+    /// Needed only for backends that use batched events instead of triggers.
     ///
     /// Runs in [`PreUpdate`].
-    SendEvents,
+    TriggerServerEvents,
     /// Systems that receive data from [`RepliconServer`].
     ///
     /// Used by `bevy_replicon`.
@@ -781,17 +771,21 @@ pub enum TickPolicy {
     Manual,
 }
 
-/// Connection and disconnection events on the server.
+/// Triggered on connection and disconnection on the server.
 ///
-/// The messaging backend is responsible for emitting these in [`ServerSet::SendEvents`].
+/// The messaging backend is responsible for triggering.
+///
+/// See also [`Trigger`].
 #[derive(Event, Debug, Clone)]
 pub enum ServerEvent {
     ClientConnected { client_id: ClientId },
     ClientDisconnected { client_id: ClientId, reason: String },
 }
 
-/// Starts replication for a connected client.
+/// Triggers replication for a connected client.
 ///
-/// This event needs to be sent manually if [`ServerPlugin::replicate_after_connect`] is set to `false`.
-#[derive(Debug, Clone, Copy, Event)]
+/// This event needs to be triggered manually if [`ServerPlugin::replicate_after_connect`] is set to `false`.
+///
+/// See also [`Trigger`].
+#[derive(Debug, Clone, Copy, Event, Deref)]
 pub struct StartReplication(pub ClientId);

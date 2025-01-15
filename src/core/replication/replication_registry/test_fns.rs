@@ -60,7 +60,8 @@ entity.apply_remove(fns_id, tick);
 assert!(!entity.contains::<DummyComponent>());
 
 entity.apply_despawn(tick);
-assert!(app.world().entities().is_empty());
+let mut replicated = app.world_mut().query::<&DummyComponent>();
+assert!(replicated.iter(app.world()).next().is_none());
 
 #[derive(Component, Serialize, Deserialize)]
 struct DummyComponent;

@@ -34,7 +34,7 @@ fn single() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert!(client_app.world().entities().is_empty());
+    assert!(client_app.world().get_entity(client_entity).is_err());
 
     let entity_map = client_app.world().resource::<ServerEntityMap>();
     assert!(entity_map.to_client().is_empty());
@@ -85,7 +85,8 @@ fn with_hierarchy() {
     server_app.world_mut().despawn(server_entity);
     server_app.world_mut().despawn(server_child_entity);
 
-    assert!(client_app.world().entities().is_empty());
+    let mut replicated = client_app.world_mut().query::<&Replicated>();
+    assert!(replicated.iter(client_app.world()).next().is_none());
 }
 
 #[test]
@@ -115,7 +116,8 @@ fn after_spawn() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert!(client_app.world().entities().is_empty());
+    let mut replicated = client_app.world_mut().query::<&Replicated>();
+    assert!(replicated.iter(client_app.world()).next().is_none());
 }
 
 #[test]
@@ -136,6 +138,7 @@ fn hidden() {
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app.world_mut().spawn(Replicated).id();
+    let allocated_entities = client_app.world().entities().total_count();
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -150,7 +153,7 @@ fn hidden() {
 
     assert_eq!(
         client_app.world().entities().total_count(),
-        0,
+        allocated_entities,
         "client shouldn't spawn or despawn hidden entity"
     );
 }

@@ -449,8 +449,10 @@ fn marker_with_history_consume() {
         !entity_map.to_client().contains_key(&dummy_entity1),
         "client should consume older mutations for other components with marker that requested history"
     );
+
+    let mut replicated = client_app.world_mut().query::<&Replicated>();
     assert_eq!(
-        client_app.world().entities().len(),
+        replicated.iter(client_app.world()).len(),
         3,
         "client should have 2 initial entities and 1 from mutate message"
     );
@@ -555,17 +557,18 @@ fn many_entities() {
     server_app.connect_client(&mut client_app);
 
     // Spawn many entities to cover message splitting.
-    const ENTITIES_COUNT: u32 = 300;
+    const ENTITIES_COUNT: usize = 300;
     server_app
         .world_mut()
-        .spawn_batch([(Replicated, BoolComponent(false)); ENTITIES_COUNT as usize]);
+        .spawn_batch([(Replicated, BoolComponent(false)); ENTITIES_COUNT]);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    assert_eq!(client_app.world().entities().len(), ENTITIES_COUNT);
+    let mut replicated = client_app.world_mut().query::<&Replicated>();
+    assert_eq!(replicated.iter(client_app.world()).count(), ENTITIES_COUNT);
 
     for mut component in server_app
         .world_mut()
@@ -718,7 +721,8 @@ fn with_despawn() {
     server_app.exchange_with_client(&mut client_app);
     server_app.update(); // Let server receive an update to trigger acknowledgment.
 
-    assert!(client_app.world().entities().is_empty());
+    let mut replicated = client_app.world_mut().query::<&Replicated>();
+    assert!(replicated.iter(client_app.world()).next().is_none());
 }
 
 #[test]
@@ -839,8 +843,10 @@ fn old_ignored() {
         !entity_map.to_client().contains_key(&dummy_entity1),
         "client should ignore older mutation"
     );
+
+    let mut replicated = client_app.world_mut().query::<&Replicated>();
     assert_eq!(
-        client_app.world().entities().len(),
+        replicated.iter(client_app.world()).len(),
         3,
         "client should have 2 initial entities and 1 from mutation"
     );

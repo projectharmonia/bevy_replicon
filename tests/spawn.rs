@@ -70,7 +70,7 @@ fn with_component() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), (With<Replicated>, With<DummyComponent>)>()
+        .query::<(&Replicated, &DummyComponent)>()
         .single(client_app.world());
 }
 
@@ -99,7 +99,8 @@ fn with_old_component() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    assert!(client_app.world().entities().is_empty());
+    let mut replicated = client_app.world_mut().query::<&Replicated>();
+    assert!(replicated.iter(client_app.world()).next().is_none());
 
     // Enable replication for previously spawned entity
     server_app
@@ -113,7 +114,7 @@ fn with_old_component() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), (With<Replicated>, With<DummyComponent>)>()
+        .query::<(&Replicated, &DummyComponent)>()
         .single(client_app.world());
 }
 
@@ -142,7 +143,7 @@ fn before_connection() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), (With<Replicated>, With<DummyComponent>)>()
+        .query::<(&Replicated, &DummyComponent)>()
         .single(client_app.world());
 }
 
@@ -214,8 +215,9 @@ fn pre_spawn() {
         "component from server should be replicated"
     );
 
+    let mut replicated = client_app.world_mut().query::<&Replicated>();
     assert_eq!(
-        client_app.world().entities().len(),
+        replicated.iter(client_app.world()).count(),
         1,
         "new entity shouldn't be spawned on client"
     );
@@ -251,7 +253,7 @@ fn after_despawn() {
 
     client_app
         .world_mut()
-        .query_filtered::<(), (With<Replicated>, With<DummyComponent>)>()
+        .query::<(&Replicated, &DummyComponent)>()
         .single(client_app.world());
 }
 
