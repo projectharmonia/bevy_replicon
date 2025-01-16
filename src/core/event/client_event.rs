@@ -372,7 +372,7 @@ unsafe fn send<E: Event>(
             .serialize(ctx, event, &mut cursor)
             .expect("client event should be serializable");
 
-        trace!("sending event `{}`", any::type_name::<E>());
+        debug!("sending event `{}`", any::type_name::<E>());
         client.send(event_data.channel_id, cursor.into_inner());
     }
 }
@@ -394,7 +394,7 @@ unsafe fn receive<E: Event>(
         let mut cursor = Cursor::new(&*message);
         match event_data.deserialize(ctx, &mut cursor) {
             Ok(event) => {
-                trace!(
+                debug!(
                     "applying event `{}` from `{client_id:?}`",
                     any::type_name::<E>()
                 );
@@ -417,7 +417,7 @@ unsafe fn resend_locally<E: Event>(client_events: PtrMut, events: PtrMut) {
     let client_events: &mut Events<FromClient<E>> = client_events.deref_mut();
     let events: &mut Events<E> = events.deref_mut();
     if !events.is_empty() {
-        trace!(
+        debug!(
             "resending {} client event(s) `{}` locally",
             events.len(),
             any::type_name::<E>()

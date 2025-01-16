@@ -467,7 +467,7 @@ unsafe fn send_or_buffer<E: Event>(
     // For server events we don't track read events because
     // all of them will always be drained in the local resending system.
     for ToClients { event, mode } in events.get_cursor().read(events) {
-        trace!("sending event `{}` with `{mode:?}`", any::type_name::<E>());
+        debug!("sending event `{}` with `{mode:?}`", any::type_name::<E>());
 
         if event_data.is_independent() {
             send_independent_event(event_data, ctx, event, mode, server, connected_clients)
@@ -500,7 +500,7 @@ unsafe fn receive<E: Event>(
         let mut cursor = Cursor::new(&*message);
         match event_data.deserialize(ctx, &mut cursor) {
             Ok(event) => {
-                trace!(
+                debug!(
                     "applying event `{}` from queue with `{tick:?}`",
                     any::type_name::<E>()
                 );
@@ -527,11 +527,11 @@ unsafe fn receive<E: Event>(
                 }
             };
             if tick > update_tick {
-                trace!("queuing event `{}` with `{tick:?}`", any::type_name::<E>());
+                debug!("queuing event `{}` with `{tick:?}`", any::type_name::<E>());
                 queue.insert(tick, message.slice(cursor.position() as usize..));
                 continue;
             } else {
-                trace!(
+                debug!(
                     "receiving event `{}` with `{tick:?}`",
                     any::type_name::<E>()
                 );
@@ -540,7 +540,7 @@ unsafe fn receive<E: Event>(
 
         match event_data.deserialize(ctx, &mut cursor) {
             Ok(event) => {
-                trace!("applying event `{}`", any::type_name::<E>());
+                debug!("applying event `{}`", any::type_name::<E>());
                 events.send(event);
             }
             Err(e) => error!(
@@ -560,7 +560,7 @@ unsafe fn resend_locally<E: Event>(server_events: PtrMut, events: PtrMut) {
     let server_events: &mut Events<ToClients<E>> = server_events.deref_mut();
     let events: &mut Events<E> = events.deref_mut();
     for ToClients { event, mode } in server_events.drain() {
-        trace!("resending server event `{}` locally", any::type_name::<E>());
+        debug!("resending server event `{}` locally", any::type_name::<E>());
         match mode {
             SendMode::Broadcast => {
                 events.send(event);
