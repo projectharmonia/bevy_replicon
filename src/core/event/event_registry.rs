@@ -10,15 +10,15 @@ pub(crate) struct EventRegistry {
 }
 
 impl EventRegistry {
-    pub(crate) fn register_server_event(&mut self, event_data: ServerEvent) {
+    pub(super) fn register_server_event(&mut self, event_data: ServerEvent) {
         self.server.push(event_data);
     }
 
-    pub(crate) fn register_client_event(&mut self, event_data: ClientEvent) {
+    pub(super) fn register_client_event(&mut self, event_data: ClientEvent) {
         self.client.push(event_data);
     }
 
-    pub(crate) fn make_independent(&mut self, events_id: ComponentId) {
+    pub(super) fn make_independent(&mut self, events_id: ComponentId) {
         let event = self
             .server
             .iter_mut()

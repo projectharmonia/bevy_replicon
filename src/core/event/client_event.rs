@@ -159,8 +159,8 @@ impl ClientEventAppExt for App {
 ///
 /// Needed so events of different types can be processed together.
 pub(crate) struct ClientEvent {
-    type_id: TypeId,
-    type_name: &'static str,
+    event_id: TypeId,
+    event_name: &'static str,
 
     /// ID of [`Events<E>`] resource.
     events_id: ComponentId,
@@ -214,8 +214,8 @@ impl ClientEvent {
 
         // SAFETY: these functions won't be called until the type is restored.
         Self {
-            type_id: TypeId::of::<E>(),
-            type_name: any::type_name::<E>(),
+            event_id: TypeId::of::<E>(),
+            event_name: any::type_name::<E>(),
             events_id,
             reader_id,
             client_events_id,
@@ -257,7 +257,7 @@ impl ClientEvent {
         (self.send)(self, ctx, events, reader, client);
     }
 
-    /// Receives an event from a client.
+    /// Receives events from a client.
     ///
     /// # Safety
     ///
@@ -323,13 +323,13 @@ impl ClientEvent {
         (deserialize)(ctx, cursor)
     }
 
-    fn check_type<C: Event>(&self) {
+    fn check_type<E: Event>(&self) {
         debug_assert_eq!(
-            self.type_id,
-            TypeId::of::<C>(),
-            "trying to call event functions with {}, but they were created with {}",
-            any::type_name::<C>(),
-            self.type_name,
+            self.event_id,
+            TypeId::of::<E>(),
+            "trying to call event functions with `{}`, but they were created with `{}`",
+            any::type_name::<E>(),
+            self.event_name,
         );
     }
 }
@@ -416,10 +416,17 @@ unsafe fn receive<E: Event>(
 unsafe fn resend_locally<E: Event>(client_events: PtrMut, events: PtrMut) {
     let client_events: &mut Events<FromClient<E>> = client_events.deref_mut();
     let events: &mut Events<E> = events.deref_mut();
-    client_events.send_batch(events.drain().map(|event| FromClient {
-        client_id: ClientId::SERVER,
-        event,
-    }));
+    if !events.is_empty() {
+        trace!(
+            "resending {} client event(s) `{}` locally",
+            events.len(),
+            any::type_name::<E>()
+        );
+        client_events.send_batch(events.drain().map(|event| FromClient {
+            client_id: ClientId::SERVER,
+            event,
+        }));
+    }
 }
 
 /// Typed version of [`ClientEvent::reset`].

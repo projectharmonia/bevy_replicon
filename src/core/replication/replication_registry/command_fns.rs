@@ -54,7 +54,7 @@ impl UntypedCommandFns {
         debug_assert_eq!(
             self.type_id,
             TypeId::of::<C>(),
-            "trying to call a command write function with {}, but it was created with {}",
+            "trying to call a command write function with `{}`, but it was created with `{}`",
             any::type_name::<C>(),
             self.type_name,
         );

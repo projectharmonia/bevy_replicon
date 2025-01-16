@@ -33,7 +33,7 @@ impl UntypedRuleFns {
         debug_assert_eq!(
             self.type_id,
             TypeId::of::<C>(),
-            "trying to call rule functions with {}, but they were created with {}",
+            "trying to call rule functions with `{}`, but they were created with `{}`",
             any::type_name::<C>(),
             self.type_name,
         );

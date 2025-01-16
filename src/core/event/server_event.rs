@@ -203,8 +203,8 @@ impl ServerEventAppExt for App {
 ///
 /// Needed so events of different types can be processed together.
 pub(crate) struct ServerEvent {
-    type_id: TypeId,
-    type_name: &'static str,
+    event_id: TypeId,
+    event_name: &'static str,
 
     /// Whether this event depends on replication or not.
     ///
@@ -265,8 +265,8 @@ impl ServerEvent {
 
         // SAFETY: these functions won't be called until the type is restored.
         Self {
-            type_id: TypeId::of::<E>(),
-            type_name: any::type_name::<E>(),
+            event_id: TypeId::of::<E>(),
+            event_name: any::type_name::<E>(),
             independent: false,
             events_id,
             server_events_id,
@@ -293,11 +293,11 @@ impl ServerEvent {
         self.queue_id
     }
 
-    pub(crate) fn is_independent(&self) -> bool {
+    pub(super) fn is_independent(&self) -> bool {
         self.independent
     }
 
-    pub(crate) fn make_independent(&mut self) {
+    pub(super) fn make_independent(&mut self) {
         self.independent = true
     }
 
@@ -325,7 +325,7 @@ impl ServerEvent {
         );
     }
 
-    /// Receives an event from the server.
+    /// Receives events from the server.
     ///
     /// # Safety
     ///
@@ -408,11 +408,11 @@ impl ServerEvent {
 
     fn check_type<C: Event>(&self) {
         debug_assert_eq!(
-            self.type_id,
+            self.event_id,
             TypeId::of::<C>(),
-            "trying to call event functions with {}, but they were created with {}",
+            "trying to call event functions with `{}`, but they were created with `{}`",
             any::type_name::<C>(),
-            self.type_name,
+            self.event_name,
         );
     }
 }
@@ -560,6 +560,7 @@ unsafe fn resend_locally<E: Event>(server_events: PtrMut, events: PtrMut) {
     let server_events: &mut Events<ToClients<E>> = server_events.deref_mut();
     let events: &mut Events<E> = events.deref_mut();
     for ToClients { event, mode } in server_events.drain() {
+        trace!("resending server event `{}` locally", any::type_name::<E>());
         match mode {
             SendMode::Broadcast => {
                 events.send(event);
