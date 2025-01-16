@@ -239,7 +239,58 @@ mod tests {
     }
 
     #[test]
-    fn scene_spawn() {
+    fn change_sync() {
+        let mut app = App::new();
+        app.add_plugins((RepliconCorePlugin, ParentSyncPlugin));
+
+        let parent_entity = app.world_mut().spawn_empty().id();
+        let mut child_entity = app.world_mut().spawn(ParentSync::default());
+
+        // Mutate component after the insertion to make it affect the hierarchy.
+        let mut parent_sync = child_entity.get_mut::<ParentSync>().unwrap();
+        assert!(parent_sync.0.is_none());
+        parent_sync.0 = Some(parent_entity);
+
+        let child_entity = child_entity.id();
+
+        app.update();
+
+        let child_entity = app.world().entity(child_entity);
+        let (parent, parent_sync) = child_entity.components::<(&Parent, &ParentSync)>();
+        assert_eq!(**parent, parent_entity);
+        assert!(parent_sync.0.is_some_and(|entity| entity == parent_entity));
+    }
+
+    #[test]
+    fn removal_sync() {
+        let mut app = App::new();
+        app.add_plugins((RepliconCorePlugin, ParentSyncPlugin));
+
+        let parent_entity = app.world_mut().spawn_empty().id();
+        let mut child_entity = app.world_mut().spawn_empty();
+        child_entity
+            .set_parent(parent_entity)
+            .insert(ParentSync::default());
+
+        // Mutate component after the insertion to make it affect the hierarchy.
+        let mut parent_sync = child_entity.get_mut::<ParentSync>().unwrap();
+        assert!(parent_sync.0.is_some_and(|entity| entity == parent_entity));
+        parent_sync.0 = None;
+
+        let child_entity = child_entity.id();
+
+        app.update();
+
+        app.world_mut().entity_mut(child_entity).remove_parent();
+
+        let child_entity = app.world().entity(child_entity);
+        let (has_parent, parent_sync) = child_entity.components::<(Has<Parent>, &ParentSync)>();
+        assert!(!has_parent);
+        assert!(parent_sync.0.is_none());
+    }
+
+    #[test]
+    fn scene_spawn_sync() {
         let mut app = App::new();
         app.add_plugins((
             AssetPlugin::default(),
