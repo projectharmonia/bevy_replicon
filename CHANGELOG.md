@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `StartReplication` is now a trigger-event.
 - `ServerEvent` is now a trigger-event.
+- Event serialization functions now accept `&mut Vec<u8>` instead of `&mut Cursor<Vec<u8>>`.
 - Use `debug!` instead of `trace!` for events. They are not very verbose.
 - Rename `ServerEvent::SendEvents` into `ServerEvent::TriggerServerEvents`.
 - Rename `core::event_registry` into `core::event`.
