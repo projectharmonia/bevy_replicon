@@ -212,7 +212,6 @@ impl ClientEvent {
                 )
             });
 
-        // SAFETY: these functions won't be called until the type is restored.
         Self {
             event_id: TypeId::of::<E>(),
             event_name: any::type_name::<E>(),
@@ -220,10 +219,11 @@ impl ClientEvent {
             reader_id,
             client_events_id,
             channel_id,
-            send: send::<E>,
-            receive: receive::<E>,
-            resend_locally: resend_locally::<E>,
-            reset: reset::<E>,
+            send: Self::send_typed::<E>,
+            receive: Self::receive_typed::<E>,
+            resend_locally: Self::resend_locally_typed::<E>,
+            reset: Self::reset_typed::<E>,
+            // SAFETY: these functions won't be called until the type is restored.
             serialize: unsafe { mem::transmute::<SerializeFn<E>, unsafe fn()>(serialize) },
             deserialize: unsafe { mem::transmute::<DeserializeFn<E>, unsafe fn()>(deserialize) },
         }
@@ -257,6 +257,30 @@ impl ClientEvent {
         (self.send)(self, ctx, events, reader, client);
     }
 
+    /// Typed version of [`ClientEvent::send`].
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `events` is [`Events<FromClient<E>>`], `reader` is [`ClientEventReader<E>`],
+    /// and this instance was created for `E`.
+    unsafe fn send_typed<E: Event>(
+        &self,
+        ctx: &mut ClientSendCtx,
+        events: &Ptr,
+        reader: PtrMut,
+        client: &mut RepliconClient,
+    ) {
+        let reader: &mut ClientEventReader<E> = reader.deref_mut();
+        for event in reader.read(events.deref()) {
+            let mut message = Vec::new();
+            self.serialize(ctx, event, &mut message)
+                .expect("client event should be serializable");
+
+            debug!("sending event `{}`", any::type_name::<E>());
+            client.send(self.channel_id, message);
+        }
+    }
+
     /// Receives events from a client.
     ///
     /// # Safety
@@ -272,6 +296,37 @@ impl ClientEvent {
         (self.receive)(self, ctx, client_events, server);
     }
 
+    /// Typed version of [`ClientEvent::receive`].
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `events` is [`Events<E>`]
+    /// and this instance was created for `E`.
+    unsafe fn receive_typed<E: Event>(
+        &self,
+        ctx: &mut ServerReceiveCtx,
+        events: PtrMut,
+        server: &mut RepliconServer,
+    ) {
+        let events: &mut Events<FromClient<E>> = events.deref_mut();
+        for (client_id, message) in server.receive(self.channel_id) {
+            let mut cursor = Cursor::new(&*message);
+            match self.deserialize(ctx, &mut cursor) {
+                Ok(event) => {
+                    debug!(
+                        "applying event `{}` from `{client_id:?}`",
+                        any::type_name::<E>()
+                    );
+                    events.send(FromClient { client_id, event });
+                }
+                Err(e) => debug!(
+                    "ignoring event `{}` from {client_id:?} that failed to deserialize: {e}",
+                    any::type_name::<E>()
+                ),
+            }
+        }
+    }
+
     /// Drains events `E` and re-emits them as [`FromClient<E>`].
     ///
     /// # Safety
@@ -282,6 +337,26 @@ impl ClientEvent {
         (self.resend_locally)(client_events, events);
     }
 
+    /// Typed version of [`ClientEvent::resend_locally`].
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `events` is [`Events<E>`] and `server_events` is [`Events<ToClients<E>>`].
+    unsafe fn resend_locally_typed<E: Event>(client_events: PtrMut, events: PtrMut) {
+        let client_events: &mut Events<FromClient<E>> = client_events.deref_mut();
+        let events: &mut Events<E> = events.deref_mut();
+        if !events.is_empty() {
+            debug!(
+                "resending {} event(s) `{}` locally",
+                events.len(),
+                any::type_name::<E>()
+            );
+            client_events.send_batch(events.drain().map(|event| FromClient {
+                client_id: ClientId::SERVER,
+                event,
+            }));
+        }
+    }
     /// Drains all events.
     ///
     /// # Safety
@@ -290,6 +365,19 @@ impl ClientEvent {
     /// and this instance was created for `E`.
     pub(crate) unsafe fn reset(&self, events: PtrMut) {
         (self.reset)(events);
+    }
+
+    /// Typed version of [`ClientEvent::reset`].
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `events` is [`Events<E>`].
+    unsafe fn reset_typed<E: Event>(events: PtrMut) {
+        let events: &mut Events<E> = events.deref_mut();
+        let drained_count = events.drain().count();
+        if drained_count > 0 {
+            warn!("discarded {drained_count} events due to a disconnect");
+        }
     }
 
     /// Serializes an event.
@@ -351,96 +439,6 @@ type ResendLocallyFn = unsafe fn(PtrMut, PtrMut);
 
 /// Signature of client event reset functions.
 type ResetFn = unsafe fn(PtrMut);
-
-/// Typed version of [`ClientEvent::send`].
-///
-/// # Safety
-///
-/// The caller must ensure that `events` is [`Events<FromClient<E>>`], `reader` is [`ClientEventReader<E>`],
-/// and `event_data` was created for `E`.
-unsafe fn send<E: Event>(
-    event_data: &ClientEvent,
-    ctx: &mut ClientSendCtx,
-    events: &Ptr,
-    reader: PtrMut,
-    client: &mut RepliconClient,
-) {
-    let reader: &mut ClientEventReader<E> = reader.deref_mut();
-    for event in reader.read(events.deref()) {
-        let mut message = Vec::new();
-        event_data
-            .serialize(ctx, event, &mut message)
-            .expect("client event should be serializable");
-
-        debug!("sending event `{}`", any::type_name::<E>());
-        client.send(event_data.channel_id, message);
-    }
-}
-
-/// Typed version of [`ClientEvent::receive`].
-///
-/// # Safety
-///
-/// The caller must ensure that `events` is [`Events<E>`]
-/// and `event_data` was created for `E`.
-unsafe fn receive<E: Event>(
-    event_data: &ClientEvent,
-    ctx: &mut ServerReceiveCtx,
-    events: PtrMut,
-    server: &mut RepliconServer,
-) {
-    let events: &mut Events<FromClient<E>> = events.deref_mut();
-    for (client_id, message) in server.receive(event_data.channel_id) {
-        let mut cursor = Cursor::new(&*message);
-        match event_data.deserialize(ctx, &mut cursor) {
-            Ok(event) => {
-                debug!(
-                    "applying event `{}` from `{client_id:?}`",
-                    any::type_name::<E>()
-                );
-                events.send(FromClient { client_id, event });
-            }
-            Err(e) => debug!(
-                "ignoring event `{}` from {client_id:?} that failed to deserialize: {e}",
-                any::type_name::<E>()
-            ),
-        }
-    }
-}
-
-/// Typed version of [`ClientEvent::resend_locally`].
-///
-/// # Safety
-///
-/// The caller must ensure that `events` is [`Events<E>`] and `server_events` is [`Events<ToClients<E>>`].
-unsafe fn resend_locally<E: Event>(client_events: PtrMut, events: PtrMut) {
-    let client_events: &mut Events<FromClient<E>> = client_events.deref_mut();
-    let events: &mut Events<E> = events.deref_mut();
-    if !events.is_empty() {
-        debug!(
-            "resending {} event(s) `{}` locally",
-            events.len(),
-            any::type_name::<E>()
-        );
-        client_events.send_batch(events.drain().map(|event| FromClient {
-            client_id: ClientId::SERVER,
-            event,
-        }));
-    }
-}
-
-/// Typed version of [`ClientEvent::reset`].
-///
-/// # Safety
-///
-/// The caller must ensure that `events` is [`Events<E>`].
-unsafe fn reset<E: Event>(events: PtrMut) {
-    let events: &mut Events<E> = events.deref_mut();
-    let drained_count = events.drain().count();
-    if drained_count > 0 {
-        warn!("discarded {drained_count} events due to a disconnect");
-    }
-}
 
 /// Tracks read events for [`ClientEventPlugin::send`].
 ///
