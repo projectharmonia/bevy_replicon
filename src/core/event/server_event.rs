@@ -263,7 +263,6 @@ impl ServerEvent {
                 )
             });
 
-        // SAFETY: these functions won't be called until the type is restored.
         Self {
             event_id: TypeId::of::<E>(),
             event_name: any::type_name::<E>(),
@@ -272,10 +271,11 @@ impl ServerEvent {
             server_events_id,
             queue_id,
             channel_id,
-            send_or_buffer: send_or_buffer::<E>,
-            receive: receive::<E>,
-            resend_locally: resend_locally::<E>,
-            reset: reset::<E>,
+            send_or_buffer: Self::send_or_buffer_typed::<E>,
+            receive: Self::receive_typed::<E>,
+            resend_locally: Self::resend_locally_typed::<E>,
+            reset: Self::reset_typed::<E>,
+            // SAFETY: these functions won't be called until the type is restored.
             serialize: unsafe { mem::transmute::<SerializeFn<E>, unsafe fn()>(serialize) },
             deserialize: unsafe { mem::transmute::<DeserializeFn<E>, unsafe fn()>(deserialize) },
         }
@@ -325,6 +325,118 @@ impl ServerEvent {
         );
     }
 
+    /// Typed version of [`ServerEvent::send_or_buffer`].
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `events` is [`Events<ToClients<E>>`]
+    /// and this instance was created for `E`.
+    unsafe fn send_or_buffer_typed<E: Event>(
+        &self,
+        ctx: &mut ServerSendCtx,
+        server_events: &Ptr,
+        server: &mut RepliconServer,
+        connected_clients: &ConnectedClients,
+        buffered_events: &mut BufferedServerEvents,
+    ) {
+        let events: &Events<ToClients<E>> = server_events.deref();
+        // For server events we don't track read events because
+        // all of them will always be drained in the local resending system.
+        for ToClients { event, mode } in events.get_cursor().read(events) {
+            debug!("sending event `{}` with `{mode:?}`", any::type_name::<E>());
+
+            if self.is_independent() {
+                self.send_independent_event(ctx, event, mode, server, connected_clients)
+                    .expect("independent server event should be serializable");
+            } else {
+                self.buffer_event(ctx, event, *mode, buffered_events)
+                    .expect("server event should be serializable");
+            }
+        }
+    }
+
+    /// Sends independent event `E` based on a mode.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `event_data` was created for `E`.
+    ///
+    /// For regular events see [`Self::buffer_event`].
+    unsafe fn send_independent_event<E: Event>(
+        &self,
+        ctx: &mut ServerSendCtx,
+        event: &E,
+        mode: &SendMode,
+        server: &mut RepliconServer,
+        connected_clients: &ConnectedClients,
+    ) -> bincode::Result<()> {
+        let mut message = Vec::new();
+        self.serialize(ctx, event, &mut message)?;
+        let message: Bytes = message.into();
+
+        match *mode {
+            SendMode::Broadcast => {
+                for client in connected_clients.iter() {
+                    server.send(client.id(), self.channel_id, message.clone());
+                }
+            }
+            SendMode::BroadcastExcept(id) => {
+                for client in connected_clients.iter() {
+                    if client.id() != id {
+                        server.send(client.id(), self.channel_id, message.clone());
+                    }
+                }
+            }
+            SendMode::Direct(client_id) => {
+                if client_id != ClientId::SERVER {
+                    server.send(client_id, self.channel_id, message.clone());
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Buffers event `E` based on a mode.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that this instance was created for `E`.
+    ///
+    /// For independent events see [`Self::send_independent_event`].
+    unsafe fn buffer_event<E: Event>(
+        &self,
+        ctx: &mut ServerSendCtx,
+        event: &E,
+        mode: SendMode,
+        buffered_events: &mut BufferedServerEvents,
+    ) -> bincode::Result<()> {
+        let message = self.serialize_with_padding(ctx, event)?;
+        buffered_events.insert(mode, self.channel_id, message);
+        Ok(())
+    }
+
+    /// Helper for serializing a server event.
+    ///
+    /// Will prepend padding bytes for where the update tick will be inserted to the injected message.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that this instance was created for `E`.
+    unsafe fn serialize_with_padding<E: Event>(
+        &self,
+        ctx: &mut ServerSendCtx,
+        event: &E,
+    ) -> bincode::Result<SerializedMessage> {
+        let mut message = Vec::new();
+        let padding = [0; mem::size_of::<RepliconTick>()];
+        message.write_all(&padding)?;
+        self.serialize(ctx, event, &mut message)?;
+        let message = SerializedMessage::Raw(message);
+
+        Ok(message)
+    }
+
     /// Receives events from the server.
     ///
     /// # Safety
@@ -342,6 +454,78 @@ impl ServerEvent {
         (self.receive)(self, ctx, events, queue, client, update_tick);
     }
 
+    /// Typed version of [`ServerEvent::receive`].
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `events` is [`Events<E>`], `queue` is [`ServerEventQueue<E>`]
+    /// and this instance was created for `E`.
+    unsafe fn receive_typed<E: Event>(
+        &self,
+        ctx: &mut ClientReceiveCtx,
+        events: PtrMut,
+        queue: PtrMut,
+        client: &mut RepliconClient,
+        update_tick: RepliconTick,
+    ) {
+        let events: &mut Events<E> = events.deref_mut();
+        let queue: &mut ServerEventQueue<E> = queue.deref_mut();
+
+        while let Some((tick, message)) = queue.pop_if_le(update_tick) {
+            let mut cursor = Cursor::new(&*message);
+            match self.deserialize(ctx, &mut cursor) {
+                Ok(event) => {
+                    debug!(
+                        "applying event `{}` from queue with `{tick:?}`",
+                        any::type_name::<E>()
+                    );
+                    events.send(event);
+                }
+                Err(e) => error!(
+                "ignoring event `{}` from queue with `{tick:?}` that failed to deserialize: {e}",
+                any::type_name::<E>()
+            ),
+            }
+        }
+
+        for message in client.receive(self.channel_id) {
+            let mut cursor = Cursor::new(&*message);
+            if !self.is_independent() {
+                let tick = match bincode::deserialize_from(&mut cursor) {
+                    Ok(tick) => tick,
+                    Err(e) => {
+                        error!(
+                            "ignoring event `{}` because it's tick failed to deserialize: {e}",
+                            any::type_name::<E>()
+                        );
+                        continue;
+                    }
+                };
+                if tick > update_tick {
+                    debug!("queuing event `{}` with `{tick:?}`", any::type_name::<E>());
+                    queue.insert(tick, message.slice(cursor.position() as usize..));
+                    continue;
+                } else {
+                    debug!(
+                        "receiving event `{}` with `{tick:?}`",
+                        any::type_name::<E>()
+                    );
+                }
+            }
+
+            match self.deserialize(ctx, &mut cursor) {
+                Ok(event) => {
+                    debug!("applying event `{}`", any::type_name::<E>());
+                    events.send(event);
+                }
+                Err(e) => error!(
+                    "ignoring event `{}` that failed to deserialize: {e}",
+                    any::type_name::<E>()
+                ),
+            }
+        }
+    }
+
     /// Drains events [`ToClients<E>`] and re-emits them as `E` if the server is in the list of the event recipients.
     ///
     /// # Safety
@@ -350,6 +534,34 @@ impl ServerEvent {
     /// and this instance was created for `E`.
     pub(crate) unsafe fn resend_locally(&self, server_events: PtrMut, events: PtrMut) {
         (self.resend_locally)(server_events, events);
+    }
+
+    /// Typed version of [`ServerEvent::resend_locally`].
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `events` is [`Events<E>`] and `server_events` is [`Events<ToClients<E>>`].
+    unsafe fn resend_locally_typed<E: Event>(server_events: PtrMut, events: PtrMut) {
+        let server_events: &mut Events<ToClients<E>> = server_events.deref_mut();
+        let events: &mut Events<E> = events.deref_mut();
+        for ToClients { event, mode } in server_events.drain() {
+            debug!("resending event `{}` locally", any::type_name::<E>());
+            match mode {
+                SendMode::Broadcast => {
+                    events.send(event);
+                }
+                SendMode::BroadcastExcept(client_id) => {
+                    if client_id != ClientId::SERVER {
+                        events.send(event);
+                    }
+                }
+                SendMode::Direct(client_id) => {
+                    if client_id == ClientId::SERVER {
+                        events.send(event);
+                    }
+                }
+            }
+        }
     }
 
     /// Clears queued events.
@@ -362,6 +574,22 @@ impl ServerEvent {
     /// and this instance was created for `E`.
     pub(crate) unsafe fn reset(&self, queue: PtrMut) {
         (self.reset)(queue);
+    }
+
+    /// Typed version of [`ServerEvent::reset`].
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `queue` is [`Events<E>`].
+    unsafe fn reset_typed<E: Event>(queue: PtrMut) {
+        let queue: &mut ServerEventQueue<E> = queue.deref_mut();
+        if !queue.is_empty() {
+            warn!(
+                "discarding {} queued events due to a disconnect",
+                queue.values_len()
+            );
+        }
+        queue.clear();
     }
 
     /// Serializes an event.
@@ -448,234 +676,6 @@ type ResendLocallyFn = unsafe fn(PtrMut, PtrMut);
 
 /// Signature of server event reset functions.
 type ResetFn = unsafe fn(PtrMut);
-
-/// Typed version of [`ServerEvent::send_or_buffer`].
-///
-/// # Safety
-///
-/// The caller must ensure that `events` is [`Events<ToClients<E>>`]
-/// and `event_data` was created for `E`.
-unsafe fn send_or_buffer<E: Event>(
-    event_data: &ServerEvent,
-    ctx: &mut ServerSendCtx,
-    server_events: &Ptr,
-    server: &mut RepliconServer,
-    connected_clients: &ConnectedClients,
-    buffered_events: &mut BufferedServerEvents,
-) {
-    let events: &Events<ToClients<E>> = server_events.deref();
-    // For server events we don't track read events because
-    // all of them will always be drained in the local resending system.
-    for ToClients { event, mode } in events.get_cursor().read(events) {
-        debug!("sending event `{}` with `{mode:?}`", any::type_name::<E>());
-
-        if event_data.is_independent() {
-            send_independent_event(event_data, ctx, event, mode, server, connected_clients)
-                .expect("independent server event should be serializable");
-        } else {
-            buffer_event(event_data, ctx, event, *mode, buffered_events)
-                .expect("server event should be serializable");
-        }
-    }
-}
-
-/// Typed version of [`ServerEvent::receive`].
-///
-/// # Safety
-///
-/// The caller must ensure that `events` is [`Events<E>`], `queue` is [`ServerEventQueue<E>`]
-/// and `event_data` was created for `E`.
-unsafe fn receive<E: Event>(
-    event_data: &ServerEvent,
-    ctx: &mut ClientReceiveCtx,
-    events: PtrMut,
-    queue: PtrMut,
-    client: &mut RepliconClient,
-    update_tick: RepliconTick,
-) {
-    let events: &mut Events<E> = events.deref_mut();
-    let queue: &mut ServerEventQueue<E> = queue.deref_mut();
-
-    while let Some((tick, message)) = queue.pop_if_le(update_tick) {
-        let mut cursor = Cursor::new(&*message);
-        match event_data.deserialize(ctx, &mut cursor) {
-            Ok(event) => {
-                debug!(
-                    "applying event `{}` from queue with `{tick:?}`",
-                    any::type_name::<E>()
-                );
-                events.send(event);
-            }
-            Err(e) => error!(
-                "ignoring event `{}` from queue with `{tick:?}` that failed to deserialize: {e}",
-                any::type_name::<E>()
-            ),
-        }
-    }
-
-    for message in client.receive(event_data.channel_id) {
-        let mut cursor = Cursor::new(&*message);
-        if !event_data.is_independent() {
-            let tick = match bincode::deserialize_from(&mut cursor) {
-                Ok(tick) => tick,
-                Err(e) => {
-                    error!(
-                        "ignoring event `{}` because it's tick failed to deserialize: {e}",
-                        any::type_name::<E>()
-                    );
-                    continue;
-                }
-            };
-            if tick > update_tick {
-                debug!("queuing event `{}` with `{tick:?}`", any::type_name::<E>());
-                queue.insert(tick, message.slice(cursor.position() as usize..));
-                continue;
-            } else {
-                debug!(
-                    "receiving event `{}` with `{tick:?}`",
-                    any::type_name::<E>()
-                );
-            }
-        }
-
-        match event_data.deserialize(ctx, &mut cursor) {
-            Ok(event) => {
-                debug!("applying event `{}`", any::type_name::<E>());
-                events.send(event);
-            }
-            Err(e) => error!(
-                "ignoring event `{}` that failed to deserialize: {e}",
-                any::type_name::<E>()
-            ),
-        }
-    }
-}
-
-/// Typed version of [`ServerEvent::resend_locally`].
-///
-/// # Safety
-///
-/// The caller must ensure that `events` is [`Events<E>`] and `server_events` is [`Events<ToClients<E>>`].
-unsafe fn resend_locally<E: Event>(server_events: PtrMut, events: PtrMut) {
-    let server_events: &mut Events<ToClients<E>> = server_events.deref_mut();
-    let events: &mut Events<E> = events.deref_mut();
-    for ToClients { event, mode } in server_events.drain() {
-        debug!("resending event `{}` locally", any::type_name::<E>());
-        match mode {
-            SendMode::Broadcast => {
-                events.send(event);
-            }
-            SendMode::BroadcastExcept(client_id) => {
-                if client_id != ClientId::SERVER {
-                    events.send(event);
-                }
-            }
-            SendMode::Direct(client_id) => {
-                if client_id == ClientId::SERVER {
-                    events.send(event);
-                }
-            }
-        }
-    }
-}
-
-/// Typed version of [`ServerEvent::reset`].
-///
-/// # Safety
-///
-/// The caller must ensure that `queue` is [`Events<E>`].
-unsafe fn reset<E: Event>(queue: PtrMut) {
-    let queue: &mut ServerEventQueue<E> = queue.deref_mut();
-    if !queue.is_empty() {
-        warn!(
-            "discarding {} queued events due to a disconnect",
-            queue.values_len()
-        );
-    }
-    queue.clear();
-}
-
-/// Buffers event `E` based on a mode.
-///
-/// # Safety
-///
-/// The caller must ensure that `event_data` was created for `E`.
-///
-/// For independent events see [`send_independent_event`].
-unsafe fn buffer_event<E: Event>(
-    event_data: &ServerEvent,
-    ctx: &mut ServerSendCtx,
-    event: &E,
-    mode: SendMode,
-    buffered_events: &mut BufferedServerEvents,
-) -> bincode::Result<()> {
-    let message = serialize_with_padding(event_data, ctx, event)?;
-    buffered_events.insert(mode, event_data.channel_id, message);
-    Ok(())
-}
-
-/// Sends independent event `E` based on a mode.
-///
-/// # Safety
-///
-/// The caller must ensure that `event_data` was created for `E`.
-///
-/// For regular events see [`send_event`].
-unsafe fn send_independent_event<E: Event>(
-    event_data: &ServerEvent,
-    ctx: &mut ServerSendCtx,
-    event: &E,
-    mode: &SendMode,
-    server: &mut RepliconServer,
-    connected_clients: &ConnectedClients,
-) -> bincode::Result<()> {
-    let mut message = Vec::new();
-    event_data.serialize(ctx, event, &mut message)?;
-    let message: Bytes = message.into();
-
-    match *mode {
-        SendMode::Broadcast => {
-            for client in connected_clients.iter() {
-                server.send(client.id(), event_data.channel_id, message.clone());
-            }
-        }
-        SendMode::BroadcastExcept(id) => {
-            for client in connected_clients.iter() {
-                if client.id() != id {
-                    server.send(client.id(), event_data.channel_id, message.clone());
-                }
-            }
-        }
-        SendMode::Direct(client_id) => {
-            if client_id != ClientId::SERVER {
-                server.send(client_id, event_data.channel_id, message.clone());
-            }
-        }
-    }
-
-    Ok(())
-}
-
-/// Helper for serializing a server event.
-///
-/// Will prepend padding bytes for where the update tick will be inserted to the injected message.
-///
-/// # Safety
-///
-/// The caller must ensure that `event_data` was created for `E`.
-unsafe fn serialize_with_padding<E: Event>(
-    event_data: &ServerEvent,
-    ctx: &mut ServerSendCtx,
-    event: &E,
-) -> bincode::Result<SerializedMessage> {
-    let mut message = Vec::new();
-    let padding = [0; mem::size_of::<RepliconTick>()];
-    message.write_all(&padding)?;
-    event_data.serialize(ctx, event, &mut message)?;
-    let message = SerializedMessage::Raw(message);
-
-    Ok(message)
-}
 
 /// Cached message for use in [`BufferedServerEvents`].
 enum SerializedMessage {
