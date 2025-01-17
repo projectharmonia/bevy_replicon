@@ -100,10 +100,10 @@ pub trait ServerEventAppExt {
     fn serialize_reflect(
         ctx: &mut ServerSendCtx,
         event: &ReflectEvent,
-        cursor: &mut Cursor<Vec<u8>>,
+        message: &mut Vec<u8>,
     ) -> bincode::Result<()> {
         let serializer = ReflectSerializer::new(&*event.0, ctx.registry);
-        DefaultOptions::new().serialize_into(cursor, &serializer)
+        DefaultOptions::new().serialize_into(message, &serializer)
     }
 
     fn deserialize_reflect(
@@ -364,7 +364,7 @@ impl ServerEvent {
         (self.reset)(queue);
     }
 
-    /// Serializes an event into a cursor.
+    /// Serializes an event.
     ///
     /// # Safety
     ///
@@ -373,14 +373,14 @@ impl ServerEvent {
         &self,
         ctx: &mut ServerSendCtx,
         event: &E,
-        cursor: &mut Cursor<Vec<u8>>,
+        message: &mut Vec<u8>,
     ) -> bincode::Result<()> {
         self.check_type::<E>();
         let serialize: SerializeFn<E> = std::mem::transmute(self.serialize);
-        (serialize)(ctx, event, cursor)
+        (serialize)(ctx, event, message)
     }
 
-    /// Deserializes an event into a cursor.
+    /// Deserializes an event from a cursor.
     ///
     /// # Safety
     ///
@@ -418,7 +418,7 @@ impl ServerEvent {
 }
 
 /// Signature of server event serialization functions.
-pub type SerializeFn<E> = fn(&mut ServerSendCtx, &E, &mut Cursor<Vec<u8>>) -> bincode::Result<()>;
+pub type SerializeFn<E> = fn(&mut ServerSendCtx, &E, &mut Vec<u8>) -> bincode::Result<()>;
 
 /// Signature of server event deserialization functions.
 pub type DeserializeFn<E> = fn(&mut ClientReceiveCtx, &mut Cursor<&[u8]>) -> bincode::Result<E>;
@@ -629,9 +629,9 @@ unsafe fn send_independent_event<E: Event>(
     server: &mut RepliconServer,
     connected_clients: &ConnectedClients,
 ) -> bincode::Result<()> {
-    let mut cursor = Default::default();
-    event_data.serialize(ctx, event, &mut cursor)?;
-    let message: Bytes = cursor.into_inner().into();
+    let mut message = Vec::new();
+    event_data.serialize(ctx, event, &mut message)?;
+    let message: Bytes = message.into();
 
     match *mode {
         SendMode::Broadcast => {
@@ -668,11 +668,11 @@ unsafe fn serialize_with_padding<E: Event>(
     ctx: &mut ServerSendCtx,
     event: &E,
 ) -> bincode::Result<SerializedMessage> {
-    let mut cursor = Cursor::new(Vec::new());
+    let mut message = Vec::new();
     let padding = [0; mem::size_of::<RepliconTick>()];
-    cursor.write_all(&padding)?;
-    event_data.serialize(ctx, event, &mut cursor)?;
-    let message = SerializedMessage::Raw(cursor.into_inner());
+    message.write_all(&padding)?;
+    event_data.serialize(ctx, event, &mut message)?;
+    let message = SerializedMessage::Raw(message);
 
     Ok(message)
 }
@@ -903,9 +903,9 @@ impl<E> Default for ServerEventQueue<E> {
 pub fn default_serialize<E: Event + Serialize>(
     _ctx: &mut ServerSendCtx,
     event: &E,
-    cursor: &mut Cursor<Vec<u8>>,
+    message: &mut Vec<u8>,
 ) -> bincode::Result<()> {
-    DefaultOptions::new().serialize_into(cursor, event)
+    DefaultOptions::new().serialize_into(message, event)
 }
 
 /// Default event deserialization function.

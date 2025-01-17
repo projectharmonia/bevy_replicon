@@ -96,10 +96,10 @@ pub trait ClientEventAppExt {
     fn serialize_reflect(
         ctx: &mut ClientSendCtx,
         event: &ReflectEvent,
-        cursor: &mut Cursor<Vec<u8>>,
+        message: &mut Vec<u8>,
     ) -> bincode::Result<()> {
         let serializer = ReflectSerializer::new(&*event.0, ctx.registry);
-        DefaultOptions::new().serialize_into(cursor, &serializer)
+        DefaultOptions::new().serialize_into(message, &serializer)
     }
 
     fn deserialize_reflect(
@@ -292,7 +292,7 @@ impl ClientEvent {
         (self.reset)(events);
     }
 
-    /// Serializes an event into a cursor.
+    /// Serializes an event.
     ///
     /// # Safety
     ///
@@ -301,14 +301,14 @@ impl ClientEvent {
         &self,
         ctx: &mut ClientSendCtx,
         event: &E,
-        cursor: &mut Cursor<Vec<u8>>,
+        message: &mut Vec<u8>,
     ) -> bincode::Result<()> {
         self.check_type::<E>();
         let serialize: SerializeFn<E> = std::mem::transmute(self.serialize);
-        (serialize)(ctx, event, cursor)
+        (serialize)(ctx, event, message)
     }
 
-    /// Deserializes an event into a cursor.
+    /// Deserializes an event from a cursor.
     ///
     /// # Safety
     ///
@@ -335,7 +335,7 @@ impl ClientEvent {
 }
 
 /// Signature of client event serialization functions.
-pub type SerializeFn<E> = fn(&mut ClientSendCtx, &E, &mut Cursor<Vec<u8>>) -> bincode::Result<()>;
+pub type SerializeFn<E> = fn(&mut ClientSendCtx, &E, &mut Vec<u8>) -> bincode::Result<()>;
 
 /// Signature of client event deserialization functions.
 pub type DeserializeFn<E> = fn(&mut ServerReceiveCtx, &mut Cursor<&[u8]>) -> bincode::Result<E>;
@@ -367,13 +367,13 @@ unsafe fn send<E: Event>(
 ) {
     let reader: &mut ClientEventReader<E> = reader.deref_mut();
     for event in reader.read(events.deref()) {
-        let mut cursor = Default::default();
+        let mut message = Vec::new();
         event_data
-            .serialize(ctx, event, &mut cursor)
+            .serialize(ctx, event, &mut message)
             .expect("client event should be serializable");
 
         debug!("sending event `{}`", any::type_name::<E>());
-        client.send(event_data.channel_id, cursor.into_inner());
+        client.send(event_data.channel_id, message);
     }
 }
 
@@ -467,20 +467,20 @@ pub struct FromClient<T> {
 pub fn default_serialize<E: Event + Serialize>(
     _ctx: &mut ClientSendCtx,
     event: &E,
-    cursor: &mut Cursor<Vec<u8>>,
+    message: &mut Vec<u8>,
 ) -> bincode::Result<()> {
-    DefaultOptions::new().serialize_into(cursor, event)
+    DefaultOptions::new().serialize_into(message, event)
 }
 
 /// Like [`default_serialize`], but also maps entities.
 pub fn default_serialize_mapped<E: Event + MapEntities + Clone + Serialize>(
     ctx: &mut ClientSendCtx,
     event: &E,
-    cursor: &mut Cursor<Vec<u8>>,
+    message: &mut Vec<u8>,
 ) -> bincode::Result<()> {
     let mut event = event.clone();
     event.map_entities(ctx);
-    DefaultOptions::new().serialize_into(cursor, &event)
+    DefaultOptions::new().serialize_into(message, &event)
 }
 
 /// Default event deserialization function.
