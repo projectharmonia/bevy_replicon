@@ -14,6 +14,7 @@ use integer_encoding::{FixedIntReader, VarIntReader};
 use crate::core::{
     channels::{ReplicationChannel, RepliconChannels},
     common_conditions::{client_connected, client_just_connected, client_just_disconnected},
+    entity_serde,
     replication::{
         command_markers::{CommandMarkers, EntityMarkers},
         deferred_entity::DeferredEntity,
@@ -359,8 +360,8 @@ fn apply_entity_mapping(
     params: &mut ReceiveParams,
     cursor: &mut Cursor<&[u8]>,
 ) -> bincode::Result<()> {
-    let server_entity = deserialize_entity(cursor)?;
-    let client_entity = deserialize_entity(cursor)?;
+    let server_entity = entity_serde::deserialize_entity(cursor)?;
+    let client_entity = entity_serde::deserialize_entity(cursor)?;
 
     if let Ok(mut entity) = world.get_entity_mut(client_entity) {
         debug!("received mapping from {server_entity:?} to {client_entity:?}");
@@ -384,7 +385,7 @@ fn apply_despawn(
     // The entity might have already been despawned because of hierarchy or
     // with the last replication message, but the server might not yet have received confirmation
     // from the client and could include the deletion in the this message.
-    let server_entity = deserialize_entity(cursor)?;
+    let server_entity = entity_serde::deserialize_entity(cursor)?;
     if let Some(client_entity) = params
         .entity_map
         .remove_by_server(server_entity)
@@ -404,7 +405,7 @@ fn apply_removals(
     cursor: &mut Cursor<&[u8]>,
     message_tick: RepliconTick,
 ) -> bincode::Result<()> {
-    let server_entity = deserialize_entity(cursor)?;
+    let server_entity = entity_serde::deserialize_entity(cursor)?;
 
     let client_entity = params
         .entity_map
@@ -452,7 +453,7 @@ fn apply_changes(
     cursor: &mut Cursor<&[u8]>,
     message_tick: RepliconTick,
 ) -> bincode::Result<()> {
-    let server_entity = deserialize_entity(cursor)?;
+    let server_entity = entity_serde::deserialize_entity(cursor)?;
 
     let client_entity = params
         .entity_map
@@ -563,7 +564,7 @@ fn apply_mutations(
     cursor: &mut Cursor<&[u8]>,
     message_tick: RepliconTick,
 ) -> bincode::Result<()> {
-    let server_entity = deserialize_entity(cursor)?;
+    let server_entity = entity_serde::deserialize_entity(cursor)?;
     let data_size: usize = cursor.read_varint()?;
 
     let Some(client_entity) = params.entity_map.get_by_server(server_entity) else {
@@ -651,24 +652,6 @@ fn apply_mutations(
     params.queue.apply(world);
 
     Ok(())
-}
-
-/// Deserializes `entity` from compressed index and generation.
-///
-/// For details see
-/// [`ReplicationBuffer::write_entity`](crate::server::replication_message::replication_buffer::write_entity).
-fn deserialize_entity(cursor: &mut Cursor<&[u8]>) -> bincode::Result<Entity> {
-    let flagged_index: u64 = cursor.read_varint()?;
-    let has_generation = (flagged_index & 1) > 0;
-    let generation = if has_generation {
-        cursor.read_varint::<u32>()? + 1
-    } else {
-        1u32
-    };
-
-    let bits = (generation as u64) << 32 | (flagged_index >> 1);
-
-    Ok(Entity::from_bits(bits))
 }
 
 /// Borrowed resources from the world and locals.

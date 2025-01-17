@@ -1,6 +1,7 @@
 pub mod channels;
 pub mod common_conditions;
 pub mod connected_clients;
+pub mod entity_serde;
 pub mod event;
 pub mod replication;
 pub mod replicon_client;
