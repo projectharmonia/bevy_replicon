@@ -2,10 +2,10 @@ use std::ops::Range;
 
 use bevy::{prelude::*, ptr::Ptr};
 use bincode::{DefaultOptions, Options};
-use integer_encoding::VarIntWriter;
 
 use crate::{
     core::{
+        entity_serde,
         replication::replication_registry::{
             component_fns::ComponentFns, ctx::SerializeCtx, rule_fns::UntypedRuleFns, FnsId,
         },
@@ -81,14 +81,7 @@ impl SerializedData {
     pub(crate) fn write_entity(&mut self, entity: Entity) -> bincode::Result<Range<usize>> {
         let start = self.len();
 
-        let mut flagged_index = (entity.index() as u64) << 1;
-        let flag = entity.generation() > 1;
-        flagged_index |= flag as u64;
-
-        self.0.write_varint(flagged_index)?;
-        if flag {
-            self.0.write_varint(entity.generation() - 1)?;
-        }
+        entity_serde::serialize_entity(&mut self.0, entity)?;
 
         let end = self.len();
 

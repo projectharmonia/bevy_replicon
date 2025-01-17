@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Export `core::entity_serde` with custom serde functions for entity.
+
 ### Changed
 
 - `StartReplication` is now a trigger-event.
