@@ -156,7 +156,7 @@ impl ServerEventAppExt for App {
         serialize: SerializeFn<E>,
         deserialize: DeserializeFn<E>,
     ) -> &mut Self {
-        debug!("registering server event `{}`", any::type_name::<E>());
+        debug!("registering event `{}`", any::type_name::<E>());
 
         self.add_event::<E>()
             .add_event::<ToClients<E>>()
@@ -560,7 +560,7 @@ unsafe fn resend_locally<E: Event>(server_events: PtrMut, events: PtrMut) {
     let server_events: &mut Events<ToClients<E>> = server_events.deref_mut();
     let events: &mut Events<E> = events.deref_mut();
     for ToClients { event, mode } in server_events.drain() {
-        debug!("resending server event `{}` locally", any::type_name::<E>());
+        debug!("resending event `{}` locally", any::type_name::<E>());
         match mode {
             SendMode::Broadcast => {
                 events.send(event);
@@ -588,7 +588,7 @@ unsafe fn reset<E: Event>(queue: PtrMut) {
     let queue: &mut ServerEventQueue<E> = queue.deref_mut();
     if !queue.is_empty() {
         warn!(
-            "discarding {} queued server events due to a disconnect",
+            "discarding {} queued events due to a disconnect",
             queue.values_len()
         );
     }

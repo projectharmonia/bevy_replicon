@@ -130,7 +130,7 @@ impl ClientEventAppExt for App {
         serialize: SerializeFn<E>,
         deserialize: DeserializeFn<E>,
     ) -> &mut Self {
-        debug!("registering client event `{}`", any::type_name::<E>());
+        debug!("registering event `{}`", any::type_name::<E>());
 
         self.add_event::<E>()
             .add_event::<FromClient<E>>()
@@ -418,7 +418,7 @@ unsafe fn resend_locally<E: Event>(client_events: PtrMut, events: PtrMut) {
     let events: &mut Events<E> = events.deref_mut();
     if !events.is_empty() {
         debug!(
-            "resending {} client event(s) `{}` locally",
+            "resending {} event(s) `{}` locally",
             events.len(),
             any::type_name::<E>()
         );
@@ -438,7 +438,7 @@ unsafe fn reset<E: Event>(events: PtrMut) {
     let events: &mut Events<E> = events.deref_mut();
     let drained_count = events.drain().count();
     if drained_count > 0 {
-        warn!("discarded {drained_count} client events due to a disconnect");
+        warn!("discarded {drained_count} events due to a disconnect");
     }
 }
 
