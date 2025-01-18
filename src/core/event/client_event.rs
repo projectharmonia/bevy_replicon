@@ -270,6 +270,8 @@ impl ClientEvent {
         reader: PtrMut,
         client: &mut RepliconClient,
     ) {
+        self.check_type::<E>();
+
         let reader: &mut ClientEventReader<E> = reader.deref_mut();
         for event in reader.read(events.deref()) {
             let mut message = Vec::new();
@@ -308,6 +310,8 @@ impl ClientEvent {
         events: PtrMut,
         server: &mut RepliconServer,
     ) {
+        self.check_type::<E>();
+
         let events: &mut Events<FromClient<E>> = events.deref_mut();
         for (client_id, message) in server.receive(self.channel_id) {
             let mut cursor = Cursor::new(&*message);
@@ -391,7 +395,6 @@ impl ClientEvent {
         event: &E,
         message: &mut Vec<u8>,
     ) -> bincode::Result<()> {
-        self.check_type::<E>();
         let serialize: SerializeFn<E> = std::mem::transmute(self.serialize);
         (serialize)(ctx, event, message)
     }
@@ -406,7 +409,6 @@ impl ClientEvent {
         ctx: &mut ServerReceiveCtx,
         cursor: &mut Cursor<&[u8]>,
     ) -> bincode::Result<E> {
-        self.check_type::<E>();
         let deserialize: DeserializeFn<E> = std::mem::transmute(self.deserialize);
         (deserialize)(ctx, cursor)
     }
