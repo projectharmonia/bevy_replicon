@@ -339,6 +339,8 @@ impl ServerEvent {
         connected_clients: &ConnectedClients,
         buffered_events: &mut BufferedServerEvents,
     ) {
+        self.check_type::<E>();
+
         let events: &Events<ToClients<E>> = server_events.deref();
         // For server events we don't track read events because
         // all of them will always be drained in the local resending system.
@@ -468,6 +470,8 @@ impl ServerEvent {
         client: &mut RepliconClient,
         update_tick: RepliconTick,
     ) {
+        self.check_type::<E>();
+
         let events: &mut Events<E> = events.deref_mut();
         let queue: &mut ServerEventQueue<E> = queue.deref_mut();
 
@@ -603,7 +607,6 @@ impl ServerEvent {
         event: &E,
         message: &mut Vec<u8>,
     ) -> bincode::Result<()> {
-        self.check_type::<E>();
         let serialize: SerializeFn<E> = std::mem::transmute(self.serialize);
         (serialize)(ctx, event, message)
     }
@@ -618,7 +621,6 @@ impl ServerEvent {
         ctx: &mut ClientReceiveCtx,
         cursor: &mut Cursor<&[u8]>,
     ) -> bincode::Result<E> {
-        self.check_type::<E>();
         let deserialize: DeserializeFn<E> = std::mem::transmute(self.deserialize);
         let event = (deserialize)(ctx, cursor);
         if ctx.invalid_entities.is_empty() {
