@@ -12,10 +12,7 @@ pub fn server_running(server: Option<Res<RepliconServer>>) -> bool {
 /// Can be used instead of the regular [`server_running`] to seamlessly support
 /// singleplayer or listen-server mode (where server is also a player).
 pub fn server_or_singleplayer(client: Option<Res<RepliconClient>>) -> bool {
-    let Some(client) = client else {
-        return true;
-    };
-    client.is_disconnected()
+    client.is_none_or(|client| client.is_disconnected())
 }
 
 /// Returns `true` when the client is connecting.
