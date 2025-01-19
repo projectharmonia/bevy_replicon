@@ -257,7 +257,7 @@ impl ClientEvent {
         (self.send)(self, ctx, events, reader, client);
     }
 
-    /// Typed version of [`ClientEvent::send`].
+    /// Typed version of [`Self::send`].
     ///
     /// # Safety
     ///
@@ -287,7 +287,7 @@ impl ClientEvent {
     ///
     /// # Safety
     ///
-    /// The caller must ensure that `events` is [`Events<FromClient<E>>`]
+    /// The caller must ensure that `client_events` is [`Events<FromClient<E>>`]
     /// and this instance was created for `E`.
     pub(crate) unsafe fn receive(
         &self,
@@ -298,11 +298,11 @@ impl ClientEvent {
         (self.receive)(self, ctx, client_events, server);
     }
 
-    /// Typed version of [`ClientEvent::receive`].
+    /// Typed version of [`Self::receive`].
     ///
     /// # Safety
     ///
-    /// The caller must ensure that `events` is [`Events<E>`]
+    /// The caller must ensure that `client_events` is [`Events<FromClient<E>>`]
     /// and this instance was created for `E`.
     unsafe fn receive_typed<E: Event>(
         &self,
@@ -361,6 +361,7 @@ impl ClientEvent {
             }));
         }
     }
+
     /// Drains all events.
     ///
     /// # Safety

@@ -305,7 +305,7 @@ impl ServerEvent {
     ///
     /// # Safety
     ///
-    /// The caller must ensure that `events` is [`Events<ToClients<E>>`]
+    /// The caller must ensure that `server_events` is [`Events<ToClients<E>>`]
     /// and this instance was created for `E`.
     pub(crate) unsafe fn send_or_buffer(
         &self,
@@ -325,11 +325,11 @@ impl ServerEvent {
         );
     }
 
-    /// Typed version of [`ServerEvent::send_or_buffer`].
+    /// Typed version of [`Self::send_or_buffer`].
     ///
     /// # Safety
     ///
-    /// The caller must ensure that `events` is [`Events<ToClients<E>>`]
+    /// The caller must ensure that `server_events` is [`Events<ToClients<E>>`]
     /// and this instance was created for `E`.
     unsafe fn send_or_buffer_typed<E: Event>(
         &self,
@@ -540,7 +540,7 @@ impl ServerEvent {
         (self.resend_locally)(server_events, events);
     }
 
-    /// Typed version of [`ServerEvent::resend_locally`].
+    /// Typed version of [`Self::resend_locally`].
     ///
     /// # Safety
     ///
@@ -580,7 +580,7 @@ impl ServerEvent {
         (self.reset)(queue);
     }
 
-    /// Typed version of [`ServerEvent::reset`].
+    /// Typed version of [`Self::reset`].
     ///
     /// # Safety
     ///
