@@ -139,7 +139,7 @@ impl ClientEventAppExt for App {
         let channel_id = self
             .world_mut()
             .resource_mut::<RepliconChannels>()
-            .create_client_channel(channel.into());
+            .create_client_channel(channel);
 
         self.world_mut()
             .resource_scope(|world, mut event_registry: Mut<EventRegistry>| {
