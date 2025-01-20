@@ -21,7 +21,8 @@ fn sending_receiving() {
                 ..Default::default()
             }),
         ))
-        .add_server_event::<DummyEvent>(ChannelKind::Ordered);
+        .add_server_event::<DummyEvent>(ChannelKind::Ordered)
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -67,7 +68,8 @@ fn sending_receiving_and_mapping() {
                 ..Default::default()
             }),
         ))
-        .add_mapped_server_event::<EntityEvent>(ChannelKind::Ordered);
+        .add_mapped_server_event::<EntityEvent>(ChannelKind::Ordered)
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -113,7 +115,8 @@ fn sending_receiving_without_plugins() {
                 .disable::<ClientPlugin>()
                 .disable::<ClientEventPlugin>(),
         ))
-        .add_server_event::<DummyEvent>(ChannelKind::Ordered);
+        .add_server_event::<DummyEvent>(ChannelKind::Ordered)
+        .finish();
     client_app
         .add_plugins((
             MinimalPlugins,
@@ -122,7 +125,8 @@ fn sending_receiving_without_plugins() {
                 .disable::<ServerPlugin>()
                 .disable::<ServerEventPlugin>(),
         ))
-        .add_server_event::<DummyEvent>(ChannelKind::Ordered);
+        .add_server_event::<DummyEvent>(ChannelKind::Ordered)
+        .finish();
 
     server_app.connect_client(&mut client_app);
 
@@ -165,7 +169,8 @@ fn local_resending() {
             ..Default::default()
         }),
     ))
-    .add_server_event::<DummyEvent>(ChannelKind::Ordered);
+    .add_server_event::<DummyEvent>(ChannelKind::Ordered)
+    .finish();
 
     const DUMMY_CLIENT_ID: ClientId = ClientId::new(1);
     for (mode, events_count) in [
@@ -206,7 +211,8 @@ fn event_buffering() {
                 ..Default::default()
             }),
         ))
-        .add_server_event::<DummyEvent>(ChannelKind::Ordered);
+        .add_server_event::<DummyEvent>(ChannelKind::Ordered)
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -251,7 +257,8 @@ fn event_queue() {
                 ..Default::default()
             }),
         ))
-        .add_server_event::<DummyEvent>(ChannelKind::Ordered);
+        .add_server_event::<DummyEvent>(ChannelKind::Ordered)
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -300,7 +307,8 @@ fn event_queue_and_mapping() {
                 ..Default::default()
             }),
         ))
-        .add_server_event::<EntityEvent>(ChannelKind::Ordered);
+        .add_server_event::<EntityEvent>(ChannelKind::Ordered)
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -361,7 +369,8 @@ fn multiple_event_queues() {
             }),
         ))
         .add_server_event::<DummyEvent>(ChannelKind::Ordered)
-        .add_server_event::<EntityEvent>(ChannelKind::Ordered); // Use as a regular event with a different serialization size.
+        .add_server_event::<EntityEvent>(ChannelKind::Ordered) // Use as a regular event with a different serialization size.
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -422,7 +431,8 @@ fn independent() {
             }),
         ))
         .add_server_event::<DummyEvent>(ChannelKind::Ordered)
-        .make_independent::<DummyEvent>();
+        .make_independent::<DummyEvent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -484,7 +494,8 @@ fn before_started_replication() {
                 ..Default::default()
             }),
         ))
-        .add_server_event::<DummyEvent>(ChannelKind::Ordered);
+        .add_server_event::<DummyEvent>(ChannelKind::Ordered)
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -520,7 +531,8 @@ fn independent_before_started_replication() {
             }),
         ))
         .add_server_event::<DummyEvent>(ChannelKind::Ordered)
-        .make_independent::<DummyEvent>();
+        .make_independent::<DummyEvent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -554,7 +566,8 @@ fn different_ticks() {
                 ..Default::default()
             }),
         ))
-        .add_server_event::<DummyEvent>(ChannelKind::Ordered);
+        .add_server_event::<DummyEvent>(ChannelKind::Ordered)
+        .finish();
     }
 
     // Connect client 1 first.

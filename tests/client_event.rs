@@ -14,7 +14,8 @@ fn sending_receiving() {
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((MinimalPlugins, RepliconPlugins))
-            .add_client_event::<DummyEvent>(ChannelKind::Ordered);
+            .add_client_event::<DummyEvent>(ChannelKind::Ordered)
+            .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -37,7 +38,8 @@ fn mapping_and_sending_receiving() {
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((MinimalPlugins, RepliconPlugins))
-            .add_mapped_client_event::<MappedEvent>(ChannelKind::Ordered);
+            .add_mapped_client_event::<MappedEvent>(ChannelKind::Ordered)
+            .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -78,7 +80,8 @@ fn sending_receiving_without_plugins() {
                 .disable::<ClientPlugin>()
                 .disable::<ClientEventPlugin>(),
         ))
-        .add_client_event::<DummyEvent>(ChannelKind::Ordered);
+        .add_client_event::<DummyEvent>(ChannelKind::Ordered)
+        .finish();
     client_app
         .add_plugins((
             MinimalPlugins,
@@ -87,7 +90,8 @@ fn sending_receiving_without_plugins() {
                 .disable::<ServerPlugin>()
                 .disable::<ServerEventPlugin>(),
         ))
-        .add_client_event::<DummyEvent>(ChannelKind::Ordered);
+        .add_client_event::<DummyEvent>(ChannelKind::Ordered)
+        .finish();
 
     server_app.connect_client(&mut client_app);
 
@@ -107,7 +111,8 @@ fn sending_receiving_without_plugins() {
 fn local_resending() {
     let mut app = App::new();
     app.add_plugins((TimePlugin, RepliconPlugins))
-        .add_client_event::<DummyEvent>(ChannelKind::Ordered);
+        .add_client_event::<DummyEvent>(ChannelKind::Ordered)
+        .finish();
 
     app.world_mut().send_event(DummyEvent);
 
