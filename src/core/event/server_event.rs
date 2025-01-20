@@ -181,19 +181,29 @@ impl ServerEventAppExt for App {
     }
 
     fn make_independent<E: Event>(&mut self) -> &mut Self {
-        self.world_mut()
-            .resource_scope(|world, mut event_registry: Mut<EventRegistry>| {
-                let events_id = world
-                    .components()
-                    .resource_id::<Events<E>>()
-                    .unwrap_or_else(|| {
-                        panic!(
-                            "event `{}` should be previously registered",
-                            any::type_name::<E>()
-                        )
-                    });
-                event_registry.make_independent(events_id);
+        let events_id = self
+            .world()
+            .components()
+            .resource_id::<Events<E>>()
+            .unwrap_or_else(|| {
+                panic!(
+                    "event `{}` should be previously registered",
+                    any::type_name::<E>()
+                )
             });
+
+        let mut event_registry = self.world_mut().resource_mut::<EventRegistry>();
+        let event_data = event_registry
+            .iter_server_events_mut()
+            .find(|event| event.events_id() == events_id)
+            .unwrap_or_else(|| {
+                panic!(
+                    "event `{}` should be previously registered as a server event",
+                    any::type_name::<E>()
+                )
+            });
+
+        event_data.independent = true;
 
         self
     }
@@ -295,10 +305,6 @@ impl ServerEvent {
 
     pub(super) fn is_independent(&self) -> bool {
         self.independent
-    }
-
-    pub(super) fn make_independent(&mut self) {
-        self.independent = true
     }
 
     /// Sends an event to client(s).
