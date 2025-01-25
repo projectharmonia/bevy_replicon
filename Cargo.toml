@@ -127,3 +127,6 @@ required-features = ["client", "server"]
 [lints.clippy]
 type_complexity = "allow"
 too_many_arguments = "allow"
+
+[workspace]
+members = ["bevy_replicon_example_backend"]
