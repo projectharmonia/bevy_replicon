@@ -76,6 +76,10 @@ name = "client_event"
 required-features = ["client", "server"]
 
 [[test]]
+name = "client_trigger"
+required-features = ["client", "server"]
+
+[[test]]
 name = "connection"
 required-features = ["client", "server"]
 
@@ -101,6 +105,10 @@ required-features = ["scene"]
 
 [[test]]
 name = "server_event"
+required-features = ["client", "server"]
+
+[[test]]
+name = "server_trigger"
 required-features = ["client", "server"]
 
 [[test]]
