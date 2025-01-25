@@ -175,7 +175,7 @@ fn trigger_deserialize<'a, E>(
 ///
 /// See also [`ServerTriggerAppExt`].
 pub trait ServerTriggerExt {
-    /// Like [`Commands::trigger`], but triggers [`E`] on server and locally
+    /// Like [`Commands::trigger`], but triggers `E` on server and locally
     /// if [`ClientId::SERVER`](crate::core::ClientId::SERVER) is a recipient of the event).
     fn server_trigger(&mut self, event: ToClients<impl Event>);
 
