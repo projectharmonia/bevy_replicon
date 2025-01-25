@@ -8,5 +8,10 @@ publish = false
 
 [dependencies]
 bevy = { version = "0.15", default-features = false }
-bevy_replicon = { path = ".." }
+bevy_replicon = { path = "..", default-features = false }
 anyhow = "1.0"
+
+[features]
+default = ["client", "server"]
+server = ["bevy_replicon/server"]
+client = ["bevy_replicon/client"]
