@@ -66,18 +66,18 @@ fn receive_packets(
                 if e.kind() == io::ErrorKind::WouldBlock {
                     return;
                 }
-                eprintln!("Failed to receive packet");
+                error!("failed to receive packet: {e}");
                 continue;
             }
         };
+
+        let client_id = ClientId::new(addr.port() as u64);
         if size < 1 {
-            eprintln!("Packet is of size 0");
+            error!("received empty packet from `{client_id:?}`");
             continue;
         }
         let channel_id = buf[0];
-        let client_id = ClientId::new(addr.port() as u64);
         if !clients.iter().any(|c| c.id() == client_id) {
-            eprintln!("New client! {}", client_id.get());
             server_events.send(ServerEvent::ClientConnected { client_id });
         }
         replicon_server.insert_received(client_id, channel_id, Vec::from(&buf[1..size]));
@@ -85,14 +85,7 @@ fn receive_packets(
 }
 
 fn send_packets(socket: Res<ExampleServerSocket>, mut replicon_server: ResMut<RepliconServer>) {
-    eprintln!("Trying to send packets");
     for (client_id, channel_id, message) in replicon_server.drain_sent() {
-        eprintln!(
-            "Sending to {} on {}: {:x}",
-            client_id.get(),
-            channel_id,
-            message
-        );
         let mut data = Vec::with_capacity(message.len() + 1);
         data.push(channel_id);
         data.extend(message);

@@ -62,14 +62,14 @@ fn receive_packets(
             Err(e) => {
                 if e.kind() != std::io::ErrorKind::WouldBlock {
                     commands.remove_resource::<ExampleClientSocket>();
-                    info!("Got network error, disconnecting: {e}");
+                    error!("disconnecting due to network error: {e}");
                 }
                 return;
             }
         };
         if size < 1 {
             commands.remove_resource::<ExampleClientSocket>();
-            info!("Got empty packet, disconnecting");
+            debug!("got empty packet, disconnecting");
             return;
         }
         let channel_id = buf[0];
