@@ -7,7 +7,7 @@ use anyhow::Result;
 use bevy::prelude::*;
 use bevy_replicon::prelude::*;
 
-/// Adds a client messaging backend made for examples to bevy_replicon.
+/// Adds a client messaging backend made for examples to `bevy_replicon`.
 pub struct RepliconExampleClientPlugin;
 
 impl Plugin for RepliconExampleClientPlugin {
@@ -31,12 +31,12 @@ impl Plugin for RepliconExampleClientPlugin {
     }
 }
 
-/// The socket used by the client
+/// The socket used by the client.
 #[derive(Resource, Deref)]
 pub struct ExampleClientSocket(UdpSocket);
 
 impl ExampleClientSocket {
-    /// Open an example client socket connected to a server on the specified port
+    /// Opens an example client socket connected to a server on the specified port.
     pub fn new(port: u16) -> Result<Self> {
         let socket = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0))?;
         socket.set_nonblocking(true)?;
