@@ -61,6 +61,18 @@ impl Plugin for ServerEventPlugin {
             .build_state(app.world_mut())
             .build_system(Self::receive);
 
+        let trigger = (
+            FilteredResourcesMutParamBuilder::new(|builder| {
+                for trigger in event_registry.iter_client_triggers() {
+                    builder.add_write_by_id(trigger.event().client_events_id());
+                }
+            }),
+            ParamBuilder,
+            ParamBuilder,
+        )
+            .build_state(app.world_mut())
+            .build_system(Self::trigger);
+
         let resend_locally = (
             FilteredResourcesMutParamBuilder::new(|builder| {
                 for event in event_registry.iter_server_events() {
@@ -80,7 +92,12 @@ impl Plugin for ServerEventPlugin {
         app.insert_resource(event_registry)
             .add_systems(
                 PreUpdate,
-                receive.in_set(ServerSet::Receive).run_if(server_running),
+                (
+                    receive.run_if(server_running),
+                    trigger.run_if(server_or_singleplayer),
+                )
+                    .chain()
+                    .in_set(ServerSet::Receive),
             )
             .add_systems(
                 PostUpdate,
@@ -112,14 +129,14 @@ impl ServerEventPlugin {
             registry: &registry.read(),
         };
 
-        for event_data in event_registry.iter_server_events() {
+        for event in event_registry.iter_server_events() {
             let server_events = server_events
-                .get_by_id(event_data.server_events_id())
+                .get_by_id(event.server_events_id())
                 .expect("server events resource should be accessible");
 
             // SAFETY: passed pointer was obtained using this event data.
             unsafe {
-                event_data.send_or_buffer(
+                event.send_or_buffer(
                     &mut ctx,
                     &server_events,
                     &mut server,
@@ -150,13 +167,26 @@ impl ServerEventPlugin {
             registry: &registry.read(),
         };
 
-        for event_data in event_registry.iter_client_events() {
+        for event in event_registry.iter_client_events() {
             let client_events = client_events
-                .get_mut_by_id(event_data.client_events_id())
-                .expect("client events shouldn't be removed");
+                .get_mut_by_id(event.client_events_id())
+                .expect("client events resource should be accessible");
 
             // SAFETY: passed pointer was obtained using this event data.
-            unsafe { event_data.receive(&mut ctx, client_events.into_inner(), &mut server) };
+            unsafe { event.receive(&mut ctx, client_events.into_inner(), &mut server) };
+        }
+    }
+
+    fn trigger(
+        mut client_events: FilteredResourcesMut,
+        mut commands: Commands,
+        event_registry: Res<EventRegistry>,
+    ) {
+        for trigger in event_registry.iter_client_triggers() {
+            let client_events = client_events
+                .get_mut_by_id(trigger.event().client_events_id())
+                .expect("client events resource should be accessible");
+            trigger.trigger(&mut commands, client_events.into_inner());
         }
     }
 
@@ -165,16 +195,16 @@ impl ServerEventPlugin {
         mut events: FilteredResourcesMut,
         event_registry: Res<EventRegistry>,
     ) {
-        for event_data in event_registry.iter_server_events() {
+        for event in event_registry.iter_server_events() {
             let server_events = server_events
-                .get_mut_by_id(event_data.server_events_id())
-                .expect("server events shouldn't be removed");
+                .get_mut_by_id(event.server_events_id())
+                .expect("server events resource should be accessible");
             let events = events
-                .get_mut_by_id(event_data.events_id())
-                .expect("events shouldn't be removed");
+                .get_mut_by_id(event.events_id())
+                .expect("events resource should be accessible");
 
             // SAFETY: passed pointers were obtained using this event data.
-            unsafe { event_data.resend_locally(server_events.into_inner(), events.into_inner()) };
+            unsafe { event.resend_locally(server_events.into_inner(), events.into_inner()) };
         }
     }
 }

@@ -38,7 +38,7 @@ fn mapping_and_sending_receiving() {
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((MinimalPlugins, RepliconPlugins))
-            .add_mapped_client_event::<MappedEvent>(ChannelKind::Ordered)
+            .add_mapped_client_event::<EntityEvent>(ChannelKind::Ordered)
             .finish();
     }
 
@@ -53,7 +53,7 @@ fn mapping_and_sending_receiving() {
 
     client_app
         .world_mut()
-        .send_event(MappedEvent(client_entity));
+        .send_event(EntityEvent(client_entity));
 
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -61,7 +61,7 @@ fn mapping_and_sending_receiving() {
 
     let mapped_entities: Vec<_> = server_app
         .world_mut()
-        .resource_mut::<Events<FromClient<MappedEvent>>>()
+        .resource_mut::<Events<FromClient<EntityEvent>>>()
         .drain()
         .map(|event| event.event.0)
         .collect();
@@ -129,9 +129,9 @@ fn local_resending() {
 struct DummyEvent;
 
 #[derive(Deserialize, Event, Serialize, Clone)]
-struct MappedEvent(Entity);
+struct EntityEvent(Entity);
 
-impl MapEntities for MappedEvent {
+impl MapEntities for EntityEvent {
     fn map_entities<M: EntityMapper>(&mut self, entity_mapper: &mut M) {
         self.0 = entity_mapper.map_entity(self.0);
     }

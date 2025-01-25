@@ -1,5 +1,5 @@
 use std::{
-    any::{self, TypeId},
+    any,
     collections::HashSet,
     io::{Cursor, Write},
     marker::PhantomData,
@@ -7,10 +7,7 @@ use std::{
 };
 
 use bevy::{
-    ecs::{
-        component::{ComponentId, Components},
-        entity::MapEntities,
-    },
+    ecs::{component::ComponentId, entity::MapEntities},
     prelude::*,
     ptr::{Ptr, PtrMut},
 };
@@ -21,6 +18,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use super::{
     ctx::{ClientReceiveCtx, ServerSendCtx},
+    event_fns::{EventDeserializeFn, EventFns, EventSerializeFn, UntypedEventFns},
     event_registry::EventRegistry,
 };
 use crate::core::{
@@ -122,8 +120,8 @@ pub trait ServerEventAppExt {
     fn add_server_event_with<E: Event>(
         &mut self,
         channel: impl Into<RepliconChannel>,
-        serialize: SerializeFn<E>,
-        deserialize: DeserializeFn<E>,
+        serialize: EventSerializeFn<ServerSendCtx, E>,
+        deserialize: EventDeserializeFn<ClientReceiveCtx, E>,
     ) -> &mut Self;
 
     /// Marks the event `E` as an independent event.
@@ -153,29 +151,15 @@ impl ServerEventAppExt for App {
     fn add_server_event_with<E: Event>(
         &mut self,
         channel: impl Into<RepliconChannel>,
-        serialize: SerializeFn<E>,
-        deserialize: DeserializeFn<E>,
+        serialize: EventSerializeFn<ServerSendCtx, E>,
+        deserialize: EventDeserializeFn<ClientReceiveCtx, E>,
     ) -> &mut Self {
         debug!("registering event `{}`", any::type_name::<E>());
 
-        self.add_event::<E>()
-            .add_event::<ToClients<E>>()
-            .init_resource::<ServerEventQueue<E>>();
-
-        let channel_id = self
-            .world_mut()
-            .resource_mut::<RepliconChannels>()
-            .create_server_channel(channel);
-
-        self.world_mut()
-            .resource_scope(|world, mut event_registry: Mut<EventRegistry>| {
-                event_registry.register_server_event(ServerEvent::new(
-                    world.components(),
-                    channel_id,
-                    serialize,
-                    deserialize,
-                ));
-            });
+        let event_fns = EventFns::new(serialize, deserialize);
+        let event = ServerEvent::new(self, channel, event_fns);
+        let mut event_registry = self.world_mut().resource_mut::<EventRegistry>();
+        event_registry.register_server_event(event);
 
         self
     }
@@ -193,7 +177,7 @@ impl ServerEventAppExt for App {
             });
 
         let mut event_registry = self.world_mut().resource_mut::<EventRegistry>();
-        let event_data = event_registry
+        let event = event_registry
             .iter_server_events_mut()
             .find(|event| event.events_id() == events_id)
             .unwrap_or_else(|| {
@@ -203,7 +187,7 @@ impl ServerEventAppExt for App {
                 )
             });
 
-        event_data.independent = true;
+        event.independent = true;
 
         self
     }
@@ -213,9 +197,6 @@ impl ServerEventAppExt for App {
 ///
 /// Needed so events of different types can be processed together.
 pub(crate) struct ServerEvent {
-    event_id: TypeId,
-    event_name: &'static str,
-
     /// Whether this event depends on replication or not.
     ///
     /// Events like a chat message event do not have to wait for replication to
@@ -239,55 +220,39 @@ pub(crate) struct ServerEvent {
     receive: ReceiveFn,
     resend_locally: ResendLocallyFn,
     reset: ResetFn,
-    serialize: unsafe fn(),
-    deserialize: unsafe fn(),
+    event_fns: UntypedEventFns,
 }
 
 impl ServerEvent {
-    fn new<E: Event>(
-        components: &Components,
-        channel_id: u8,
-        serialize: SerializeFn<E>,
-        deserialize: DeserializeFn<E>,
+    pub(super) fn new<E: Event, I: 'static>(
+        app: &mut App,
+        channel: impl Into<RepliconChannel>,
+        event_fns: EventFns<ServerSendCtx, ClientReceiveCtx, E, I>,
     ) -> Self {
-        let events_id = components.resource_id::<Events<E>>().unwrap_or_else(|| {
-            panic!(
-                "event `{}` should be previously registered",
-                any::type_name::<E>()
-            )
-        });
-        let server_events_id = components
-            .resource_id::<Events<ToClients<E>>>()
-            .unwrap_or_else(|| {
-                panic!(
-                    "event `{}` should be previously registered",
-                    any::type_name::<ToClients<E>>()
-                )
-            });
-        let queue_id = components
-            .resource_id::<ServerEventQueue<E>>()
-            .unwrap_or_else(|| {
-                panic!(
-                    "resource `{}` should be previously inserted",
-                    any::type_name::<ServerEventQueue<E>>()
-                )
-            });
+        let channel_id = app
+            .world_mut()
+            .resource_mut::<RepliconChannels>()
+            .create_server_channel(channel);
+
+        app.add_event::<E>()
+            .add_event::<ToClients<E>>()
+            .init_resource::<ServerEventQueue<E>>();
+
+        let events_id = app.world().resource_id::<Events<E>>().unwrap();
+        let server_events_id = app.world().resource_id::<Events<ToClients<E>>>().unwrap();
+        let queue_id = app.world().resource_id::<ServerEventQueue<E>>().unwrap();
 
         Self {
-            event_id: TypeId::of::<E>(),
-            event_name: any::type_name::<E>(),
             independent: false,
             events_id,
             server_events_id,
             queue_id,
             channel_id,
-            send_or_buffer: Self::send_or_buffer_typed::<E>,
-            receive: Self::receive_typed::<E>,
+            send_or_buffer: Self::send_or_buffer_typed::<E, I>,
+            receive: Self::receive_typed::<E, I>,
             resend_locally: Self::resend_locally_typed::<E>,
             reset: Self::reset_typed::<E>,
-            // SAFETY: these functions won't be called until the type is restored.
-            serialize: unsafe { mem::transmute::<SerializeFn<E>, unsafe fn()>(serialize) },
-            deserialize: unsafe { mem::transmute::<DeserializeFn<E>, unsafe fn()>(deserialize) },
+            event_fns: event_fns.into(),
         }
     }
 
@@ -336,8 +301,8 @@ impl ServerEvent {
     /// # Safety
     ///
     /// The caller must ensure that `server_events` is [`Events<ToClients<E>>`]
-    /// and this instance was created for `E`.
-    unsafe fn send_or_buffer_typed<E: Event>(
+    /// and this instance was created for `E` and `I`.
+    unsafe fn send_or_buffer_typed<E: Event, I: 'static>(
         &self,
         ctx: &mut ServerSendCtx,
         server_events: &Ptr,
@@ -345,8 +310,6 @@ impl ServerEvent {
         connected_clients: &ConnectedClients,
         buffered_events: &mut BufferedServerEvents,
     ) {
-        self.check_type::<E>();
-
         let events: &Events<ToClients<E>> = server_events.deref();
         // For server events we don't track read events because
         // all of them will always be drained in the local resending system.
@@ -354,10 +317,10 @@ impl ServerEvent {
             debug!("sending event `{}` with `{mode:?}`", any::type_name::<E>());
 
             if self.is_independent() {
-                self.send_independent_event(ctx, event, mode, server, connected_clients)
+                self.send_independent_event::<E, I>(ctx, event, mode, server, connected_clients)
                     .expect("independent server event should be serializable");
             } else {
-                self.buffer_event(ctx, event, *mode, buffered_events)
+                self.buffer_event::<E, I>(ctx, event, *mode, buffered_events)
                     .expect("server event should be serializable");
             }
         }
@@ -367,10 +330,10 @@ impl ServerEvent {
     ///
     /// # Safety
     ///
-    /// The caller must ensure that `event_data` was created for `E`.
+    /// The caller must ensure that this instance was created for `E` and `I`.
     ///
     /// For regular events see [`Self::buffer_event`].
-    unsafe fn send_independent_event<E: Event>(
+    unsafe fn send_independent_event<E: Event, I: 'static>(
         &self,
         ctx: &mut ServerSendCtx,
         event: &E,
@@ -379,7 +342,7 @@ impl ServerEvent {
         connected_clients: &ConnectedClients,
     ) -> bincode::Result<()> {
         let mut message = Vec::new();
-        self.serialize(ctx, event, &mut message)?;
+        self.serialize::<E, I>(ctx, event, &mut message)?;
         let message: Bytes = message.into();
 
         match *mode {
@@ -409,17 +372,17 @@ impl ServerEvent {
     ///
     /// # Safety
     ///
-    /// The caller must ensure that this instance was created for `E`.
+    /// The caller must ensure that this instance was created for `E` and `I`.
     ///
     /// For independent events see [`Self::send_independent_event`].
-    unsafe fn buffer_event<E: Event>(
+    unsafe fn buffer_event<E: Event, I: 'static>(
         &self,
         ctx: &mut ServerSendCtx,
         event: &E,
         mode: SendMode,
         buffered_events: &mut BufferedServerEvents,
     ) -> bincode::Result<()> {
-        let message = self.serialize_with_padding(ctx, event)?;
+        let message = self.serialize_with_padding::<E, I>(ctx, event)?;
         buffered_events.insert(mode, self.channel_id, message);
         Ok(())
     }
@@ -430,8 +393,8 @@ impl ServerEvent {
     ///
     /// # Safety
     ///
-    /// The caller must ensure that this instance was created for `E`.
-    unsafe fn serialize_with_padding<E: Event>(
+    /// The caller must ensure that this instance was created for `E` and `I`.
+    unsafe fn serialize_with_padding<E: Event, I: 'static>(
         &self,
         ctx: &mut ServerSendCtx,
         event: &E,
@@ -439,7 +402,7 @@ impl ServerEvent {
         let mut message = Vec::new();
         let padding = [0; mem::size_of::<RepliconTick>()];
         message.write_all(&padding)?;
-        self.serialize(ctx, event, &mut message)?;
+        self.serialize::<E, I>(ctx, event, &mut message)?;
         let message = SerializedMessage::Raw(message);
 
         Ok(message)
@@ -467,8 +430,8 @@ impl ServerEvent {
     /// # Safety
     ///
     /// The caller must ensure that `events` is [`Events<E>`], `queue` is [`ServerEventQueue<E>`]
-    /// and this instance was created for `E`.
-    unsafe fn receive_typed<E: Event>(
+    /// and this instance was created for `E` and `I`.
+    unsafe fn receive_typed<E: Event, I: 'static>(
         &self,
         ctx: &mut ClientReceiveCtx,
         events: PtrMut,
@@ -476,14 +439,12 @@ impl ServerEvent {
         client: &mut RepliconClient,
         update_tick: RepliconTick,
     ) {
-        self.check_type::<E>();
-
         let events: &mut Events<E> = events.deref_mut();
         let queue: &mut ServerEventQueue<E> = queue.deref_mut();
 
         while let Some((tick, message)) = queue.pop_if_le(update_tick) {
             let mut cursor = Cursor::new(&*message);
-            match self.deserialize(ctx, &mut cursor) {
+            match self.deserialize::<E, I>(ctx, &mut cursor) {
                 Ok(event) => {
                     debug!(
                         "applying event `{}` from queue with `{tick:?}`",
@@ -523,7 +484,7 @@ impl ServerEvent {
                 }
             }
 
-            match self.deserialize(ctx, &mut cursor) {
+            match self.deserialize::<E, I>(ctx, &mut cursor) {
                 Ok(event) => {
                     debug!("applying event `{}`", any::type_name::<E>());
                     events.send(event);
@@ -606,31 +567,35 @@ impl ServerEvent {
     ///
     /// # Safety
     ///
-    /// The caller must ensure that this instance was created for `E`.
-    unsafe fn serialize<E: Event>(
+    /// The caller must ensure that this instance was created for `E` and `I`.
+    unsafe fn serialize<E: Event, I: 'static>(
         &self,
         ctx: &mut ServerSendCtx,
         event: &E,
         message: &mut Vec<u8>,
     ) -> bincode::Result<()> {
-        let serialize: SerializeFn<E> = std::mem::transmute(self.serialize);
-        (serialize)(ctx, event, message)
+        self.event_fns
+            .typed::<ServerSendCtx, ClientReceiveCtx, E, I>()
+            .serialize(ctx, event, message)
     }
 
     /// Deserializes an event from a cursor.
     ///
     /// # Safety
     ///
-    /// The caller must ensure that this instance was created for `E`.
-    unsafe fn deserialize<E: Event>(
+    /// The caller must ensure that this instance was created for `E` and `I`.
+    unsafe fn deserialize<E: Event, I: 'static>(
         &self,
         ctx: &mut ClientReceiveCtx,
         cursor: &mut Cursor<&[u8]>,
     ) -> bincode::Result<E> {
-        let deserialize: DeserializeFn<E> = std::mem::transmute(self.deserialize);
-        let event = (deserialize)(ctx, cursor);
+        let event = self
+            .event_fns
+            .typed::<ServerSendCtx, ClientReceiveCtx, E, I>()
+            .deserialize(ctx, cursor)?;
+
         if ctx.invalid_entities.is_empty() {
-            event
+            Ok(event)
         } else {
             let message = format!(
                 "unable to map entities `{:?}` from server, \
@@ -641,23 +606,7 @@ impl ServerEvent {
             Err(bincode::ErrorKind::Custom(message).into())
         }
     }
-
-    fn check_type<C: Event>(&self) {
-        debug_assert_eq!(
-            self.event_id,
-            TypeId::of::<C>(),
-            "trying to call event functions with `{}`, but they were created with `{}`",
-            any::type_name::<C>(),
-            self.event_name,
-        );
-    }
 }
-
-/// Signature of server event serialization functions.
-pub type SerializeFn<E> = fn(&mut ServerSendCtx, &E, &mut Vec<u8>) -> bincode::Result<()>;
-
-/// Signature of server event deserialization functions.
-pub type DeserializeFn<E> = fn(&mut ClientReceiveCtx, &mut Cursor<&[u8]>) -> bincode::Result<E>;
 
 /// Signature of server event sending functions.
 type SendOrBufferFn = unsafe fn(
