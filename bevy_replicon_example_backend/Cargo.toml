@@ -9,3 +9,4 @@ publish = false
 [dependencies]
 bevy = { version = "0.15", default-features = false }
 bevy_replicon = { path = ".." }
+anyhow = "1.0"

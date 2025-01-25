@@ -1,5 +1,9 @@
-use std::{io, net::UdpSocket};
+use std::{
+    io,
+    net::{Ipv4Addr, UdpSocket},
+};
 
+use anyhow::Result;
 use bevy::prelude::*;
 use bevy_replicon::prelude::*;
 
@@ -33,16 +37,10 @@ pub struct ExampleServerSocket(UdpSocket);
 
 impl ExampleServerSocket {
     /// Open an example server socket on the specified port
-    pub fn new(port: u16) -> Option<Self> {
-        let socket = match UdpSocket::bind(("127.0.0.1", port)) {
-            Ok(s) => s,
-            Err(e) => {
-                eprintln!("Failed to open port: {e}");
-                return None;
-            }
-        };
-        socket.set_nonblocking(true).unwrap();
-        Some(ExampleServerSocket(socket))
+    pub fn new(port: u16) -> Result<Self> {
+        let socket = UdpSocket::bind((Ipv4Addr::LOCALHOST, port))?;
+        socket.set_nonblocking(true)?;
+        Ok(Self(socket))
     }
 }
 

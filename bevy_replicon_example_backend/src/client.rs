@@ -1,5 +1,6 @@
-use std::net::UdpSocket;
+use std::net::{Ipv4Addr, UdpSocket};
 
+use anyhow::Result;
 use bevy::prelude::*;
 use bevy_replicon::prelude::*;
 
@@ -33,20 +34,11 @@ pub struct ExampleClientSocket(UdpSocket);
 
 impl ExampleClientSocket {
     /// Open an example client socket connected to a server on the specified port
-    pub fn new(port: u16) -> Option<Self> {
-        let socket = match UdpSocket::bind("127.0.0.1:0") {
-            Ok(s) => s,
-            Err(e) => {
-                eprintln!("Failed to join: {e}");
-                return None;
-            }
-        };
-        socket.set_nonblocking(true).unwrap();
-        if let Err(e) = socket.connect(("127.0.0.1", port)) {
-            eprintln!("Failed to join: {e}");
-            return None;
-        };
-        Some(ExampleClientSocket(socket))
+    pub fn new(port: u16) -> Result<Self> {
+        let socket = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0))?;
+        socket.set_nonblocking(true)?;
+        socket.connect((Ipv4Addr::LOCALHOST, port))?;
+        Ok(Self(socket))
     }
 }
 
