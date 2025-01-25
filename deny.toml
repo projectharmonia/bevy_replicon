@@ -12,4 +12,4 @@ allow = [
 ]
 
 [bans]
-multiple-versions = "allow"
+skip-tree = ["bevy"]
