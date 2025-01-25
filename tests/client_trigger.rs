@@ -93,21 +93,26 @@ fn mapping_and_sending_receiving() {
 }
 
 #[test]
-#[ignore = "fail on CI, but passes locally, needs investigation"]
 fn sending_receiving_without_plugins() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     server_app
         .add_plugins((
             MinimalPlugins,
-            RepliconPlugins.build().disable::<ClientPlugin>(),
+            RepliconPlugins
+                .build()
+                .disable::<ClientPlugin>()
+                .disable::<ClientEventPlugin>(),
         ))
         .add_client_trigger::<DummyEvent>(ChannelKind::Ordered)
         .finish();
     client_app
         .add_plugins((
             MinimalPlugins,
-            RepliconPlugins.build().disable::<ServerPlugin>(),
+            RepliconPlugins
+                .build()
+                .disable::<ServerPlugin>()
+                .disable::<ServerEventPlugin>(),
         ))
         .add_client_trigger::<DummyEvent>(ChannelKind::Ordered)
         .finish();
