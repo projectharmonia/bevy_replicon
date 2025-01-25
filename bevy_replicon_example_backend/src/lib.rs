@@ -11,3 +11,30 @@ mod server;
 pub use client::*;
 #[cfg(feature = "server")]
 pub use server::*;
+
+use bevy::{app::PluginGroupBuilder, prelude::*};
+
+/// Plugin group for all replicon example backend plugins.
+///
+/// Contains the following:
+/// * [`RepliconExampleServerPlugin`] - with feature `server`.
+/// * [`RepliconExampleClientPlugin`] - with feature `client`.
+pub struct RepliconExampleBackendPlugins;
+
+impl PluginGroup for RepliconExampleBackendPlugins {
+    fn build(self) -> PluginGroupBuilder {
+        let mut group = PluginGroupBuilder::start::<Self>();
+
+        #[cfg(feature = "server")]
+        {
+            group = group.add(RepliconExampleServerPlugin);
+        }
+
+        #[cfg(feature = "client")]
+        {
+            group = group.add(RepliconExampleClientPlugin);
+        }
+
+        group
+    }
+}
