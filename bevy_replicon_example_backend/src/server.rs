@@ -1,5 +1,5 @@
 use std::{
-    io,
+    io, mem,
     net::{Ipv4Addr, UdpSocket},
 };
 
@@ -86,7 +86,7 @@ fn receive_packets(
 
 fn send_packets(socket: Res<ExampleServerSocket>, mut replicon_server: ResMut<RepliconServer>) {
     for (client_id, channel_id, message) in replicon_server.drain_sent() {
-        let mut data = Vec::with_capacity(message.len() + 1);
+        let mut data = Vec::with_capacity(message.len() + mem::size_of_val(&channel_id));
         data.push(channel_id);
         data.extend(message);
         let port = client_id.get() as u16;

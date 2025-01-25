@@ -1,4 +1,7 @@
-use std::net::{Ipv4Addr, UdpSocket};
+use std::{
+    mem,
+    net::{Ipv4Addr, UdpSocket},
+};
 
 use anyhow::Result;
 use bevy::prelude::*;
@@ -79,7 +82,7 @@ fn receive_packets(
 
 fn send_packets(socket: Res<ExampleClientSocket>, mut replicon_client: ResMut<RepliconClient>) {
     for (channel_id, message) in replicon_client.drain_sent() {
-        let mut data = Vec::with_capacity(message.len() + 1);
+        let mut data = Vec::with_capacity(message.len() + mem::size_of_val(&channel_id));
         data.push(channel_id);
         data.extend(message);
         socket.send(&data).unwrap();
