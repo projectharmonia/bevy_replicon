@@ -180,7 +180,7 @@ impl ServerPlugin {
         mut client_buffers: ResMut<ClientBuffers>,
         mut buffered_events: ResMut<BufferedServerEvents>,
     ) {
-        match *trigger.event() {
+        match *trigger {
             ServerEvent::ClientDisconnected { client_id, .. } => {
                 entity_map.0.remove(&client_id);
                 connected_clients.remove(client_id);
@@ -202,7 +202,7 @@ impl ServerPlugin {
         mut replicated_clients: ResMut<ReplicatedClients>,
         mut client_buffers: ResMut<ClientBuffers>,
     ) {
-        replicated_clients.add(&mut client_buffers, **trigger.event());
+        replicated_clients.add(&mut client_buffers, **trigger);
     }
 
     fn cleanup_acks(
