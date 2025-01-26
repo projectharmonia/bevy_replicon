@@ -98,7 +98,12 @@ impl Plugin for ServerPlugin {
             .init_resource::<BufferedServerEvents>()
             .configure_sets(
                 PreUpdate,
-                (ServerSet::ReceivePackets, ServerSet::Receive).chain(),
+                (
+                    ServerSet::ReceivePackets,
+                    ServerSet::TriggerServerEvents,
+                    ServerSet::Receive,
+                )
+                    .chain(),
             )
             .configure_sets(
                 PostUpdate,
