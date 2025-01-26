@@ -9,7 +9,7 @@ use super::{
     ctx::{ClientSendCtx, ServerReceiveCtx},
     event_fns::{EventDeserializeFn, EventFns, EventSerializeFn},
     event_registry::EventRegistry,
-    RemoteTrigger,
+    trigger::{RemoteTargets, RemoteTrigger},
 };
 use crate::core::{channels::RepliconChannel, entity_serde};
 
@@ -187,7 +187,7 @@ pub trait ClientTriggerExt {
 
     /// Like [`Self::client_trigger`], but allows you to specify target entities, similar to
     /// [`Commands::trigger_targets`].
-    fn client_trigger_targets(&mut self, event: impl Event, targets: impl Into<Vec<Entity>>);
+    fn client_trigger_targets(&mut self, event: impl Event, targets: impl RemoteTargets);
 }
 
 impl ClientTriggerExt for Commands<'_, '_> {
@@ -195,10 +195,10 @@ impl ClientTriggerExt for Commands<'_, '_> {
         self.client_trigger_targets(event, []);
     }
 
-    fn client_trigger_targets(&mut self, event: impl Event, targets: impl Into<Vec<Entity>>) {
+    fn client_trigger_targets(&mut self, event: impl Event, targets: impl RemoteTargets) {
         self.send_event(RemoteTrigger {
             event,
-            targets: targets.into(),
+            targets: targets.into_entities(),
         });
     }
 }
@@ -208,10 +208,10 @@ impl ClientTriggerExt for World {
         self.client_trigger_targets(event, []);
     }
 
-    fn client_trigger_targets(&mut self, event: impl Event, targets: impl Into<Vec<Entity>>) {
+    fn client_trigger_targets(&mut self, event: impl Event, targets: impl RemoteTargets) {
         self.send_event(RemoteTrigger {
             event,
-            targets: targets.into(),
+            targets: targets.into_entities(),
         });
     }
 }

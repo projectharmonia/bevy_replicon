@@ -67,7 +67,7 @@ fn sending_receiving_with_target() {
             mode: SendMode::Broadcast,
             event: DummyEvent,
         },
-        [server_entity],
+        server_entity,
     );
 
     server_app.update();

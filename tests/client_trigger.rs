@@ -49,7 +49,7 @@ fn sending_receiving_with_target() {
 
     client_app
         .world_mut()
-        .client_trigger_targets(DummyEvent, [client_entity]);
+        .client_trigger_targets(DummyEvent, client_entity);
 
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
