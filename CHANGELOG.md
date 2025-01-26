@@ -22,7 +22,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rename `core::event_registry` into `core::event`.
 - Rename `ClientEventsPlugin` into `ClientEventPlugin` (singular).
 - Rename `ServerEventsPlugin` into `ServerEventPlugin` (singular).
-- Rename `ClientEventsPlugin` into `ClientEventPlugin` (singular).
 - Rename `client::events` into `client::event` (singular).
 - Rename `server::events` into `server::event` (singular).
 
