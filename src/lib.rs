@@ -381,9 +381,9 @@ replicate that one. This crate provides [`ParentSync`] component that replicates
 Bevy hierarchy. For your custom components with relations you need to write your
 own with a similar pattern.
 
-## Network events
+## Network events and triggers
 
-Network event replace RPCs (remote procedure calls) in other engines and,
+This replaces RPCs (remote procedure calls) in other engines and,
 unlike components, can be sent both from server to clients and from clients to
 server.
 
@@ -468,6 +468,31 @@ require access to the [`AppTypeRegistry`] resource.
 
 Don't forget to validate the contents of every [`Box<dyn Reflect>`] from a client, it could be anything!
 
+Alternatively you can use triggers with similar API. First, you need to register the event
+with [`ClientTriggerAppExt::add_client_trigger()`] and then use [`ClientTriggerExt::client_trigger`]:
+
+```
+# use bevy::prelude::*;
+# use bevy_replicon::prelude::*;
+# use serde::{Deserialize, Serialize};
+# let mut app = App::new();
+# app.add_plugins(RepliconPlugins);
+app.add_client_trigger::<DummyEvent>(ChannelKind::Ordered)
+    .add_observer(receive_events)
+    .add_systems(Update, send_events.run_if(client_connected));
+
+fn send_events(mut commands: Commands) {
+    commands.client_trigger(DummyEvent);
+}
+
+fn receive_events(trigger: Trigger<FromClient<DummyEvent>>) {
+    let FromClient { client_id, event } = trigger.event();
+    info!("received event {event:?} from {client_id:?}");
+}
+# #[derive(Debug, Default, Deserialize, Event, Serialize, Clone, Copy)]
+# struct DummyEvent;
+```
+
 ### From server to client
 
 A similar technique is used to send events from server to clients. To do this,
@@ -519,6 +544,33 @@ If the event contains an entity, then
 
 For events that require special serialization and deserialization functions you can use
 [`ServerEventAppExt::add_server_event_with()`].
+
+Trigger-based API available for server events as well. First, you need to register the event
+with [`ServerTriggerAppExt::add_server_trigger()`] and then use [`ServerTriggerExt::server_trigger`]:
+
+```
+# use bevy::prelude::*;
+# use bevy_replicon::prelude::*;
+# use serde::{Deserialize, Serialize};
+# let mut app = App::new();
+# app.add_plugins(RepliconPlugins);
+app.add_server_trigger::<DummyEvent>(ChannelKind::Ordered)
+    .add_observer(receive_events)
+    .add_systems(Update, send_events.run_if(server_running));
+
+fn send_events(mut commands: Commands) {
+    commands.server_trigger(ToClients {
+        mode: SendMode::Broadcast,
+        event: DummyEvent,
+    });
+}
+
+fn receive_events(trigger: Trigger<DummyEvent>) {
+    info!("received event {:?} from server", trigger.event());
+}
+# #[derive(Debug, Default, Deserialize, Event, Serialize, Clone, Copy)]
+# struct DummyEvent;
+```
 
 <div class="warning">
 
@@ -630,7 +682,9 @@ pub mod prelude {
             connected_clients::ConnectedClients,
             event::{
                 client_event::{ClientEventAppExt, FromClient},
+                client_trigger::{ClientTriggerAppExt, ClientTriggerExt},
                 server_event::{SendMode, ServerEventAppExt, ToClients},
+                server_trigger::{ServerTriggerAppExt, ServerTriggerExt},
             },
             replication::{
                 command_markers::AppMarkerExt,

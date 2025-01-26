@@ -69,6 +69,18 @@ impl Plugin for ClientEventPlugin {
             .build_state(app.world_mut())
             .build_system(Self::receive);
 
+        let trigger = (
+            FilteredResourcesMutParamBuilder::new(|builder| {
+                for trigger in event_registry.iter_server_triggers() {
+                    builder.add_write_by_id(trigger.event().events_id());
+                }
+            }),
+            ParamBuilder,
+            ParamBuilder,
+        )
+            .build_state(app.world_mut())
+            .build_system(Self::trigger);
+
         let resend_locally = (
             FilteredResourcesMutParamBuilder::new(|builder| {
                 for event in event_registry.iter_client_events() {
@@ -106,10 +118,14 @@ impl Plugin for ClientEventPlugin {
                 PreUpdate,
                 (
                     reset.in_set(ClientSet::ResetEvents),
-                    receive
-                        .after(ClientPlugin::receive_replication)
-                        .in_set(ClientSet::Receive)
-                        .run_if(client_connected),
+                    (
+                        receive
+                            .after(ClientPlugin::receive_replication)
+                            .run_if(client_connected),
+                        trigger.run_if(not(server_running)),
+                    )
+                        .chain()
+                        .in_set(ClientSet::Receive),
                 ),
             )
             .add_systems(
@@ -138,17 +154,17 @@ impl ClientEventPlugin {
             registry: &registry.read(),
         };
 
-        for event_data in event_registry.iter_client_events() {
+        for event in event_registry.iter_client_events() {
             let events = events
-                .get_by_id(event_data.events_id())
+                .get_by_id(event.events_id())
                 .expect("events resource should be accessible");
             let reader = readers
-                .get_mut_by_id(event_data.reader_id())
+                .get_mut_by_id(event.reader_id())
                 .expect("event reader resource should be accessible");
 
             // SAFETY: passed pointers were obtained using this event data.
             unsafe {
-                event_data.send(&mut ctx, &events, reader.into_inner(), &mut client);
+                event.send(&mut ctx, &events, reader.into_inner(), &mut client);
             }
         }
     }
@@ -168,17 +184,17 @@ impl ClientEventPlugin {
             invalid_entities: Vec::new(),
         };
 
-        for event_data in event_registry.iter_server_events() {
+        for event in event_registry.iter_server_events() {
             let events = events
-                .get_mut_by_id(event_data.events_id())
+                .get_mut_by_id(event.events_id())
                 .expect("events resource should be accessible");
             let queue = queues
-                .get_mut_by_id(event_data.queue_id())
+                .get_mut_by_id(event.queue_id())
                 .expect("queue resource should be accessible");
 
             // SAFETY: passed pointers were obtained using this event data.
             unsafe {
-                event_data.receive(
+                event.receive(
                     &mut ctx,
                     events.into_inner(),
                     queue.into_inner(),
@@ -189,21 +205,34 @@ impl ClientEventPlugin {
         }
     }
 
+    fn trigger(
+        mut events: FilteredResourcesMut,
+        mut commands: Commands,
+        event_registry: Res<EventRegistry>,
+    ) {
+        for trigger in event_registry.iter_server_triggers() {
+            let events = events
+                .get_mut_by_id(trigger.event().events_id())
+                .expect("events resource should be accessible");
+            trigger.trigger(&mut commands, events.into_inner());
+        }
+    }
+
     fn resend_locally(
         mut client_events: FilteredResourcesMut,
         mut events: FilteredResourcesMut,
         event_registry: Res<EventRegistry>,
     ) {
-        for event_data in event_registry.iter_client_events() {
+        for event in event_registry.iter_client_events() {
             let client_events = client_events
-                .get_mut_by_id(event_data.client_events_id())
+                .get_mut_by_id(event.client_events_id())
                 .expect("client events resource should be accessible");
             let events = events
-                .get_mut_by_id(event_data.events_id())
+                .get_mut_by_id(event.events_id())
                 .expect("events resource should be accessible");
 
             // SAFETY: passed pointers were obtained using this event data.
-            unsafe { event_data.resend_locally(client_events.into_inner(), events.into_inner()) };
+            unsafe { event.resend_locally(client_events.into_inner(), events.into_inner()) };
         }
     }
 
@@ -212,22 +241,22 @@ impl ClientEventPlugin {
         mut queues: FilteredResourcesMut,
         event_registry: Res<EventRegistry>,
     ) {
-        for event_data in event_registry.iter_client_events() {
+        for event in event_registry.iter_client_events() {
             let events = events
-                .get_mut_by_id(event_data.events_id())
+                .get_mut_by_id(event.events_id())
                 .expect("events resource should be accessible");
 
             // SAFETY: passed pointer was obtained using this event data.
-            unsafe { event_data.reset(events.into_inner()) };
+            unsafe { event.reset(events.into_inner()) };
         }
 
-        for event_data in event_registry.iter_server_events() {
+        for event in event_registry.iter_server_events() {
             let queue = queues
-                .get_mut_by_id(event_data.queue_id())
+                .get_mut_by_id(event.queue_id())
                 .expect("event queue resource should be accessible");
 
             // SAFETY: passed pointer was obtained using this event data.
-            unsafe { event_data.reset(queue.into_inner()) };
+            unsafe { event.reset(queue.into_inner()) };
         }
     }
 }
