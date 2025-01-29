@@ -9,8 +9,11 @@ pub mod replicon_server;
 pub mod replicon_tick;
 pub mod server_entity_map;
 
+use std::error::Error;
+
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 use channels::RepliconChannels;
 use event::event_registry::EventRegistry;
@@ -56,3 +59,20 @@ impl ClientId {
         self.0
     }
 }
+
+/// Possible reason for a disconnection.
+#[derive(Debug, Error)]
+pub enum DisconnectReason {
+    /// Connection was terminated by the client.
+    #[error("connection terminated by the client")]
+    DisconnectedByClient,
+    /// Connection was terminated by the server.
+    #[error("connection terminated by the server")]
+    DisconnectedByServer,
+    /// A reason defined by backend.
+    #[error(transparent)]
+    Backend(#[from] Box<BackendError>),
+}
+
+/// Alias for error inside [`DisconnectReason::Backend`].
+pub type BackendError = dyn Error + Send + Sync;

@@ -8,7 +8,7 @@ We provide a [`prelude`] module, which exports most of the typically used traits
 The library doesn't provide any I/O, so you need to add a
 [messaging backend](https://github.com/projectharmonia/bevy_replicon#messaging-backends).
 If you want to write an integration for a messaging backend,
-see the documentation for [`RepliconServer`], [`RepliconClient`] and [`ServerEvent`].
+see the documentation for [`RepliconServer`], [`RepliconClient`], [`ClientConnected`] and [`ClientDisconnected`].
 You can also use `bevy_replicon_renet`, which we maintain, as a reference.
 
 Also depending on your game, you may want to use additional crates. For example, if your game
@@ -696,7 +696,7 @@ pub mod prelude {
             },
             replicon_client::{RepliconClient, RepliconClientStatus},
             replicon_server::RepliconServer,
-            ClientId, RepliconCorePlugin,
+            BackendError, ClientId, DisconnectReason, RepliconCorePlugin,
         },
         RepliconPlugins,
     };
@@ -710,7 +710,7 @@ pub mod prelude {
     pub use super::server::{
         client_entity_map::{ClientEntityMap, ClientMapping},
         event::ServerEventPlugin,
-        ServerEvent, ServerPlugin, ServerSet, StartReplication, TickPolicy,
+        ClientConnected, ClientDisconnected, ServerPlugin, ServerSet, StartReplication, TickPolicy,
     };
 
     #[cfg(feature = "client_diagnostics")]

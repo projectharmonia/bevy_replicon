@@ -26,6 +26,7 @@ all-features = true
 
 [dependencies]
 bevy = { version = "0.15", default-features = false, features = ["serialize"] }
+thiserror = "2.0"
 typeid = "1.0"
 bytes = "1.5"
 bincode = "1.3"
