@@ -5,9 +5,9 @@ use crate::{
         replication::replicated_clients::ReplicatedClients,
         replicon_client::{RepliconClient, RepliconClientStatus},
         replicon_server::RepliconServer,
-        ClientId,
+        ClientId, DisconnectReason,
     },
-    server::ServerEvent,
+    server::{ClientConnected, ClientDisconnected},
 };
 
 /**
@@ -110,8 +110,7 @@ impl ServerTestAppExt for App {
         let mut server = self.world_mut().resource_mut::<RepliconServer>();
         server.set_running(true);
 
-        self.world_mut()
-            .trigger(ServerEvent::ClientConnected { client_id });
+        self.world_mut().trigger(ClientConnected { client_id });
 
         self.update();
         client_app.update();
@@ -125,9 +124,9 @@ impl ServerTestAppExt for App {
 
         client.set_status(RepliconClientStatus::Disconnected);
 
-        self.world_mut().trigger(ServerEvent::ClientDisconnected {
+        self.world_mut().trigger(ClientDisconnected {
             client_id,
-            reason: "Disconnected by server".to_string(),
+            reason: DisconnectReason::DisconnectedByServer,
         });
 
         self.update();

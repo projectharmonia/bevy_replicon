@@ -38,7 +38,7 @@ use crate::core::{
     },
     replicon_server::RepliconServer,
     replicon_tick::RepliconTick,
-    ClientId,
+    ClientId, DisconnectReason,
 };
 use client_entity_map::ClientEntityMap;
 use despawn_buffer::{DespawnBuffer, DespawnBufferPlugin};
@@ -100,7 +100,7 @@ impl Plugin for ServerPlugin {
                 PreUpdate,
                 (
                     ServerSet::ReceivePackets,
-                    ServerSet::TriggerServerEvents,
+                    ServerSet::TriggerConnectionEvents,
                     ServerSet::Receive,
                 )
                     .chain(),
@@ -114,7 +114,8 @@ impl Plugin for ServerPlugin {
                 )
                     .chain(),
             )
-            .add_observer(Self::handle_connections)
+            .add_observer(Self::handle_connects)
+            .add_observer(Self::handle_disconnects)
             .add_observer(Self::enable_replication)
             .add_systems(Startup, Self::setup_channels)
             .add_systems(
@@ -175,31 +176,34 @@ impl ServerPlugin {
         trace!("incremented {server_tick:?}");
     }
 
-    fn handle_connections(
-        trigger: Trigger<ServerEvent>,
+    fn handle_connects(
+        trigger: Trigger<ClientConnected>,
         mut commands: Commands,
+        mut connected_clients: ResMut<ConnectedClients>,
+        replicated_clients: Res<ReplicatedClients>,
+        mut buffered_events: ResMut<BufferedServerEvents>,
+    ) {
+        debug!("`{:?}` connected", trigger.client_id);
+        connected_clients.add(trigger.client_id);
+        if replicated_clients.replicate_after_connect() {
+            commands.trigger(StartReplication(trigger.client_id));
+        }
+        buffered_events.exclude_client(trigger.client_id);
+    }
+
+    fn handle_disconnects(
+        trigger: Trigger<ClientDisconnected>,
         mut entity_map: ResMut<ClientEntityMap>,
         mut connected_clients: ResMut<ConnectedClients>,
         mut replicated_clients: ResMut<ReplicatedClients>,
         mut server: ResMut<RepliconServer>,
         mut client_buffers: ResMut<ClientBuffers>,
-        mut buffered_events: ResMut<BufferedServerEvents>,
     ) {
-        match *trigger {
-            ServerEvent::ClientDisconnected { client_id, .. } => {
-                entity_map.0.remove(&client_id);
-                connected_clients.remove(client_id);
-                replicated_clients.remove(&mut client_buffers, client_id);
-                server.remove_client(client_id);
-            }
-            ServerEvent::ClientConnected { client_id } => {
-                connected_clients.add(client_id);
-                if replicated_clients.replicate_after_connect() {
-                    commands.trigger(StartReplication(client_id));
-                }
-                buffered_events.exclude_client(client_id);
-            }
-        }
+        debug!("`{:?}` disconnected: {}", trigger.client_id, trigger.reason);
+        entity_map.0.remove(&trigger.client_id);
+        connected_clients.remove(trigger.client_id);
+        replicated_clients.remove(&mut client_buffers, trigger.client_id);
+        server.remove_client(trigger.client_id);
     }
 
     fn enable_replication(
@@ -723,14 +727,14 @@ pub enum ServerSet {
     ///
     /// Runs in [`PreUpdate`].
     ReceivePackets,
-    /// Systems that trigger [`ServerEvent`]s.
+    /// Systems that trigger [`ClientConnected`] and [`ClientDisconnected`].
     ///
     /// The messaging backend should convert its own server events in this set.
     ///
     /// Needed only for backends that use batched events instead of triggers.
     ///
     /// Runs in [`PreUpdate`].
-    TriggerServerEvents,
+    TriggerConnectionEvents,
     /// Systems that receive data from [`RepliconServer`].
     ///
     /// Used by `bevy_replicon`.
@@ -776,15 +780,25 @@ pub enum TickPolicy {
     Manual,
 }
 
-/// Triggered on connection and disconnection on the server.
+/// Triggered on connection on the server.
 ///
 /// The messaging backend is responsible for triggering.
 ///
-/// See also [`Trigger`].
-#[derive(Event, Debug, Clone)]
-pub enum ServerEvent {
-    ClientConnected { client_id: ClientId },
-    ClientDisconnected { client_id: ClientId, reason: String },
+/// See also [`ClientDisconnected`] and [`Trigger`].
+#[derive(Event, Debug, Clone, Copy)]
+pub struct ClientConnected {
+    pub client_id: ClientId,
+}
+
+/// Triggered on disconnection on the server.
+///
+/// The messaging backend is responsible for triggering.
+///
+/// See also [`ClientConnected`] and [`Trigger`].
+#[derive(Event, Debug)]
+pub struct ClientDisconnected {
+    pub client_id: ClientId,
+    pub reason: DisconnectReason,
 }
 
 /// Triggers replication for a connected client.

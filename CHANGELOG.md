@@ -14,11 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `StartReplication` is now a trigger-event.
-- `ServerEvent` is now a trigger-event.
+- `ServerEvent` now split into `ClientConnected` and `ClientDisconnected` that are trigger-events.
+- `reason` field in `ClientDisconnected` now stores `DisconnectReason` enum.
 - Event serialization functions now accept `&mut Vec<u8>` instead of `&mut Cursor<Vec<u8>>`.
 - `RepliconChannels::create_server_channel` and `RepliconChannels::create_client_channel` now accept `impl Into<RepliconChannel>` instead of just `RepliconChannel`.
 - Use `debug!` instead of `trace!` for events. They are not very verbose.
-- Rename `ServerEvent::SendEvents` into `ServerEvent::TriggerServerEvents`.
+- Rename `ServerSet::SendEvents` into `ServerSet::TriggerConnectionEvents`.
 - Rename `core::event_registry` into `core::event`.
 - Rename `ClientEventsPlugin` into `ClientEventPlugin` (singular).
 - Rename `ServerEventsPlugin` into `ServerEventPlugin` (singular).
