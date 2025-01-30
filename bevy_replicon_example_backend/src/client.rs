@@ -77,7 +77,7 @@ impl RepliconExampleClientPlugin {
         mut replicon_client: ResMut<RepliconClient>,
     ) {
         for (channel_id, message) in replicon_client.drain_sent() {
-            if let Err(e) = tcp::send_message(&mut client.0, channel_id, &*message) {
+            if let Err(e) = tcp::send_message(&mut client.0, channel_id, &message) {
                 error!("disconnecting due message write error: {e}");
                 commands.remove_resource::<ExampleClient>();
                 return;

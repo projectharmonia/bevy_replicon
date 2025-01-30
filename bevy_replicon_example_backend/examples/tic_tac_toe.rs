@@ -596,7 +596,7 @@ struct BottomText;
 #[require(
     Button,
     Replicated,
-    BackgroundColor(|| BackgroundColor(BACKGROUND_COLOR.into())),
+    BackgroundColor(|| BackgroundColor(BACKGROUND_COLOR)),
     Node(|| Node {
         width: Val::Px(BUTTON_SIZE),
         height: Val::Px(BUTTON_SIZE),
