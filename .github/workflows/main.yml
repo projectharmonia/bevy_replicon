@@ -57,7 +57,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Clippy
-        run: cargo clippy --workspace --all-features --benches --tests -- -D warnings
+        run: cargo clippy --workspace --examples --all-features --benches --tests -- -D warnings
 
       - name: Rustdoc
         run: |
