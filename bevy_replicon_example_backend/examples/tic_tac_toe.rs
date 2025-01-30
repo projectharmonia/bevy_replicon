@@ -257,7 +257,7 @@ impl TicTacToePlugin {
         commands.remove_resource::<ExampleClient>();
     }
 
-    /// Sends cell entities and starts the game after succesfull connection.
+    /// Sends cell entities and starts the game after successful connection.
     ///
     /// Replicon maps entities when you replicate them from server automatically.
     /// But in this game we spawn cells beforehand. So we send a special event to
