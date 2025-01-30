@@ -7,9 +7,21 @@ license = "MIT OR Apache-2.0"
 publish = false
 
 [dependencies]
-bevy = { version = "0.15", default-features = false }
+bevy.workspace = true
 bevy_replicon = { path = "..", default-features = false }
-anyhow = "1.0"
+
+[dev-dependencies]
+bevy = { workspace = true, features = [
+  "bevy_text",
+  "bevy_ui",
+  "bevy_gizmos",
+  "bevy_state",
+  "bevy_window",
+  "x11",
+  "default_font",
+] }
+serde.workspace = true
+clap = { version = "4.1", features = ["derive"] }
 
 [features]
 default = ["client", "server"]

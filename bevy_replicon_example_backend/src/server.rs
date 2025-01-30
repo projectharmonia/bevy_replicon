@@ -1,11 +1,15 @@
 use std::{
-    io, mem,
-    net::{Ipv4Addr, UdpSocket},
+    io,
+    net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
 };
 
-use anyhow::Result;
-use bevy::prelude::*;
+use bevy::{
+    prelude::*,
+    utils::{Entry, HashMap},
+};
 use bevy_replicon::prelude::*;
+
+use super::tcp;
 
 /// Adds a server messaging backend made for examples to `bevy_replicon`.
 pub struct RepliconExampleServerPlugin;
@@ -15,8 +19,8 @@ impl Plugin for RepliconExampleServerPlugin {
         app.add_systems(
             PreUpdate,
             (
-                Self::set_stopped.run_if(resource_removed::<ExampleServerSocket>),
-                Self::set_running.run_if(resource_added::<ExampleServerSocket>),
+                Self::set_stopped.run_if(resource_removed::<ExampleServer>),
+                Self::set_running.run_if(resource_added::<ExampleServer>),
                 Self::receive_packets.never_param_warn(),
             )
                 .chain()
@@ -41,59 +45,111 @@ impl RepliconExampleServerPlugin {
     }
 
     fn receive_packets(
-        socket: Res<ExampleServerSocket>,
+        mut commands: Commands,
+        mut server: ResMut<ExampleServer>,
         mut replicon_server: ResMut<RepliconServer>,
-        clients: Res<ConnectedClients>,
-        mut server_events: EventWriter<ServerEvent>,
     ) {
-        let mut buf = [0u8; 1502];
         loop {
-            let (size, addr) = match socket.recv_from(&mut buf) {
-                Ok(v) => v,
-                Err(e) => {
-                    if e.kind() == io::ErrorKind::WouldBlock {
-                        return;
+            match server.listener.accept() {
+                Ok((stream, addr)) => {
+                    let client_id = ClientId::new(addr.port().into());
+                    match server.add_connected(client_id, stream) {
+                        Ok(()) => commands.trigger(ClientConnected { client_id }),
+                        Err(e) => error!("unable to accept connection from `{client_id:?}`: {e}"),
                     }
-                    error!("failed to receive packet: {e}");
-                    continue;
                 }
-            };
-
-            let client_id = ClientId::new(addr.port() as u64);
-            if size < 1 {
-                error!("received empty packet from `{client_id:?}`");
-                continue;
+                Err(e) => {
+                    if e.kind() != io::ErrorKind::WouldBlock {
+                        error!("stopping server due to network error: {e}");
+                        commands.remove_resource::<ExampleServer>();
+                    }
+                    break;
+                }
             }
-            let channel_id = buf[0];
-            if !clients.iter().any(|c| c.id() == client_id) {
-                server_events.send(ServerEvent::ClientConnected { client_id });
-            }
-            replicon_server.insert_received(client_id, channel_id, Vec::from(&buf[1..size]));
         }
+
+        server.streams.retain(|client_id, stream| loop {
+            match tcp::read_message(stream) {
+                Ok((channel_id, message)) => {
+                    replicon_server.insert_received(*client_id, channel_id, message)
+                }
+                Err(e) => match e.kind() {
+                    io::ErrorKind::WouldBlock => return true,
+                    io::ErrorKind::UnexpectedEof => {
+                        commands.trigger(ClientDisconnected {
+                            client_id: *client_id,
+                            reason: DisconnectReason::DisconnectedByClient,
+                        });
+                        return false;
+                    }
+                    _ => {
+                        commands.trigger(ClientDisconnected {
+                            client_id: *client_id,
+                            reason: Box::<BackendError>::from(e).into(),
+                        });
+                        return false;
+                    }
+                },
+            }
+        });
     }
 
-    fn send_packets(socket: Res<ExampleServerSocket>, mut replicon_server: ResMut<RepliconServer>) {
+    fn send_packets(
+        mut commands: Commands,
+        mut server: ResMut<ExampleServer>,
+        mut replicon_server: ResMut<RepliconServer>,
+    ) {
         for (client_id, channel_id, message) in replicon_server.drain_sent() {
-            let mut data = Vec::with_capacity(message.len() + mem::size_of_val(&channel_id));
-            data.push(channel_id);
-            data.extend(message);
-            let port = client_id.get() as u16;
-            socket
-                .send_to(&data, (socket.local_addr().unwrap().ip(), port))
-                .unwrap();
+            match server.streams.entry(client_id) {
+                Entry::Occupied(mut entry) => {
+                    if let Err(e) = tcp::send_message(entry.get_mut(), channel_id, &message) {
+                        commands.trigger(ClientDisconnected {
+                            client_id,
+                            reason: e.into(),
+                        });
+                        entry.remove();
+                    }
+                },
+                Entry::Vacant(_) => error!("unable to send message over channel {channel_id} for non-existing `{client_id:?}`"),
+            }
         }
     }
 }
 
 /// The socket used by the server.
-#[derive(Resource, Deref)]
-pub struct ExampleServerSocket(UdpSocket);
+#[derive(Resource)]
+pub struct ExampleServer {
+    listener: TcpListener,
+    streams: HashMap<ClientId, TcpStream>,
+}
 
-impl ExampleServerSocket {
+impl ExampleServer {
     /// Opens an example server socket on the specified port.
-    pub fn new(port: u16) -> Result<Self> {
-        let socket = UdpSocket::bind((Ipv4Addr::LOCALHOST, port))?;
-        socket.set_nonblocking(true)?;
-        Ok(Self(socket))
+    pub fn new(port: u16) -> io::Result<Self> {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, port))?;
+        listener.set_nonblocking(true)?;
+        Ok(Self {
+            listener,
+            streams: Default::default(),
+        })
+    }
+
+    /// Returns the number of connected clients.
+    pub fn connected_clients(&self) -> usize {
+        self.streams.len()
+    }
+
+    /// Returns local address if the server is running.
+    pub fn local_addr(&self) -> io::Result<SocketAddr> {
+        self.listener.local_addr()
+    }
+
+    /// Associates a stream with a client and properly configures it.
+    fn add_connected(&mut self, client_id: ClientId, stream: TcpStream) -> io::Result<()> {
+        stream.set_nodelay(true)?;
+        stream.set_nonblocking(true)?;
+        self.streams.insert(client_id, stream);
+
+        Ok(())
     }
 }

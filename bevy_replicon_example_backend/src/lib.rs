@@ -6,6 +6,7 @@
 mod client;
 #[cfg(feature = "server")]
 mod server;
+mod tcp;
 
 #[cfg(feature = "client")]
 pub use client::*;
