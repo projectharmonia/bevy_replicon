@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `reason` field in `ClientDisconnected` now stores `DisconnectReason` enum.
 - Event serialization functions now accept `&mut Vec<u8>` instead of `&mut Cursor<Vec<u8>>`.
 - `RepliconChannels::create_server_channel` and `RepliconChannels::create_client_channel` now accept `impl Into<RepliconChannel>` instead of just `RepliconChannel`.
+- Event reading and writing systems are no longer exclusive, thanks to system builders! However, to achieve this, we now set them up in `Plugin::finish`. So if you have tests for events, don't forget to call `App::finish` to configure the plugins properly.
 - Use `debug!` instead of `trace!` for events. They are not very verbose.
 - Rename `ServerSet::SendEvents` into `ServerSet::TriggerConnectionEvents`.
 - Rename `core::event_registry` into `core::event`.
