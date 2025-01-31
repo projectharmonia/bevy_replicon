@@ -2,8 +2,8 @@
 //! Run it with `cargo run --example tic_tac_toe -- hotseat` to play locally or with `-- client` / `-- server`
 
 use std::{
-    error::Error,
     fmt::{self, Formatter},
+    io,
 };
 
 use bevy::{prelude::*, utils::hashbrown::HashMap};
@@ -100,7 +100,7 @@ const BUTTON_SIZE: f32 = CELL_SIZE / 1.2;
 const BUTTON_MARGIN: f32 = (CELL_SIZE + LINE_THICKNESS - BUTTON_SIZE) / 2.0;
 
 impl TicTacToePlugin {
-    fn read_cli(mut commands: Commands, cli: Res<Cli>) -> Result<(), Box<dyn Error>> {
+    fn read_cli(mut commands: Commands, cli: Res<Cli>) -> io::Result<()> {
         match *cli {
             Cli::Hotseat => {
                 // Set all players to server to play from a single machine and start the game right away.
