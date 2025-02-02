@@ -63,15 +63,15 @@ impl Plugin for ClientPlugin {
                 PostUpdate,
                 (ClientSet::Send, ClientSet::SendPackets).chain(),
             )
-            .add_systems(Startup, Self::setup_channels)
+            .add_systems(Startup, setup_channels)
             .add_systems(
                 PreUpdate,
-                Self::receive_replication
+                receive_replication
                     .map(Result::unwrap)
                     .in_set(ClientSet::Receive)
                     .run_if(client_connected),
             )
-            .add_systems(PreUpdate, Self::reset.in_set(ClientSet::Reset));
+            .add_systems(PreUpdate, reset.in_set(ClientSet::Reset));
     }
 
     fn finish(&self, app: &mut App) {
@@ -81,90 +81,86 @@ impl Plugin for ClientPlugin {
     }
 }
 
-impl ClientPlugin {
-    fn setup_channels(mut client: ResMut<RepliconClient>, channels: Res<RepliconChannels>) {
-        client.setup_server_channels(channels.server_channels().len());
-    }
+fn setup_channels(mut client: ResMut<RepliconClient>, channels: Res<RepliconChannels>) {
+    client.setup_server_channels(channels.server_channels().len());
+}
 
-    /// Receives and applies replication messages from the server.
-    ///
-    /// Update messages are sent over the [`ReplicationChannel::Updates`] and are applied first to ensure valid state
-    /// for component mutations.
-    ///
-    /// Mutate messages are sent over [`ReplicationChannel::Mutations`], which means they may appear
-    /// ahead-of or behind update messages from the same server tick. A mutation will only be applied if its
-    /// update tick has already appeared in an update message, otherwise it will be buffered while waiting.
-    /// Since component mutations can arrive in any order, they will only be applied if they correspond to a more
-    /// recent server tick than the last acked server tick for each entity.
-    ///
-    /// Buffered mutate messages are processed last.
-    ///
-    /// Acknowledgments for received mutate messages are sent back to the server.
-    ///
-    /// See also [`ReplicationMessages`](crate::server::replication_messages::ReplicationMessages).
-    pub(super) fn receive_replication(
-        world: &mut World,
-        mut queue: Local<CommandQueue>,
-        mut entity_markers: Local<EntityMarkers>,
-    ) -> bincode::Result<()> {
-        world.resource_scope(|world, mut client: Mut<RepliconClient>| {
-            world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
-                world.resource_scope(|world, mut buffered_mutations: Mut<BufferedMutations>| {
-                    world.resource_scope(|world, command_markers: Mut<CommandMarkers>| {
-                        world.resource_scope(|world, registry: Mut<ReplicationRegistry>| {
-                            world.resource_scope(
-                                |world, mut replicated_events: Mut<Events<EntityReplicated>>| {
-                                    let mut stats =
-                                        world.remove_resource::<ClientReplicationStats>();
-                                    let mut mutate_ticks =
-                                        world.remove_resource::<ServerMutateTicks>();
-                                    let mut params = ReceiveParams {
-                                        queue: &mut queue,
-                                        entity_markers: &mut entity_markers,
-                                        entity_map: &mut entity_map,
-                                        replicated_events: &mut replicated_events,
-                                        mutate_ticks: mutate_ticks.as_mut(),
-                                        stats: stats.as_mut(),
-                                        command_markers: &command_markers,
-                                        registry: &registry,
-                                    };
+/// Receives and applies replication messages from the server.
+///
+/// Update messages are sent over the [`ReplicationChannel::Updates`] and are applied first to ensure valid state
+/// for component mutations.
+///
+/// Mutate messages are sent over [`ReplicationChannel::Mutations`], which means they may appear
+/// ahead-of or behind update messages from the same server tick. A mutation will only be applied if its
+/// update tick has already appeared in an update message, otherwise it will be buffered while waiting.
+/// Since component mutations can arrive in any order, they will only be applied if they correspond to a more
+/// recent server tick than the last acked server tick for each entity.
+///
+/// Buffered mutate messages are processed last.
+///
+/// Acknowledgments for received mutate messages are sent back to the server.
+///
+/// See also [`ReplicationMessages`](crate::server::replication_messages::ReplicationMessages).
+pub(super) fn receive_replication(
+    world: &mut World,
+    mut queue: Local<CommandQueue>,
+    mut entity_markers: Local<EntityMarkers>,
+) -> bincode::Result<()> {
+    world.resource_scope(|world, mut client: Mut<RepliconClient>| {
+        world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
+            world.resource_scope(|world, mut buffered_mutations: Mut<BufferedMutations>| {
+                world.resource_scope(|world, command_markers: Mut<CommandMarkers>| {
+                    world.resource_scope(|world, registry: Mut<ReplicationRegistry>| {
+                        world.resource_scope(
+                            |world, mut replicated_events: Mut<Events<EntityReplicated>>| {
+                                let mut stats = world.remove_resource::<ClientReplicationStats>();
+                                let mut mutate_ticks = world.remove_resource::<ServerMutateTicks>();
+                                let mut params = ReceiveParams {
+                                    queue: &mut queue,
+                                    entity_markers: &mut entity_markers,
+                                    entity_map: &mut entity_map,
+                                    replicated_events: &mut replicated_events,
+                                    mutate_ticks: mutate_ticks.as_mut(),
+                                    stats: stats.as_mut(),
+                                    command_markers: &command_markers,
+                                    registry: &registry,
+                                };
 
-                                    apply_replication(
-                                        world,
-                                        &mut params,
-                                        &mut client,
-                                        &mut buffered_mutations,
-                                    )?;
+                                apply_replication(
+                                    world,
+                                    &mut params,
+                                    &mut client,
+                                    &mut buffered_mutations,
+                                )?;
 
-                                    if let Some(stats) = stats {
-                                        world.insert_resource(stats);
-                                    }
-                                    if let Some(mutate_ticks) = mutate_ticks {
-                                        world.insert_resource(mutate_ticks);
-                                    }
+                                if let Some(stats) = stats {
+                                    world.insert_resource(stats);
+                                }
+                                if let Some(mutate_ticks) = mutate_ticks {
+                                    world.insert_resource(mutate_ticks);
+                                }
 
-                                    Ok(())
-                                },
-                            )
-                        })
+                                Ok(())
+                            },
+                        )
                     })
                 })
             })
         })
-    }
+    })
+}
 
-    fn reset(
-        mut update_tick: ResMut<ServerUpdateTick>,
-        mut entity_map: ResMut<ServerEntityMap>,
-        mut buffered_mutations: ResMut<BufferedMutations>,
-        stats: Option<ResMut<ClientReplicationStats>>,
-    ) {
-        *update_tick = Default::default();
-        entity_map.clear();
-        buffered_mutations.clear();
-        if let Some(mut stats) = stats {
-            *stats = Default::default();
-        }
+fn reset(
+    mut update_tick: ResMut<ServerUpdateTick>,
+    mut entity_map: ResMut<ServerEntityMap>,
+    mut buffered_mutations: ResMut<BufferedMutations>,
+    stats: Option<ResMut<ClientReplicationStats>>,
+) {
+    *update_tick = Default::default();
+    entity_map.clear();
+    buffered_mutations.clear();
+    if let Some(mut stats) = stats {
+        *stats = Default::default();
     }
 }
 

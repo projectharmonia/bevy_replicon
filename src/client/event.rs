@@ -1,4 +1,4 @@
-use super::{ClientPlugin, ClientSet, ServerUpdateTick};
+use super::{ClientSet, ServerUpdateTick};
 use crate::core::{
     common_conditions::*,
     event::{
@@ -47,7 +47,7 @@ impl Plugin for ClientEventPlugin {
             ParamBuilder,
         )
             .build_state(app.world_mut())
-            .build_system(Self::send);
+            .build_system(send);
 
         let receive = (
             FilteredResourcesMutParamBuilder::new(|builder| {
@@ -67,7 +67,7 @@ impl Plugin for ClientEventPlugin {
             ParamBuilder,
         )
             .build_state(app.world_mut())
-            .build_system(Self::receive);
+            .build_system(receive);
 
         let trigger = (
             FilteredResourcesMutParamBuilder::new(|builder| {
@@ -79,7 +79,7 @@ impl Plugin for ClientEventPlugin {
             ParamBuilder,
         )
             .build_state(app.world_mut())
-            .build_system(Self::trigger);
+            .build_system(trigger);
 
         let resend_locally = (
             FilteredResourcesMutParamBuilder::new(|builder| {
@@ -95,7 +95,7 @@ impl Plugin for ClientEventPlugin {
             ParamBuilder,
         )
             .build_state(app.world_mut())
-            .build_system(Self::resend_locally);
+            .build_system(resend_locally);
 
         let reset = (
             FilteredResourcesMutParamBuilder::new(|builder| {
@@ -111,7 +111,7 @@ impl Plugin for ClientEventPlugin {
             ParamBuilder,
         )
             .build_state(app.world_mut())
-            .build_system(Self::reset);
+            .build_system(reset);
 
         app.insert_resource(event_registry)
             .add_systems(
@@ -120,7 +120,7 @@ impl Plugin for ClientEventPlugin {
                     reset.in_set(ClientSet::ResetEvents),
                     (
                         receive
-                            .after(ClientPlugin::receive_replication)
+                            .after(super::receive_replication)
                             .run_if(client_connected),
                         trigger.run_if(not(server_running)),
                     )
@@ -140,123 +140,121 @@ impl Plugin for ClientEventPlugin {
     }
 }
 
-impl ClientEventPlugin {
-    fn send(
-        events: FilteredResources,
-        mut readers: FilteredResourcesMut,
-        mut client: ResMut<RepliconClient>,
-        registry: Res<AppTypeRegistry>,
-        entity_map: Res<ServerEntityMap>,
-        event_registry: Res<EventRegistry>,
-    ) {
-        let mut ctx = ClientSendCtx {
-            entity_map: &entity_map,
-            registry: &registry.read(),
+fn send(
+    events: FilteredResources,
+    mut readers: FilteredResourcesMut,
+    mut client: ResMut<RepliconClient>,
+    registry: Res<AppTypeRegistry>,
+    entity_map: Res<ServerEntityMap>,
+    event_registry: Res<EventRegistry>,
+) {
+    let mut ctx = ClientSendCtx {
+        entity_map: &entity_map,
+        registry: &registry.read(),
+    };
+
+    for event in event_registry.iter_client_events() {
+        let events = events
+            .get_by_id(event.events_id())
+            .expect("events resource should be accessible");
+        let reader = readers
+            .get_mut_by_id(event.reader_id())
+            .expect("event reader resource should be accessible");
+
+        // SAFETY: passed pointers were obtained using this event data.
+        unsafe {
+            event.send(&mut ctx, &events, reader.into_inner(), &mut client);
+        }
+    }
+}
+
+fn receive(
+    mut events: FilteredResourcesMut,
+    mut queues: FilteredResourcesMut,
+    mut client: ResMut<RepliconClient>,
+    registry: Res<AppTypeRegistry>,
+    entity_map: Res<ServerEntityMap>,
+    event_registry: Res<EventRegistry>,
+    update_tick: Res<ServerUpdateTick>,
+) {
+    let mut ctx = ClientReceiveCtx {
+        registry: &registry.read(),
+        entity_map: &entity_map,
+        invalid_entities: Vec::new(),
+    };
+
+    for event in event_registry.iter_server_events() {
+        let events = events
+            .get_mut_by_id(event.events_id())
+            .expect("events resource should be accessible");
+        let queue = queues
+            .get_mut_by_id(event.queue_id())
+            .expect("queue resource should be accessible");
+
+        // SAFETY: passed pointers were obtained using this event data.
+        unsafe {
+            event.receive(
+                &mut ctx,
+                events.into_inner(),
+                queue.into_inner(),
+                &mut client,
+                **update_tick,
+            )
         };
+    }
+}
 
-        for event in event_registry.iter_client_events() {
-            let events = events
-                .get_by_id(event.events_id())
-                .expect("events resource should be accessible");
-            let reader = readers
-                .get_mut_by_id(event.reader_id())
-                .expect("event reader resource should be accessible");
+fn trigger(
+    mut events: FilteredResourcesMut,
+    mut commands: Commands,
+    event_registry: Res<EventRegistry>,
+) {
+    for trigger in event_registry.iter_server_triggers() {
+        let events = events
+            .get_mut_by_id(trigger.event().events_id())
+            .expect("events resource should be accessible");
+        trigger.trigger(&mut commands, events.into_inner());
+    }
+}
 
-            // SAFETY: passed pointers were obtained using this event data.
-            unsafe {
-                event.send(&mut ctx, &events, reader.into_inner(), &mut client);
-            }
-        }
+fn resend_locally(
+    mut client_events: FilteredResourcesMut,
+    mut events: FilteredResourcesMut,
+    event_registry: Res<EventRegistry>,
+) {
+    for event in event_registry.iter_client_events() {
+        let client_events = client_events
+            .get_mut_by_id(event.client_events_id())
+            .expect("client events resource should be accessible");
+        let events = events
+            .get_mut_by_id(event.events_id())
+            .expect("events resource should be accessible");
+
+        // SAFETY: passed pointers were obtained using this event data.
+        unsafe { event.resend_locally(client_events.into_inner(), events.into_inner()) };
+    }
+}
+
+fn reset(
+    mut events: FilteredResourcesMut,
+    mut queues: FilteredResourcesMut,
+    event_registry: Res<EventRegistry>,
+) {
+    for event in event_registry.iter_client_events() {
+        let events = events
+            .get_mut_by_id(event.events_id())
+            .expect("events resource should be accessible");
+
+        // SAFETY: passed pointer was obtained using this event data.
+        unsafe { event.reset(events.into_inner()) };
     }
 
-    fn receive(
-        mut events: FilteredResourcesMut,
-        mut queues: FilteredResourcesMut,
-        mut client: ResMut<RepliconClient>,
-        registry: Res<AppTypeRegistry>,
-        entity_map: Res<ServerEntityMap>,
-        event_registry: Res<EventRegistry>,
-        update_tick: Res<ServerUpdateTick>,
-    ) {
-        let mut ctx = ClientReceiveCtx {
-            registry: &registry.read(),
-            entity_map: &entity_map,
-            invalid_entities: Vec::new(),
-        };
+    for event in event_registry.iter_server_events() {
+        let queue = queues
+            .get_mut_by_id(event.queue_id())
+            .expect("event queue resource should be accessible");
 
-        for event in event_registry.iter_server_events() {
-            let events = events
-                .get_mut_by_id(event.events_id())
-                .expect("events resource should be accessible");
-            let queue = queues
-                .get_mut_by_id(event.queue_id())
-                .expect("queue resource should be accessible");
-
-            // SAFETY: passed pointers were obtained using this event data.
-            unsafe {
-                event.receive(
-                    &mut ctx,
-                    events.into_inner(),
-                    queue.into_inner(),
-                    &mut client,
-                    **update_tick,
-                )
-            };
-        }
-    }
-
-    fn trigger(
-        mut events: FilteredResourcesMut,
-        mut commands: Commands,
-        event_registry: Res<EventRegistry>,
-    ) {
-        for trigger in event_registry.iter_server_triggers() {
-            let events = events
-                .get_mut_by_id(trigger.event().events_id())
-                .expect("events resource should be accessible");
-            trigger.trigger(&mut commands, events.into_inner());
-        }
-    }
-
-    fn resend_locally(
-        mut client_events: FilteredResourcesMut,
-        mut events: FilteredResourcesMut,
-        event_registry: Res<EventRegistry>,
-    ) {
-        for event in event_registry.iter_client_events() {
-            let client_events = client_events
-                .get_mut_by_id(event.client_events_id())
-                .expect("client events resource should be accessible");
-            let events = events
-                .get_mut_by_id(event.events_id())
-                .expect("events resource should be accessible");
-
-            // SAFETY: passed pointers were obtained using this event data.
-            unsafe { event.resend_locally(client_events.into_inner(), events.into_inner()) };
-        }
-    }
-
-    fn reset(
-        mut events: FilteredResourcesMut,
-        mut queues: FilteredResourcesMut,
-        event_registry: Res<EventRegistry>,
-    ) {
-        for event in event_registry.iter_client_events() {
-            let events = events
-                .get_mut_by_id(event.events_id())
-                .expect("events resource should be accessible");
-
-            // SAFETY: passed pointer was obtained using this event data.
-            unsafe { event.reset(events.into_inner()) };
-        }
-
-        for event in event_registry.iter_server_events() {
-            let queue = queues
-                .get_mut_by_id(event.queue_id())
-                .expect("event queue resource should be accessible");
-
-            // SAFETY: passed pointer was obtained using this event data.
-            unsafe { event.reset(queue.into_inner()) };
-        }
+        // SAFETY: passed pointer was obtained using this event data.
+        unsafe { event.reset(queue.into_inner()) };
     }
 }

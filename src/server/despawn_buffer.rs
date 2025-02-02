@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use super::{ServerPlugin, ServerSet};
+use super::ServerSet;
 use crate::core::{common_conditions::server_running, replication::Replicated};
 
 /// Treats removals of [`Replicated`] component as despawns and stores them into [`DespawnBuffer`] resource.
@@ -12,22 +12,20 @@ impl Plugin for DespawnBufferPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DespawnBuffer>().add_systems(
             PostUpdate,
-            Self::buffer_despawns
-                .before(ServerPlugin::send_replication)
+            buffer_despawns
+                .before(super::send_replication)
                 .in_set(ServerSet::Send)
                 .run_if(server_running),
         );
     }
 }
 
-impl DespawnBufferPlugin {
-    fn buffer_despawns(
-        mut removed_replications: RemovedComponents<Replicated>,
-        mut despawn_buffer: ResMut<DespawnBuffer>,
-    ) {
-        for entity in removed_replications.read() {
-            despawn_buffer.push(entity);
-        }
+fn buffer_despawns(
+    mut removed_replications: RemovedComponents<Replicated>,
+    mut despawn_buffer: ResMut<DespawnBuffer>,
+) {
+    for entity in removed_replications.read() {
+        despawn_buffer.push(entity);
     }
 }
 

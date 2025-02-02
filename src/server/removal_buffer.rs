@@ -11,7 +11,7 @@ use bevy::{
     utils::{HashMap, HashSet},
 };
 
-use super::{ServerPlugin, ServerSet};
+use super::ServerSet;
 use crate::core::{
     common_conditions::server_running,
     replication::{replication_registry::FnsId, replication_rules::ReplicationRules, Replicated},
@@ -26,30 +26,28 @@ impl Plugin for RemovalBufferPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<RemovalBuffer>().add_systems(
             PostUpdate,
-            Self::buffer_removals
-                .before(ServerPlugin::send_replication)
+            buffer_removals
+                .before(super::send_replication)
                 .in_set(ServerSet::Send)
                 .run_if(server_running),
         );
     }
 }
 
-impl RemovalBufferPlugin {
-    fn buffer_removals(
-        entities: &Entities,
-        archetypes: &Archetypes,
-        mut removal_reader: RemovalReader,
-        mut removal_buffer: ResMut<RemovalBuffer>,
-        rules: Res<ReplicationRules>,
-    ) {
-        for (&entity, components) in removal_reader.read() {
-            let location = entities
-                .get(entity)
-                .expect("removals count only existing entities");
-            let archetype = archetypes.get(location.archetype_id).unwrap();
+fn buffer_removals(
+    entities: &Entities,
+    archetypes: &Archetypes,
+    mut removal_reader: RemovalReader,
+    mut removal_buffer: ResMut<RemovalBuffer>,
+    rules: Res<ReplicationRules>,
+) {
+    for (&entity, components) in removal_reader.read() {
+        let location = entities
+            .get(entity)
+            .expect("removals count only existing entities");
+        let archetype = archetypes.get(location.archetype_id).unwrap();
 
-            removal_buffer.update(&rules, archetype, entity, components);
-        }
+        removal_buffer.update(&rules, archetype, entity, components);
     }
 }
 
