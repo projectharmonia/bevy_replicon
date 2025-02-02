@@ -82,9 +82,6 @@ fn with_hierarchy() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    server_app.world_mut().despawn(server_entity);
-    server_app.world_mut().despawn(server_child_entity);
-
     let mut replicated = client_app.world_mut().query::<&Replicated>();
     assert!(replicated.iter(client_app.world()).next().is_none());
 }
