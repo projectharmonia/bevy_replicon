@@ -356,9 +356,15 @@ fn init_client(
 /// Sets the game in disconnected state if client closes the connection.
 ///
 /// Used only for server.
-fn disconnect_by_client(_trigger: Trigger<ClientDisconnected>, mut commands: Commands) {
+fn disconnect_by_client(
+    _trigger: Trigger<ClientDisconnected>,
+    game_state: Res<State<GameState>>,
+    mut commands: Commands,
+) {
     info!("client closed the connection");
-    commands.set_state(GameState::Disconnected);
+    if *game_state == GameState::InGame {
+        commands.set_state(GameState::Disconnected);
+    }
 }
 
 /// Sets the game in disconnected state if server closes the connection.
