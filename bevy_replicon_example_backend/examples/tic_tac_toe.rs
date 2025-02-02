@@ -47,9 +47,8 @@ impl Plugin for TicTacToePlugin {
             .add_client_trigger::<CellPick>(ChannelKind::Ordered)
             .add_client_trigger::<MapCells>(ChannelKind::Ordered)
             .insert_resource(ClearColor(BACKGROUND_COLOR))
-            .add_observer(spawn_client)
             .add_observer(disconnect_by_client)
-            .add_observer(map_entities)
+            .add_observer(init_client)
             .add_observer(apply_pick)
             .add_observer(init_symbols)
             .add_observer(advance_turn)
@@ -319,12 +318,15 @@ fn client_start(mut commands: Commands, cells: Query<(Entity, &Cell)>) {
     commands.set_state(GameState::InGame);
 }
 
-/// Estabializes mappings between already existing client and server entities.
-fn map_entities(
+/// Estabializes mappings between spawned client and server entities and starts the game.
+///
+/// Used only for server.
+fn init_client(
     trigger: Trigger<FromClient<MapCells>>,
     mut commands: Commands,
     mut entity_map: ResMut<ClientEntityMap>,
     cells: Query<(Entity, &Cell)>,
+    players: Query<&Symbol, With<Player>>,
 ) {
     for (server_entity, cell) in &cells {
         let Some(&client_entity) = trigger.event.get(&cell.index) else {
@@ -342,20 +344,10 @@ fn map_entities(
         );
     }
 
-    commands.trigger(StartReplication(trigger.client_id));
-}
-
-/// Waits for client to connect to start the game.
-///
-/// Used only for server.
-fn spawn_client(
-    trigger: Trigger<ClientConnected>,
-    mut commands: Commands,
-    players: Query<&Symbol, With<Player>>,
-) {
     let server_symbol = players.single();
     commands.spawn((Player(trigger.client_id), server_symbol.next()));
     commands.set_state(GameState::InGame);
+    commands.trigger(StartReplication(trigger.client_id));
 }
 
 /// Sets the game in disconnected state if client closes the connection.
