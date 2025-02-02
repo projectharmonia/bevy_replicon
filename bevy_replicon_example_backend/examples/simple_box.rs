@@ -37,130 +37,125 @@ impl Plugin for SimpleBoxPlugin {
         app.replicate::<BoxPosition>()
             .replicate::<BoxColor>()
             .add_client_trigger::<MoveBox>(ChannelKind::Ordered)
-            .add_observer(Self::spawn_clients)
-            .add_observer(Self::despawn_clients)
-            .add_observer(Self::apply_movement)
-            .add_systems(
-                Startup,
-                (Self::read_cli.map(Result::unwrap), Self::spawn_camera),
-            )
-            .add_systems(Update, (Self::read_input, Self::draw_boxes));
+            .add_observer(spawn_clients)
+            .add_observer(despawn_clients)
+            .add_observer(apply_movement)
+            .add_systems(Startup, (read_cli.map(Result::unwrap), spawn_camera))
+            .add_systems(Update, (read_input, draw_boxes));
     }
 }
 
-impl SimpleBoxPlugin {
-    fn read_cli(mut commands: Commands, cli: Res<Cli>) -> io::Result<()> {
-        match *cli {
-            Cli::SinglePlayer => {
-                commands.spawn((BoxPlayer(ClientId::SERVER), BoxColor(GREEN.into())));
-            }
-            Cli::Server { port } => {
-                let server = ExampleServer::new(port)?;
-                commands.insert_resource(server);
-                commands.spawn((
-                    Text::new("Server"),
-                    TextFont {
-                        font_size: 30.0,
-                        ..Default::default()
-                    },
-                    TextColor::WHITE,
-                ));
-                commands.spawn((BoxPlayer(ClientId::SERVER), BoxColor(GREEN.into())));
-            }
-            Cli::Client { port } => {
-                let client = ExampleClient::new(port)?;
-                let client_id = client.id()?;
-                commands.insert_resource(client);
-                commands.spawn((
-                    Text(format!("Client: {client_id:?}")),
-                    TextFont {
-                        font_size: 30.0,
-                        ..default()
-                    },
-                    TextColor::WHITE,
-                ));
-            }
+fn read_cli(mut commands: Commands, cli: Res<Cli>) -> io::Result<()> {
+    match *cli {
+        Cli::SinglePlayer => {
+            commands.spawn((BoxPlayer(ClientId::SERVER), BoxColor(GREEN.into())));
         }
-
-        Ok(())
-    }
-
-    fn spawn_camera(mut commands: Commands) {
-        commands.spawn(Camera2d);
-    }
-
-    /// Spawns a new box whenever a client connects.
-    fn spawn_clients(trigger: Trigger<ClientConnected>, mut commands: Commands) {
-        // Generate pseudo random color from client id.
-        let r = ((trigger.client_id.get() % 23) as f32) / 23.0;
-        let g = ((trigger.client_id.get() % 27) as f32) / 27.0;
-        let b = ((trigger.client_id.get() % 39) as f32) / 39.0;
-        commands.spawn((BoxPlayer(trigger.client_id), BoxColor(Color::srgb(r, g, b))));
-    }
-
-    /// Despawns a box whenever a client disconnects.
-    fn despawn_clients(
-        trigger: Trigger<ClientDisconnected>,
-        mut commands: Commands,
-        boxes: Query<(Entity, &BoxPlayer)>,
-    ) {
-        let (entity, _) = boxes
-            .iter()
-            .find(|(_, &player)| *player == trigger.client_id)
-            .expect("all clients should have entities");
-        commands.entity(entity).despawn();
-    }
-
-    /// Reads player inputs and sends [`MoveDirection`] events.
-    fn read_input(mut commands: Commands, input: Res<ButtonInput<KeyCode>>) {
-        let mut direction = Vec2::ZERO;
-        if input.pressed(KeyCode::KeyW) {
-            direction.y += 1.0;
+        Cli::Server { port } => {
+            let server = ExampleServer::new(port)?;
+            commands.insert_resource(server);
+            commands.spawn((
+                Text::new("Server"),
+                TextFont {
+                    font_size: 30.0,
+                    ..Default::default()
+                },
+                TextColor::WHITE,
+            ));
+            commands.spawn((BoxPlayer(ClientId::SERVER), BoxColor(GREEN.into())));
         }
-        if input.pressed(KeyCode::KeyA) {
-            direction.x -= 1.0;
-        }
-        if input.pressed(KeyCode::KeyS) {
-            direction.y -= 1.0;
-        }
-        if input.pressed(KeyCode::KeyD) {
-            direction.x += 1.0;
-        }
-
-        if direction != Vec2::ZERO {
-            commands.client_trigger(MoveBox(direction.normalize_or_zero()));
+        Cli::Client { port } => {
+            let client = ExampleClient::new(port)?;
+            let client_id = client.id()?;
+            commands.insert_resource(client);
+            commands.spawn((
+                Text(format!("Client: {client_id:?}")),
+                TextFont {
+                    font_size: 30.0,
+                    ..default()
+                },
+                TextColor::WHITE,
+            ));
         }
     }
 
-    /// Mutates [`BoxPosition`] based on [`MoveBox`] events.
-    ///
-    /// Fast-paced games usually you don't want to wait until server send a position back because of the latency.
-    /// But this example just demonstrates simple replication concept.
-    fn apply_movement(
-        trigger: Trigger<FromClient<MoveBox>>,
-        time: Res<Time>,
-        mut boxes: Query<(&BoxPlayer, &mut BoxPosition)>,
-    ) {
-        const MOVE_SPEED: f32 = 300.0;
-        info!("received movement from `{:?}`", trigger.client_id);
-        for (player, mut position) in &mut boxes {
-            // Find the sender entity. We don't include the entity as a trigger target to save traffic, since the server knows
-            // which entity to apply the input to. We could have a resource that maps connected clients to controlled entities,
-            // but we didn't implement it for the sake of simplicity.
-            if trigger.client_id == **player {
-                **position += *trigger.event * time.delta_secs() * MOVE_SPEED;
-            }
-        }
+    Ok(())
+}
+
+fn spawn_camera(mut commands: Commands) {
+    commands.spawn(Camera2d);
+}
+
+/// Spawns a new box whenever a client connects.
+fn spawn_clients(trigger: Trigger<ClientConnected>, mut commands: Commands) {
+    // Generate pseudo random color from client id.
+    let r = ((trigger.client_id.get() % 23) as f32) / 23.0;
+    let g = ((trigger.client_id.get() % 27) as f32) / 27.0;
+    let b = ((trigger.client_id.get() % 39) as f32) / 39.0;
+    commands.spawn((BoxPlayer(trigger.client_id), BoxColor(Color::srgb(r, g, b))));
+}
+
+/// Despawns a box whenever a client disconnects.
+fn despawn_clients(
+    trigger: Trigger<ClientDisconnected>,
+    mut commands: Commands,
+    boxes: Query<(Entity, &BoxPlayer)>,
+) {
+    let (entity, _) = boxes
+        .iter()
+        .find(|(_, &player)| *player == trigger.client_id)
+        .expect("all clients should have entities");
+    commands.entity(entity).despawn();
+}
+
+/// Reads player inputs and sends [`MoveDirection`] events.
+fn read_input(mut commands: Commands, input: Res<ButtonInput<KeyCode>>) {
+    let mut direction = Vec2::ZERO;
+    if input.pressed(KeyCode::KeyW) {
+        direction.y += 1.0;
+    }
+    if input.pressed(KeyCode::KeyA) {
+        direction.x -= 1.0;
+    }
+    if input.pressed(KeyCode::KeyS) {
+        direction.y -= 1.0;
+    }
+    if input.pressed(KeyCode::KeyD) {
+        direction.x += 1.0;
     }
 
-    fn draw_boxes(mut gizmos: Gizmos, boxes: Query<(&BoxPosition, &BoxColor)>) {
-        for (position, color) in &boxes {
-            gizmos.rect(
-                Vec3::new(position.x, position.y, 0.0),
-                Vec2::ONE * 50.0,
-                **color,
-            );
+    if direction != Vec2::ZERO {
+        commands.client_trigger(MoveBox(direction.normalize_or_zero()));
+    }
+}
+
+/// Mutates [`BoxPosition`] based on [`MoveBox`] events.
+///
+/// Fast-paced games usually you don't want to wait until server send a position back because of the latency.
+/// But this example just demonstrates simple replication concept.
+fn apply_movement(
+    trigger: Trigger<FromClient<MoveBox>>,
+    time: Res<Time>,
+    mut boxes: Query<(&BoxPlayer, &mut BoxPosition)>,
+) {
+    const MOVE_SPEED: f32 = 300.0;
+    info!("received movement from `{:?}`", trigger.client_id);
+    for (player, mut position) in &mut boxes {
+        // Find the sender entity. We don't include the entity as a trigger target to save traffic, since the server knows
+        // which entity to apply the input to. We could have a resource that maps connected clients to controlled entities,
+        // but we didn't implement it for the sake of simplicity.
+        if trigger.client_id == **player {
+            **position += *trigger.event * time.delta_secs() * MOVE_SPEED;
         }
+    }
+}
+
+fn draw_boxes(mut gizmos: Gizmos, boxes: Query<(&BoxPosition, &BoxColor)>) {
+    for (position, color) in &boxes {
+        gizmos.rect(
+            Vec3::new(position.x, position.y, 0.0),
+            Vec2::ONE * 50.0,
+            **color,
+        );
     }
 }
 

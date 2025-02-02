@@ -19,99 +19,99 @@ impl Plugin for RepliconExampleServerPlugin {
         app.add_systems(
             PreUpdate,
             (
-                Self::set_stopped.run_if(resource_removed::<ExampleServer>),
-                Self::set_running.run_if(resource_added::<ExampleServer>),
-                Self::receive_packets.never_param_warn(),
+                set_stopped.run_if(resource_removed::<ExampleServer>),
+                set_running.run_if(resource_added::<ExampleServer>),
+                receive_packets.never_param_warn(),
             )
                 .chain()
                 .in_set(ServerSet::ReceivePackets),
         )
         .add_systems(
             PostUpdate,
-            Self::send_packets
+            send_packets
                 .never_param_warn()
                 .in_set(ServerSet::SendPackets),
         );
     }
 }
 
-impl RepliconExampleServerPlugin {
-    fn set_stopped(mut server: ResMut<RepliconServer>) {
-        server.set_running(false);
-    }
+fn set_stopped(mut server: ResMut<RepliconServer>) {
+    server.set_running(false);
+}
 
-    fn set_running(mut server: ResMut<RepliconServer>) {
-        server.set_running(true);
-    }
+fn set_running(mut server: ResMut<RepliconServer>) {
+    server.set_running(true);
+}
 
-    fn receive_packets(
-        mut commands: Commands,
-        mut server: ResMut<ExampleServer>,
-        mut replicon_server: ResMut<RepliconServer>,
-    ) {
-        loop {
-            match server.listener.accept() {
-                Ok((stream, addr)) => {
-                    let client_id = ClientId::new(addr.port().into());
-                    match server.add_connected(client_id, stream) {
-                        Ok(()) => commands.trigger(ClientConnected { client_id }),
-                        Err(e) => error!("unable to accept connection from `{client_id:?}`: {e}"),
-                    }
+fn receive_packets(
+    mut commands: Commands,
+    mut server: ResMut<ExampleServer>,
+    mut replicon_server: ResMut<RepliconServer>,
+) {
+    loop {
+        match server.listener.accept() {
+            Ok((stream, addr)) => {
+                let client_id = ClientId::new(addr.port().into());
+                match server.add_connected(client_id, stream) {
+                    Ok(()) => commands.trigger(ClientConnected { client_id }),
+                    Err(e) => error!("unable to accept connection from `{client_id:?}`: {e}"),
                 }
-                Err(e) => {
-                    if e.kind() != io::ErrorKind::WouldBlock {
-                        error!("stopping server due to network error: {e}");
-                        commands.remove_resource::<ExampleServer>();
-                    }
-                    break;
+            }
+            Err(e) => {
+                if e.kind() != io::ErrorKind::WouldBlock {
+                    error!("stopping server due to network error: {e}");
+                    commands.remove_resource::<ExampleServer>();
                 }
+                break;
             }
         }
-
-        server.streams.retain(|client_id, stream| loop {
-            match tcp::read_message(stream) {
-                Ok((channel_id, message)) => {
-                    replicon_server.insert_received(*client_id, channel_id, message)
-                }
-                Err(e) => match e.kind() {
-                    io::ErrorKind::WouldBlock => return true,
-                    io::ErrorKind::UnexpectedEof => {
-                        commands.trigger(ClientDisconnected {
-                            client_id: *client_id,
-                            reason: DisconnectReason::DisconnectedByClient,
-                        });
-                        return false;
-                    }
-                    _ => {
-                        commands.trigger(ClientDisconnected {
-                            client_id: *client_id,
-                            reason: Box::<BackendError>::from(e).into(),
-                        });
-                        return false;
-                    }
-                },
-            }
-        });
     }
 
-    fn send_packets(
-        mut commands: Commands,
-        mut server: ResMut<ExampleServer>,
-        mut replicon_server: ResMut<RepliconServer>,
-    ) {
-        for (client_id, channel_id, message) in replicon_server.drain_sent() {
-            match server.streams.entry(client_id) {
-                Entry::Occupied(mut entry) => {
-                    if let Err(e) = tcp::send_message(entry.get_mut(), channel_id, &message) {
-                        commands.trigger(ClientDisconnected {
-                            client_id,
-                            reason: e.into(),
-                        });
-                        entry.remove();
-                    }
-                },
-                Entry::Vacant(_) => error!("unable to send message over channel {channel_id} for non-existing `{client_id:?}`"),
+    server.streams.retain(|client_id, stream| loop {
+        match tcp::read_message(stream) {
+            Ok((channel_id, message)) => {
+                replicon_server.insert_received(*client_id, channel_id, message)
             }
+            Err(e) => match e.kind() {
+                io::ErrorKind::WouldBlock => return true,
+                io::ErrorKind::UnexpectedEof => {
+                    commands.trigger(ClientDisconnected {
+                        client_id: *client_id,
+                        reason: DisconnectReason::DisconnectedByClient,
+                    });
+                    return false;
+                }
+                _ => {
+                    commands.trigger(ClientDisconnected {
+                        client_id: *client_id,
+                        reason: Box::<BackendError>::from(e).into(),
+                    });
+                    return false;
+                }
+            },
+        }
+    });
+}
+
+fn send_packets(
+    mut commands: Commands,
+    mut server: ResMut<ExampleServer>,
+    mut replicon_server: ResMut<RepliconServer>,
+) {
+    for (client_id, channel_id, message) in replicon_server.drain_sent() {
+        match server.streams.entry(client_id) {
+            Entry::Occupied(mut entry) => {
+                if let Err(e) = tcp::send_message(entry.get_mut(), channel_id, &message) {
+                    commands.trigger(ClientDisconnected {
+                        client_id,
+                        reason: e.into(),
+                    });
+                    entry.remove();
+                }
+            }
+            Entry::Vacant(_) => error!(
+                "unable to send message over channel {channel_id} for non-existing `{client_id:?}`"
+            ),
         }
     }
 }
