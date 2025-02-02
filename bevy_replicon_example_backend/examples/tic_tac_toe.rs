@@ -326,7 +326,7 @@ fn init_client(
     mut commands: Commands,
     mut entity_map: ResMut<ClientEntityMap>,
     cells: Query<(Entity, &Cell)>,
-    players: Query<&Symbol, With<Player>>,
+    server_symbol: Single<&Symbol, With<Player>>,
 ) {
     for (server_entity, cell) in &cells {
         let Some(&client_entity) = trigger.event.get(&cell.index) else {
@@ -344,7 +344,6 @@ fn init_client(
         );
     }
 
-    let server_symbol = players.single();
     commands.spawn((Player(trigger.client_id), server_symbol.next()));
     commands.set_state(GameState::InGame);
     commands.trigger(StartReplication(trigger.client_id));
