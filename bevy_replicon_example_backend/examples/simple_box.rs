@@ -48,9 +48,11 @@ impl Plugin for SimpleBoxPlugin {
 fn read_cli(mut commands: Commands, cli: Res<Cli>) -> io::Result<()> {
     match *cli {
         Cli::SinglePlayer => {
+            info!("starting single-player game");
             commands.spawn((BoxPlayer(ClientId::SERVER), BoxColor(GREEN.into())));
         }
         Cli::Server { port } => {
+            info!("starting server at port {port}");
             let server = ExampleServer::new(port)?;
             commands.insert_resource(server);
             commands.spawn((
@@ -64,6 +66,7 @@ fn read_cli(mut commands: Commands, cli: Res<Cli>) -> io::Result<()> {
             commands.spawn((BoxPlayer(ClientId::SERVER), BoxColor(GREEN.into())));
         }
         Cli::Client { port } => {
+            info!("connecting to port {port}");
             let client = ExampleClient::new(port)?;
             let client_id = client.id()?;
             commands.insert_resource(client);
