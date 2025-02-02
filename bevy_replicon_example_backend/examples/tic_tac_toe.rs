@@ -591,7 +591,7 @@ struct Cell {
 #[require(Replicated)]
 struct Player(ClientId);
 
-/// An trigger that indicates a symbol pick.
+/// A trigger that indicates a symbol pick.
 ///
 /// We don't replicate the whole UI, so we can't just send the picked entity because on server it may be different.
 /// So we send the cell location in grid and calculate the entity on server based on this.
