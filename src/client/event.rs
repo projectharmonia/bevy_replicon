@@ -15,7 +15,7 @@ use bevy::{
 
 /// Sending events from a client to the server.
 ///
-/// Requires [`ClientPlugin`].
+/// Requires [`ClientPlugin`](super::ClientPlugin).
 /// Can be disabled for apps that act only as servers.
 pub struct ClientEventPlugin;
 

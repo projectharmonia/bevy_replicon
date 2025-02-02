@@ -18,7 +18,7 @@ use crate::core::{
 
 /// Sending events from the server to clients.
 ///
-/// Requires [`ServerPlugin`].
+/// Requires [`ServerPlugin`](super::ServerPlugin).
 /// Can be disabled for apps that act only as clients.
 pub struct ServerEventPlugin;
 
