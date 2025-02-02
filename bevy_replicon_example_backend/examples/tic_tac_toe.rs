@@ -95,17 +95,20 @@ const BUTTON_MARGIN: f32 = (CELL_SIZE + LINE_THICKNESS - BUTTON_SIZE) / 2.0;
 fn read_cli(mut commands: Commands, cli: Res<Cli>) -> io::Result<()> {
     match *cli {
         Cli::Hotseat => {
+            info!("starting hotseat");
             // Set all players to server to play from a single machine and start the game right away.
             commands.spawn((Player(ClientId::SERVER), Symbol::Cross));
             commands.spawn((Player(ClientId::SERVER), Symbol::Nought));
             commands.set_state(GameState::InGame);
         }
         Cli::Server { port, symbol } => {
+            info!("starting server as {symbol} at port {port}");
             let server = ExampleServer::new(port)?;
             commands.insert_resource(server);
             commands.spawn((Player(ClientId::SERVER), symbol));
         }
         Cli::Client { port } => {
+            info!("connecting to port {port}");
             let client = ExampleClient::new(port)?;
             commands.insert_resource(client);
         }
@@ -228,6 +231,7 @@ fn pick_cell(
         let cell = cells
             .get(trigger.entity())
             .expect("cells should have assigned indices");
+        info!("picking cell {}", cell.index);
         commands.client_trigger(CellPick { index: cell.index });
     }
 }
@@ -353,6 +357,7 @@ fn init_client(
 ///
 /// Used only for server.
 fn disconnect_by_client(_trigger: Trigger<ClientDisconnected>, mut commands: Commands) {
+    info!("client closed the connection");
     commands.set_state(GameState::Disconnected);
 }
 
@@ -360,6 +365,7 @@ fn disconnect_by_client(_trigger: Trigger<ClientDisconnected>, mut commands: Com
 ///
 /// Used only for client.
 fn disconnect_by_server(mut commands: Commands) {
+    info!("server closed the connection");
     commands.set_state(GameState::Disconnected);
 }
 
@@ -396,11 +402,13 @@ fn advance_turn(
         let symbols = indices.map(|index| board[index]);
         if symbols[0].is_some() && symbols.windows(2).all(|symbols| symbols[0] == symbols[1]) {
             commands.set_state(GameState::Winner);
+            info!("{} wins the game", **turn_symbol);
             return;
         }
     }
 
     if board.iter().all(Option::is_some) {
+        info!("game ended in a tie");
         commands.set_state(GameState::Tie);
     } else {
         **turn_symbol = turn_symbol.next();

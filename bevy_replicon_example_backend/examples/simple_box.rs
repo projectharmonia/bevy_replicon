@@ -91,6 +91,7 @@ fn spawn_clients(trigger: Trigger<ClientConnected>, mut commands: Commands) {
     let r = ((trigger.client_id.get() % 23) as f32) / 23.0;
     let g = ((trigger.client_id.get() % 27) as f32) / 27.0;
     let b = ((trigger.client_id.get() % 39) as f32) / 39.0;
+    info!("spawning box for `{:?}`", trigger.client_id);
     commands.spawn((BoxPlayer(trigger.client_id), BoxColor(Color::srgb(r, g, b))));
 }
 
