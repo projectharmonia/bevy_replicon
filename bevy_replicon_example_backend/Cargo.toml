@@ -1,0 +1,29 @@
+[package]
+name = "bevy_replicon_example_backend"
+version = "0.1.0"
+description = "A simple transport intended only for examples"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+bevy.workspace = true
+bevy_replicon = { path = "..", default-features = false }
+
+[dev-dependencies]
+bevy = { workspace = true, features = [
+  "bevy_text",
+  "bevy_ui",
+  "bevy_gizmos",
+  "bevy_state",
+  "bevy_window",
+  "x11",
+  "default_font",
+] }
+serde.workspace = true
+clap = { version = "4.1", features = ["derive"] }
+
+[features]
+default = ["client", "server"]
+server = ["bevy_replicon/server"]
+client = ["bevy_replicon/client"]

@@ -27,4 +27,5 @@ jobs:
       - name: Check dependencies
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
+          arguments: --all-features --workspace
           command-arguments: -D warnings

@@ -57,10 +57,12 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Clippy
-        run: cargo clippy --all-features --benches --tests -- -D warnings
+        run: cargo clippy --workspace --examples --all-features --benches --tests -- -D warnings
 
       - name: Rustdoc
-        run: cargo rustdoc --all-features -- -D warnings
+        run: |
+          cargo rustdoc --all-features -- -D warnings
+          cargo rustdoc -p bevy_replicon_example_backend -- -D warnings
 
   doctest:
     name: Doctest
@@ -76,7 +78,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Test doc
-        run: cargo test --all-features --doc
+        run: cargo test --workspace --all-features --doc
 
   feature-combinations:
     name: Feature combinations
@@ -120,6 +122,11 @@ jobs:
 
       - name: Test
         run: cargo tarpaulin --all-features --engine llvm --out lcov --exclude-files benches/*
+
+        # Can't collect coverage from the example backend,
+        # it crashes tarpaulin due to TCP usage.
+      - name: Test backend
+        run: cargo test -p bevy_replicon_example_backend
 
       - name: Upload code coverage results
         if: github.actor != 'dependabot[bot]'
