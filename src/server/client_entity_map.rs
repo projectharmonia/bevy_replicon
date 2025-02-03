@@ -78,6 +78,10 @@ impl ClientEntityMap {
     /// This will be sent as part of replication data and added to the client's
     /// [`ServerEntityMap`](crate::core::server_entity_map::ServerEntityMap).
     pub fn insert(&mut self, client_id: ClientId, mapping: ClientMapping) {
+        debug!(
+            "mapping `{}` to `{}` for `{client_id:?}`",
+            mapping.client_entity, mapping.server_entity
+        );
         self.0.entry(client_id).or_default().push(mapping);
     }
 }
