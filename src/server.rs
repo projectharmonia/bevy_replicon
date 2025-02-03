@@ -114,16 +114,15 @@ impl Plugin for ServerPlugin {
                 )
                     .chain(),
             )
-            .add_observer(Self::handle_connects)
-            .add_observer(Self::handle_disconnects)
-            .add_observer(Self::enable_replication)
-            .add_systems(Startup, Self::setup_channels)
+            .add_observer(handle_connects)
+            .add_observer(handle_disconnects)
+            .add_observer(enable_replication)
+            .add_systems(Startup, setup_channels)
             .add_systems(
                 PreUpdate,
                 (
-                    Self::receive_acks,
-                    Self::cleanup_acks(self.mutations_timeout)
-                        .run_if(on_timer(self.mutations_timeout)),
+                    receive_acks,
+                    cleanup_acks(self.mutations_timeout).run_if(on_timer(self.mutations_timeout)),
                 )
                     .chain()
                     .in_set(ServerSet::Receive)
@@ -132,12 +131,12 @@ impl Plugin for ServerPlugin {
             .add_systems(
                 PostUpdate,
                 (
-                    Self::send_replication
+                    send_replication
                         .map(Result::unwrap)
                         .in_set(ServerSet::Send)
                         .run_if(server_running)
                         .run_if(resource_changed::<ServerTick>),
-                    Self::reset.run_if(server_just_stopped),
+                    reset.run_if(server_just_stopped),
                 ),
             );
 
@@ -146,8 +145,8 @@ impl Plugin for ServerPlugin {
                 let tick_time = Duration::from_millis(1000 / max_tick_rate as u64);
                 app.add_systems(
                     PostUpdate,
-                    Self::increment_tick
-                        .before(Self::send_replication)
+                    increment_tick
+                        .before(send_replication)
                         .run_if(server_running)
                         .run_if(on_timer(tick_time)),
                 );
@@ -155,8 +154,8 @@ impl Plugin for ServerPlugin {
             TickPolicy::EveryFrame => {
                 app.add_systems(
                     PostUpdate,
-                    Self::increment_tick
-                        .before(Self::send_replication)
+                    increment_tick
+                        .before(send_replication)
                         .run_if(server_running),
                 );
             }
@@ -165,187 +164,185 @@ impl Plugin for ServerPlugin {
     }
 }
 
-impl ServerPlugin {
-    fn setup_channels(mut server: ResMut<RepliconServer>, channels: Res<RepliconChannels>) {
-        server.setup_client_channels(channels.client_channels().len());
-    }
+fn setup_channels(mut server: ResMut<RepliconServer>, channels: Res<RepliconChannels>) {
+    server.setup_client_channels(channels.client_channels().len());
+}
 
-    /// Increments current server tick which causes the server to replicate this frame.
-    pub fn increment_tick(mut server_tick: ResMut<ServerTick>) {
-        server_tick.increment();
-        trace!("incremented {server_tick:?}");
-    }
+/// Increments current server tick which causes the server to replicate this frame.
+pub fn increment_tick(mut server_tick: ResMut<ServerTick>) {
+    server_tick.increment();
+    trace!("incremented {server_tick:?}");
+}
 
-    fn handle_connects(
-        trigger: Trigger<ClientConnected>,
-        mut commands: Commands,
-        mut connected_clients: ResMut<ConnectedClients>,
-        replicated_clients: Res<ReplicatedClients>,
-        mut buffered_events: ResMut<BufferedServerEvents>,
-    ) {
-        debug!("`{:?}` connected", trigger.client_id);
-        connected_clients.add(trigger.client_id);
-        if replicated_clients.replicate_after_connect() {
-            commands.trigger(StartReplication(trigger.client_id));
-        }
-        buffered_events.exclude_client(trigger.client_id);
+fn handle_connects(
+    trigger: Trigger<ClientConnected>,
+    mut commands: Commands,
+    mut connected_clients: ResMut<ConnectedClients>,
+    replicated_clients: Res<ReplicatedClients>,
+    mut buffered_events: ResMut<BufferedServerEvents>,
+) {
+    debug!("`{:?}` connected", trigger.client_id);
+    connected_clients.add(trigger.client_id);
+    if replicated_clients.replicate_after_connect() {
+        commands.trigger(StartReplication(trigger.client_id));
     }
+    buffered_events.exclude_client(trigger.client_id);
+}
 
-    fn handle_disconnects(
-        trigger: Trigger<ClientDisconnected>,
-        mut entity_map: ResMut<ClientEntityMap>,
-        mut connected_clients: ResMut<ConnectedClients>,
-        mut replicated_clients: ResMut<ReplicatedClients>,
-        mut server: ResMut<RepliconServer>,
-        mut client_buffers: ResMut<ClientBuffers>,
-    ) {
-        debug!("`{:?}` disconnected: {}", trigger.client_id, trigger.reason);
-        entity_map.0.remove(&trigger.client_id);
-        connected_clients.remove(trigger.client_id);
-        replicated_clients.remove(&mut client_buffers, trigger.client_id);
-        server.remove_client(trigger.client_id);
-    }
+fn handle_disconnects(
+    trigger: Trigger<ClientDisconnected>,
+    mut entity_map: ResMut<ClientEntityMap>,
+    mut connected_clients: ResMut<ConnectedClients>,
+    mut replicated_clients: ResMut<ReplicatedClients>,
+    mut server: ResMut<RepliconServer>,
+    mut client_buffers: ResMut<ClientBuffers>,
+) {
+    debug!("`{:?}` disconnected: {}", trigger.client_id, trigger.reason);
+    entity_map.0.remove(&trigger.client_id);
+    connected_clients.remove(trigger.client_id);
+    replicated_clients.remove(&mut client_buffers, trigger.client_id);
+    server.remove_client(trigger.client_id);
+}
 
-    fn enable_replication(
-        trigger: Trigger<StartReplication>,
-        mut replicated_clients: ResMut<ReplicatedClients>,
-        mut client_buffers: ResMut<ClientBuffers>,
-    ) {
-        replicated_clients.add(&mut client_buffers, **trigger);
-    }
+fn enable_replication(
+    trigger: Trigger<StartReplication>,
+    mut replicated_clients: ResMut<ReplicatedClients>,
+    mut client_buffers: ResMut<ClientBuffers>,
+) {
+    replicated_clients.add(&mut client_buffers, **trigger);
+}
 
-    fn cleanup_acks(
-        mutations_timeout: Duration,
-    ) -> impl FnMut(ResMut<ReplicatedClients>, ResMut<ClientBuffers>, Res<Time>) {
-        move |mut replicated_clients: ResMut<ReplicatedClients>,
-              mut client_buffers: ResMut<ClientBuffers>,
-              time: Res<Time>| {
-            let min_timestamp = time.elapsed().saturating_sub(mutations_timeout);
-            for client in replicated_clients.iter_mut() {
-                client.cleanup_older_mutations(&mut client_buffers, min_timestamp);
-            }
+fn cleanup_acks(
+    mutations_timeout: Duration,
+) -> impl FnMut(ResMut<ReplicatedClients>, ResMut<ClientBuffers>, Res<Time>) {
+    move |mut replicated_clients: ResMut<ReplicatedClients>,
+          mut client_buffers: ResMut<ClientBuffers>,
+          time: Res<Time>| {
+        let min_timestamp = time.elapsed().saturating_sub(mutations_timeout);
+        for client in replicated_clients.iter_mut() {
+            client.cleanup_older_mutations(&mut client_buffers, min_timestamp);
         }
     }
+}
 
-    fn receive_acks(
-        change_tick: SystemChangeTick,
-        mut server: ResMut<RepliconServer>,
-        mut replicated_clients: ResMut<ReplicatedClients>,
-        mut client_buffers: ResMut<ClientBuffers>,
-    ) {
-        for (client_id, message) in server.receive(ReplicationChannel::Updates) {
-            let mut cursor = Cursor::new(&*message);
-            let message_end = message.len() as u64;
-            while cursor.position() < message_end {
-                match bincode::deserialize_from(&mut cursor) {
-                    Ok(mutate_index) => {
-                        let client = replicated_clients.client_mut(client_id);
-                        client.ack_mutate_message(
-                            &mut client_buffers,
-                            change_tick.this_run(),
-                            mutate_index,
-                        );
-                    }
-                    Err(e) => debug!("unable to deserialize mutate index from {client_id:?}: {e}"),
+fn receive_acks(
+    change_tick: SystemChangeTick,
+    mut server: ResMut<RepliconServer>,
+    mut replicated_clients: ResMut<ReplicatedClients>,
+    mut client_buffers: ResMut<ClientBuffers>,
+) {
+    for (client_id, message) in server.receive(ReplicationChannel::Updates) {
+        let mut cursor = Cursor::new(&*message);
+        let message_end = message.len() as u64;
+        while cursor.position() < message_end {
+            match bincode::deserialize_from(&mut cursor) {
+                Ok(mutate_index) => {
+                    let client = replicated_clients.client_mut(client_id);
+                    client.ack_mutate_message(
+                        &mut client_buffers,
+                        change_tick.this_run(),
+                        mutate_index,
+                    );
                 }
+                Err(e) => debug!("unable to deserialize mutate index from {client_id:?}: {e}"),
             }
         }
     }
+}
 
-    /// Collects [`ReplicationMessages`] and sends them.
-    pub(super) fn send_replication(
-        mut serialized: Local<SerializedData>,
-        mut messages: Local<ReplicationMessages>,
-        mut replicated_archetypes: Local<ReplicatedArchetypes>,
-        change_tick: SystemChangeTick,
-        mut set: ParamSet<(
-            &World,
-            ResMut<ReplicatedClients>,
-            ResMut<RemovalBuffer>,
-            ResMut<ClientBuffers>,
-            ResMut<ClientEntityMap>,
-            ResMut<DespawnBuffer>,
-            ResMut<RepliconServer>,
-        )>,
-        track_mutate_messages: Res<TrackMutateMessages>,
-        registry: Res<ReplicationRegistry>,
-        rules: Res<ReplicationRules>,
-        server_tick: Res<ServerTick>,
-        time: Res<Time>,
-    ) -> bincode::Result<()> {
-        replicated_archetypes.update(set.p0(), &rules);
+/// Collects [`ReplicationMessages`] and sends them.
+pub(super) fn send_replication(
+    mut serialized: Local<SerializedData>,
+    mut messages: Local<ReplicationMessages>,
+    mut replicated_archetypes: Local<ReplicatedArchetypes>,
+    change_tick: SystemChangeTick,
+    mut set: ParamSet<(
+        &World,
+        ResMut<ReplicatedClients>,
+        ResMut<RemovalBuffer>,
+        ResMut<ClientBuffers>,
+        ResMut<ClientEntityMap>,
+        ResMut<DespawnBuffer>,
+        ResMut<RepliconServer>,
+    )>,
+    track_mutate_messages: Res<TrackMutateMessages>,
+    registry: Res<ReplicationRegistry>,
+    rules: Res<ReplicationRules>,
+    server_tick: Res<ServerTick>,
+    time: Res<Time>,
+) -> bincode::Result<()> {
+    replicated_archetypes.update(set.p0(), &rules);
 
-        // Take ownership to avoid borrowing issues.
-        let mut replicated_clients = mem::take(&mut *set.p1());
-        let mut removal_buffer = mem::take(&mut *set.p2());
-        let mut client_buffers = mem::take(&mut *set.p3());
+    // Take ownership to avoid borrowing issues.
+    let mut replicated_clients = mem::take(&mut *set.p1());
+    let mut removal_buffer = mem::take(&mut *set.p2());
+    let mut client_buffers = mem::take(&mut *set.p3());
 
-        messages.reset(replicated_clients.len());
+    messages.reset(replicated_clients.len());
 
-        collect_mappings(
-            &mut messages,
-            &mut serialized,
-            &replicated_clients,
-            &mut set.p4(),
-        )?;
-        collect_despawns(
-            &mut messages,
-            &mut serialized,
-            &mut replicated_clients,
-            &mut set.p5(),
-        )?;
-        collect_removals(
-            &mut messages,
-            &mut serialized,
-            &replicated_clients,
-            &removal_buffer,
-        )?;
-        collect_changes(
-            &mut messages,
-            &mut serialized,
-            &mut replicated_clients,
-            &replicated_archetypes,
-            &registry,
-            &removal_buffer,
-            set.p0(),
-            &change_tick,
-            **server_tick,
-        )?;
-        removal_buffer.clear();
+    collect_mappings(
+        &mut messages,
+        &mut serialized,
+        &replicated_clients,
+        &mut set.p4(),
+    )?;
+    collect_despawns(
+        &mut messages,
+        &mut serialized,
+        &mut replicated_clients,
+        &mut set.p5(),
+    )?;
+    collect_removals(
+        &mut messages,
+        &mut serialized,
+        &replicated_clients,
+        &removal_buffer,
+    )?;
+    collect_changes(
+        &mut messages,
+        &mut serialized,
+        &mut replicated_clients,
+        &replicated_archetypes,
+        &registry,
+        &removal_buffer,
+        set.p0(),
+        &change_tick,
+        **server_tick,
+    )?;
+    removal_buffer.clear();
 
-        send_messages(
-            &mut messages,
-            &mut replicated_clients,
-            &mut set.p6(),
-            **server_tick,
-            **track_mutate_messages,
-            &mut serialized,
-            &mut client_buffers,
-            change_tick,
-            &time,
-        )?;
-        serialized.clear();
+    send_messages(
+        &mut messages,
+        &mut replicated_clients,
+        &mut set.p6(),
+        **server_tick,
+        **track_mutate_messages,
+        &mut serialized,
+        &mut client_buffers,
+        change_tick,
+        &time,
+    )?;
+    serialized.clear();
 
-        // Return borrowed data back.
-        *set.p1() = replicated_clients;
-        *set.p2() = removal_buffer;
-        *set.p3() = client_buffers;
+    // Return borrowed data back.
+    *set.p1() = replicated_clients;
+    *set.p2() = removal_buffer;
+    *set.p3() = client_buffers;
 
-        Ok(())
-    }
+    Ok(())
+}
 
-    fn reset(
-        mut server_tick: ResMut<ServerTick>,
-        mut entity_map: ResMut<ClientEntityMap>,
-        mut replicated_clients: ResMut<ReplicatedClients>,
-        mut client_buffers: ResMut<ClientBuffers>,
-        mut buffered_events: ResMut<BufferedServerEvents>,
-    ) {
-        *server_tick = Default::default();
-        entity_map.0.clear();
-        replicated_clients.clear(&mut client_buffers);
-        buffered_events.clear();
-    }
+fn reset(
+    mut server_tick: ResMut<ServerTick>,
+    mut entity_map: ResMut<ClientEntityMap>,
+    mut replicated_clients: ResMut<ReplicatedClients>,
+    mut client_buffers: ResMut<ClientBuffers>,
+    mut buffered_events: ResMut<BufferedServerEvents>,
+) {
+    *server_tick = Default::default();
+    entity_map.0.clear();
+    replicated_clients.clear(&mut client_buffers);
+    buffered_events.clear();
 }
 
 fn send_messages(
@@ -775,7 +772,7 @@ pub enum TickPolicy {
     MaxTickRate(u16),
     /// The replicon tick is incremented every frame.
     EveryFrame,
-    /// The user should manually configure [`ServerPlugin::increment_tick`] or manually increment
+    /// The user should manually configure [`increment_tick`] or manually increment
     /// [`RepliconTick`].
     Manual,
 }

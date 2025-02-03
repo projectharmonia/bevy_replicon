@@ -33,80 +33,75 @@ impl Plugin for ParentSyncPlugin {
             .replicate_mapped::<ParentSync>();
 
         #[cfg(feature = "client")]
-        app.add_systems(
-            PreUpdate,
-            Self::sync_hierarchy.in_set(ClientSet::SyncHierarchy),
-        );
+        app.add_systems(PreUpdate, sync_hierarchy.in_set(ClientSet::SyncHierarchy));
 
         // Trigger on both `Parent` and `ParentSync` to initialize depending on what inserted last.
         #[cfg(feature = "server")]
-        app.add_observer(Self::init::<ParentSync>)
-            .add_observer(Self::init::<Parent>)
-            .add_observer(Self::store_removals)
+        app.add_observer(init::<ParentSync>)
+            .add_observer(init::<Parent>)
+            .add_observer(store_removals)
             .add_systems(
                 PostUpdate,
-                Self::store_changes
+                store_changes
                     .run_if(server_or_singleplayer)
                     .in_set(ServerSet::StoreHierarchy),
             );
     }
 }
 
-impl ParentSyncPlugin {
-    /// Synchronizes hierarchy if [`ParentSync`] changes.
-    ///
-    /// Runs not only on clients, but also on server in order to update the hierarchy when the server state is deserialized.
-    #[cfg(feature = "client")]
-    fn sync_hierarchy(
-        mut commands: Commands,
-        hierarchy: Query<(Entity, &ParentSync, Option<&Parent>), Changed<ParentSync>>,
-    ) {
-        for (entity, parent_sync, parent) in &hierarchy {
-            if let Some(sync_entity) = parent_sync.0 {
-                if parent.is_none_or(|parent| **parent != sync_entity) {
-                    commands.entity(entity).set_parent(sync_entity);
-                }
-            } else if parent.is_some() {
-                commands.entity(entity).remove_parent();
+/// Synchronizes hierarchy if [`ParentSync`] changes.
+///
+/// Runs not only on clients, but also on server in order to update the hierarchy when the server state is deserialized.
+#[cfg(feature = "client")]
+fn sync_hierarchy(
+    mut commands: Commands,
+    hierarchy: Query<(Entity, &ParentSync, Option<&Parent>), Changed<ParentSync>>,
+) {
+    for (entity, parent_sync, parent) in &hierarchy {
+        if let Some(sync_entity) = parent_sync.0 {
+            if parent.is_none_or(|parent| **parent != sync_entity) {
+                commands.entity(entity).set_parent(sync_entity);
             }
+        } else if parent.is_some() {
+            commands.entity(entity).remove_parent();
         }
     }
+}
 
-    #[cfg(feature = "server")]
-    fn store_changes(mut hierarchy: Query<(&Parent, &mut ParentSync), Changed<Parent>>) {
-        for (parent, mut parent_sync) in &mut hierarchy {
-            parent_sync.set_if_neq(ParentSync(Some(**parent)));
-        }
+#[cfg(feature = "server")]
+fn store_changes(mut hierarchy: Query<(&Parent, &mut ParentSync), Changed<Parent>>) {
+    for (parent, mut parent_sync) in &mut hierarchy {
+        parent_sync.set_if_neq(ParentSync(Some(**parent)));
+    }
+}
+
+#[cfg(feature = "server")]
+fn init<C: Component>(
+    trigger: Trigger<OnAdd, C>,
+    client: Option<Res<RepliconClient>>,
+    mut hierarchy: Query<(&Parent, &mut ParentSync)>,
+) {
+    if !server_or_singleplayer(client) {
+        return;
     }
 
-    #[cfg(feature = "server")]
-    fn init<C: Component>(
-        trigger: Trigger<OnAdd, C>,
-        client: Option<Res<RepliconClient>>,
-        mut hierarchy: Query<(&Parent, &mut ParentSync)>,
-    ) {
-        if !server_or_singleplayer(client) {
-            return;
-        }
+    if let Ok((parent, mut parent_sync)) = hierarchy.get_mut(trigger.entity()) {
+        parent_sync.set_if_neq(ParentSync(Some(**parent)));
+    }
+}
 
-        if let Ok((parent, mut parent_sync)) = hierarchy.get_mut(trigger.entity()) {
-            parent_sync.set_if_neq(ParentSync(Some(**parent)));
-        }
+#[cfg(feature = "server")]
+fn store_removals(
+    trigger: Trigger<OnRemove, Parent>,
+    client: Option<Res<RepliconClient>>,
+    mut hierarchy: Query<&mut ParentSync>,
+) {
+    if !server_or_singleplayer(client) {
+        return;
     }
 
-    #[cfg(feature = "server")]
-    fn store_removals(
-        trigger: Trigger<OnRemove, Parent>,
-        client: Option<Res<RepliconClient>>,
-        mut hierarchy: Query<&mut ParentSync>,
-    ) {
-        if !server_or_singleplayer(client) {
-            return;
-        }
-
-        if let Ok(mut parent_sync) = hierarchy.get_mut(trigger.entity()) {
-            parent_sync.0 = None;
-        }
+    if let Ok(mut parent_sync) = hierarchy.get_mut(trigger.entity()) {
+        parent_sync.0 = None;
     }
 }
 
