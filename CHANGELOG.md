@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Derive `Debug` for `FnsId`.
+
+### Changed
+
+- Improve panic message for non-registered functions.
+
 ### Fixed
 
 - Update `ReplicatedClients` immediately to let users set visibility on `ClientConnected` trigger.
