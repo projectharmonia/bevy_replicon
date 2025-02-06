@@ -239,13 +239,13 @@ mod tests {
     #[test]
     fn packing() {
         assert!(can_pack(10, 5));
-        assert!(can_pack(10, 1190));
-        assert!(!can_pack(10, 1191));
+        assert!(can_pack(10, 1152));
+        assert!(!can_pack(10, 1153));
         assert!(!can_pack(10, 3000));
 
-        assert!(can_pack(1199, 1));
-        assert!(!can_pack(1200, 0));
-        assert!(!can_pack(1200, 1));
-        assert!(!can_pack(1200, 3000));
+        assert!(can_pack(1161, 1));
+        assert!(!can_pack(1162, 0));
+        assert!(!can_pack(1162, 1));
+        assert!(!can_pack(1162, 3000));
     }
 }
