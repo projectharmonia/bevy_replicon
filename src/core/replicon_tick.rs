@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 /// See also [`ServerUpdateTick`](crate::client::ServerUpdateTick) and
 /// [`ServerTick`](crate::server::server_tick::ServerTick).
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
-pub struct RepliconTick(u32);
+pub struct RepliconTick(#[serde(with = "postcard::fixint::le")] u32);
 
 impl RepliconTick {
     /// Creates a new instance wrapping the given value.

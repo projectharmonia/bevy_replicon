@@ -1,5 +1,7 @@
 use std::ops::Range;
 
+use postcard::experimental::serialized_size;
+
 /// Component insertions or mutations for an entity in form of serialized ranges
 /// from [`SerializedData`](super::serialized_data::SerializedData).
 ///
@@ -12,6 +14,22 @@ pub(super) struct ComponentChanges {
 }
 
 impl ComponentChanges {
+    /// Returns serialized size.
+    pub(super) fn size(&self) -> postcard::Result<usize> {
+        let len_size = serialized_size(&self.components_len)?;
+        Ok(self.entity.len() + len_size + self.components_size())
+    }
+
+    /// Like [`Self::size`], but uses components size instead of components count.
+    ///
+    /// It usually consts more bytes (because the number is bigger),
+    /// but allows to skip data on deserialization.
+    pub(super) fn size_with_components_size(&self) -> postcard::Result<usize> {
+        let components_size = self.components_size();
+        let len_size = serialized_size(&components_size)?;
+        Ok(self.entity.len() + len_size + components_size)
+    }
+
     pub(super) fn components_size(&self) -> usize {
         self.components
             .iter()

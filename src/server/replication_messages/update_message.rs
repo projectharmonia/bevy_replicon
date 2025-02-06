@@ -1,8 +1,7 @@
 use std::ops::Range;
 
 use bevy::prelude::*;
-
-use integer_encoding::{FixedIntWriter, VarInt, VarIntWriter};
+use postcard::experimental::serialized_size;
 
 use super::{
     component_changes::ComponentChanges, mutate_message::MutateMessage,
@@ -10,6 +9,7 @@ use super::{
 };
 use crate::core::{
     channels::ReplicationChannel,
+    postcard_utils,
     replication::{
         replicated_clients::{client_visibility::Visibility, ReplicatedClient},
         update_message_flags::UpdateMessageFlags,
@@ -205,7 +205,7 @@ impl UpdateMessage {
         client: &ReplicatedClient,
         serialized: &SerializedData,
         server_tick: Range<usize>,
-    ) -> bincode::Result<()> {
+    ) -> postcard::Result<()> {
         let flags = self.flags();
         let last_flag = flags.last();
 
@@ -215,44 +215,40 @@ impl UpdateMessage {
             match flag {
                 UpdateMessageFlags::MAPPINGS => {
                     if flag != last_flag {
-                        message_size += self.mappings_len.required_space();
+                        message_size += serialized_size(&self.mappings_len)?;
                     }
                     message_size += self.mappings.len();
                 }
                 UpdateMessageFlags::DESPAWNS => {
                     if flag != last_flag {
-                        message_size += self.despawns_len.required_space();
+                        message_size += serialized_size(&self.despawns_len)?;
                     }
-                    message_size += self.despawns.iter().map(|range| range.len()).sum::<usize>();
+                    message_size += self.despawns.iter().map(Range::len).sum::<usize>();
                 }
                 UpdateMessageFlags::REMOVALS => {
                     if flag != last_flag {
-                        message_size += self.removals.len().required_space();
+                        message_size += serialized_size(&self.removals.len())?;
                     }
                     message_size += self
                         .removals
                         .iter()
-                        .map(|removals| removals.size())
-                        .sum::<usize>();
+                        .map(ComponentRemovals::size)
+                        .sum::<postcard::Result<usize>>()?;
                 }
                 UpdateMessageFlags::CHANGES => {
                     debug_assert_eq!(flag, last_flag);
                     message_size += self
                         .changes
                         .iter()
-                        .map(|changes| {
-                            changes.entity.len()
-                                + changes.components_len.required_space()
-                                + changes.components_size()
-                        })
-                        .sum::<usize>();
+                        .map(ComponentChanges::size)
+                        .sum::<postcard::Result<usize>>()?;
                 }
                 _ => unreachable!("iteration should yield only named flags"),
             }
         }
 
         let mut message = Vec::with_capacity(message_size);
-        message.write_fixedint(flags.bits())?;
+        postcard_utils::to_extend_mut(&flags, &mut message)?;
         message.extend_from_slice(&serialized[server_tick]);
         for (_, flag) in flags.iter_names() {
             match flag {
@@ -267,12 +263,12 @@ impl UpdateMessage {
                         return Ok(());
                     }
 
-                    message.write_varint(self.mappings_len)?;
+                    postcard_utils::to_extend_mut(&self.mappings_len, &mut message)?;
                     message.extend_from_slice(&serialized[self.mappings.clone()]);
                 }
                 UpdateMessageFlags::DESPAWNS => {
                     if flag != last_flag {
-                        message.write_varint(self.despawns_len)?;
+                        postcard_utils::to_extend_mut(&self.despawns_len, &mut message)?;
                     }
                     for range in &self.despawns {
                         message.extend_from_slice(&serialized[range.clone()]);
@@ -280,11 +276,11 @@ impl UpdateMessage {
                 }
                 UpdateMessageFlags::REMOVALS => {
                     if flag != last_flag {
-                        message.write_varint(self.removals.len())?;
+                        postcard_utils::to_extend_mut(&self.removals.len(), &mut message)?;
                     }
                     for removals in &self.removals {
                         message.extend_from_slice(&serialized[removals.entity.clone()]);
-                        message.write_varint(removals.ids_len)?;
+                        postcard_utils::to_extend_mut(&removals.ids_len, &mut message)?;
                         message.extend_from_slice(&serialized[removals.fn_ids.clone()]);
                     }
                 }
@@ -292,7 +288,7 @@ impl UpdateMessage {
                     // Changes are always last, don't write len for it.
                     for changes in &self.changes {
                         message.extend_from_slice(&serialized[changes.entity.clone()]);
-                        message.write_varint(changes.components_len)?;
+                        postcard_utils::to_extend_mut(&changes.components_len, &mut message)?;
                         for component in &changes.components {
                             message.extend_from_slice(&serialized[component.clone()]);
                         }
@@ -352,7 +348,8 @@ struct ComponentRemovals {
 }
 
 impl ComponentRemovals {
-    fn size(&self) -> usize {
-        self.entity.len() + self.ids_len.required_space() + self.fn_ids.len()
+    fn size(&self) -> postcard::Result<usize> {
+        let len_size = serialized_size(&self.ids_len)?;
+        Ok(self.entity.len() + len_size + self.fn_ids.len())
     }
 }

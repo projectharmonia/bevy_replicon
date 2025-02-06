@@ -1,5 +1,3 @@
-use std::io::Cursor;
-
 use bevy::prelude::*;
 use bevy_replicon::{
     core::{
@@ -18,6 +16,7 @@ use bevy_replicon::{
     },
     prelude::*,
 };
+use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
 #[test]
@@ -52,7 +51,7 @@ fn write() {
     let mut entity = app.world_mut().spawn(OriginalComponent);
     let data = entity.serialize(fns_id, tick);
     entity.remove::<OriginalComponent>();
-    entity.apply_write(&data, fns_id, tick);
+    entity.apply_write(data, fns_id, tick);
     assert!(entity.contains::<OriginalComponent>());
 }
 
@@ -88,7 +87,7 @@ fn write_with_command() {
 
     let mut entity = app.world_mut().spawn(OriginalComponent);
     let data = entity.serialize(fns_id, tick);
-    entity.apply_write(&data, fns_id, tick);
+    entity.apply_write(data, fns_id, tick);
     assert!(entity.contains::<ReplacedComponent>());
 }
 
@@ -130,7 +129,7 @@ fn write_without_marker() {
     let mut entity = app.world_mut().spawn(OriginalComponent);
     let data = entity.serialize(fns_id, tick);
     entity.remove::<OriginalComponent>();
-    entity.apply_write(&data, fns_id, tick);
+    entity.apply_write(data, fns_id, tick);
     assert!(entity.contains::<OriginalComponent>());
 }
 
@@ -175,7 +174,7 @@ fn write_with_marker() {
 
     let mut entity = app.world_mut().spawn((OriginalComponent, ReplaceMarker));
     let data = entity.serialize(fns_id, tick);
-    entity.apply_write(&data, fns_id, tick);
+    entity.apply_write(data, fns_id, tick);
     assert!(entity.contains::<ReplacedComponent>());
 }
 
@@ -227,7 +226,7 @@ fn write_with_multiple_markers() {
         .world_mut()
         .spawn((OriginalComponent, ReplaceMarker, DummyMarker));
     let data = entity.serialize(fns_id, tick);
-    entity.apply_write(&data, fns_id, tick);
+    entity.apply_write(data, fns_id, tick);
     assert!(
         entity.contains::<ReplacedComponent>(),
         "last marker should take priority"
@@ -295,7 +294,7 @@ fn write_with_priority_marker() {
         .world_mut()
         .spawn((OriginalComponent, ReplaceMarker, DummyMarker));
     let data = entity.serialize(fns_id, tick);
-    entity.apply_write(&data, fns_id, tick);
+    entity.apply_write(data, fns_id, tick);
     assert!(entity.contains::<ReplacedComponent>());
 }
 
@@ -366,9 +365,9 @@ fn replace(
     ctx: &mut WriteCtx,
     rule_fns: &RuleFns<OriginalComponent>,
     entity: &mut DeferredEntity,
-    cursor: &mut Cursor<&[u8]>,
-) -> bincode::Result<()> {
-    rule_fns.deserialize(ctx, cursor)?;
+    message: &mut Bytes,
+) -> postcard::Result<()> {
+    rule_fns.deserialize(ctx, message)?;
     ctx.commands.entity(entity.id()).insert(ReplacedComponent);
 
     Ok(())

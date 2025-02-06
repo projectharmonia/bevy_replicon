@@ -16,7 +16,7 @@ pub trait AppRuleExt {
     /// The component will be replicated if its entity contains the [`Replicated`](super::Replicated)
     /// marker component.
     ///
-    /// Component will be serialized and deserialized as-is using bincode.
+    /// Component will be serialized and deserialized as-is using postcard.
     /// To customize it, use [`Self::replicate_group`].
     ///
     /// If your component contains any [`Entity`] inside, use [`Self::replicate_mapped`].
@@ -73,42 +73,43 @@ pub trait AppRuleExt {
     You can also override how the component will be written,
     see [`AppMarkerExt`](super::command_markers::AppMarkerExt).
 
+    See also [`postcard_utils`](crate::core::postcard_utils).
+
     # Examples
 
     ```
-    use std::io::Cursor;
-
     use bevy::prelude::*;
     use bevy_replicon::{
-        core::replication::replication_registry::{
-            ctx::{SerializeCtx, WriteCtx},
-            rule_fns::RuleFns,
+        bytes::Bytes,
+        core::{
+            postcard_utils,
+            replication::replication_registry::{
+                ctx::{SerializeCtx, WriteCtx},
+                rule_fns::RuleFns,
+            },
         },
         prelude::*,
     };
 
     # let mut app = App::new();
     # app.add_plugins(RepliconPlugins);
-    app.replicate_with(RuleFns::new(
-        serialize_translation,
-        deserialize_translation,
-    ));
+    app.replicate_with(RuleFns::new(serialize_translation, deserialize_translation));
 
     /// Serializes only `translation` from [`Transform`].
     fn serialize_translation(
         _ctx: &SerializeCtx,
         transform: &Transform,
         message: &mut Vec<u8>,
-    ) -> bincode::Result<()> {
-        bincode::serialize_into(message, &transform.translation)
+    ) -> postcard::Result<()> {
+        postcard_utils::to_extend_mut(&transform.translation, message)
     }
 
     /// Deserializes `translation` and creates [`Transform`] from it.
     fn deserialize_translation(
         _ctx: &mut WriteCtx,
-        cursor: &mut Cursor<&[u8]>,
-    ) -> bincode::Result<Transform> {
-        let translation: Vec3 = bincode::deserialize_from(cursor)?;
+        message: &mut Bytes,
+    ) -> postcard::Result<Transform> {
+        let translation: Vec3 = postcard_utils::from_buf(message)?;
         Ok(Transform::from_translation(translation))
     }
     ```
@@ -268,22 +269,20 @@ Can be implemented on any struct to create a custom replication group.
 # Examples
 
 ```
-use std::io::Cursor;
-
-use bevy::prelude::*;
-use bevy_replicon::{
-    core::replication::{
-        replication_registry::{
-            ctx::{SerializeCtx, WriteCtx},
-            rule_fns::RuleFns,
-            ReplicationRegistry,
-        },
-        replication_rules::{GroupReplication, ReplicationRule},
-    },
-    prelude::*,
-};
-use serde::{Deserialize, Serialize};
-
+# use bevy::prelude::*;
+# use bevy_replicon::{
+#     bytes::Bytes
+#     core::replication::{
+#         replication_registry::{
+#             ctx::{SerializeCtx, WriteCtx},
+#             rule_fns::RuleFns,
+#             ReplicationRegistry,
+#         },
+#         replication_rules::{GroupReplication, ReplicationRule},
+#     },
+#     prelude::*,
+# };
+# use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
 app.replicate_group::<PlayerBundle>();
@@ -317,8 +316,8 @@ impl GroupReplication for PlayerBundle {
     }
 }
 
-# fn serialize_translation(_: &SerializeCtx, _: &Transform, _: &mut Vec<u8>) -> bincode::Result<()> { unimplemented!() }
-# fn deserialize_translation(_: &mut WriteCtx, _: &mut Cursor<&[u8]>) -> bincode::Result<Transform> { unimplemented!() }
+# fn serialize_translation(_: &SerializeCtx, _: &Transform, _: &mut Vec<u8>) -> postcard::Result<()> { unimplemented!() }
+# fn deserialize_translation(_: &mut WriteCtx, _: &mut Bytes) -> postcard::Result<Transform> { unimplemented!() }
 ```
 **/
 pub trait GroupReplication {

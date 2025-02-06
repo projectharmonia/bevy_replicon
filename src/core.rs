@@ -3,6 +3,7 @@ pub mod common_conditions;
 pub mod connected_clients;
 pub mod entity_serde;
 pub mod event;
+pub mod postcard_utils;
 pub mod replication;
 pub mod replicon_client;
 pub mod replicon_server;

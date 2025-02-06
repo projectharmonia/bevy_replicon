@@ -1,11 +1,11 @@
-use std::{any, io::Cursor};
+use std::any;
 
 use bevy::{
     ecs::{component::ComponentId, entity::MapEntities, event::EventCursor},
     prelude::*,
     ptr::{Ptr, PtrMut},
 };
-use bincode::{DefaultOptions, Options};
+use bytes::Bytes;
 use serde::{de::DeserializeOwned, Serialize};
 
 use super::{
@@ -15,6 +15,7 @@ use super::{
 };
 use crate::core::{
     channels::{RepliconChannel, RepliconChannels},
+    postcard_utils,
     replicon_client::RepliconClient,
     replicon_server::RepliconServer,
     ClientId,
@@ -60,48 +61,47 @@ pub trait ClientEventAppExt {
     /**
     Same as [`Self::add_client_event`], but uses the specified functions for serialization and deserialization.
 
-    See also [`ClientTriggerAppExt::add_client_trigger`](super::client_trigger::ClientTriggerAppExt::add_client_trigger).
+    See also [`postcard_utils`](crate::core::postcard_utils) and
+    [`ClientTriggerAppExt::add_client_trigger_with`](super::client_trigger::ClientTriggerAppExt::add_client_trigger_with)
 
     # Examples
 
     Register an event with [`Box<dyn PartialReflect>`]:
 
     ```
-    use std::io::Cursor;
-
     use bevy::{
         prelude::*,
-        reflect::serde::{ReflectSerializer, ReflectDeserializer},
+        reflect::serde::{ReflectDeserializer, ReflectSerializer},
     };
     use bevy_replicon::{
-        core::event::ctx::{ClientSendCtx, ServerReceiveCtx},
+        bytes::Bytes,
+        core::{
+            event::ctx::{ClientSendCtx, ServerReceiveCtx},
+            postcard_utils::{BufFlavor, ExtendMutFlavor},
+        },
         prelude::*,
     };
-    use bincode::{DefaultOptions, Options};
-    use serde::de::DeserializeSeed;
+    use postcard::{Deserializer, Serializer};
+    use serde::{de::DeserializeSeed, Serialize};
 
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, RepliconPlugins));
-    app.add_client_event_with(
-        ChannelKind::Ordered,
-        serialize_reflect,
-        deserialize_reflect,
-    );
+    app.add_client_event_with(ChannelKind::Ordered, serialize_reflect, deserialize_reflect);
 
     fn serialize_reflect(
         ctx: &mut ClientSendCtx,
         event: &ReflectEvent,
         message: &mut Vec<u8>,
-    ) -> bincode::Result<()> {
-        let serializer = ReflectSerializer::new(&*event.0, ctx.registry);
-        DefaultOptions::new().serialize_into(message, &serializer)
+    ) -> postcard::Result<()> {
+        let mut serializer = Serializer { output: ExtendMutFlavor::new(message) };
+        ReflectSerializer::new(&*event.0, ctx.registry).serialize(&mut serializer)
     }
 
     fn deserialize_reflect(
         ctx: &mut ServerReceiveCtx,
-        cursor: &mut Cursor<&[u8]>,
-    ) -> bincode::Result<ReflectEvent> {
-        let mut deserializer = bincode::Deserializer::with_reader(cursor, DefaultOptions::new());
+        message: &mut Bytes,
+    ) -> postcard::Result<ReflectEvent> {
+        let mut deserializer = Deserializer::from_flavor(BufFlavor::new(message));
         let reflect = ReflectDeserializer::new(ctx.registry).deserialize(&mut deserializer)?;
         Ok(ReflectEvent(reflect))
     }
@@ -271,9 +271,8 @@ impl ClientEvent {
         server: &mut RepliconServer,
     ) {
         let client_events: &mut Events<FromClient<E>> = client_events.deref_mut();
-        for (client_id, message) in server.receive(self.channel_id) {
-            let mut cursor = Cursor::new(&*message);
-            match self.deserialize::<E, I>(ctx, &mut cursor) {
+        for (client_id, mut message) in server.receive(self.channel_id) {
+            match self.deserialize::<E, I>(ctx, &mut message) {
                 Ok(event) => {
                     debug!(
                         "applying event `{}` from `{client_id:?}`",
@@ -343,7 +342,7 @@ impl ClientEvent {
         }
     }
 
-    /// Serializes an event.
+    /// Serializes an event into a message.
     ///
     /// # Safety
     ///
@@ -353,13 +352,13 @@ impl ClientEvent {
         ctx: &mut ClientSendCtx,
         event: &E,
         message: &mut Vec<u8>,
-    ) -> bincode::Result<()> {
+    ) -> postcard::Result<()> {
         self.event_fns
             .typed::<ClientSendCtx, ServerReceiveCtx, E, I>()
             .serialize(ctx, event, message)
     }
 
-    /// Deserializes an event from a cursor.
+    /// Deserializes an event from a message.
     ///
     /// # Safety
     ///
@@ -367,11 +366,11 @@ impl ClientEvent {
     unsafe fn deserialize<E: 'static, I: 'static>(
         &self,
         ctx: &mut ServerReceiveCtx,
-        cursor: &mut Cursor<&[u8]>,
-    ) -> bincode::Result<E> {
+        message: &mut Bytes,
+    ) -> postcard::Result<E> {
         self.event_fns
             .typed::<ClientSendCtx, ServerReceiveCtx, E, I>()
-            .deserialize(ctx, cursor)
+            .deserialize(ctx, message)
     }
 }
 
@@ -413,8 +412,8 @@ pub fn default_serialize<E: Event + Serialize>(
     _ctx: &mut ClientSendCtx,
     event: &E,
     message: &mut Vec<u8>,
-) -> bincode::Result<()> {
-    DefaultOptions::new().serialize_into(message, event)
+) -> postcard::Result<()> {
+    postcard_utils::to_extend_mut(event, message)
 }
 
 /// Like [`default_serialize`], but also maps entities.
@@ -422,16 +421,16 @@ pub fn default_serialize_mapped<E: Event + MapEntities + Clone + Serialize>(
     ctx: &mut ClientSendCtx,
     event: &E,
     message: &mut Vec<u8>,
-) -> bincode::Result<()> {
+) -> postcard::Result<()> {
     let mut event = event.clone();
     event.map_entities(ctx);
-    DefaultOptions::new().serialize_into(message, &event)
+    postcard_utils::to_extend_mut(&event, message)
 }
 
 /// Default event deserialization function.
 pub fn default_deserialize<E: Event + DeserializeOwned>(
     _ctx: &mut ServerReceiveCtx,
-    cursor: &mut Cursor<&[u8]>,
-) -> bincode::Result<E> {
-    DefaultOptions::new().deserialize_from(cursor)
+    message: &mut Bytes,
+) -> postcard::Result<E> {
+    postcard_utils::from_buf(message)
 }

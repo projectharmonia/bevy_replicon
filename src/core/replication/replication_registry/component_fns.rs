@@ -1,6 +1,5 @@
-use std::io::Cursor;
-
 use bevy::{prelude::*, ptr::Ptr};
+use bytes::Bytes;
 
 use super::{
     command_fns::UntypedCommandFns,
@@ -89,7 +88,7 @@ impl ComponentFns {
         rule_fns: &UntypedRuleFns,
         ptr: Ptr,
         message: &mut Vec<u8>,
-    ) -> bincode::Result<()> {
+    ) -> postcard::Result<()> {
         (self.serialize)(ctx, rule_fns, ptr, message)
     }
 
@@ -108,8 +107,8 @@ impl ComponentFns {
         rule_fns: &UntypedRuleFns,
         entity_markers: &EntityMarkers,
         entity: &mut DeferredEntity,
-        cursor: &mut Cursor<&[u8]>,
-    ) -> bincode::Result<()> {
+        message: &mut Bytes,
+    ) -> postcard::Result<()> {
         let command_fns = self
             .markers
             .iter()
@@ -118,7 +117,7 @@ impl ComponentFns {
             .find_map(|(&fns, _)| fns)
             .unwrap_or(self.commands);
 
-        (self.write)(ctx, &command_fns, rule_fns, entity, cursor)
+        (self.write)(ctx, &command_fns, rule_fns, entity, message)
     }
 
     /// Calls the assigned writing or consuming function based on entity markers.
@@ -136,8 +135,8 @@ impl ComponentFns {
         entity_markers: &EntityMarkers,
         command_markers: &CommandMarkers,
         entity: &mut DeferredEntity,
-        cursor: &mut Cursor<&[u8]>,
-    ) -> bincode::Result<()> {
+        message: &mut Bytes,
+    ) -> postcard::Result<()> {
         if let Some(command_fns) = self
             .markers
             .iter()
@@ -147,9 +146,9 @@ impl ComponentFns {
             .find_map(|((&fns, _), need_history)| fns.map(|fns| (fns, need_history)))
             .and_then(|(fns, need_history)| need_history.then_some(fns))
         {
-            (self.write)(ctx, &command_fns, rule_fns, entity, cursor)
+            (self.write)(ctx, &command_fns, rule_fns, entity, message)
         } else {
-            (self.consume)(ctx, rule_fns, cursor)
+            (self.consume)(ctx, rule_fns, message)
         }
     }
 
@@ -174,7 +173,7 @@ impl ComponentFns {
 
 /// Signature of component serialization functions that restore the original type.
 type UntypedSerializeFn =
-    unsafe fn(&SerializeCtx, &UntypedRuleFns, Ptr, &mut Vec<u8>) -> bincode::Result<()>;
+    unsafe fn(&SerializeCtx, &UntypedRuleFns, Ptr, &mut Vec<u8>) -> postcard::Result<()>;
 
 /// Signature of component writing functions that restore the original type.
 type UntypedWriteFn = unsafe fn(
@@ -182,12 +181,12 @@ type UntypedWriteFn = unsafe fn(
     &UntypedCommandFns,
     &UntypedRuleFns,
     &mut DeferredEntity,
-    &mut Cursor<&[u8]>,
-) -> bincode::Result<()>;
+    &mut Bytes,
+) -> postcard::Result<()>;
 
 /// Signature of component consuming functions that restores the original type.
 type UntypedConsumeFn =
-    unsafe fn(&mut WriteCtx, &UntypedRuleFns, &mut Cursor<&[u8]>) -> bincode::Result<()>;
+    unsafe fn(&mut WriteCtx, &UntypedRuleFns, &mut Bytes) -> postcard::Result<()>;
 
 /// Dereferences a component from a pointer and calls the passed serialization function.
 ///
@@ -199,7 +198,7 @@ unsafe fn untyped_serialize<C: Component>(
     rule_fns: &UntypedRuleFns,
     ptr: Ptr,
     message: &mut Vec<u8>,
-) -> bincode::Result<()> {
+) -> postcard::Result<()> {
     let rule_fns = rule_fns.typed::<C>();
     rule_fns.serialize(ctx, ptr.deref::<C>(), message)
 }
@@ -214,9 +213,9 @@ unsafe fn untyped_write<C: Component>(
     command_fns: &UntypedCommandFns,
     rule_fns: &UntypedRuleFns,
     entity: &mut DeferredEntity,
-    cursor: &mut Cursor<&[u8]>,
-) -> bincode::Result<()> {
-    command_fns.write::<C>(ctx, &rule_fns.typed::<C>(), entity, cursor)
+    message: &mut Bytes,
+) -> postcard::Result<()> {
+    command_fns.write::<C>(ctx, &rule_fns.typed::<C>(), entity, message)
 }
 
 /// Resolves `rule_fns` to `C` and calls [`RuleFns::consume`](super::rule_fns::RuleFns) for `C`.
@@ -227,7 +226,7 @@ unsafe fn untyped_write<C: Component>(
 unsafe fn untyped_consume<C: Component>(
     ctx: &mut WriteCtx,
     rule_fns: &UntypedRuleFns,
-    cursor: &mut Cursor<&[u8]>,
-) -> bincode::Result<()> {
-    rule_fns.typed::<C>().consume(ctx, cursor)
+    message: &mut Bytes,
+) -> postcard::Result<()> {
+    rule_fns.typed::<C>().consume(ctx, message)
 }

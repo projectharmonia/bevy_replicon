@@ -1,14 +1,14 @@
 use std::{
     any::{self, TypeId},
-    io::Cursor,
     mem,
 };
 
 use bevy::{ecs::entity::MapEntities, prelude::*};
-use bincode::{DefaultOptions, Options};
+use bytes::Bytes;
 use serde::{de::DeserializeOwned, Serialize};
 
 use super::ctx::{SerializeCtx, WriteCtx};
+use crate::core::postcard_utils;
 
 /// Type-erased version of [`RuleFns`].
 ///
@@ -120,25 +120,21 @@ impl<C: Component> RuleFns<C> {
         self
     }
 
-    /// Serializes a component into a cursor.
+    /// Serializes a component into a message.
     pub(super) fn serialize(
         &self,
         ctx: &SerializeCtx,
         component: &C,
         message: &mut Vec<u8>,
-    ) -> bincode::Result<()> {
+    ) -> postcard::Result<()> {
         (self.serialize)(ctx, component, message)
     }
 
-    /// Deserializes a component from a cursor.
+    /// Deserializes a component from a message.
     ///
     /// Use this function when inserting a new component.
-    pub fn deserialize(
-        &self,
-        ctx: &mut WriteCtx,
-        cursor: &mut Cursor<&[u8]>,
-    ) -> bincode::Result<C> {
-        (self.deserialize)(ctx, cursor)
+    pub fn deserialize(&self, ctx: &mut WriteCtx, message: &mut Bytes) -> postcard::Result<C> {
+        (self.deserialize)(ctx, message)
     }
 
     /// Same as [`Self::deserialize`], but instead of returning a component, it updates the passed reference.
@@ -148,18 +144,14 @@ impl<C: Component> RuleFns<C> {
         &self,
         ctx: &mut WriteCtx,
         component: &mut C,
-        cursor: &mut Cursor<&[u8]>,
-    ) -> bincode::Result<()> {
-        (self.deserialize_in_place)(self.deserialize, ctx, component, cursor)
+        message: &mut Bytes,
+    ) -> postcard::Result<()> {
+        (self.deserialize_in_place)(self.deserialize, ctx, component, message)
     }
 
-    /// Consumes a component from a cursor.
-    pub(super) fn consume(
-        &self,
-        ctx: &mut WriteCtx,
-        cursor: &mut Cursor<&[u8]>,
-    ) -> bincode::Result<()> {
-        (self.consume)(self.deserialize, ctx, cursor)
+    /// Consumes a component from a message.
+    pub(super) fn consume(&self, ctx: &mut WriteCtx, message: &mut Bytes) -> postcard::Result<()> {
+        (self.consume)(self.deserialize, ctx, message)
     }
 }
 
@@ -187,42 +179,41 @@ impl<C: Component + Serialize + DeserializeOwned> Default for RuleFns<C> {
 }
 
 /// Signature of component serialization functions.
-pub type SerializeFn<C> = fn(&SerializeCtx, &C, &mut Vec<u8>) -> bincode::Result<()>;
+pub type SerializeFn<C> = fn(&SerializeCtx, &C, &mut Vec<u8>) -> postcard::Result<()>;
 
 /// Signature of component deserialization functions.
-pub type DeserializeFn<C> = fn(&mut WriteCtx, &mut Cursor<&[u8]>) -> bincode::Result<C>;
+pub type DeserializeFn<C> = fn(&mut WriteCtx, &mut Bytes) -> postcard::Result<C>;
 
 /// Signature of component in-place deserialization functions.
 pub type DeserializeInPlaceFn<C> =
-    fn(DeserializeFn<C>, &mut WriteCtx, &mut C, &mut Cursor<&[u8]>) -> bincode::Result<()>;
+    fn(DeserializeFn<C>, &mut WriteCtx, &mut C, &mut Bytes) -> postcard::Result<()>;
 
 /// Signature of component consume functions.
-pub type ConsumeFn<C> =
-    fn(DeserializeFn<C>, &mut WriteCtx, &mut Cursor<&[u8]>) -> bincode::Result<()>;
+pub type ConsumeFn<C> = fn(DeserializeFn<C>, &mut WriteCtx, &mut Bytes) -> postcard::Result<()>;
 
 /// Default component serialization function.
 pub fn default_serialize<C: Component + Serialize>(
     _ctx: &SerializeCtx,
     component: &C,
-    cursor: &mut Vec<u8>,
-) -> bincode::Result<()> {
-    DefaultOptions::new().serialize_into(cursor, component)
+    message: &mut Vec<u8>,
+) -> postcard::Result<()> {
+    postcard_utils::to_extend_mut(component, message)
 }
 
 /// Default component deserialization function.
 pub fn default_deserialize<C: Component + DeserializeOwned>(
     _ctx: &mut WriteCtx,
-    cursor: &mut Cursor<&[u8]>,
-) -> bincode::Result<C> {
-    DefaultOptions::new().deserialize_from(cursor)
+    message: &mut Bytes,
+) -> postcard::Result<C> {
+    postcard_utils::from_buf(message)
 }
 
 /// Like [`default_deserialize`], but also maps entities before insertion.
 pub fn default_deserialize_mapped<C: Component + DeserializeOwned + MapEntities>(
     ctx: &mut WriteCtx,
-    cursor: &mut Cursor<&[u8]>,
-) -> bincode::Result<C> {
-    let mut component: C = DefaultOptions::new().deserialize_from(cursor)?;
+    message: &mut Bytes,
+) -> postcard::Result<C> {
+    let mut component: C = postcard_utils::from_buf(message)?;
     component.map_entities(ctx);
     Ok(component)
 }
@@ -234,9 +225,9 @@ pub fn in_place_as_deserialize<C: Component>(
     deserialize: DeserializeFn<C>,
     ctx: &mut WriteCtx,
     component: &mut C,
-    cursor: &mut Cursor<&[u8]>,
-) -> bincode::Result<()> {
-    *component = (deserialize)(ctx, cursor)?;
+    message: &mut Bytes,
+) -> postcard::Result<()> {
+    *component = (deserialize)(ctx, message)?;
     Ok(())
 }
 
@@ -246,10 +237,10 @@ pub fn in_place_as_deserialize<C: Component>(
 pub fn consume_as_deserialize<C: Component>(
     deserialize: DeserializeFn<C>,
     ctx: &mut WriteCtx,
-    cursor: &mut Cursor<&[u8]>,
-) -> bincode::Result<()> {
+    message: &mut Bytes,
+) -> postcard::Result<()> {
     ctx.ignore_mapping = true;
-    (deserialize)(ctx, cursor)?;
+    (deserialize)(ctx, message)?;
     ctx.ignore_mapping = false;
     Ok(())
 }

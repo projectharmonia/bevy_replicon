@@ -1,10 +1,10 @@
 use std::{
     any::{self, TypeId},
-    io::Cursor,
     mem,
 };
 
 use bevy::prelude::*;
+use bytes::Bytes;
 
 use super::{
     ctx::{RemoveCtx, WriteCtx},
@@ -49,8 +49,8 @@ impl UntypedCommandFns {
         ctx: &mut WriteCtx,
         rule_fns: &RuleFns<C>,
         entity: &mut DeferredEntity,
-        cursor: &mut Cursor<&[u8]>,
-    ) -> bincode::Result<()> {
+        message: &mut Bytes,
+    ) -> postcard::Result<()> {
         debug_assert_eq!(
             self.type_id,
             TypeId::of::<C>(),
@@ -60,7 +60,7 @@ impl UntypedCommandFns {
         );
 
         let write: WriteFn<C> = unsafe { mem::transmute(self.write) };
-        (write)(ctx, rule_fns, entity, cursor)
+        (write)(ctx, rule_fns, entity, message)
     }
 
     /// Calls the assigned removal function.
@@ -71,7 +71,7 @@ impl UntypedCommandFns {
 
 /// Signature of component writing function.
 pub type WriteFn<C> =
-    fn(&mut WriteCtx, &RuleFns<C>, &mut DeferredEntity, &mut Cursor<&[u8]>) -> bincode::Result<()>;
+    fn(&mut WriteCtx, &RuleFns<C>, &mut DeferredEntity, &mut Bytes) -> postcard::Result<()>;
 
 /// Signature of component removal functions.
 pub type RemoveFn = fn(&mut RemoveCtx, &mut DeferredEntity);
@@ -84,12 +84,12 @@ pub fn default_write<C: Component>(
     ctx: &mut WriteCtx,
     rule_fns: &RuleFns<C>,
     entity: &mut DeferredEntity,
-    cursor: &mut Cursor<&[u8]>,
-) -> bincode::Result<()> {
+    message: &mut Bytes,
+) -> postcard::Result<()> {
     if let Some(mut component) = entity.get_mut::<C>() {
-        rule_fns.deserialize_in_place(ctx, &mut *component, cursor)?;
+        rule_fns.deserialize_in_place(ctx, &mut *component, message)?;
     } else {
-        let component: C = rule_fns.deserialize(ctx, cursor)?;
+        let component: C = rule_fns.deserialize(ctx, message)?;
         ctx.commands.entity(entity.id()).insert(component);
     }
 

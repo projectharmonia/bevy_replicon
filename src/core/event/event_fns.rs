@@ -1,8 +1,9 @@
 use std::{
     any::{self, TypeId},
-    io::Cursor,
     mem,
 };
+
+use bytes::Bytes;
 
 /// Type-erased version of [`EventFns`].
 ///
@@ -157,12 +158,12 @@ impl<S, D, E, I> EventFns<S, D, E, I> {
         ctx: &mut S,
         event: &E,
         message: &mut Vec<u8>,
-    ) -> bincode::Result<()> {
+    ) -> postcard::Result<()> {
         (self.outer_serialize)(ctx, event, message, self.serialize)
     }
 
-    pub(super) fn deserialize(self, ctx: &mut D, cursor: &mut Cursor<&[u8]>) -> bincode::Result<E> {
-        (self.outer_deserialize)(ctx, cursor, self.deserialize)
+    pub(super) fn deserialize(self, ctx: &mut D, message: &mut Bytes) -> postcard::Result<E> {
+        (self.outer_deserialize)(ctx, message, self.deserialize)
     }
 }
 
@@ -171,28 +172,28 @@ fn default_outer_serialize<C, E>(
     event: &E,
     message: &mut Vec<u8>,
     serialize: EventSerializeFn<C, E>,
-) -> bincode::Result<()> {
+) -> postcard::Result<()> {
     (serialize)(ctx, event, message)
 }
 
 fn default_outer_deserialize<C, E>(
     ctx: &mut C,
-    cursor: &mut Cursor<&[u8]>,
+    message: &mut Bytes,
     deserialize: EventDeserializeFn<C, E>,
-) -> bincode::Result<E> {
-    (deserialize)(ctx, cursor)
+) -> postcard::Result<E> {
+    (deserialize)(ctx, message)
 }
 
 /// Signature of event serialization functions.
-pub type EventSerializeFn<C, E> = fn(&mut C, &E, &mut Vec<u8>) -> bincode::Result<()>;
+pub type EventSerializeFn<C, E> = fn(&mut C, &E, &mut Vec<u8>) -> postcard::Result<()>;
 
 /// Signature of event deserialization functions.
-pub type EventDeserializeFn<C, E> = fn(&mut C, &mut Cursor<&[u8]>) -> bincode::Result<E>;
+pub type EventDeserializeFn<C, E> = fn(&mut C, &mut Bytes) -> postcard::Result<E>;
 
 /// Signature of outer serialization functions.
 pub(super) type OuterSerializeFn<C, E, I> =
-    fn(&mut C, &E, &mut Vec<u8>, EventSerializeFn<C, I>) -> bincode::Result<()>;
+    fn(&mut C, &E, &mut Vec<u8>, EventSerializeFn<C, I>) -> postcard::Result<()>;
 
 /// Signature of outer deserialization functions.
 pub(super) type OuterDeserializeFn<C, E, I> =
-    fn(&mut C, &mut Cursor<&[u8]>, EventDeserializeFn<C, I>) -> bincode::Result<E>;
+    fn(&mut C, &mut Bytes, EventDeserializeFn<C, I>) -> postcard::Result<E>;
