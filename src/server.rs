@@ -176,15 +176,15 @@ pub fn increment_tick(mut server_tick: ResMut<ServerTick>) {
 
 fn handle_connects(
     trigger: Trigger<ClientConnected>,
-    mut commands: Commands,
     mut connected_clients: ResMut<ConnectedClients>,
-    replicated_clients: Res<ReplicatedClients>,
+    mut replicated_clients: ResMut<ReplicatedClients>,
     mut buffered_events: ResMut<BufferedServerEvents>,
+    mut client_buffers: ResMut<ClientBuffers>,
 ) {
     debug!("`{:?}` connected", trigger.client_id);
     connected_clients.add(trigger.client_id);
     if replicated_clients.replicate_after_connect() {
-        commands.trigger(StartReplication(trigger.client_id));
+        replicated_clients.add(&mut client_buffers, trigger.client_id);
     }
     buffered_events.exclude_client(trigger.client_id);
 }
