@@ -1,6 +1,5 @@
-use std::io::Cursor;
-
 use bevy::{ecs::world::CommandQueue, prelude::*};
+use bytes::Bytes;
 
 use super::{
     ctx::{DespawnCtx, RemoveCtx, SerializeCtx, WriteCtx},
@@ -53,7 +52,7 @@ let mut entity = app.world_mut().spawn(DummyComponent);
 let data = entity.serialize(fns_id, tick);
 entity.remove::<DummyComponent>();
 
-entity.apply_write(&data, fns_id, tick);
+entity.apply_write(data, fns_id, tick);
 assert!(entity.contains::<DummyComponent>());
 
 entity.apply_remove(fns_id, tick);
@@ -78,7 +77,12 @@ pub trait TestFnsEntityExt {
     /// writes it into an entity using a write function based on markers.
     ///
     /// See also [`AppMarkerExt`](crate::core::replication::command_markers::AppMarkerExt).
-    fn apply_write(&mut self, data: &[u8], fns_id: FnsId, message_tick: RepliconTick) -> &mut Self;
+    fn apply_write(
+        &mut self,
+        bytes: impl Into<Bytes>,
+        fns_id: FnsId,
+        message_tick: RepliconTick,
+    ) -> &mut Self;
 
     /// Removes a component using a registered function for it.
     ///
@@ -115,7 +119,12 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
         message
     }
 
-    fn apply_write(&mut self, data: &[u8], fns_id: FnsId, message_tick: RepliconTick) -> &mut Self {
+    fn apply_write(
+        &mut self,
+        data: impl Into<Bytes>,
+        fns_id: FnsId,
+        message_tick: RepliconTick,
+    ) -> &mut Self {
         let mut entity_markers = self.world_scope(EntityMarkers::from_world);
         let command_markers = self.world().resource::<CommandMarkers>();
         entity_markers.read(command_markers, &*self);
@@ -129,7 +138,6 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
                     let mut commands = entity.commands(&mut queue);
 
                     let (component_id, component_fns, rule_fns) = registry.get(fns_id);
-                    let mut cursor = Cursor::new(data);
                     let mut ctx =
                         WriteCtx::new(&mut commands, &mut entity_map, component_id, message_tick);
 
@@ -140,7 +148,7 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
                                 rule_fns,
                                 &entity_markers,
                                 &mut entity,
-                                &mut cursor,
+                                &mut data.into(),
                             )
                             .expect("writing data into an entity shouldn't fail");
                     }

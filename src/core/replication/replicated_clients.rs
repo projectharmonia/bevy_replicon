@@ -8,8 +8,8 @@ use bevy::{
     utils::{Duration, HashMap},
 };
 
+use super::mutate_index::MutateIndex;
 use crate::core::{replicon_tick::RepliconTick, ClientId};
-
 use client_visibility::ClientVisibility;
 
 /// Stores information about connected clients which are enabled for replication.
@@ -185,12 +185,12 @@ pub struct ReplicatedClient {
     update_tick: RepliconTick,
 
     /// Mutate message indices mapped to their info.
-    mutations: HashMap<u16, MutateInfo>,
+    mutations: HashMap<MutateIndex, MutateInfo>,
 
     /// Index for the next mutate message to be sent to this client.
     ///
     /// See also [`Self::register_mutate_message`].
-    next_mutate_index: u16,
+    mutate_index: MutateIndex,
 }
 
 impl ReplicatedClient {
@@ -201,7 +201,7 @@ impl ReplicatedClient {
             visibility: ClientVisibility::new(policy),
             update_tick: Default::default(),
             mutations: Default::default(),
-            next_mutate_index: Default::default(),
+            mutate_index: Default::default(),
         }
     }
 
@@ -248,7 +248,7 @@ impl ReplicatedClient {
         self.visibility.clear();
         self.mutation_ticks.clear();
         self.mutations.clear();
-        self.next_mutate_index = 0;
+        self.mutate_index = Default::default();
     }
 
     /// Registers mutate message at specified `tick` and `timestamp` and returns its index with entities to fill.
@@ -260,9 +260,8 @@ impl ReplicatedClient {
         client_buffers: &mut ClientBuffers,
         tick: Tick,
         timestamp: Duration,
-    ) -> (u16, &mut Vec<Entity>) {
-        let mutate_index = self.next_mutate_index;
-        self.next_mutate_index = self.next_mutate_index.overflowing_add(1).0;
+    ) -> (MutateIndex, &mut Vec<Entity>) {
+        let mutate_index = self.mutate_index.advance();
 
         let mut entities = client_buffers.entities.pop().unwrap_or_default();
         entities.clear();
@@ -302,13 +301,10 @@ impl ReplicatedClient {
         &mut self,
         client_buffers: &mut ClientBuffers,
         tick: Tick,
-        mutate_index: u16,
+        mutate_index: MutateIndex,
     ) {
         let Some(mutate_info) = self.mutations.remove(&mutate_index) else {
-            debug!(
-                "received unknown mutate index {mutate_index} from {:?}",
-                self.id
-            );
+            debug!("received unknown `{mutate_index:?}` from {:?}", self.id);
             return;
         };
 

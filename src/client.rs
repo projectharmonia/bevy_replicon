@@ -4,20 +4,19 @@ pub mod diagnostics;
 pub mod event;
 pub mod server_mutate_ticks;
 
-use std::{io::Cursor, mem};
+use std::mem;
 
 use bevy::{ecs::world::CommandQueue, prelude::*};
-use bincode::{DefaultOptions, Options};
-use bytes::Bytes;
-use integer_encoding::{FixedIntReader, VarIntReader};
+use bytes::{Buf, Bytes};
 
 use crate::core::{
     channels::{ReplicationChannel, RepliconChannels},
     common_conditions::{client_connected, client_just_connected, client_just_disconnected},
-    entity_serde,
+    entity_serde, postcard_utils,
     replication::{
         command_markers::{CommandMarkers, EntityMarkers},
         deferred_entity::DeferredEntity,
+        mutate_index::MutateIndex,
         replication_registry::{
             ctx::{DespawnCtx, RemoveCtx, WriteCtx},
             ReplicationRegistry,
@@ -105,7 +104,7 @@ pub(super) fn receive_replication(
     world: &mut World,
     mut queue: Local<CommandQueue>,
     mut entity_markers: Local<EntityMarkers>,
-) -> bincode::Result<()> {
+) -> postcard::Result<()> {
     world.resource_scope(|world, mut client: Mut<RepliconClient>| {
         world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
             world.resource_scope(|world, mut buffered_mutations: Mut<BufferedMutations>| {
@@ -172,9 +171,9 @@ fn apply_replication(
     params: &mut ReceiveParams,
     client: &mut RepliconClient,
     buffered_mutations: &mut BufferedMutations,
-) -> bincode::Result<()> {
-    for message in client.receive(ReplicationChannel::Updates) {
-        apply_update_message(world, params, &message)?;
+) -> postcard::Result<()> {
+    for mut message in client.receive(ReplicationChannel::Updates) {
+        apply_update_message(world, params, &mut message)?;
     }
 
     // Unlike update messages, we read all mutate messages first, sort them by tick
@@ -188,7 +187,7 @@ fn apply_replication(
         let mut acks = Vec::with_capacity(acks_size);
         for message in client.receive(ReplicationChannel::Mutations) {
             let mutate_index = buffer_mutate_message(params, buffered_mutations, message)?;
-            bincode::serialize_into(&mut acks, &mutate_index)?;
+            postcard_utils::to_extend_mut(&mutate_index, &mut acks)?;
         }
         client.send(ReplicationChannel::Updates, acks);
     }
@@ -202,19 +201,17 @@ fn apply_replication(
 fn apply_update_message(
     world: &mut World,
     params: &mut ReceiveParams,
-    message: &[u8],
-) -> bincode::Result<()> {
-    let end_pos = message.len();
-    let mut cursor = Cursor::new(message);
+    message: &mut Bytes,
+) -> postcard::Result<()> {
     if let Some(stats) = &mut params.stats {
         stats.messages += 1;
-        stats.bytes += end_pos;
+        stats.bytes += message.len();
     }
 
-    let flags = UpdateMessageFlags::from_bits_retain(cursor.read_fixedint()?);
+    let flags: UpdateMessageFlags = postcard_utils::from_buf(message)?;
     debug_assert!(!flags.is_empty(), "message can't be empty");
 
-    let message_tick = bincode::deserialize_from(&mut cursor)?;
+    let message_tick = postcard_utils::from_buf(message)?;
     trace!("applying update message for {message_tick:?}");
     world.resource_mut::<ServerUpdateTick>().0 = message_tick;
 
@@ -229,24 +226,24 @@ fn apply_update_message(
         match flag {
             UpdateMessageFlags::MAPPINGS => {
                 debug_assert_eq!(array_kind, ArrayKind::Sized);
-                let len = apply_array(array_kind, &mut cursor, |cursor| {
-                    apply_entity_mapping(world, params, cursor)
+                let len = apply_array(array_kind, message, |message| {
+                    apply_entity_mapping(world, params, message)
                 })?;
                 if let Some(stats) = &mut params.stats {
                     stats.mappings += len;
                 }
             }
             UpdateMessageFlags::DESPAWNS => {
-                let len = apply_array(array_kind, &mut cursor, |cursor| {
-                    apply_despawn(world, params, cursor, message_tick)
+                let len = apply_array(array_kind, message, |message| {
+                    apply_despawn(world, params, message, message_tick)
                 })?;
                 if let Some(stats) = &mut params.stats {
                     stats.despawns += len;
                 }
             }
             UpdateMessageFlags::REMOVALS => {
-                let len = apply_array(array_kind, &mut cursor, |cursor| {
-                    apply_removals(world, params, cursor, message_tick)
+                let len = apply_array(array_kind, message, |message| {
+                    apply_removals(world, params, message, message_tick)
                 })?;
                 if let Some(stats) = &mut params.stats {
                     stats.entities_changed += len;
@@ -254,8 +251,8 @@ fn apply_update_message(
             }
             UpdateMessageFlags::CHANGES => {
                 debug_assert_eq!(array_kind, ArrayKind::Dynamic);
-                let len = apply_array(array_kind, &mut cursor, |cursor| {
-                    apply_changes(world, params, cursor, message_tick)
+                let len = apply_array(array_kind, message, |message| {
+                    apply_changes(world, params, message, message_tick)
                 })?;
                 if let Some(stats) = &mut params.stats {
                     stats.entities_changed += len;
@@ -276,29 +273,27 @@ fn apply_update_message(
 fn buffer_mutate_message(
     params: &mut ReceiveParams,
     buffered_mutations: &mut BufferedMutations,
-    message: Bytes,
-) -> bincode::Result<u16> {
-    let end_pos = message.len();
-    let mut cursor = Cursor::new(&*message);
+    mut message: Bytes,
+) -> postcard::Result<MutateIndex> {
     if let Some(stats) = &mut params.stats {
         stats.messages += 1;
-        stats.bytes += end_pos;
+        stats.bytes += message.len();
     }
 
-    let update_tick = bincode::deserialize_from(&mut cursor)?;
-    let message_tick = bincode::deserialize_from(&mut cursor)?;
+    let update_tick = postcard_utils::from_buf(&mut message)?;
+    let message_tick = postcard_utils::from_buf(&mut message)?;
     let messages_count = if params.mutate_ticks.is_some() {
-        cursor.read_varint()?
+        postcard_utils::from_buf(&mut message)?
     } else {
         1
     };
-    let mutate_index = cursor.read_varint()?;
+    let mutate_index = postcard_utils::from_buf(&mut message)?;
     trace!("received mutate message for {message_tick:?}");
     buffered_mutations.insert(BufferedMutate {
         update_tick,
         message_tick,
         messages_count,
-        message: message.slice(cursor.position() as usize..),
+        message,
     });
 
     Ok(mutate_index)
@@ -313,19 +308,17 @@ fn apply_mutate_messages(
     params: &mut ReceiveParams,
     buffered_mutations: &mut BufferedMutations,
     update_tick: ServerUpdateTick,
-) -> bincode::Result<()> {
+) -> postcard::Result<()> {
     let mut result = Ok(());
-    buffered_mutations.0.retain(|mutate| {
+    buffered_mutations.0.retain_mut(|mutate| {
         if mutate.update_tick > *update_tick {
             return true;
         }
 
         trace!("applying mutate message for {:?}", mutate.message_tick);
-        let len = apply_array(
-            ArrayKind::Dynamic,
-            &mut Cursor::new(&*mutate.message),
-            |cursor| apply_mutations(world, params, cursor, mutate.message_tick),
-        );
+        let len = apply_array(ArrayKind::Dynamic, &mut mutate.message, |message| {
+            apply_mutations(world, params, message, mutate.message_tick)
+        });
 
         match len {
             Ok(len) => {
@@ -354,10 +347,10 @@ fn apply_mutate_messages(
 fn apply_entity_mapping(
     world: &mut World,
     params: &mut ReceiveParams,
-    cursor: &mut Cursor<&[u8]>,
-) -> bincode::Result<()> {
-    let server_entity = entity_serde::deserialize_entity(cursor)?;
-    let client_entity = entity_serde::deserialize_entity(cursor)?;
+    message: &mut Bytes,
+) -> postcard::Result<()> {
+    let server_entity = entity_serde::deserialize_entity(message)?;
+    let client_entity = entity_serde::deserialize_entity(message)?;
 
     if let Ok(mut entity) = world.get_entity_mut(client_entity) {
         debug!("received mapping from {server_entity:?} to {client_entity:?}");
@@ -375,13 +368,13 @@ fn apply_entity_mapping(
 fn apply_despawn(
     world: &mut World,
     params: &mut ReceiveParams,
-    cursor: &mut Cursor<&[u8]>,
+    message: &mut Bytes,
     message_tick: RepliconTick,
-) -> bincode::Result<()> {
+) -> postcard::Result<()> {
     // The entity might have already been despawned because of hierarchy or
     // with the last replication message, but the server might not yet have received confirmation
     // from the client and could include the deletion in the this message.
-    let server_entity = entity_serde::deserialize_entity(cursor)?;
+    let server_entity = entity_serde::deserialize_entity(message)?;
     if let Some(client_entity) = params
         .entity_map
         .remove_by_server(server_entity)
@@ -398,10 +391,10 @@ fn apply_despawn(
 fn apply_removals(
     world: &mut World,
     params: &mut ReceiveParams,
-    cursor: &mut Cursor<&[u8]>,
+    message: &mut Bytes,
     message_tick: RepliconTick,
-) -> bincode::Result<()> {
-    let server_entity = entity_serde::deserialize_entity(cursor)?;
+) -> postcard::Result<()> {
+    let server_entity = entity_serde::deserialize_entity(message)?;
 
     let client_entity = params
         .entity_map
@@ -420,8 +413,8 @@ fn apply_removals(
         message_tick,
     );
 
-    let len = apply_array(ArrayKind::Sized, cursor, |cursor| {
-        let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
+    let len = apply_array(ArrayKind::Sized, message, |message| {
+        let fns_id = postcard_utils::from_buf(message)?;
         let (component_id, component_fns, _) = params.registry.get(fns_id);
         let mut ctx = RemoveCtx {
             commands: &mut commands,
@@ -446,10 +439,10 @@ fn apply_removals(
 fn apply_changes(
     world: &mut World,
     params: &mut ReceiveParams,
-    cursor: &mut Cursor<&[u8]>,
+    message: &mut Bytes,
     message_tick: RepliconTick,
-) -> bincode::Result<()> {
-    let server_entity = entity_serde::deserialize_entity(cursor)?;
+) -> postcard::Result<()> {
+    let server_entity = entity_serde::deserialize_entity(message)?;
 
     let client_entity = params
         .entity_map
@@ -468,8 +461,8 @@ fn apply_changes(
         message_tick,
     );
 
-    let len = apply_array(ArrayKind::Sized, cursor, |cursor| {
-        let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
+    let len = apply_array(ArrayKind::Sized, message, |message| {
+        let fns_id = postcard_utils::from_buf(message)?;
         let (component_id, component_fns, rule_fns) = params.registry.get(fns_id);
         let mut ctx = WriteCtx::new(&mut commands, params.entity_map, component_id, message_tick);
 
@@ -480,7 +473,7 @@ fn apply_changes(
                 rule_fns,
                 params.entity_markers,
                 &mut client_entity,
-                cursor,
+                message,
             )?;
         }
 
@@ -498,23 +491,22 @@ fn apply_changes(
 
 fn apply_array(
     kind: ArrayKind,
-    cursor: &mut Cursor<&[u8]>,
-    mut f: impl FnMut(&mut Cursor<&[u8]>) -> bincode::Result<()>,
-) -> bincode::Result<usize> {
+    message: &mut Bytes,
+    mut f: impl FnMut(&mut Bytes) -> postcard::Result<()>,
+) -> postcard::Result<usize> {
     match kind {
         ArrayKind::Sized => {
-            let len = cursor.read_varint()?;
+            let len = postcard_utils::from_buf(message)?;
             for _ in 0..len {
-                (f)(cursor)?;
+                (f)(message)?;
             }
 
             Ok(len)
         }
         ArrayKind::Dynamic => {
             let mut len = 0;
-            let end = cursor.get_ref().len() as u64;
-            while cursor.position() < end {
-                (f)(cursor)?;
+            while message.has_remaining() {
+                (f)(message)?;
                 len += 1;
             }
 
@@ -553,20 +545,20 @@ fn confirm_tick(
 
 /// Deserializes and applies component mutations for all entities.
 ///
-/// Consumes all remaining bytes in the cursor.
+/// Consumes all remaining bytes in the given message.
 fn apply_mutations(
     world: &mut World,
     params: &mut ReceiveParams,
-    cursor: &mut Cursor<&[u8]>,
+    message: &mut Bytes,
     message_tick: RepliconTick,
-) -> bincode::Result<()> {
-    let server_entity = entity_serde::deserialize_entity(cursor)?;
-    let data_size: usize = cursor.read_varint()?;
+) -> postcard::Result<()> {
+    let server_entity = entity_serde::deserialize_entity(message)?;
+    let data_size: usize = postcard_utils::from_buf(message)?;
 
     let Some(client_entity) = params.entity_map.get_by_server(server_entity) else {
         // Mutation could arrive after a despawn from update message.
         debug!("ignoring mutations received for unknown server's {server_entity:?}");
-        cursor.set_position(cursor.position() + data_size as u64);
+        message.advance(data_size);
         return Ok(());
     };
 
@@ -588,7 +580,7 @@ fn apply_mutations(
                 "ignoring outdated mutations for client's {:?}",
                 client_entity.id()
             );
-            cursor.set_position(cursor.position() + data_size as u64);
+            message.advance(data_size);
             return Ok(());
         }
 
@@ -598,7 +590,7 @@ fn apply_mutations(
                 "discarding {ago} ticks old mutations for client's {:?}",
                 client_entity.id()
             );
-            cursor.set_position(cursor.position() + data_size as u64);
+            message.advance(data_size);
             return Ok(());
         }
 
@@ -609,10 +601,10 @@ fn apply_mutations(
         tick: message_tick,
     });
 
-    let end_pos = cursor.position() + data_size as u64;
+    let mut data = message.split_to(data_size);
     let mut components_count = 0;
-    while cursor.position() < end_pos {
-        let fns_id = DefaultOptions::new().deserialize_from(&mut *cursor)?;
+    while data.has_remaining() {
+        let fns_id = postcard_utils::from_buf(&mut data)?;
         let (component_id, component_fns, rule_fns) = params.registry.get(fns_id);
         let mut ctx = WriteCtx::new(&mut commands, params.entity_map, component_id, message_tick);
 
@@ -624,7 +616,7 @@ fn apply_mutations(
                     rule_fns,
                     params.entity_markers,
                     &mut client_entity,
-                    cursor,
+                    &mut data,
                 )?;
             } else {
                 component_fns.consume_or_write(
@@ -633,7 +625,7 @@ fn apply_mutations(
                     params.entity_markers,
                     params.command_markers,
                     &mut client_entity,
-                    cursor,
+                    &mut data,
                 )?;
             }
         }

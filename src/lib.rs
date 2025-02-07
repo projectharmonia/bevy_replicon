@@ -277,7 +277,7 @@ mapping. Therefore, to replicate such components properly, they need to implemen
 the [`MapEntities`](bevy::ecs::entity::MapEntities) trait and register
 using [`AppRuleExt::replicate_mapped()`].
 
-By default all components are serialized with [`bincode`] using [`DefaultOptions`](bincode::DefaultOptions).
+By default all components are serialized with [`postcard`].
 If your component doesn't implement serde traits or you want to serialize it partially
 (for example, only replicate the `translation` field from [`Transform`]),
 you can use [`AppRuleExt::replicate_with`].
@@ -719,7 +719,8 @@ pub mod prelude {
     pub use super::parent_sync::{ParentSync, ParentSyncPlugin};
 }
 
-pub use bincode;
+pub use bytes;
+pub use postcard;
 
 use bevy::{app::PluginGroupBuilder, prelude::*};
 use prelude::*;
