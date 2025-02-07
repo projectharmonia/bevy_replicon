@@ -1,12 +1,16 @@
-use std::{io::Cursor, mem, ops::Range, time::Duration};
+use std::{mem, ops::Range, time::Duration};
 
 use bevy::{ecs::component::Tick, prelude::*};
-use integer_encoding::{VarInt, VarIntWriter};
+use postcard::experimental::serialized_size;
 
 use super::{component_changes::ComponentChanges, serialized_data::SerializedData};
 use crate::core::{
     channels::ReplicationChannel,
-    replication::replicated_clients::{ClientBuffers, ReplicatedClient},
+    postcard_utils,
+    replication::{
+        mutate_index::MutateIndex,
+        replicated_clients::{ClientBuffers, ReplicatedClient},
+    },
     replicon_server::RepliconServer,
     replicon_tick::RepliconTick,
 };
@@ -59,7 +63,7 @@ pub(crate) struct MutateMessage {
     /// Intermediate buffer with mutate index, message size and a range for [`Self::mutations`].
     ///
     /// We split messages first in order to know their count in advance.
-    messages: Vec<(u16, usize, Range<usize>)>,
+    messages: Vec<(MutateIndex, usize, Range<usize>)>,
 }
 
 impl MutateMessage {
@@ -127,26 +131,24 @@ impl MutateMessage {
         server_tick: Range<usize>,
         tick: Tick,
         timestamp: Duration,
-    ) -> bincode::Result<usize> {
+    ) -> postcard::Result<usize> {
         debug_assert_eq!(self.entities.len(), self.mutations.len());
 
         const MAX_COUNT_SIZE: usize = mem::size_of::<usize>() + 1;
-        let mut update_tick = Cursor::new([0; mem::size_of::<RepliconTick>()]);
-        bincode::serialize_into(&mut update_tick, &client.update_tick())?;
-        let mut metadata_size = update_tick.get_ref().len() + server_tick.len();
+        let mut tick_buffer = [0; mem::size_of::<RepliconTick>()];
+        let update_tick = postcard::to_slice(&client.update_tick(), &mut tick_buffer)?;
+        let mut metadata_size = update_tick.len() + server_tick.len();
         if track_mutate_messages {
             metadata_size += MAX_COUNT_SIZE;
         }
 
         let (mut mutate_index, mut entities) =
             client.register_mutate_message(client_buffers, tick, timestamp);
-        let mut header_size = metadata_size + mutate_index.required_space();
+        let mut header_size = metadata_size + serialized_size(&mutate_index)?;
         let mut body_size = 0;
         let mut mutations_range = Range::<usize>::default();
         for (entity, mutations) in self.entities.iter().zip(&self.mutations) {
-            let components_size = mutations.components_size();
-            let mutations_size =
-                mutations.entity.len() + components_size.required_space() + components_size;
+            let mutations_size = mutations.size_with_components_size()?;
 
             // Try to pack back first, then try to pack forward.
             if body_size != 0
@@ -162,7 +164,7 @@ impl MutateMessage {
                 mutations_range.start = mutations_range.end;
                 (mutate_index, entities) =
                     client.register_mutate_message(client_buffers, tick, timestamp);
-                header_size = metadata_size + mutate_index.required_space(); // Recalculate since the mutate index changed.
+                header_size = metadata_size + serialized_size(&mutate_index)?; // Recalculate since the mutate index changed.
                 body_size = 0;
             }
 
@@ -184,19 +186,19 @@ impl MutateMessage {
         for (mutate_index, mut message_size, mutations_range) in self.messages.drain(..) {
             if track_mutate_messages {
                 // Update message counter size based on actual value.
-                message_size -= MAX_COUNT_SIZE - messages_count.required_space();
+                message_size -= MAX_COUNT_SIZE - serialized_size(&messages_count)?;
             }
             let mut message = Vec::with_capacity(message_size);
 
-            message.extend_from_slice(update_tick.get_ref());
+            message.extend_from_slice(update_tick);
             message.extend_from_slice(&serialized[server_tick.clone()]);
             if track_mutate_messages {
-                message.write_varint(messages_count)?;
+                postcard_utils::to_extend_mut(&messages_count, &mut message)?;
             }
-            message.write_varint(mutate_index)?;
+            postcard_utils::to_extend_mut(&mutate_index, &mut message)?;
             for mutations in &self.mutations[mutations_range.clone()] {
                 message.extend_from_slice(&serialized[mutations.entity.clone()]);
-                message.write_varint(mutations.components_size())?;
+                postcard_utils::to_extend_mut(&mutations.components_size(), &mut message)?;
                 for component in &mutations.components {
                     message.extend_from_slice(&serialized[component.clone()]);
                 }

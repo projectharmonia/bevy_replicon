@@ -1,10 +1,11 @@
 use bitflags::bitflags;
+use serde::{Deserialize, Serialize};
 
 bitflags! {
     /// Types of data included in the update message if the bit is set.
     ///
     /// Serialized at the beginning of the message.
-    #[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
+    #[derive(Default, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Debug)]
     pub(crate) struct UpdateMessageFlags: u8 {
         const MAPPINGS = 0b00000001;
         const DESPAWNS = 0b00000010;

@@ -15,9 +15,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Improve panic message for non-registered functions.
 
+## [0.30.1] - 2025-02-07
+
 ### Fixed
 
 - Update `ReplicatedClients` immediately to let users set visibility on `ClientConnected` trigger.
+
+### Changed
+
+- Replace `bincode` with `postcard`. It has more suitable variable integer encoding and potentially unlocks `no_std` support. If you use custom ser/de functions, replace `DefaultOptions::new().serialize_into(message, event)` with `postcard_utils::to_extend_mut(event, message)` and `DefaultOptions::new().deserialize_from(cursor)` with `postcard_utils::from_buf(message)`.
+- All serde methods now use `postcard::Result` instead of `bincode::Result`.
+- All deserialization methods now accept `Bytes` instead of `std::io::Cursor` because deserialization from `std::io::Read` requires a temporary buffer. `Bytes` already provide cursor-like functionality. The crate now re-exported under `bevy_replicon::bytes`.
 
 ## [0.30.0] - 2025-02-04
 
@@ -688,7 +696,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release after separation from [Project Harmonia](https://github.com/projectharmonia/project_harmonia).
 
-[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.30.0...HEAD
+[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.30.1...HEAD
+[0.30.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.30.0...v0.30.1
 [0.30.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.29.2...v0.30.0
 [0.29.2]: https://github.com/projectharmonia/bevy_replicon/compare/v0.29.1...v0.29.2
 [0.29.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.29.0...v0.29.1

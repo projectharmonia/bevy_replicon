@@ -47,10 +47,9 @@ pub trait AppMarkerExt {
     Then [`Transform`] updates after that will be inserted to the history.
 
     ```
-    use std::io::Cursor;
-
     use bevy::{ecs::system::EntityCommands, prelude::*, utils::HashMap};
     use bevy_replicon::{
+        bytes::Bytes,
         core::{
             replication::{
                 command_markers::MarkerConfig,
@@ -78,9 +77,9 @@ pub trait AppMarkerExt {
         ctx: &mut WriteCtx,
         rule_fns: &RuleFns<C>,
         entity: &mut DeferredEntity,
-        cursor: &mut Cursor<&[u8]>,
-    ) -> bincode::Result<()> {
-        let component: C = rule_fns.deserialize(ctx, cursor)?;
+        message: &mut Bytes,
+    ) -> postcard::Result<()> {
+        let component: C = rule_fns.deserialize(ctx, message)?;
         if let Some(mut history) = entity.get_mut::<History<C>>() {
             history.insert(ctx.message_tick, component);
         } else {

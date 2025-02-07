@@ -1,5 +1,3 @@
-use std::io::Cursor;
-
 use bevy::{ecs::entity::MapEntities, prelude::*, utils::Duration};
 use bevy_replicon::{
     client::{
@@ -18,6 +16,7 @@ use bevy_replicon::{
     server::server_tick::ServerTick,
     test_app::ServerTestAppExt,
 };
+use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
 #[test]
@@ -1036,9 +1035,9 @@ fn replace(
     ctx: &mut WriteCtx,
     rule_fns: &RuleFns<OriginalComponent>,
     entity: &mut DeferredEntity,
-    cursor: &mut Cursor<&[u8]>,
-) -> bincode::Result<()> {
-    let component = rule_fns.deserialize(ctx, cursor)?;
+    message: &mut Bytes,
+) -> postcard::Result<()> {
+    let component = rule_fns.deserialize(ctx, message)?;
     ctx.commands
         .entity(entity.id())
         .insert(ReplacedComponent(component.0));
@@ -1051,9 +1050,9 @@ fn write_history(
     ctx: &mut WriteCtx,
     rule_fns: &RuleFns<BoolComponent>,
     entity: &mut DeferredEntity,
-    cursor: &mut Cursor<&[u8]>,
-) -> bincode::Result<()> {
-    let component = rule_fns.deserialize(ctx, cursor)?;
+    message: &mut Bytes,
+) -> postcard::Result<()> {
+    let component = rule_fns.deserialize(ctx, message)?;
     if let Some(mut history) = entity.get_mut::<BoolHistory>() {
         history.push(component.0);
     } else {

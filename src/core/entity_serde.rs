@@ -1,16 +1,18 @@
 //! Custom serialization for entity to pack it more efficiently.
 
 use bevy::prelude::*;
-use integer_encoding::{VarIntReader, VarIntWriter};
+use bytes::Bytes;
+
+use super::postcard_utils;
 
 /// Deserializes `entity` from compressed index and generation.
 ///
 /// For details see [`serialize_entity`].
-pub fn deserialize_entity(reader: &mut impl VarIntReader) -> bincode::Result<Entity> {
-    let flagged_index: u64 = reader.read_varint()?;
+pub fn deserialize_entity(message: &mut Bytes) -> postcard::Result<Entity> {
+    let flagged_index: u64 = postcard_utils::from_buf(message)?;
     let has_generation = (flagged_index & 1) > 0;
     let generation = if has_generation {
-        reader.read_varint::<u32>()? + 1
+        postcard_utils::from_buf::<u32, _>(message)? + 1
     } else {
         1u32
     };
@@ -28,14 +30,15 @@ pub fn deserialize_entity(reader: &mut impl VarIntReader) -> bincode::Result<Ent
 /// generation.
 ///
 /// See also [`deserialize_entity`].
-pub fn serialize_entity(writer: &mut impl VarIntWriter, entity: Entity) -> bincode::Result<()> {
+pub fn serialize_entity(message: &mut Vec<u8>, entity: Entity) -> postcard::Result<()> {
     let mut flagged_index = (entity.index() as u64) << 1;
     let flag = entity.generation() > 1;
     flagged_index |= flag as u64;
 
-    writer.write_varint(flagged_index)?;
+    postcard_utils::to_extend_mut(&flagged_index, message)?;
     if flag {
-        writer.write_varint(entity.generation() - 1)?;
+        let generation = entity.generation() - 1;
+        postcard_utils::to_extend_mut(&generation, message)?;
     }
 
     Ok(())
