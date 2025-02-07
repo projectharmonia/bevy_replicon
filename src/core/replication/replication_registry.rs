@@ -138,7 +138,7 @@ impl ReplicationRegistry {
         let (rule_fns, index) = self
             .rules
             .get(fns_id.0)
-            .expect("serde function IDs should be obtained from the same instance");
+            .unwrap_or_else(|| panic!("replication `{fns_id:?}` should be registered first"));
 
         // SAFETY: index obtained from `rules` is always valid.
         let (component_id, command_fns) = unsafe { self.components.get_unchecked(*index) };
@@ -161,7 +161,7 @@ impl Default for ReplicationRegistry {
 /// ID of replicaton functions for a component.
 ///
 /// Can be obtained from [`ReplicationRegistry::register_rule_fns`].
-#[derive(Clone, Copy, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub struct FnsId(usize);
 
 /// Signature of the entity despawn function.
