@@ -38,7 +38,7 @@ typeid = "1.0"
 bytes = "1.10"
 serde.workspace = true
 ordered-multimap = "0.7"
-bitflags = "2.6"
+bitflags = { version = "2.6", features = ["serde"] }
 postcard = { version = "1.1", default-features = false }
 
 [dev-dependencies]
