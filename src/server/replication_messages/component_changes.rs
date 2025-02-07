@@ -22,7 +22,7 @@ impl ComponentChanges {
 
     /// Like [`Self::size`], but uses components size instead of components count.
     ///
-    /// It usually consts more bytes (because the number is bigger),
+    /// It usually costs more bytes (because the number is bigger),
     /// but allows to skip data on deserialization.
     pub(super) fn size_with_components_size(&self) -> postcard::Result<usize> {
         let components_size = self.components_size();
