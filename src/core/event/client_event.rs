@@ -61,7 +61,7 @@ pub trait ClientEventAppExt {
     /**
     Same as [`Self::add_client_event`], but uses the specified functions for serialization and deserialization.
 
-    See also [`postcard_utils`](crate::core::postcard_utils) and
+    See also [`postcard_utils`] and
     [`ClientTriggerAppExt::add_client_trigger_with`](super::client_trigger::ClientTriggerAppExt::add_client_trigger_with)
 
     # Examples

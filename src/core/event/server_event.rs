@@ -63,7 +63,7 @@ pub trait ServerEventAppExt {
     /**
     Same as [`Self::add_server_event`], but uses the specified functions for serialization and deserialization.
 
-    See also [`postcard_utils`](crate::core::postcard_utils) and
+    See also [`postcard_utils`] and
     [`ServerTriggerAppExt::add_server_trigger_with`](super::server_trigger::ServerTriggerAppExt::add_server_trigger_with)
 
     # Examples
