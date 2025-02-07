@@ -99,7 +99,7 @@ impl<T: Extend<u8>> SerFlavor for ExtendMutFlavor<'_, T> {
 ///
 /// ```
 /// use bevy::prelude::*;
-/// use bevy_replicon::{Bytes, core::postcard_utils};
+/// use bevy_replicon::{bytes::Bytes, core::postcard_utils};
 ///
 /// # let transform = Transform::default();
 /// # let mut message = Vec::new();

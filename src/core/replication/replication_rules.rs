@@ -271,7 +271,7 @@ Can be implemented on any struct to create a custom replication group.
 ```
 # use bevy::prelude::*;
 # use bevy_replicon::{
-#     bytes::Bytes
+#     bytes::Bytes,
 #     core::replication::{
 #         replication_registry::{
 #             ctx::{SerializeCtx, WriteCtx},

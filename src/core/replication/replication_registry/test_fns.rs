@@ -52,7 +52,7 @@ let mut entity = app.world_mut().spawn(DummyComponent);
 let data = entity.serialize(fns_id, tick);
 entity.remove::<DummyComponent>();
 
-entity.apply_write(&data, fns_id, tick);
+entity.apply_write(data, fns_id, tick);
 assert!(entity.contains::<DummyComponent>());
 
 entity.apply_remove(fns_id, tick);
