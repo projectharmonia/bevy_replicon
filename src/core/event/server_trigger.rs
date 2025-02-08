@@ -1,7 +1,7 @@
-use std::{any, io::Cursor};
+use std::any;
 
 use bevy::{ecs::entity::MapEntities, prelude::*, ptr::PtrMut};
-use integer_encoding::{VarIntReader, VarIntWriter};
+use bytes::Bytes;
 use serde::{de::DeserializeOwned, Serialize};
 
 use super::{
@@ -11,7 +11,7 @@ use super::{
     server_event::{self, ServerEvent, ToClients},
     trigger::{RemoteTargets, RemoteTrigger},
 };
-use crate::core::{channels::RepliconChannel, entity_serde};
+use crate::core::{channels::RepliconChannel, entity_serde, postcard_utils};
 
 /// An extension trait for [`App`] for creating server triggers.
 ///
@@ -141,8 +141,8 @@ fn trigger_serialize<'a, E>(
     trigger: &RemoteTrigger<E>,
     message: &mut Vec<u8>,
     serialize: EventSerializeFn<ServerSendCtx<'a>, E>,
-) -> bincode::Result<()> {
-    message.write_varint(trigger.targets.len())?;
+) -> postcard::Result<()> {
+    postcard_utils::to_extend_mut(&trigger.targets.len(), message)?;
     for &entity in &trigger.targets {
         entity_serde::serialize_entity(message, entity)?;
     }
@@ -156,17 +156,17 @@ fn trigger_serialize<'a, E>(
 /// Used as outer function for [`EventFns`].
 fn trigger_deserialize<'a, E>(
     ctx: &mut ClientReceiveCtx<'a>,
-    cursor: &mut Cursor<&[u8]>,
+    message: &mut Bytes,
     deserialize: EventDeserializeFn<ClientReceiveCtx<'a>, E>,
-) -> bincode::Result<RemoteTrigger<E>> {
-    let len = cursor.read_varint()?;
+) -> postcard::Result<RemoteTrigger<E>> {
+    let len = postcard_utils::from_buf(message)?;
     let mut targets = Vec::with_capacity(len);
     for _ in 0..len {
-        let entity = entity_serde::deserialize_entity(cursor)?;
+        let entity = entity_serde::deserialize_entity(message)?;
         targets.push(ctx.map_entity(entity));
     }
 
-    let event = (deserialize)(ctx, cursor)?;
+    let event = (deserialize)(ctx, message)?;
 
     Ok(RemoteTrigger { event, targets })
 }

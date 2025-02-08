@@ -6,7 +6,7 @@ pub(super) mod replicated_archetypes;
 pub(super) mod replication_messages;
 pub mod server_tick;
 
-use std::{io::Cursor, mem, ops::Range, time::Duration};
+use std::{mem, ops::Range, time::Duration};
 
 use bevy::{
     ecs::{
@@ -19,12 +19,14 @@ use bevy::{
     ptr::Ptr,
     time::common_conditions::on_timer,
 };
+use bytes::Buf;
 
 use crate::core::{
     channels::{ReplicationChannel, RepliconChannels},
     common_conditions::{server_just_stopped, server_running},
     connected_clients::ConnectedClients,
     event::server_event::BufferedServerEvents,
+    postcard_utils,
     replication::{
         replicated_clients::{
             client_visibility::Visibility, ClientBuffers, ReplicatedClients, VisibilityPolicy,
@@ -231,11 +233,9 @@ fn receive_acks(
     mut replicated_clients: ResMut<ReplicatedClients>,
     mut client_buffers: ResMut<ClientBuffers>,
 ) {
-    for (client_id, message) in server.receive(ReplicationChannel::Updates) {
-        let mut cursor = Cursor::new(&*message);
-        let message_end = message.len() as u64;
-        while cursor.position() < message_end {
-            match bincode::deserialize_from(&mut cursor) {
+    for (client_id, mut message) in server.receive(ReplicationChannel::Updates) {
+        while message.has_remaining() {
+            match postcard_utils::from_buf(&mut message) {
                 Ok(mutate_index) => {
                     let client = replicated_clients.client_mut(client_id);
                     client.ack_mutate_message(
@@ -270,7 +270,7 @@ pub(super) fn send_replication(
     rules: Res<ReplicationRules>,
     server_tick: Res<ServerTick>,
     time: Res<Time>,
-) -> bincode::Result<()> {
+) -> postcard::Result<()> {
     replicated_archetypes.update(set.p0(), &rules);
 
     // Take ownership to avoid borrowing issues.
@@ -355,7 +355,7 @@ fn send_messages(
     client_buffers: &mut ClientBuffers,
     change_tick: SystemChangeTick,
     time: &Time,
-) -> Result<(), Box<bincode::ErrorKind>> {
+) -> postcard::Result<()> {
     let mut server_tick_range = None;
     for ((update_message, mutate_message), client) in
         messages.iter_mut().zip(replicated_clients.iter_mut())
@@ -403,7 +403,7 @@ fn collect_mappings(
     serialized: &mut SerializedData,
     replicated_clients: &ReplicatedClients,
     entity_map: &mut ClientEntityMap,
-) -> bincode::Result<()> {
+) -> postcard::Result<()> {
     for ((message, _), client) in messages.iter_mut().zip(replicated_clients.iter()) {
         if let Some(mappings) = entity_map.0.get_mut(&client.id()) {
             let len = mappings.len();
@@ -421,7 +421,7 @@ fn collect_despawns(
     serialized: &mut SerializedData,
     replicated_clients: &mut ReplicatedClients,
     despawn_buffer: &mut DespawnBuffer,
-) -> bincode::Result<()> {
+) -> postcard::Result<()> {
     for entity in despawn_buffer.drain(..) {
         let entity_range = serialized.write_entity(entity)?;
         for ((message, _), client) in messages.iter_mut().zip(replicated_clients.iter_mut()) {
@@ -448,7 +448,7 @@ fn collect_removals(
     serialized: &mut SerializedData,
     replicated_clients: &ReplicatedClients,
     removal_buffer: &RemovalBuffer,
-) -> bincode::Result<()> {
+) -> postcard::Result<()> {
     for (&entity, remove_ids) in removal_buffer.iter() {
         let entity_range = serialized.write_entity(entity)?;
         let ids_len = remove_ids.len();
@@ -474,7 +474,7 @@ fn collect_changes(
     world: &World,
     change_tick: &SystemChangeTick,
     server_tick: RepliconTick,
-) -> bincode::Result<()> {
+) -> postcard::Result<()> {
     for replicated_archetype in replicated_archetypes.iter() {
         // SAFETY: all IDs from replicated archetypes obtained from real archetypes.
         let archetype = unsafe {
@@ -662,7 +662,7 @@ fn write_entity_cached(
     entity_range: &mut Option<Range<usize>>,
     serialized: &mut SerializedData,
     entity: Entity,
-) -> bincode::Result<Range<usize>> {
+) -> postcard::Result<Range<usize>> {
     if let Some(range) = entity_range.clone() {
         return Ok(range);
     }
@@ -682,7 +682,7 @@ fn write_component_cached(
     ctx: &SerializeCtx,
     replicated_component: &ReplicatedComponent,
     component: Ptr<'_>,
-) -> bincode::Result<Range<usize>> {
+) -> postcard::Result<Range<usize>> {
     if let Some(component_range) = component_range.clone() {
         return Ok(component_range);
     }
@@ -704,7 +704,7 @@ fn write_tick_cached(
     tick_range: &mut Option<Range<usize>>,
     serialized: &mut SerializedData,
     tick: RepliconTick,
-) -> bincode::Result<Range<usize>> {
+) -> postcard::Result<Range<usize>> {
     if let Some(range) = tick_range.clone() {
         return Ok(range);
     }

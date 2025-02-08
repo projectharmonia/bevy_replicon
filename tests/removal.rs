@@ -1,5 +1,3 @@
-use std::io::Cursor;
-
 use bevy::prelude::*;
 use bevy_replicon::{
     client::confirm_history::{ConfirmHistory, EntityReplicated},
@@ -11,6 +9,7 @@ use bevy_replicon::{
     server::server_tick::ServerTick,
     test_app::ServerTestAppExt,
 };
+use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
 #[test]
@@ -521,9 +520,9 @@ fn replace(
     ctx: &mut WriteCtx,
     rule_fns: &RuleFns<OriginalComponent>,
     entity: &mut DeferredEntity,
-    cursor: &mut Cursor<&[u8]>,
-) -> bincode::Result<()> {
-    rule_fns.deserialize(ctx, cursor)?;
+    message: &mut Bytes,
+) -> postcard::Result<()> {
+    rule_fns.deserialize(ctx, message)?;
     ctx.commands.entity(entity.id()).insert(ReplacedComponent);
 
     Ok(())
