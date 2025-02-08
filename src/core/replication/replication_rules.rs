@@ -77,6 +77,8 @@ pub trait AppRuleExt {
 
     # Examples
 
+    Ser/de only [`Transform::translation`]:
+
     ```
     use bevy::prelude::*;
     use bevy_replicon::{
@@ -85,7 +87,7 @@ pub trait AppRuleExt {
             postcard_utils,
             replication::replication_registry::{
                 ctx::{SerializeCtx, WriteCtx},
-                rule_fns::RuleFns,
+                rule_fns::{RuleFns, DeserializeFn},
             },
         },
         prelude::*,
@@ -93,7 +95,11 @@ pub trait AppRuleExt {
 
     # let mut app = App::new();
     # app.add_plugins(RepliconPlugins);
-    app.replicate_with(RuleFns::new(serialize_translation, deserialize_translation));
+    // We override in-place as well to apply only translation when the component is already inserted.
+    app.replicate_with(
+        RuleFns::new(serialize_translation, deserialize_translation)
+            .with_in_place(deserialize_transform_in_place),
+    );
 
     /// Serializes only `translation` from [`Transform`].
     fn serialize_translation(
@@ -105,6 +111,8 @@ pub trait AppRuleExt {
     }
 
     /// Deserializes `translation` and creates [`Transform`] from it.
+    ///
+    /// Called by Replicon on component insertions.
     fn deserialize_translation(
         _ctx: &mut WriteCtx,
         message: &mut Bytes,
@@ -112,67 +120,151 @@ pub trait AppRuleExt {
         let translation: Vec3 = postcard_utils::from_buf(message)?;
         Ok(Transform::from_translation(translation))
     }
-    ```
-    ```
-    # fn compress(data: &mut Vec<u8>) {
-    #     unimplemented!()
-    # }
 
-    # fn decompress(data: &mut Vec<u8>) {
-    #     unimplemented!()
-    # }
+    /// Applies the assigned deserialization function and assigns only translation.
+    ///
+    /// Called by Replicon on component mutations.
+    pub fn deserialize_transform_in_place(
+        deserialize: DeserializeFn<Transform>,
+        ctx: &mut WriteCtx,
+        component: &mut Transform,
+        message: &mut Bytes,
+    ) -> postcard::Result<()> {
+        let transform = (deserialize)(ctx, message)?;
+        component.translation = transform.translation;
+        Ok(())
+    }
+    ```
 
+    Ser/de with compression:
+
+    ```
+    use bevy::prelude::*;
+    use bevy_replicon::{
+        bytes::Bytes,
+        core::{
+            postcard_utils,
+            replication::replication_registry::{
+                ctx::{SerializeCtx, WriteCtx},
+                rule_fns::RuleFns,
+            },
+        },
+        postcard,
+        prelude::*,
+    };
+    use bytes::Buf;
+    use serde::{Deserialize, Serialize};
+
+    # let mut app = App::new();
+    # app.add_plugins(RepliconPlugins);
     app.replicate_with(RuleFns::new(
-        serialize_mapped_component,
-        deserialize_mapped_component,
+        serialize_big_component,
+        deserialize_big_component,
     ));
+
+    /// Serializes [`BigComponent`] with compression.
+    pub fn serialize_big_component(
+        _ctx: &SerializeCtx,
+        component: &BigComponent,
+        message: &mut Vec<u8>,
+    ) -> postcard::Result<()> {
+        // Serialize as usual, but track size.
+        let start = message.len();
+        postcard_utils::to_extend_mut(component, message)?;
+        let end = message.len();
+
+        // Compress serialized slice.
+        // Could be `zstd`, for example.
+        let compressed = compress(&mut message[start..end]);
+
+        // Replace serialized slice with compressed data prepended by its size.
+        message.truncate(start);
+        postcard_utils::to_extend_mut(&compressed.len(), message)?;
+        message.extend(compressed);
+
+        Ok(())
+    }
+
+    /// Deserializes [`BigComponent`] with decompression.
+    pub fn deserialize_big_component(
+        _ctx: &mut WriteCtx,
+        message: &mut Bytes,
+    ) -> postcard::Result<BigComponent> {
+        // Read size first to know how much data is encoded.
+        let size = postcard_utils::from_buf(message)?;
+
+        // Apply decompression and advance the reading cursor.
+        let decompressed = decompress(&message[..size]);
+        message.advance(size);
+
+        let component = postcard::from_bytes(&decompressed)?;
+        Ok(component)
+    }
+
+    #[derive(Component, Deserialize, Serialize)]
+    struct BigComponent(Vec<u64>);
+    # fn compress(data: &[u8]) -> Vec<u8> { unimplemented!() }
+    # fn decompress(data: &[u8]) -> Vec<u8> { unimplemented!() }
+    ```
+
+    Custom ser/de with entity mapping:
+
+    ```
+    use bevy::{ecs::entity::MapEntities, prelude::*};
+    use bevy_replicon::{
+        bytes::Bytes,
+        core::{
+            postcard_utils,
+            replication::replication_registry::{
+                ctx::{SerializeCtx, WriteCtx},
+                rule_fns::RuleFns,
+            },
+        },
+        postcard,
+        prelude::*,
+    };
+    use serde::{Deserialize, Serialize};
+
+    let mut app = App::new();
+    app.add_plugins(RepliconPlugins);
+    app.replicate_with(RuleFns::new(
+        serialize_big_component,
+        deserialize_big_component,
+    ));
+
+    /// Serializes [`MappedComponent`], but skips [`MappedComponent::unused_field`].
+    pub fn serialize_big_component(
+        _ctx: &SerializeCtx,
+        component: &MappedComponent,
+        message: &mut Vec<u8>,
+    ) -> postcard::Result<()> {
+        postcard_utils::to_extend_mut(&component.entity, message)
+    }
+
+    /// Deserializes an entity and creates [`MappedComponent`] from it.
+    pub fn deserialize_big_component(
+        ctx: &mut WriteCtx,
+        message: &mut Bytes,
+    ) -> postcard::Result<MappedComponent> {
+        let entity = postcard_utils::from_buf(message)?;
+        let mut component = MappedComponent {
+            entity,
+            unused_field: Default::default(),
+        };
+        component.map_entities(ctx);
+        Ok(component)
+    }
 
     #[derive(Component, Deserialize, Serialize)]
     struct MappedComponent {
         entity: Entity,
+        unused_field: Vec<bool>,
     }
 
     impl MapEntities for MappedComponent {
         fn map_entities<T: EntityMapper>(&mut self, mapper: &mut T) {
             self.entity = mapper.map_entity(self.entity);
         }
-    }
-
-    /// Serializes [`MappedComponent`] with custom compression.
-    pub fn serialize_mapped_component(
-        _ctx: &SerializeCtx,
-        component: &MappedComponent,
-        message: &mut Vec<u8>,
-    ) -> bincode::Result<()> {
-        let mut serialized: Vec<u8> = bincode::serialize(component)?;
-
-        // Placeholder compression function
-        compress(&mut serialized);
-
-        // Track length for decompression
-        bincode::serialize_into(&mut *message, &serialized.len())?;
-        message.extend(serialized);
-
-        Ok(())
-    }
-
-    /// Deserializes [`MappedComponent`] with custom decompression.
-    pub fn deserialize_mapped_component(
-        ctx: &mut WriteCtx,
-        cursor: &mut Cursor<&[u8]>,
-    ) -> bincode::Result<MappedComponent> {
-        // Fetch size and decompress
-        let size: usize = bincode::deserialize_from(cursor.take(std::mem::size_of::<usize>() as u64))?;
-        let mut data = Vec::new();
-        cursor.take(size as u64).read_to_end(&mut data)?;
-        decompress(&mut data);
-
-        // Deserialize Component
-        let cursor = Cursor::new(data);
-        let mut component: MappedComponent = bincode::deserialize_from(cursor)?;
-        component.map_entities(ctx);
-
-        Ok(component)
     }
     ```
     */
