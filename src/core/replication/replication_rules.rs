@@ -112,6 +112,63 @@ pub trait AppRuleExt {
         Ok(Transform::from_translation(translation))
     }
     ```
+    ```
+    # fn compress(data: &mut Vec<u8>) {
+    #     unimplemented!()
+    # }
+
+    # fn decompress(data: &mut Vec<u8>) {
+    #     unimplemented!()
+    # }
+
+    #[derive(Component, Deserialize, Serialize)]
+    struct MappedComponent {
+        entity: Entity,
+    }
+
+    impl MapEntities for MappedComponent {
+        fn map_entities<T: EntityMapper>(&mut self, mapper: &mut T) {
+            self.entity = mapper.map_entity(self.entity);
+        }
+    }
+
+    /// Serializes [`MappedComponent`] with custom compression.
+    pub fn serialize_mapped_component(
+        _ctx: &SerializeCtx,
+        component: &MappedComponent,
+        message: &mut Vec<u8>,
+    ) -> bincode::Result<()> {
+        let mut serialized: Vec<u8> = bincode::serialize(component)?;
+
+        // Placeholder compression function
+        compress(&mut serialized);
+
+        // Track length for decompression
+        bincode::serialize_into(&mut *message, &serialized.len())?;
+        message.extend(serialized);
+
+        Ok(())
+    }
+
+    /// Deserializes [`MappedComponent`] with custom decompression.
+    pub fn deserialize_mapped_component(
+        ctx: &mut WriteCtx,
+        cursor: &mut Cursor<&[u8]>,
+    ) -> bincode::Result<MappedComponent> {
+        // Fetch size and decompress
+        let size: usize = bincode::deserialize_from(cursor.take(std::mem::size_of::<usize>() as u64))?;
+        let mut data = Vec::new();
+        cursor.take(size as u64).read_to_end(&mut data)?;
+        decompress(&mut data);
+
+        // Deserialize Component
+        let cursor = Cursor::new(data);
+        let mut component: MappedComponent = bincode::deserialize_from(cursor)?;
+        component.map_entities(ctx);
+
+        Ok(component)
+    }
+    ```
     */
     fn replicate_with<C>(&mut self, rule_fns: RuleFns<C>) -> &mut Self
     where
