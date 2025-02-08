@@ -1,7 +1,7 @@
-use std::{mem, ops::Range, time::Duration};
+use std::{ops::Range, time::Duration};
 
 use bevy::{ecs::component::Tick, prelude::*};
-use postcard::experimental::serialized_size;
+use postcard::experimental::{max_size::MaxSize, serialized_size};
 
 use super::{component_changes::ComponentChanges, serialized_data::SerializedData};
 use crate::core::{
@@ -134,8 +134,8 @@ impl MutateMessage {
     ) -> postcard::Result<usize> {
         debug_assert_eq!(self.entities.len(), self.mutations.len());
 
-        const MAX_COUNT_SIZE: usize = mem::size_of::<usize>() + 1;
-        let mut tick_buffer = [0; mem::size_of::<RepliconTick>()];
+        const MAX_COUNT_SIZE: usize = usize::POSTCARD_MAX_SIZE;
+        let mut tick_buffer = [0; RepliconTick::POSTCARD_MAX_SIZE];
         let update_tick = postcard::to_slice(&client.update_tick(), &mut tick_buffer)?;
         let mut metadata_size = update_tick.len() + server_tick.len();
         if track_mutate_messages {

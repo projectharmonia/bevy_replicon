@@ -1,3 +1,4 @@
+use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
 
 /// Identifier for mutate messages.
@@ -8,7 +9,7 @@ use serde::{Deserialize, Serialize};
 /// A tick >= 2^14 will be [5 bytes](https://postcard.jamesmunns.com/wire-format.html#maximum-encoded-length)
 /// At 60 ticks/sec, that will happen after ~5 minutes. So any session over this time period would transmit
 /// more total bytes with varint encoding.
-#[derive(Default, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Default, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Hash, Debug, MaxSize)]
 pub(crate) struct MutateIndex(#[serde(with = "postcard::fixint::le")] u16);
 
 impl MutateIndex {

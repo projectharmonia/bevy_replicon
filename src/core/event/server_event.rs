@@ -7,6 +7,7 @@ use bevy::{
 };
 use bytes::Bytes;
 use ordered_multimap::ListOrderedMultimap;
+use postcard::experimental::{max_size::MaxSize, serialized_size};
 use serde::{de::DeserializeOwned, Serialize};
 
 use super::{
@@ -394,7 +395,7 @@ impl ServerEvent {
         ctx: &mut ServerSendCtx,
         event: &E,
     ) -> postcard::Result<SerializedMessage> {
-        let mut message = vec![0; mem::size_of::<RepliconTick>()]; // Padding for the tick.
+        let mut message = vec![0; RepliconTick::POSTCARD_MAX_SIZE]; // Padding for the tick.
         self.serialize::<E, I>(ctx, event, &mut message)?;
         let message = SerializedMessage::Raw(message);
 
@@ -631,13 +632,17 @@ enum SerializedMessage {
     ///
     /// `padding | message`
     ///
-    /// The padding length equals to serialized bytes of [`RepliconTick`]. It should be overwritten before sending
+    /// The padding length equals max serialized bytes of [`RepliconTick`]. It should be overwritten before sending
     /// to clients.
     Raw(Vec<u8>),
     /// A message with serialized tick.
     ///
     /// `tick | message`
-    Resolved { tick: RepliconTick, bytes: Bytes },
+    Resolved {
+        tick: RepliconTick,
+        tick_size: usize,
+        bytes: Bytes,
+    },
 }
 
 impl SerializedMessage {
@@ -648,23 +653,35 @@ impl SerializedMessage {
             // Resolve the raw value into a message with serialized tick.
             Self::Raw(raw) => {
                 let mut bytes = mem::take(raw);
-                postcard::to_slice(&update_tick, &mut bytes[..mem::size_of::<RepliconTick>()])?;
-                let bytes = Bytes::from(bytes);
+
+                // Serialize the tick at the end of the pre-allocated space for it,
+                // then shift the buffer to avoid reallocation.
+                let tick_size = serialized_size(&update_tick)?;
+                let padding = RepliconTick::POSTCARD_MAX_SIZE - tick_size;
+                postcard::to_slice(&update_tick, &mut bytes[padding..])?;
+                let bytes = Bytes::from(bytes).slice(padding..);
+
                 *self = Self::Resolved {
                     tick: update_tick,
+                    tick_size,
                     bytes: bytes.clone(),
                 };
                 Ok(bytes)
             }
             // Get the already-resolved value or reserialize with a different tick.
-            Self::Resolved { tick, bytes } => {
+            Self::Resolved {
+                tick,
+                tick_size,
+                bytes,
+            } => {
                 if *tick == update_tick {
                     return Ok(bytes.clone());
                 }
 
-                let mut new_bytes = Vec::with_capacity(bytes.len());
+                let new_tick_size = serialized_size(&update_tick)?;
+                let mut new_bytes = Vec::with_capacity(new_tick_size + bytes.len() - *tick_size);
                 postcard_utils::to_extend_mut(&update_tick, &mut new_bytes)?;
-                new_bytes.extend_from_slice(&bytes[mem::size_of::<RepliconTick>()..]);
+                new_bytes.extend_from_slice(&bytes[*tick_size..]);
                 Ok(new_bytes.into())
             }
         }

@@ -3,6 +3,7 @@ use std::{
     ops::{Add, AddAssign, Sub, SubAssign},
 };
 
+use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
 
 /// Like [`Tick`](bevy::ecs::component::Tick), but for replication.
@@ -11,8 +12,8 @@ use serde::{Deserialize, Serialize};
 ///
 /// See also [`ServerUpdateTick`](crate::client::ServerUpdateTick) and
 /// [`ServerTick`](crate::server::server_tick::ServerTick).
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
-pub struct RepliconTick(#[serde(with = "postcard::fixint::le")] u32);
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize, MaxSize)]
+pub struct RepliconTick(u32);
 
 impl RepliconTick {
     /// Creates a new instance wrapping the given value.

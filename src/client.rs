@@ -4,10 +4,9 @@ pub mod diagnostics;
 pub mod event;
 pub mod server_mutate_ticks;
 
-use std::mem;
-
 use bevy::{ecs::world::CommandQueue, prelude::*};
 use bytes::{Buf, Bytes};
+use postcard::experimental::max_size::MaxSize;
 
 use crate::core::{
     channels::{ReplicationChannel, RepliconChannels},
@@ -182,7 +181,8 @@ fn apply_replication(
     // but skip outdated data per-entity by checking last received tick for it
     // (unless user requested history via marker).
     let update_tick = *world.resource::<ServerUpdateTick>();
-    let acks_size = mem::size_of::<u16>() * client.received_count(ReplicationChannel::Mutations);
+    let acks_size =
+        MutateIndex::POSTCARD_MAX_SIZE * client.received_count(ReplicationChannel::Mutations);
     if acks_size != 0 {
         let mut acks = Vec::with_capacity(acks_size);
         for message in client.receive(ReplicationChannel::Mutations) {
