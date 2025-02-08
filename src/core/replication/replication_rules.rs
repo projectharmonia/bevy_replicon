@@ -121,6 +121,11 @@ pub trait AppRuleExt {
     #     unimplemented!()
     # }
 
+    app.replicate_with(RuleFns::new(
+        serialize_mapped_component,
+        deserialize_mapped_component,
+    ));
+
     #[derive(Component, Deserialize, Serialize)]
     struct MappedComponent {
         entity: Entity,
