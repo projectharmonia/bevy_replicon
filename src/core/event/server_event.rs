@@ -814,9 +814,10 @@ impl BufferedServerEvents {
 }
 
 /// An event that will be send to client(s).
-#[derive(Clone, Copy, Debug, Event)]
+#[derive(Clone, Copy, Debug, Event, Deref, DerefMut)]
 pub struct ToClients<T> {
     pub mode: SendMode,
+    #[deref]
     pub event: T,
 }
 

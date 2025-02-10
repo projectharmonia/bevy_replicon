@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Derive `Debug` for `FnsId`.
+- Derive `Deref` and `DerefMut` to underlying event in `ToClients` and `FromClient`.
 
 ### Changed
 

@@ -486,7 +486,7 @@ fn send_events(mut commands: Commands) {
 }
 
 fn receive_events(trigger: Trigger<FromClient<DummyEvent>>) {
-    info!("received event {:?} from {:?}", trigger.event, trigger.client_id);
+    info!("received event {:?} from {:?}", **trigger, trigger.client_id);
 }
 # #[derive(Event, Debug, Deserialize, Serialize)]
 # struct DummyEvent;
@@ -565,7 +565,7 @@ fn send_events(mut commands: Commands) {
 }
 
 fn receive_events(trigger: Trigger<DummyEvent>) {
-    info!("received event {:?} from server", trigger.event());
+    info!("received event {:?} from server", *trigger);
 }
 # #[derive(Event, Debug, Deserialize, Serialize)]
 # struct DummyEvent;

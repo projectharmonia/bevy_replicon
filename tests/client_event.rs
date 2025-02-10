@@ -63,7 +63,7 @@ fn mapping_and_sending_receiving() {
         .world_mut()
         .resource_mut::<Events<FromClient<EntityEvent>>>()
         .drain()
-        .map(|event| event.event.0)
+        .map(|event| event.0)
         .collect();
     assert_eq!(mapped_entities, [server_entity]);
 }

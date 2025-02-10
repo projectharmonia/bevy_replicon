@@ -88,7 +88,7 @@ fn mapping_and_sending_receiving() {
     server_app.update();
 
     let reader = server_app.world().resource::<TriggerReader<EntityEvent>>();
-    let mapped_entities: Vec<_> = reader.events.iter().map(|event| event.event.0).collect();
+    let mapped_entities: Vec<_> = reader.events.iter().map(|event| event.0).collect();
     assert_eq!(mapped_entities, [server_entity]);
 }
 

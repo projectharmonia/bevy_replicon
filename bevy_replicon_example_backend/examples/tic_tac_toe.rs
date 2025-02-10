@@ -247,8 +247,8 @@ fn apply_pick(
     players: Query<(&Player, &Symbol)>,
 ) {
     // It's good to check the received data because client could be cheating.
-    if trigger.event.index > GRID_SIZE * GRID_SIZE {
-        debug!("received invalid cell index {:?}", trigger.event.index);
+    if trigger.index > GRID_SIZE * GRID_SIZE {
+        debug!("received invalid cell index {:?}", trigger.index);
         return;
     }
 
@@ -258,18 +258,15 @@ fn apply_pick(
     {
         debug!(
             "{:?} chose cell {:?} at wrong turn",
-            trigger.client_id, trigger.event.index
+            trigger.client_id, trigger.index
         );
         return;
     }
 
-    let Some((entity, _)) = cells
-        .iter()
-        .find(|(_, cell)| cell.index == trigger.event.index)
-    else {
+    let Some((entity, _)) = cells.iter().find(|(_, cell)| cell.index == trigger.index) else {
         debug!(
             "{:?} has chosen an already occupied cell {:?}",
-            trigger.client_id, trigger.event.index
+            trigger.client_id, trigger.index
         );
         return;
     };
@@ -333,7 +330,7 @@ fn init_client(
     server_symbol: Single<&Symbol, With<Player>>,
 ) {
     for (server_entity, cell) in &cells {
-        let Some(&client_entity) = trigger.event.get(&cell.index) else {
+        let Some(&client_entity) = trigger.get(&cell.index) else {
             error!("received cells missing index {}, disconnecting", cell.index);
             commands.set_state(GameState::Disconnected);
             return;
