@@ -34,7 +34,10 @@ pub(super) fn send_message(
     ];
 
     // Write as a single message to avoid splitting between packets.
-    stream.write_vectored(&packet)?;
+    let len = stream.write_vectored(&packet)?;
+    if len != packet.iter().map(|s| s.len()).sum::<usize>() {
+        return Err(Box::new(io::Error::from(io::ErrorKind::UnexpectedEof)));
+    }
 
     Ok(())
 }
