@@ -70,8 +70,12 @@ impl RepliconServer {
             .unwrap_or_else(|| panic!("server should have a receive channel with id {channel_id}"));
 
         trace!(
-            "received {} message(s) from channel {channel_id}",
-            channel_messages.len()
+            "received {} message(s) totaling {} bytes from channel {channel_id}",
+            channel_messages.len(),
+            channel_messages
+                .iter()
+                .map(|(_, bytes)| bytes.len())
+                .sum::<usize>()
         );
 
         channel_messages.drain(..)

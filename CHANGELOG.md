@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - All deserialization methods now accept `Bytes` instead of `std::io::Cursor` because deserialization from `std::io::Read` requires a temporary buffer. `Bytes` already provide cursor-like functionality. The crate now re-exported under `bevy_replicon::bytes`.
 - Use varint for `RepliconTick` because `postcard` provides more efficient encoding for it.
 - Improve panic message for non-registered functions.
+- Log bytes count on receive.
 
 ## [0.30.1] - 2025-02-07
 
