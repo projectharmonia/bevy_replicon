@@ -25,7 +25,7 @@ bevy = { version = "0.15", default-features = false }
 bevy_replicon = { path = "..", version = "0.30", default-features = false }
 
 [dev-dependencies]
-bevy = { version = "0.15", features = [
+bevy = { version = "0.15", default-features = false, features = [
   "bevy_text",
   "bevy_ui",
   "bevy_gizmos",
