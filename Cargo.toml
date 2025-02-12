@@ -18,7 +18,7 @@ keywords = [
 ]
 categories = ["game-development", "network-programming"]
 license = "MIT OR Apache-2.0"
-include = ["/benches", "/src", "/tests", "/LICENSE*"]
+include = ["/src", "/LICENSE*"]
 
 [package.metadata.docs.rs]
 rustdoc-args = ["-Zunstable-options", "--cfg", "docsrs"]
@@ -27,16 +27,12 @@ all-features = true
 [workspace]
 members = ["bevy_replicon_example_backend"]
 
-[workspace.dependencies]
-bevy = { version = "0.15", default-features = false }
-serde = "1.0"
-
 [dependencies]
-bevy = { workspace = true, features = ["serialize"] }
+bevy = { version = "0.15", features = ["serialize"] }
 thiserror = "2.0"
 typeid = "1.0"
 bytes = "1.10"
-serde.workspace = true
+serde = "1.0"
 ordered-multimap = "0.7"
 bitflags = { version = "2.6", features = ["serde"] }
 postcard = { version = "1.1", default-features = false, features = [
@@ -44,7 +40,7 @@ postcard = { version = "1.1", default-features = false, features = [
 ] }
 
 [dev-dependencies]
-bevy = { workspace = true, features = [
+bevy = { version = "0.15", features = [
   "serialize",
   "bevy_asset",
   "bevy_scene",
