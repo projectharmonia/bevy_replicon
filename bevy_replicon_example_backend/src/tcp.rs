@@ -30,7 +30,7 @@ pub(super) fn send_message(
     let packet = [
         IoSlice::new(channel_id),
         IoSlice::new(message_size),
-        IoSlice::new(&message),
+        IoSlice::new(message),
     ];
 
     // Write as a single message to avoid splitting between packets.
