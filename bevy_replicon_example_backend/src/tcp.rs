@@ -2,19 +2,26 @@ use std::{
     error::Error,
     io::{self, IoSlice, Read, Write},
     net::TcpStream,
-    slice,
 };
 
-pub(super) fn read_message(stream: &mut TcpStream) -> io::Result<(u8, Vec<u8>)> {
-    let mut channel_id = 0;
-    stream.read_exact(slice::from_mut(&mut channel_id))?;
+use bevy_replicon::bytes::{Buf, Bytes};
 
-    let mut size_bytes = [0; 2];
-    stream.read_exact(&mut size_bytes)?;
-    let message_size = u16::from_le_bytes(size_bytes);
+pub(super) fn read_message(stream: &mut TcpStream) -> io::Result<(u8, Bytes)> {
+    let mut header = [0; 3];
+    match stream.peek(&mut header)? {
+        0 => return Err(io::ErrorKind::UnexpectedEof.into()), // Socket was closed.
+        1..3 => return Err(io::ErrorKind::WouldBlock.into()), // Wait for full header.
+        3.. => (),
+    }
 
-    let mut message = vec![0; message_size as usize];
+    let channel_id = header[0];
+    let message_size = u16::from_le_bytes([header[1], header[2]]);
+
+    let mut message = vec![0; header.len() + message_size as usize];
     stream.read_exact(&mut message)?;
+
+    let mut message = Bytes::from(message);
+    message.advance(header.len());
 
     Ok((channel_id, message))
 }
