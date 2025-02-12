@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Update `ReplicatedClients` immediately to let users set visibility on `ClientConnected` trigger.
+- Write message in a single call in the example backend.
 
 ## [0.30.0] - 2025-02-04
 

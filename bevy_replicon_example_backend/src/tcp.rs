@@ -1,6 +1,6 @@
 use std::{
     error::Error,
-    io::{self, Read, Write},
+    io::{self, IoSlice, Read, Write},
     net::TcpStream,
     slice,
 };
@@ -25,9 +25,16 @@ pub(super) fn send_message(
     message: &[u8],
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     let message_size: u16 = message.len().try_into()?;
-    stream.write_all(&[channel_id])?;
-    stream.write_all(&message_size.to_le_bytes())?;
-    stream.write_all(message)?;
+    let channel_id = &[channel_id];
+    let message_size = &message_size.to_le_bytes();
+    let packet = [
+        IoSlice::new(channel_id),
+        IoSlice::new(message_size),
+        IoSlice::new(&message),
+    ];
+
+    // Write as a single message to avoid splitting between packets.
+    stream.write_vectored(&packet)?;
 
     Ok(())
 }
