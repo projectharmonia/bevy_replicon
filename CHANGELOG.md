@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Use varint for `RepliconTick` because `postcard` provides more efficient encoding for it.
 - Improve panic message for non-registered functions.
 
+### Fixed
+
+- Local re-trigger for listen server mode.
+
 ## [0.30.1] - 2025-02-07
 
 ### Fixed

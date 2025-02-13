@@ -122,7 +122,7 @@ impl Plugin for ClientEventPlugin {
                         receive
                             .after(super::receive_replication)
                             .run_if(client_connected),
-                        trigger.run_if(not(server_running)),
+                        trigger,
                     )
                         .chain()
                         .in_set(ClientSet::Receive),
