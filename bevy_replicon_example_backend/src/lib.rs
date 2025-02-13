@@ -1,6 +1,7 @@
 //! A simple transport intended only for examples.
 //! This transport does not implement any reliability or security features.
 //! DO NOT USE in a real project
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 #[cfg(feature = "client")]
 mod client;
