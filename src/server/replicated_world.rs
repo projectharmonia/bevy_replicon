@@ -11,7 +11,7 @@ use bevy::{
     ptr::Ptr,
 };
 
-use crate::core::replication::replication_rules::ReplicationRules;
+use crate::core::replication::{replication_rules::ReplicationRules, Replicated};
 
 /// A [`SystemParam`] that wraps [`World`], but provides access only for replicated components.
 ///
@@ -75,9 +75,14 @@ unsafe impl SystemParam for ReplicatedWorld<'_, '_> {
     type Item<'world, 'state> = ReplicatedWorld<'world, 'state>;
 
     fn init_state(world: &mut World, system_meta: &mut SystemMeta) -> Self::State {
-        let rules = world.resource::<ReplicationRules>();
         let mut access = Access::new();
         let mut filtered_access = FilteredAccess::default();
+
+        let marker_id = world.register_component::<Replicated>();
+        access.add_component_read(marker_id);
+        filtered_access.add_component_read(marker_id);
+
+        let rules = world.resource::<ReplicationRules>();
         let combined_access = system_meta.component_access_set().combined_access();
         for rule in rules.iter() {
             for &(component_id, _) in &rule.components {
