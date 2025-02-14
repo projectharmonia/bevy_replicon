@@ -17,12 +17,12 @@ use crate::core::replication::{replication_rules::ReplicationRules, Replicated};
 ///
 /// We don't use [`FilteredEntityRef`](bevy::ecs::world::FilteredEntityRef) to avoid access checks
 /// and [`StorageType`] fetch (we cache this information on replicated archetypes).
-pub(crate) struct ReplicatedWorld<'w, 's> {
+pub(crate) struct ReplicationReadWorld<'w, 's> {
     world: UnsafeWorldCell<'w>,
     state: &'s Access<ComponentId>,
 }
 
-impl<'w> ReplicatedWorld<'w, '_> {
+impl<'w> ReplicationReadWorld<'w, '_> {
     /// Extracts a component as [`Ptr`] and its ticks from a table or sparse set, depending on its storage type.
     ///
     /// # Safety
@@ -70,9 +70,9 @@ impl<'w> ReplicatedWorld<'w, '_> {
     }
 }
 
-unsafe impl SystemParam for ReplicatedWorld<'_, '_> {
+unsafe impl SystemParam for ReplicationReadWorld<'_, '_> {
     type State = Access<ComponentId>;
-    type Item<'world, 'state> = ReplicatedWorld<'world, 'state>;
+    type Item<'world, 'state> = ReplicationReadWorld<'world, 'state>;
 
     fn init_state(world: &mut World, system_meta: &mut SystemMeta) -> Self::State {
         let mut access = Access::new();
@@ -111,11 +111,11 @@ unsafe impl SystemParam for ReplicatedWorld<'_, '_> {
         world: UnsafeWorldCell<'world>,
         _change_tick: Tick,
     ) -> Self::Item<'world, 'state> {
-        ReplicatedWorld { world, state }
+        ReplicationReadWorld { world, state }
     }
 }
 
-unsafe impl ReadOnlySystemParam for ReplicatedWorld<'_, '_> {}
+unsafe impl ReadOnlySystemParam for ReplicationReadWorld<'_, '_> {}
 
 #[cfg(test)]
 mod tests {
@@ -131,7 +131,10 @@ mod tests {
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .replicate::<Transform>()
-            .add_systems(Update, |_: ReplicatedWorld, _: Query<&mut Transform>| {});
+            .add_systems(
+                Update,
+                |_: ReplicationReadWorld, _: Query<&mut Transform>| {},
+            );
 
         app.update();
     }
@@ -143,7 +146,10 @@ mod tests {
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .replicate::<Transform>()
-            .add_systems(Update, |_: Query<&mut Transform>, _: ReplicatedWorld| {});
+            .add_systems(
+                Update,
+                |_: Query<&mut Transform>, _: ReplicationReadWorld| {},
+            );
 
         app.update();
     }
@@ -154,7 +160,7 @@ mod tests {
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .replicate::<Transform>()
-            .add_systems(Update, |_: ReplicatedWorld, _: Query<&Transform>| {});
+            .add_systems(Update, |_: ReplicationReadWorld, _: Query<&Transform>| {});
 
         app.update();
     }
@@ -164,7 +170,7 @@ mod tests {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
-            .add_systems(Update, |_: ReplicatedWorld, _: Query<&Transform>| {})
+            .add_systems(Update, |_: ReplicationReadWorld, _: Query<&Transform>| {})
             .replicate::<Transform>();
 
         app.update();

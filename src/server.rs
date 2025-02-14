@@ -3,8 +3,8 @@ pub(super) mod despawn_buffer;
 pub mod event;
 pub(super) mod removal_buffer;
 pub(super) mod replicated_archetypes;
-mod replicated_world;
 pub(super) mod replication_messages;
+mod replication_read_world;
 pub mod server_tick;
 
 use std::{ops::Range, time::Duration};
@@ -16,7 +16,7 @@ use bevy::{
     time::common_conditions::on_timer,
 };
 use bytes::Buf;
-use replicated_world::ReplicatedWorld;
+use replication_read_world::ReplicationReadWorld;
 
 use crate::core::{
     channels::{ReplicationChannel, RepliconChannels},
@@ -253,7 +253,7 @@ pub(super) fn send_replication(
     mut messages: Local<ReplicationMessages>,
     mut replicated_archetypes: Local<ReplicatedArchetypes>,
     change_tick: SystemChangeTick,
-    world: ReplicatedWorld,
+    world: ReplicationReadWorld,
     mut replicated_clients: ResMut<ReplicatedClients>,
     mut removal_buffer: ResMut<RemovalBuffer>,
     mut client_buffers: ResMut<ClientBuffers>,
@@ -456,7 +456,7 @@ fn collect_changes(
     replicated_archetypes: &ReplicatedArchetypes,
     registry: &ReplicationRegistry,
     removal_buffer: &RemovalBuffer,
-    world: &ReplicatedWorld,
+    world: &ReplicationReadWorld,
     change_tick: &SystemChangeTick,
     server_tick: RepliconTick,
 ) -> postcard::Result<()> {
