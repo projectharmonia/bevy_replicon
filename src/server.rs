@@ -3,23 +3,20 @@ pub(super) mod despawn_buffer;
 pub mod event;
 pub(super) mod removal_buffer;
 pub(super) mod replicated_archetypes;
+mod replicated_world;
 pub(super) mod replication_messages;
 pub mod server_tick;
 
-use std::{mem, ops::Range, time::Duration};
+use std::{ops::Range, time::Duration};
 
 use bevy::{
-    ecs::{
-        archetype::ArchetypeEntity,
-        component::{ComponentId, ComponentTicks, StorageType},
-        storage::{SparseSets, Table},
-        system::SystemChangeTick,
-    },
+    ecs::{component::StorageType, system::SystemChangeTick},
     prelude::*,
     ptr::Ptr,
     time::common_conditions::on_timer,
 };
 use bytes::Buf;
+use replicated_world::ReplicatedWorld;
 
 use crate::core::{
     channels::{ReplicationChannel, RepliconChannels},
@@ -256,27 +253,20 @@ pub(super) fn send_replication(
     mut messages: Local<ReplicationMessages>,
     mut replicated_archetypes: Local<ReplicatedArchetypes>,
     change_tick: SystemChangeTick,
-    mut set: ParamSet<(
-        &World,
-        ResMut<ReplicatedClients>,
-        ResMut<RemovalBuffer>,
-        ResMut<ClientBuffers>,
-        ResMut<ClientEntityMap>,
-        ResMut<DespawnBuffer>,
-        ResMut<RepliconServer>,
-    )>,
+    world: ReplicatedWorld,
+    mut replicated_clients: ResMut<ReplicatedClients>,
+    mut removal_buffer: ResMut<RemovalBuffer>,
+    mut client_buffers: ResMut<ClientBuffers>,
+    mut entity_map: ResMut<ClientEntityMap>,
+    mut despawn_buffer: ResMut<DespawnBuffer>,
+    mut server: ResMut<RepliconServer>,
     track_mutate_messages: Res<TrackMutateMessages>,
     registry: Res<ReplicationRegistry>,
     rules: Res<ReplicationRules>,
     server_tick: Res<ServerTick>,
     time: Res<Time>,
 ) -> postcard::Result<()> {
-    replicated_archetypes.update(set.p0(), &rules);
-
-    // Take ownership to avoid borrowing issues.
-    let mut replicated_clients = mem::take(&mut *set.p1());
-    let mut removal_buffer = mem::take(&mut *set.p2());
-    let mut client_buffers = mem::take(&mut *set.p3());
+    replicated_archetypes.update(world.archetypes(), world.components(), &rules);
 
     messages.reset(replicated_clients.len());
 
@@ -284,13 +274,13 @@ pub(super) fn send_replication(
         &mut messages,
         &mut serialized,
         &replicated_clients,
-        &mut set.p4(),
+        &mut entity_map,
     )?;
     collect_despawns(
         &mut messages,
         &mut serialized,
         &mut replicated_clients,
-        &mut set.p5(),
+        &mut despawn_buffer,
     )?;
     collect_removals(
         &mut messages,
@@ -305,7 +295,7 @@ pub(super) fn send_replication(
         &replicated_archetypes,
         &registry,
         &removal_buffer,
-        set.p0(),
+        &world,
         &change_tick,
         **server_tick,
     )?;
@@ -314,7 +304,7 @@ pub(super) fn send_replication(
     send_messages(
         &mut messages,
         &mut replicated_clients,
-        &mut set.p6(),
+        &mut server,
         **server_tick,
         **track_mutate_messages,
         &mut serialized,
@@ -323,11 +313,6 @@ pub(super) fn send_replication(
         &time,
     )?;
     serialized.clear();
-
-    // Return borrowed data back.
-    *set.p1() = replicated_clients;
-    *set.p2() = removal_buffer;
-    *set.p3() = client_buffers;
 
     Ok(())
 }
@@ -471,7 +456,7 @@ fn collect_changes(
     replicated_archetypes: &ReplicatedArchetypes,
     registry: &ReplicationRegistry,
     removal_buffer: &RemovalBuffer,
-    world: &World,
+    world: &ReplicatedWorld,
     change_tick: &SystemChangeTick,
     server_tick: RepliconTick,
 ) -> postcard::Result<()> {
@@ -481,14 +466,6 @@ fn collect_changes(
             world
                 .archetypes()
                 .get(replicated_archetype.id)
-                .unwrap_unchecked()
-        };
-        // SAFETY: table obtained from this archetype.
-        let table = unsafe {
-            world
-                .storages()
-                .tables
-                .get(archetype.table_id())
                 .unwrap_unchecked()
         };
 
@@ -504,10 +481,9 @@ fn collect_changes(
 
             // SAFETY: all replicated archetypes have marker component with table storage.
             let (_, marker_ticks) = unsafe {
-                get_component_unchecked(
-                    table,
-                    &world.storages().sparse_sets,
+                world.get_component_unchecked(
                     entity,
+                    archetype.table_id(),
                     StorageType::Table,
                     replicated_archetypes.marker_id(),
                 )
@@ -524,10 +500,9 @@ fn collect_changes(
 
                 // SAFETY: component and storage were obtained from this archetype.
                 let (component, ticks) = unsafe {
-                    get_component_unchecked(
-                        table,
-                        &world.storages().sparse_sets,
+                    world.get_component_unchecked(
                         entity,
+                        archetype.table_id(),
                         replicated_component.storage_type,
                         component_id,
                     )
@@ -621,40 +596,6 @@ fn collect_changes(
     }
 
     Ok(())
-}
-
-/// Extracts component in form of [`Ptr`] and its ticks from table or sparse set based on its storage type.
-///
-/// # Safety
-///
-/// Component should be present in this archetype and have this storage type.
-unsafe fn get_component_unchecked<'w>(
-    table: &'w Table,
-    sparse_sets: &'w SparseSets,
-    entity: &ArchetypeEntity,
-    storage_type: StorageType,
-    component_id: ComponentId,
-) -> (Ptr<'w>, ComponentTicks) {
-    match storage_type {
-        StorageType::Table => {
-            // TODO: re-use column lookup, asked in https://github.com/bevyengine/bevy/issues/16593.
-            let component: Ptr<'w> = table
-                .get_component(component_id, entity.table_row())
-                .unwrap_unchecked();
-            let ticks = table
-                .get_ticks_unchecked(component_id, entity.table_row())
-                .unwrap_unchecked();
-
-            (component, ticks)
-        }
-        StorageType::SparseSet => {
-            let sparse_set = sparse_sets.get(component_id).unwrap_unchecked();
-            let component = sparse_set.get(entity.id()).unwrap_unchecked();
-            let ticks = sparse_set.get_ticks(entity.id()).unwrap_unchecked();
-
-            (component, ticks)
-        }
-    }
 }
 
 /// Writes an entity or re-uses previously written range if exists.
