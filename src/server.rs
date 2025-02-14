@@ -190,7 +190,7 @@ impl Plugin for ServerPlugin {
             ParamBuilder,
             ParamBuilder,
         )
-            .build_state(&mut app.world_mut())
+            .build_state(app.world_mut())
             .build_system(send_replication);
 
         app.insert_resource(rules).add_systems(
