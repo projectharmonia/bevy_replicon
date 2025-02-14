@@ -22,7 +22,7 @@ pub(crate) struct ReplicatedWorld<'w, 's> {
     state: &'s Access<ComponentId>,
 }
 
-impl<'w, 's> ReplicatedWorld<'w, 's> {
+impl<'w> ReplicatedWorld<'w, '_> {
     /// Extracts a component as [`Ptr`] and its ticks from a table or sparse set, depending on its storage type.
     ///
     /// # Safety
