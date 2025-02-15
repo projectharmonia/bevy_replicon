@@ -126,7 +126,7 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn world_transform_mut() {
+    fn world_then_query() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
@@ -141,7 +141,7 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn transform_mut_world() {
+    fn query_then_world() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
@@ -155,7 +155,7 @@ mod tests {
     }
 
     #[test]
-    fn world_transform_ref() {
+    fn world_then_readonly_query() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
