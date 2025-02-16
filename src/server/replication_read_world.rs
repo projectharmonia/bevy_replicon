@@ -225,6 +225,8 @@ pub(super) struct ReplicatedComponent {
 
 #[cfg(test)]
 mod tests {
+    use serde::{Deserialize, Serialize};
+
     use super::*;
     use crate::core::replication::{
         replication_registry::ReplicationRegistry, replication_rules::AppRuleExt,
@@ -281,4 +283,158 @@ mod tests {
 
         app.update();
     }
+
+    #[test]
+    fn empty() {
+        let mut app = App::new();
+        app.init_resource::<ReplicationRules>()
+            .init_resource::<ReplicationRegistry>()
+            .add_systems(Update, |world: ReplicationReadWorld| {
+                assert!(world.state.archetypes.is_empty());
+            });
+
+        app.world_mut().spawn_empty();
+        app.update();
+    }
+
+    #[test]
+    fn no_components() {
+        let mut app = App::new();
+        app.init_resource::<ReplicationRules>()
+            .init_resource::<ReplicationRegistry>()
+            .add_systems(Update, |world: ReplicationReadWorld| {
+                assert_eq!(world.state.archetypes.len(), 1);
+                let archetype = world.state.archetypes.first().unwrap();
+                assert!(archetype.components.is_empty());
+            });
+
+        app.world_mut().spawn(Replicated);
+        app.update();
+    }
+
+    #[test]
+    fn not_replicated() {
+        let mut app = App::new();
+        app.init_resource::<ReplicationRules>()
+            .init_resource::<ReplicationRegistry>()
+            .replicate::<ComponentA>()
+            .add_systems(Update, |world: ReplicationReadWorld| {
+                assert_eq!(world.state.archetypes.len(), 1);
+                let archetype = world.state.archetypes.first().unwrap();
+                assert!(archetype.components.is_empty());
+            });
+
+        app.world_mut().spawn((Replicated, ComponentB));
+        app.update();
+    }
+
+    #[test]
+    fn component() {
+        let mut app = App::new();
+        app.init_resource::<ReplicationRules>()
+            .init_resource::<ReplicationRegistry>()
+            .replicate::<ComponentA>()
+            .add_systems(Update, |world: ReplicationReadWorld| {
+                assert_eq!(world.state.archetypes.len(), 1);
+                let archetype = world.state.archetypes.first().unwrap();
+                assert_eq!(archetype.components.len(), 1);
+            });
+
+        app.world_mut().spawn((Replicated, ComponentA));
+        app.update();
+    }
+
+    #[test]
+    fn group() {
+        let mut app = App::new();
+        app.init_resource::<ReplicationRules>()
+            .init_resource::<ReplicationRegistry>()
+            .replicate_group::<(ComponentA, ComponentB)>()
+            .add_systems(Update, |world: ReplicationReadWorld| {
+                assert_eq!(world.state.archetypes.len(), 1);
+                let archetype = world.state.archetypes.first().unwrap();
+                assert_eq!(archetype.components.len(), 2);
+            });
+
+        app.world_mut().spawn((Replicated, ComponentA, ComponentB));
+        app.update();
+    }
+
+    #[test]
+    fn part_of_group() {
+        let mut app = App::new();
+        app.init_resource::<ReplicationRules>()
+            .init_resource::<ReplicationRegistry>()
+            .replicate_group::<(ComponentA, ComponentB)>()
+            .add_systems(Update, |world: ReplicationReadWorld| {
+                assert_eq!(world.state.archetypes.len(), 1);
+                let archetype = world.state.archetypes.first().unwrap();
+                assert!(archetype.components.is_empty());
+            });
+
+        app.world_mut().spawn((Replicated, ComponentA));
+        app.update();
+    }
+
+    #[test]
+    fn group_with_subset() {
+        let mut app = App::new();
+        app.init_resource::<ReplicationRules>()
+            .init_resource::<ReplicationRegistry>()
+            .replicate::<ComponentA>()
+            .replicate_group::<(ComponentA, ComponentB)>()
+            .add_systems(Update, |world: ReplicationReadWorld| {
+                assert_eq!(world.state.archetypes.len(), 1);
+                let archetype = world.state.archetypes.first().unwrap();
+                assert_eq!(archetype.components.len(), 2);
+            });
+
+        app.world_mut().spawn((Replicated, ComponentA, ComponentB));
+        app.update();
+    }
+
+    #[test]
+    fn group_with_multiple_subsets() {
+        let mut app = App::new();
+        app.init_resource::<ReplicationRules>()
+            .init_resource::<ReplicationRegistry>()
+            .replicate::<ComponentA>()
+            .replicate::<ComponentB>()
+            .replicate_group::<(ComponentA, ComponentB)>()
+            .add_systems(Update, |world: ReplicationReadWorld| {
+                assert_eq!(world.state.archetypes.len(), 1);
+                let archetype = world.state.archetypes.first().unwrap();
+                assert_eq!(archetype.components.len(), 2);
+            });
+
+        app.world_mut().spawn((Replicated, ComponentA, ComponentB));
+        app.update();
+    }
+
+    #[test]
+    fn groups_with_overlap() {
+        let mut app = App::new();
+        app.init_resource::<ReplicationRules>()
+            .init_resource::<ReplicationRegistry>()
+            .replicate_group::<(ComponentA, ComponentC)>()
+            .replicate_group::<(ComponentA, ComponentB)>()
+            .add_systems(Update, |world: ReplicationReadWorld| {
+                assert_eq!(world.state.archetypes.len(), 1);
+                let archetype = world.state.archetypes.first().unwrap();
+                assert_eq!(archetype.components.len(), 3);
+            });
+
+        app.world_mut()
+            .spawn((Replicated, ComponentA, ComponentB, ComponentC));
+        app.update();
+    }
+
+    #[derive(Serialize, Deserialize, Component)]
+    struct ComponentA;
+
+    #[derive(Serialize, Deserialize, Component)]
+    struct ComponentB;
+
+    #[derive(Serialize, Deserialize, Component)]
+    struct ComponentC;
 }
