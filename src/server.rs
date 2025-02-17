@@ -3,8 +3,8 @@ pub(super) mod despawn_buffer;
 pub mod event;
 pub(super) mod removal_buffer;
 pub(super) mod replication_messages;
-mod replication_read_world;
 pub mod server_tick;
+mod server_world;
 
 use std::{ops::Range, time::Duration};
 
@@ -40,8 +40,8 @@ use client_entity_map::ClientEntityMap;
 use despawn_buffer::{DespawnBuffer, DespawnBufferPlugin};
 use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
 use replication_messages::{serialized_data::SerializedData, ReplicationMessages};
-use replication_read_world::{ReplicatedComponent, ReplicationReadWorld};
 use server_tick::ServerTick;
+use server_world::{ReplicatedComponent, ServerWorld};
 
 pub struct ServerPlugin {
     /// Tick configuration.
@@ -249,7 +249,7 @@ pub(super) fn send_replication(
     mut serialized: Local<SerializedData>,
     mut messages: Local<ReplicationMessages>,
     change_tick: SystemChangeTick,
-    world: ReplicationReadWorld,
+    world: ServerWorld,
     mut replicated_clients: ResMut<ReplicatedClients>,
     mut removal_buffer: ResMut<RemovalBuffer>,
     mut client_buffers: ResMut<ClientBuffers>,
@@ -447,7 +447,7 @@ fn collect_changes(
     replicated_clients: &mut ReplicatedClients,
     registry: &ReplicationRegistry,
     removal_buffer: &RemovalBuffer,
-    world: &ReplicationReadWorld,
+    world: &ServerWorld,
     change_tick: &SystemChangeTick,
     server_tick: RepliconTick,
 ) -> postcard::Result<()> {

@@ -19,12 +19,12 @@ use crate::core::replication::{
 ///
 /// We don't use [`FilteredEntityRef`](bevy::ecs::world::FilteredEntityRef) to avoid access checks
 /// and [`StorageType`] fetch (we cache this information on replicated archetypes).
-pub(crate) struct ReplicationReadWorld<'w, 's> {
+pub(crate) struct ServerWorld<'w, 's> {
     world: UnsafeWorldCell<'w>,
     state: &'s ReplicationReadState,
 }
 
-impl<'w> ReplicationReadWorld<'w, '_> {
+impl<'w> ServerWorld<'w, '_> {
     /// Extracts a component as [`Ptr`] and its ticks from a table or sparse set, depending on its storage type.
     ///
     /// # Safety
@@ -86,9 +86,9 @@ impl<'w> ReplicationReadWorld<'w, '_> {
     }
 }
 
-unsafe impl SystemParam for ReplicationReadWorld<'_, '_> {
+unsafe impl SystemParam for ServerWorld<'_, '_> {
     type State = ReplicationReadState;
-    type Item<'world, 'state> = ReplicationReadWorld<'world, 'state>;
+    type Item<'world, 'state> = ServerWorld<'world, 'state>;
 
     fn init_state(world: &mut World, system_meta: &mut SystemMeta) -> Self::State {
         let mut filtered_access = FilteredAccess::default();
@@ -177,11 +177,11 @@ unsafe impl SystemParam for ReplicationReadWorld<'_, '_> {
         world: UnsafeWorldCell<'world>,
         _change_tick: Tick,
     ) -> Self::Item<'world, 'state> {
-        ReplicationReadWorld { world, state }
+        ServerWorld { world, state }
     }
 }
 
-unsafe impl ReadOnlySystemParam for ReplicationReadWorld<'_, '_> {}
+unsafe impl ReadOnlySystemParam for ServerWorld<'_, '_> {}
 
 pub(crate) struct ReplicationReadState {
     /// All replicated components.
@@ -239,10 +239,7 @@ mod tests {
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .replicate::<Transform>()
-            .add_systems(
-                Update,
-                |_: ReplicationReadWorld, _: Query<&mut Transform>| {},
-            );
+            .add_systems(Update, |_: ServerWorld, _: Query<&mut Transform>| {});
 
         app.update();
     }
@@ -254,10 +251,7 @@ mod tests {
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .replicate::<Transform>()
-            .add_systems(
-                Update,
-                |_: Query<&mut Transform>, _: ReplicationReadWorld| {},
-            );
+            .add_systems(Update, |_: Query<&mut Transform>, _: ServerWorld| {});
 
         app.update();
     }
@@ -268,7 +262,7 @@ mod tests {
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .replicate::<Transform>()
-            .add_systems(Update, |_: ReplicationReadWorld, _: Query<&Transform>| {});
+            .add_systems(Update, |_: ServerWorld, _: Query<&Transform>| {});
 
         app.update();
     }
@@ -278,7 +272,7 @@ mod tests {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
-            .add_systems(Update, |world: ReplicationReadWorld| {
+            .add_systems(Update, |world: ServerWorld| {
                 assert_eq!(world.state.rules.len(), 1);
             })
             .replicate::<Transform>();
@@ -291,7 +285,7 @@ mod tests {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
-            .add_systems(Update, |world: ReplicationReadWorld| {
+            .add_systems(Update, |world: ServerWorld| {
                 assert!(world.state.archetypes.is_empty());
             });
 
@@ -304,7 +298,7 @@ mod tests {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
-            .add_systems(Update, |world: ReplicationReadWorld| {
+            .add_systems(Update, |world: ServerWorld| {
                 assert_eq!(world.state.archetypes.len(), 1);
                 let archetype = world.state.archetypes.first().unwrap();
                 assert!(archetype.components.is_empty());
@@ -320,7 +314,7 @@ mod tests {
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .replicate::<ComponentA>()
-            .add_systems(Update, |world: ReplicationReadWorld| {
+            .add_systems(Update, |world: ServerWorld| {
                 assert_eq!(world.state.archetypes.len(), 1);
                 let archetype = world.state.archetypes.first().unwrap();
                 assert!(archetype.components.is_empty());
@@ -336,7 +330,7 @@ mod tests {
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .replicate::<ComponentA>()
-            .add_systems(Update, |world: ReplicationReadWorld| {
+            .add_systems(Update, |world: ServerWorld| {
                 assert_eq!(world.state.archetypes.len(), 1);
                 let archetype = world.state.archetypes.first().unwrap();
                 assert_eq!(archetype.components.len(), 1);
@@ -352,7 +346,7 @@ mod tests {
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .replicate_group::<(ComponentA, ComponentB)>()
-            .add_systems(Update, |world: ReplicationReadWorld| {
+            .add_systems(Update, |world: ServerWorld| {
                 assert_eq!(world.state.archetypes.len(), 1);
                 let archetype = world.state.archetypes.first().unwrap();
                 assert_eq!(archetype.components.len(), 2);
@@ -368,7 +362,7 @@ mod tests {
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .replicate_group::<(ComponentA, ComponentB)>()
-            .add_systems(Update, |world: ReplicationReadWorld| {
+            .add_systems(Update, |world: ServerWorld| {
                 assert_eq!(world.state.archetypes.len(), 1);
                 let archetype = world.state.archetypes.first().unwrap();
                 assert!(archetype.components.is_empty());
@@ -385,7 +379,7 @@ mod tests {
             .init_resource::<ReplicationRegistry>()
             .replicate::<ComponentA>()
             .replicate_group::<(ComponentA, ComponentB)>()
-            .add_systems(Update, |world: ReplicationReadWorld| {
+            .add_systems(Update, |world: ServerWorld| {
                 assert_eq!(world.state.archetypes.len(), 1);
                 let archetype = world.state.archetypes.first().unwrap();
                 assert_eq!(archetype.components.len(), 2);
@@ -403,7 +397,7 @@ mod tests {
             .replicate::<ComponentA>()
             .replicate::<ComponentB>()
             .replicate_group::<(ComponentA, ComponentB)>()
-            .add_systems(Update, |world: ReplicationReadWorld| {
+            .add_systems(Update, |world: ServerWorld| {
                 assert_eq!(world.state.archetypes.len(), 1);
                 let archetype = world.state.archetypes.first().unwrap();
                 assert_eq!(archetype.components.len(), 2);
@@ -420,7 +414,7 @@ mod tests {
             .init_resource::<ReplicationRegistry>()
             .replicate_group::<(ComponentA, ComponentC)>()
             .replicate_group::<(ComponentA, ComponentB)>()
-            .add_systems(Update, |world: ReplicationReadWorld| {
+            .add_systems(Update, |world: ServerWorld| {
                 assert_eq!(world.state.archetypes.len(), 1);
                 let archetype = world.state.archetypes.first().unwrap();
                 assert_eq!(archetype.components.len(), 3);
