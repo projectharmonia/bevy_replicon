@@ -97,6 +97,7 @@ unsafe impl SystemParam for ServerWorld<'_, '_> {
         filtered_access.add_component_read(marker_id);
 
         let rules = world.resource::<ReplicationRules>();
+        debug!("initializing with {} replication rules", rules.len());
         let combined_access = system_meta.component_access_set().combined_access();
         for rule in rules.iter() {
             for &(component_id, _) in &rule.components {
@@ -135,6 +136,7 @@ unsafe impl SystemParam for ServerWorld<'_, '_> {
             return;
         }
 
+        trace!("marking `{:?}` as replicated", archetype.id());
         let mut replicated_archetype = ReplicatedArchetype::new(archetype.id());
         for rule in state.rules.iter().filter(|rule| rule.matches(archetype)) {
             for &(component_id, fns_id) in &rule.components {
