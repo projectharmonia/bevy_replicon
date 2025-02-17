@@ -234,7 +234,7 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn world_then_query() {
+    fn query_after() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
@@ -249,7 +249,7 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn query_then_world() {
+    fn query_before() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
@@ -263,7 +263,7 @@ mod tests {
     }
 
     #[test]
-    fn world_then_readonly_query() {
+    fn readonly_query() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
