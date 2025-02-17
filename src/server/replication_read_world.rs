@@ -278,7 +278,9 @@ mod tests {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
-            .add_systems(Update, |_: ReplicationReadWorld, _: Query<&Transform>| {})
+            .add_systems(Update, |world: ReplicationReadWorld| {
+                assert_eq!(world.state.rules.len(), 1);
+            })
             .replicate::<Transform>();
 
         app.update();
