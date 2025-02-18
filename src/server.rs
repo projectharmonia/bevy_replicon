@@ -2,10 +2,9 @@ pub mod client_entity_map;
 pub(super) mod despawn_buffer;
 pub mod event;
 pub(super) mod removal_buffer;
-pub(super) mod replicated_archetypes;
 pub(super) mod replication_messages;
-mod replication_read_world;
 pub mod server_tick;
+mod server_world;
 
 use std::{ops::Range, time::Duration};
 
@@ -16,7 +15,6 @@ use bevy::{
     time::common_conditions::on_timer,
 };
 use bytes::Buf;
-use replication_read_world::ReplicationReadWorld;
 
 use crate::core::{
     channels::{ReplicationChannel, RepliconChannels},
@@ -32,7 +30,6 @@ use crate::core::{
             component_fns::ComponentFns, ctx::SerializeCtx, rule_fns::UntypedRuleFns,
             ReplicationRegistry,
         },
-        replication_rules::ReplicationRules,
         track_mutate_messages::TrackMutateMessages,
     },
     replicon_server::RepliconServer,
@@ -42,9 +39,9 @@ use crate::core::{
 use client_entity_map::ClientEntityMap;
 use despawn_buffer::{DespawnBuffer, DespawnBufferPlugin};
 use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
-use replicated_archetypes::{ReplicatedArchetypes, ReplicatedComponent};
 use replication_messages::{serialized_data::SerializedData, ReplicationMessages};
 use server_tick::ServerTick;
+use server_world::{ReplicatedComponent, ServerWorld};
 
 pub struct ServerPlugin {
     /// Tick configuration.
@@ -251,9 +248,8 @@ fn receive_acks(
 pub(super) fn send_replication(
     mut serialized: Local<SerializedData>,
     mut messages: Local<ReplicationMessages>,
-    mut replicated_archetypes: Local<ReplicatedArchetypes>,
     change_tick: SystemChangeTick,
-    world: ReplicationReadWorld,
+    world: ServerWorld,
     mut replicated_clients: ResMut<ReplicatedClients>,
     mut removal_buffer: ResMut<RemovalBuffer>,
     mut client_buffers: ResMut<ClientBuffers>,
@@ -262,12 +258,9 @@ pub(super) fn send_replication(
     mut server: ResMut<RepliconServer>,
     track_mutate_messages: Res<TrackMutateMessages>,
     registry: Res<ReplicationRegistry>,
-    rules: Res<ReplicationRules>,
     server_tick: Res<ServerTick>,
     time: Res<Time>,
 ) -> postcard::Result<()> {
-    replicated_archetypes.update(world.archetypes(), world.components(), &rules);
-
     messages.reset(replicated_clients.len());
 
     collect_mappings(
@@ -292,7 +285,6 @@ pub(super) fn send_replication(
         &mut messages,
         &mut serialized,
         &mut replicated_clients,
-        &replicated_archetypes,
         &registry,
         &removal_buffer,
         &world,
@@ -453,22 +445,13 @@ fn collect_changes(
     messages: &mut ReplicationMessages,
     serialized: &mut SerializedData,
     replicated_clients: &mut ReplicatedClients,
-    replicated_archetypes: &ReplicatedArchetypes,
     registry: &ReplicationRegistry,
     removal_buffer: &RemovalBuffer,
-    world: &ReplicationReadWorld,
+    world: &ServerWorld,
     change_tick: &SystemChangeTick,
     server_tick: RepliconTick,
 ) -> postcard::Result<()> {
-    for replicated_archetype in replicated_archetypes.iter() {
-        // SAFETY: all IDs from replicated archetypes obtained from real archetypes.
-        let archetype = unsafe {
-            world
-                .archetypes()
-                .get(replicated_archetype.id)
-                .unwrap_unchecked()
-        };
-
+    for (archetype, replicated_archetype) in world.iter_archetypes() {
         for entity in archetype.entities() {
             let mut entity_range = None;
             for ((update_message, mutate_message), client) in
@@ -485,7 +468,7 @@ fn collect_changes(
                     entity,
                     archetype.table_id(),
                     StorageType::Table,
-                    replicated_archetypes.marker_id(),
+                    world.marker_id(),
                 )
             };
             // If the marker was added in this tick, the entity just started replicating.
