@@ -338,12 +338,12 @@ impl ServerEvent {
 
         match *mode {
             SendMode::Broadcast => {
-                for client_entity in clients.iter() {
+                for client_entity in clients {
                     server.send(client_entity, self.channel_id, message.clone());
                 }
             }
             SendMode::BroadcastExcept(entity) => {
-                for client_entity in clients.iter() {
+                for client_entity in clients {
                     if client_entity != entity {
                         server.send(client_entity, self.channel_id, message.clone());
                     }
