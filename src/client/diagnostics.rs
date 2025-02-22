@@ -108,10 +108,10 @@ fn add_measurements(
     mut last_stats: Local<ClientReplicationStats>,
     client: Res<RepliconClient>,
 ) {
-    diagnostics.add_measurement(&RTT, || client.rtt());
-    diagnostics.add_measurement(&PACKET_LOSS, || client.packet_loss());
-    diagnostics.add_measurement(&SENT_BPS, || client.sent_bps());
-    diagnostics.add_measurement(&RECEIVED_BPS, || client.received_bps());
+    diagnostics.add_measurement(&RTT, || client.stats().rtt);
+    diagnostics.add_measurement(&PACKET_LOSS, || client.stats().packet_loss);
+    diagnostics.add_measurement(&SENT_BPS, || client.stats().sent_bps);
+    diagnostics.add_measurement(&RECEIVED_BPS, || client.stats().received_bps);
 
     diagnostics.add_measurement(&ENTITIES_CHANGED, || {
         (stats.entities_changed - last_stats.entities_changed) as f64

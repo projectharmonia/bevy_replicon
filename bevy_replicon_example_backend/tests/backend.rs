@@ -27,8 +27,8 @@ fn connect_disconnect() {
     let renet_server = server_app.world().resource::<ExampleServer>();
     assert_eq!(renet_server.connected_clients(), 1);
 
-    let connected_clients = server_app.world().resource::<ConnectedClients>();
-    assert_eq!(connected_clients.len(), 1);
+    let mut clients = server_app.world_mut().query::<&ConnectedClient>();
+    assert_eq!(clients.iter(server_app.world()).len(), 1);
 
     let replicon_client = client_app.world().resource::<RepliconClient>();
     assert!(replicon_client.is_connected());
@@ -41,8 +41,7 @@ fn connect_disconnect() {
     client_app.update();
     server_app.update();
 
-    let connected_clients = server_app.world().resource::<ConnectedClients>();
-    assert_eq!(connected_clients.len(), 0);
+    assert_eq!(clients.iter(server_app.world()).len(), 0);
 
     let renet_server = server_app.world().resource::<ExampleServer>();
     assert_eq!(renet_server.connected_clients(), 0);

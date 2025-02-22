@@ -3,10 +3,7 @@ use std::{
     net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
 };
 
-use bevy::{
-    prelude::*,
-    utils::{Entry, HashMap},
-};
+use bevy::{ecs::entity::EntityHashMap, prelude::*, utils::Entry};
 use bevy_replicon::prelude::*;
 
 use super::tcp;
@@ -51,10 +48,10 @@ fn receive_packets(
     loop {
         match server.listener.accept() {
             Ok((stream, addr)) => {
-                let client_id = ClientId::new(addr.port().into());
-                match server.add_connected(client_id, stream) {
-                    Ok(()) => commands.trigger(ClientConnected { client_id }),
-                    Err(e) => error!("unable to accept connection from `{client_id:?}`: {e}"),
+                let client_entity = commands.spawn(ConnectedClient).id();
+                if let Err(e) = server.add_connected(client_entity, stream) {
+                    error!("unable to accept connection from `{addr}`: {e}");
+                    commands.entity(client_entity).despawn();
                 }
             }
             Err(e) => {
@@ -67,25 +64,21 @@ fn receive_packets(
         }
     }
 
-    server.streams.retain(|client_id, stream| loop {
+    server.streams.retain(|&client_entity, stream| loop {
         match tcp::read_message(stream) {
             Ok((channel_id, message)) => {
-                replicon_server.insert_received(*client_id, channel_id, message)
+                replicon_server.insert_received(client_entity, channel_id, message)
             }
             Err(e) => match e.kind() {
                 io::ErrorKind::WouldBlock => return true,
                 io::ErrorKind::UnexpectedEof => {
-                    commands.trigger(ClientDisconnected {
-                        client_id: *client_id,
-                        reason: DisconnectReason::DisconnectedByClient,
-                    });
+                    commands.entity(client_entity).despawn();
+                    debug!("`client {client_entity}` closed the connection");
                     return false;
                 }
                 _ => {
-                    commands.trigger(ClientDisconnected {
-                        client_id: *client_id,
-                        reason: Box::<BackendError>::from(e).into(),
-                    });
+                    commands.entity(client_entity).despawn();
+                    error!("disconnecting due to message read error from client `{client_entity}`: {e}");
                     return false;
                 }
             },
@@ -98,19 +91,17 @@ fn send_packets(
     mut server: ResMut<ExampleServer>,
     mut replicon_server: ResMut<RepliconServer>,
 ) {
-    for (client_id, channel_id, message) in replicon_server.drain_sent() {
-        match server.streams.entry(client_id) {
+    for (client_entity, channel_id, message) in replicon_server.drain_sent() {
+        match server.streams.entry(client_entity) {
             Entry::Occupied(mut entry) => {
                 if let Err(e) = tcp::send_message(entry.get_mut(), channel_id, &message) {
-                    commands.trigger(ClientDisconnected {
-                        client_id,
-                        reason: e.into(),
-                    });
+                    commands.entity(client_entity).despawn();
+                    error!("disconnecting client `{client_entity}` due to error: {e}");
                     entry.remove();
                 }
             }
             Entry::Vacant(_) => error!(
-                "unable to send message over channel {channel_id} for non-existing `{client_id:?}`"
+                "unable to send message over channel {channel_id} for non-existing client `{client_entity}`"
             ),
         }
     }
@@ -120,7 +111,7 @@ fn send_packets(
 #[derive(Resource)]
 pub struct ExampleServer {
     listener: TcpListener,
-    streams: HashMap<ClientId, TcpStream>,
+    streams: EntityHashMap<TcpStream>,
 }
 
 impl ExampleServer {
@@ -145,10 +136,10 @@ impl ExampleServer {
     }
 
     /// Associates a stream with a client and properly configures it.
-    fn add_connected(&mut self, client_id: ClientId, stream: TcpStream) -> io::Result<()> {
+    fn add_connected(&mut self, client_entity: Entity, stream: TcpStream) -> io::Result<()> {
         stream.set_nodelay(true)?;
         stream.set_nonblocking(true)?;
-        self.streams.insert(client_id, stream);
+        self.streams.insert(client_entity, stream);
 
         Ok(())
     }

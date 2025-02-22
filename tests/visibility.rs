@@ -1,5 +1,8 @@
 use bevy::prelude::*;
-use bevy_replicon::{prelude::*, test_app::ServerTestAppExt};
+use bevy_replicon::{
+    prelude::*,
+    test_app::{ServerTestAppExt, TestClientEntity},
+};
 use serde::{Deserialize, Serialize};
 
 #[test]
@@ -24,10 +27,11 @@ fn all() {
         .spawn((Replicated, DummyComponent))
         .id();
 
-    let client = client_app.world().resource::<RepliconClient>();
-    let client_id = client.id().unwrap();
-    let mut replicated_clients = server_app.world_mut().resource_mut::<ReplicatedClients>();
-    let visibility = replicated_clients.client_mut(client_id).visibility_mut();
+    let test_client_entity = **client_app.world().resource::<TestClientEntity>();
+    let mut visibility = server_app
+        .world_mut()
+        .get_mut::<ClientVisibility>(test_client_entity)
+        .unwrap();
     visibility.set_visibility(server_entity, false); // Shouldn't have any effect for this policy.
 
     server_app.update();
@@ -41,8 +45,10 @@ fn all() {
         .single(client_app.world());
 
     // Reverse visibility back.
-    let mut replicated_clients = server_app.world_mut().resource_mut::<ReplicatedClients>();
-    let visibility = replicated_clients.client_mut(client_id).visibility_mut();
+    let mut visibility = server_app
+        .world_mut()
+        .get_mut::<ClientVisibility>(test_client_entity)
+        .unwrap();
     visibility.set_visibility(server_entity, true);
 
     server_app.update();
@@ -108,10 +114,11 @@ fn blacklist() {
         .spawn((Replicated, DummyComponent))
         .id();
 
-    let client = client_app.world().resource::<RepliconClient>();
-    let client_id = client.id().unwrap();
-    let mut replicated_clients = server_app.world_mut().resource_mut::<ReplicatedClients>();
-    let visibility = replicated_clients.client_mut(client_id).visibility_mut();
+    let test_client_entity = **client_app.world().resource::<TestClientEntity>();
+    let mut visibility = server_app
+        .world_mut()
+        .get_mut::<ClientVisibility>(test_client_entity)
+        .unwrap();
     visibility.set_visibility(server_entity, false);
 
     server_app.update();
@@ -120,11 +127,13 @@ fn blacklist() {
     server_app.exchange_with_client(&mut client_app);
 
     let mut replicated = client_app.world_mut().query::<&Replicated>();
-    assert!(replicated.iter(client_app.world()).next().is_none());
+    assert_eq!(replicated.iter(client_app.world()).len(), 0);
 
     // Reverse visibility back.
-    let mut replicated_clients = server_app.world_mut().resource_mut::<ReplicatedClients>();
-    let visibility = replicated_clients.client_mut(client_id).visibility_mut();
+    let mut visibility = server_app
+        .world_mut()
+        .get_mut::<ClientVisibility>(test_client_entity)
+        .unwrap();
     visibility.set_visibility(server_entity, true);
 
     server_app.update();
@@ -157,10 +166,11 @@ fn blacklist_with_despawn() {
 
     let server_entity = server_app.world_mut().spawn(Replicated).id();
 
-    let client = client_app.world().resource::<RepliconClient>();
-    let client_id = client.id().unwrap();
-    let mut replicated_clients = server_app.world_mut().resource_mut::<ReplicatedClients>();
-    let visibility = replicated_clients.client_mut(client_id).visibility_mut();
+    let test_client_entity = **client_app.world().resource::<TestClientEntity>();
+    let mut visibility = server_app
+        .world_mut()
+        .get_mut::<ClientVisibility>(test_client_entity)
+        .unwrap();
     visibility.set_visibility(server_entity, false);
     server_app.world_mut().despawn(server_entity);
 
@@ -169,10 +179,12 @@ fn blacklist_with_despawn() {
     client_app.update();
 
     let mut replicated = client_app.world_mut().query::<&Replicated>();
-    assert!(replicated.iter(client_app.world()).next().is_none());
+    assert_eq!(replicated.iter(client_app.world()).len(), 0);
 
-    let replicated_clients = server_app.world().resource::<ReplicatedClients>();
-    let visibility = replicated_clients.client(client_id).visibility();
+    let visibility = server_app
+        .world()
+        .get::<ClientVisibility>(test_client_entity)
+        .unwrap();
     assert!(visibility.is_visible(server_entity)); // The missing entity must be removed from the list, so this should return `true`.
 }
 
@@ -201,8 +213,9 @@ fn empty_whitelist() {
     client_app.update();
 
     let mut replicated = client_app.world_mut().query::<&Replicated>();
-    assert!(
-        replicated.iter(client_app.world()).next().is_none(),
+    assert_eq!(
+        replicated.iter(client_app.world()).len(),
+        0,
         "no entities should be replicated without adding to whitelist"
     );
 }
@@ -230,10 +243,11 @@ fn whitelist() {
         .spawn((Replicated, DummyComponent))
         .id();
 
-    let client = client_app.world().resource::<RepliconClient>();
-    let client_id = client.id().unwrap();
-    let mut replicated_clients = server_app.world_mut().resource_mut::<ReplicatedClients>();
-    let visibility = replicated_clients.client_mut(client_id).visibility_mut();
+    let test_client_entity = **client_app.world().resource::<TestClientEntity>();
+    let mut visibility = server_app
+        .world_mut()
+        .get_mut::<ClientVisibility>(test_client_entity)
+        .unwrap();
     visibility.set_visibility(server_entity, true);
 
     server_app.update();
@@ -247,8 +261,10 @@ fn whitelist() {
         .single(client_app.world());
 
     // Reverse visibility.
-    let mut replicated_clients = server_app.world_mut().resource_mut::<ReplicatedClients>();
-    let visibility = replicated_clients.client_mut(client_id).visibility_mut();
+    let mut visibility = server_app
+        .world_mut()
+        .get_mut::<ClientVisibility>(test_client_entity)
+        .unwrap();
     visibility.set_visibility(server_entity, false);
 
     server_app.update();
@@ -281,10 +297,11 @@ fn whitelist_with_despawn() {
 
     let server_entity = server_app.world_mut().spawn(Replicated).id();
 
-    let client = client_app.world().resource::<RepliconClient>();
-    let client_id = client.id().unwrap();
-    let mut replicated_clients = server_app.world_mut().resource_mut::<ReplicatedClients>();
-    let visibility = replicated_clients.client_mut(client_id).visibility_mut();
+    let test_client_entity = **client_app.world().resource::<TestClientEntity>();
+    let mut visibility = server_app
+        .world_mut()
+        .get_mut::<ClientVisibility>(test_client_entity)
+        .unwrap();
     visibility.set_visibility(server_entity, true);
     server_app.world_mut().despawn(server_entity);
 
@@ -293,10 +310,12 @@ fn whitelist_with_despawn() {
     client_app.update();
 
     let mut replicated = client_app.world_mut().query::<&Replicated>();
-    assert!(replicated.iter(client_app.world()).next().is_none());
+    assert_eq!(replicated.iter(client_app.world()).len(), 0);
 
-    let replicated_clients = server_app.world().resource::<ReplicatedClients>();
-    let visibility = replicated_clients.client(client_id).visibility();
+    let visibility = server_app
+        .world()
+        .get::<ClientVisibility>(test_client_entity)
+        .unwrap();
     assert!(!visibility.is_visible(server_entity));
 }
 

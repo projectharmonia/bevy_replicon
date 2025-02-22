@@ -8,8 +8,8 @@ use crate::core::{
     channels::ReplicationChannel,
     postcard_utils,
     replication::{
+        client_ticks::{ClientTicks, EntityBuffer},
         mutate_index::MutateIndex,
-        replicated_clients::{ClientBuffers, ReplicatedClient},
     },
     replicon_server::RepliconServer,
     replicon_tick::RepliconTick,
@@ -33,7 +33,7 @@ use crate::core::{
 /// using the last up-to-date mutations to avoid re-sending old values.
 ///
 /// Stored inside [`ReplicationMessages`](super::ReplicationMessages).
-#[derive(Default)]
+#[derive(Default, Component)]
 pub(crate) struct MutateMessage {
     /// List of entity values for [`Self::mutations`].
     ///
@@ -124,8 +124,9 @@ impl MutateMessage {
     pub(crate) fn send(
         &mut self,
         server: &mut RepliconServer,
-        client: &mut ReplicatedClient,
-        client_buffers: &mut ClientBuffers,
+        client_entity: Entity,
+        client: &mut ClientTicks,
+        entity_buffer: &mut EntityBuffer,
         serialized: &SerializedData,
         track_mutate_messages: bool,
         server_tick: Range<usize>,
@@ -143,7 +144,7 @@ impl MutateMessage {
         }
 
         let (mut mutate_index, mut entities) =
-            client.register_mutate_message(client_buffers, tick, timestamp);
+            client.register_mutate_message(entity_buffer, tick, timestamp);
         let mut header_size = metadata_size + serialized_size(&mutate_index)?;
         let mut body_size = 0;
         let mut mutations_range = Range::<usize>::default();
@@ -163,7 +164,7 @@ impl MutateMessage {
 
                 mutations_range.start = mutations_range.end;
                 (mutate_index, entities) =
-                    client.register_mutate_message(client_buffers, tick, timestamp);
+                    client.register_mutate_message(entity_buffer, tick, timestamp);
                 header_size = metadata_size + serialized_size(&mutate_index)?; // Recalculate since the mutate index changed.
                 body_size = 0;
             }
@@ -206,7 +207,7 @@ impl MutateMessage {
 
             debug_assert_eq!(message.len(), message_size);
 
-            server.send(client.id(), ReplicationChannel::Mutations, message);
+            server.send(client_entity, ReplicationChannel::Mutations, message);
         }
 
         Ok(messages_count)
@@ -215,7 +216,7 @@ impl MutateMessage {
     /// Clears all chunks.
     ///
     /// Keeps allocated memory for reuse.
-    pub(super) fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         self.entities.clear();
         self.buffer
             .extend(self.mutations.drain(..).map(|mut mutations| {

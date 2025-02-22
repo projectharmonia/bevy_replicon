@@ -18,7 +18,6 @@ use crate::core::{
     postcard_utils,
     replicon_client::RepliconClient,
     replicon_server::RepliconServer,
-    ClientId,
 };
 
 /// An extension trait for [`App`] for creating client events.
@@ -28,7 +27,7 @@ pub trait ClientEventAppExt {
     /// The API matches [`ClientTriggerAppExt::add_client_trigger`](super::client_trigger::ClientTriggerAppExt::add_client_trigger):
     /// [`FromClient<E>`] will be emitted on the server after sending `E` event on client.
     /// When [`RepliconClient`] is inactive, the event will be drained right after sending and re-emitted
-    /// locally as [`FromClient<E>`] with [`ClientId::SERVER`](crate::core::ClientId::SERVER).
+    /// locally as [`FromClient<E>`] with [`Entity::PLACEHOLDER`].
     ///
     /// Can be called for events that were registered with [add_event](bevy::app::App::add_event).
     /// A duplicate registration for `E` won't be created.
@@ -271,17 +270,20 @@ impl ClientEvent {
         server: &mut RepliconServer,
     ) {
         let client_events: &mut Events<FromClient<E>> = client_events.deref_mut();
-        for (client_id, mut message) in server.receive(self.channel_id) {
+        for (client_entity, mut message) in server.receive(self.channel_id) {
             match self.deserialize::<E, I>(ctx, &mut message) {
                 Ok(event) => {
                     debug!(
-                        "applying event `{}` from `{client_id:?}`",
+                        "applying event `{}` from client `{client_entity}`",
                         any::type_name::<E>()
                     );
-                    client_events.send(FromClient { client_id, event });
+                    client_events.send(FromClient {
+                        client_entity,
+                        event,
+                    });
                 }
                 Err(e) => debug!(
-                    "ignoring event `{}` from {client_id:?} that failed to deserialize: {e}",
+                    "ignoring event `{}` from client `{client_entity}` that failed to deserialize: {e}",
                     any::type_name::<E>()
                 ),
             }
@@ -313,7 +315,7 @@ impl ClientEvent {
                 any::type_name::<E>()
             );
             client_events.send_batch(events.drain().map(|event| FromClient {
-                client_id: ClientId::SERVER,
+                client_entity: Entity::PLACEHOLDER,
                 event,
             }));
         }
@@ -400,10 +402,11 @@ impl<E: Event> FromWorld for ClientEventReader<E> {
 }
 
 /// An event indicating that a message from client was received.
+///
 /// Emitted only on server.
 #[derive(Clone, Copy, Event, Deref, DerefMut)]
 pub struct FromClient<T> {
-    pub client_id: ClientId,
+    pub client_entity: Entity,
     #[deref]
     pub event: T,
 }

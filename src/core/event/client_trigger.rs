@@ -22,7 +22,7 @@ pub trait ClientTriggerAppExt {
     /// The API matches [`ClientEventAppExt::add_client_event`](super::client_event::ClientEventAppExt::add_client_event):
     /// [`FromClient<E>`] will be triggered on the server after triggering `E` event on client.
     /// When [`RepliconClient`](crate::core::replicon_client::RepliconClient) is inactive, the event
-    /// will also be triggered locally as [`FromClient<E>`] with [`ClientId::SERVER`](crate::core::ClientId::SERVER).
+    /// will also be triggered locally as [`FromClient<E>`] with [`Entity::PLACEHOLDER`].
     ///
     /// See also [`Self::add_client_trigger_with`] and the [corresponding section](../index.html#from-client-to-server)
     /// from the quick start guide.
@@ -114,14 +114,18 @@ impl ClientTrigger {
     /// and this instance was created for `E`.
     unsafe fn trigger_typed<E: Event>(commands: &mut Commands, client_events: PtrMut) {
         let client_events: &mut Events<FromClient<RemoteTrigger<E>>> = client_events.deref_mut();
-        for FromClient { client_id, event } in client_events.drain() {
+        for FromClient {
+            client_entity,
+            event,
+        } in client_events.drain()
+        {
             debug!(
-                "triggering `{}` from `{client_id:?}`",
+                "triggering `{}` from `{client_entity}`",
                 any::type_name::<FromClient<E>>()
             );
             commands.trigger_targets(
                 FromClient {
-                    client_id,
+                    client_entity,
                     event: event.event,
                 },
                 event.targets,
