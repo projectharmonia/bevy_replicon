@@ -1,6 +1,5 @@
 use std::ops::Range;
 
-use bevy::prelude::*;
 use postcard::experimental::serialized_size;
 
 use super::{
@@ -253,17 +252,9 @@ impl UpdateMessage {
         for (_, flag) in flags.iter_names() {
             match flag {
                 UpdateMessageFlags::MAPPINGS => {
-                    // Always write size since the message can't have only mappings.
-                    // Otherwise this would mean that the client already received the mapped
-                    // entity and it's already mapped or server sends an invisible entity which
-                    // is an error.
-                    if flag == last_flag {
-                        error!("skipping the sending of a message with mappings but without any entity data,
-                                which could be caused by mapping invisible or non-replicatable entities for `{:?}", client.id());
-                        return Ok(());
+                    if flag != last_flag {
+                        postcard_utils::to_extend_mut(&self.mappings_len, &mut message)?;
                     }
-
-                    postcard_utils::to_extend_mut(&self.mappings_len, &mut message)?;
                     message.extend_from_slice(&serialized[self.mappings.clone()]);
                 }
                 UpdateMessageFlags::DESPAWNS => {
