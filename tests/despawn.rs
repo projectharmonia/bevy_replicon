@@ -83,7 +83,7 @@ fn with_hierarchy() {
     client_app.update();
 
     let mut replicated = client_app.world_mut().query::<&Replicated>();
-    assert!(replicated.iter(client_app.world()).next().is_none());
+    assert_eq!(replicated.iter(client_app.world()).len(), 0);
 }
 
 #[test]
@@ -114,7 +114,7 @@ fn after_spawn() {
     client_app.update();
 
     let mut replicated = client_app.world_mut().query::<&Replicated>();
-    assert!(replicated.iter(client_app.world()).next().is_none());
+    assert_eq!(replicated.iter(client_app.world()).len(), 0);
 }
 
 #[test]

@@ -225,7 +225,6 @@ fn apply_update_message(
 
         match flag {
             UpdateMessageFlags::MAPPINGS => {
-                debug_assert_eq!(array_kind, ArrayKind::Sized);
                 let len = apply_array(array_kind, message, |message| {
                     apply_entity_mapping(world, params, message)
                 })?;
