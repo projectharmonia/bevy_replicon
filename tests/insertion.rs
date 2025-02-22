@@ -10,7 +10,7 @@ use bevy_replicon::{
     },
     prelude::*,
     server::server_tick::ServerTick,
-    test_app::ServerTestAppExt,
+    test_app::{ServerTestAppExt, TestClientEntity},
 };
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
@@ -110,12 +110,10 @@ fn mapped_existing_entity() {
 
     server_app.connect_client(&mut client_app);
 
-    // Make client and server have different entity IDs.
-    server_app.world_mut().spawn_empty();
-
     let server_entity = server_app.world_mut().spawn(Replicated).id();
     let server_map_entity = server_app.world_mut().spawn_empty().id();
     let client_map_entity = client_app.world_mut().spawn_empty().id();
+    assert_ne!(server_map_entity, client_map_entity);
 
     client_app
         .world_mut()
@@ -159,9 +157,6 @@ fn mapped_new_entity() {
     }
 
     server_app.connect_client(&mut client_app);
-
-    // Make client and server have different entity IDs.
-    server_app.world_mut().spawn_empty();
 
     let server_entity = server_app.world_mut().spawn(Replicated).id();
     let server_map_entity = server_app.world_mut().spawn_empty().id();
@@ -254,18 +249,14 @@ fn marker() {
 
     let server_entity = server_app.world_mut().spawn(Replicated).id();
     let client_entity = client_app.world_mut().spawn(ReplaceMarker).id();
+    assert_ne!(server_entity, client_entity);
 
-    let client = client_app.world().resource::<RepliconClient>();
-    let client_id = client.id().unwrap();
-
-    let mut entity_map = server_app.world_mut().resource_mut::<ClientEntityMap>();
-    entity_map.insert(
-        client_id,
-        ClientMapping {
-            server_entity,
-            client_entity,
-        },
-    );
+    let test_client_entity = **client_app.world().resource::<TestClientEntity>();
+    let mut entity_map = server_app
+        .world_mut()
+        .get_mut::<ClientEntityMap>(test_client_entity)
+        .unwrap();
+    entity_map.insert(server_entity, client_entity);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -445,9 +436,11 @@ fn before_started_replication() {
         "no entities should have been sent to the client"
     );
 
-    let client = client_app.world().resource::<RepliconClient>();
-    let client_id = client.id().unwrap();
-    server_app.world_mut().trigger(StartReplication(client_id));
+    let test_client_entity = **client_app.world().resource::<TestClientEntity>();
+    server_app
+        .world_mut()
+        .entity_mut(test_client_entity)
+        .insert(ReplicatedClient);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -478,9 +471,11 @@ fn after_started_replication() {
 
     server_app.connect_client(&mut client_app);
 
-    let client = client_app.world().resource::<RepliconClient>();
-    let client_id = client.id().unwrap();
-    server_app.world_mut().trigger(StartReplication(client_id));
+    let test_client_entity = **client_app.world().resource::<TestClientEntity>();
+    server_app
+        .world_mut()
+        .entity_mut(test_client_entity)
+        .insert(ReplicatedClient);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);

@@ -2,15 +2,12 @@ use std::ops::Range;
 
 use bevy::{prelude::*, ptr::Ptr};
 
-use crate::{
-    core::{
-        entity_serde, postcard_utils,
-        replication::replication_registry::{
-            component_fns::ComponentFns, ctx::SerializeCtx, rule_fns::UntypedRuleFns, FnsId,
-        },
-        replicon_tick::RepliconTick,
+use crate::core::{
+    entity_serde, postcard_utils,
+    replication::replication_registry::{
+        component_fns::ComponentFns, ctx::SerializeCtx, rule_fns::UntypedRuleFns, FnsId,
     },
-    server::client_entity_map::ClientMapping,
+    replicon_tick::RepliconTick,
 };
 
 /// Single continuous buffer that stores serialized data for messages.
@@ -23,13 +20,13 @@ pub(crate) struct SerializedData(Vec<u8>);
 impl SerializedData {
     pub(crate) fn write_mappings(
         &mut self,
-        mappings: impl Iterator<Item = ClientMapping>,
+        mappings: impl Iterator<Item = (Entity, Entity)>,
     ) -> postcard::Result<Range<usize>> {
         let start = self.len();
 
-        for mapping in mappings {
-            self.write_entity(mapping.server_entity)?;
-            self.write_entity(mapping.client_entity)?;
+        for (server_entity, client_entity) in mappings {
+            self.write_entity(server_entity)?;
+            self.write_entity(client_entity)?;
         }
 
         let end = self.len();
