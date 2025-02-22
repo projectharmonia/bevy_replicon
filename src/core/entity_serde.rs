@@ -17,7 +17,7 @@ pub fn deserialize_entity(message: &mut Bytes) -> postcard::Result<Entity> {
         1u32
     };
 
-    let bits = (generation as u64) << 32 | (flagged_index >> 1);
+    let bits = ((generation as u64) << 32) | (flagged_index >> 1);
 
     Ok(Entity::from_bits(bits))
 }
