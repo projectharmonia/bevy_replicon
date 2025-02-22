@@ -768,26 +768,26 @@ impl BufferedServerEvents {
             for mut event in set.events.drain(..) {
                 match event.mode {
                     SendMode::Broadcast => {
-                        for (client_entity, client) in
+                        for (client_entity, ticks) in
                             clients.iter().filter(|(e, _)| !set.excluded.contains(e))
                         {
-                            event.send(server, client_entity, client)?;
+                            event.send(server, client_entity, ticks)?;
                         }
                     }
                     SendMode::BroadcastExcept(entity) => {
-                        for (client_entity, client) in
+                        for (client_entity, ticks) in
                             clients.iter().filter(|(e, _)| !set.excluded.contains(e))
                         {
                             if client_entity == entity {
                                 continue;
                             }
-                            event.send(server, client_entity, client)?;
+                            event.send(server, client_entity, ticks)?;
                         }
                     }
                     SendMode::Direct(entity) => {
                         if entity != Entity::PLACEHOLDER && !set.excluded.contains(&entity) {
-                            if let Ok((client_entity, client)) = clients.get(entity) {
-                                event.send(server, client_entity, client)?;
+                            if let Ok((client_entity, ticks)) = clients.get(entity) {
+                                event.send(server, client_entity, ticks)?;
                             }
                         }
                     }
