@@ -588,7 +588,7 @@ You can control which parts of the world are visible for each client by setting 
 in [`ServerPlugin`] to [`VisibilityPolicy::Whitelist`] or [`VisibilityPolicy::Blacklist`].
 
 In order to set which entity is visible, you need to use the [`ClientVisibility`] component
-on connected clients.
+on replicated clients.
 
 ```
 # use bevy::prelude::*;
