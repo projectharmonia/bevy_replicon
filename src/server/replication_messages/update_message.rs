@@ -1,5 +1,6 @@
 use std::ops::Range;
 
+use bevy::prelude::*;
 use postcard::experimental::serialized_size;
 
 use super::{
@@ -7,14 +8,10 @@ use super::{
     serialized_data::SerializedData,
 };
 use crate::core::{
-    channels::ReplicationChannel,
-    postcard_utils,
-    replication::{
-        replicated_clients::{client_visibility::Visibility, ReplicatedClient},
-        update_message_flags::UpdateMessageFlags,
-    },
-    replicon_server::RepliconServer,
+    channels::ReplicationChannel, postcard_utils,
+    replication::update_message_flags::UpdateMessageFlags, replicon_server::RepliconServer,
 };
+use crate::server::client_visibility::Visibility;
 
 /// A message with replicated data.
 ///
@@ -38,7 +35,7 @@ use crate::core::{
 /// on deserialization just consume all remaining bytes.
 ///
 /// Stored inside [`ReplicationMessages`](super::ReplicationMessages).
-#[derive(Default)]
+#[derive(Default, Component)]
 pub(crate) struct UpdateMessage {
     /// Mappings for client's pre-spawned entities.
     ///
@@ -201,7 +198,7 @@ impl UpdateMessage {
     pub(crate) fn send(
         &self,
         server: &mut RepliconServer,
-        client: &ReplicatedClient,
+        client_entity: Entity,
         serialized: &SerializedData,
         server_tick: Range<usize>,
     ) -> postcard::Result<()> {
@@ -291,7 +288,7 @@ impl UpdateMessage {
 
         debug_assert_eq!(message.len(), message_size);
 
-        server.send(client.id(), ReplicationChannel::Updates, message);
+        server.send(client_entity, ReplicationChannel::Updates, message);
 
         Ok(())
     }
@@ -318,7 +315,7 @@ impl UpdateMessage {
     /// Clears all chunks.
     ///
     /// Keeps allocated memory for reuse.
-    pub(super) fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         self.mappings = Default::default();
         self.mappings_len = 0;
         self.despawns.clear();
