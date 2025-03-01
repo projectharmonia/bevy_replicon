@@ -96,23 +96,15 @@ fn read_cli(mut commands: Commands, cli: Res<Cli>) -> io::Result<()> {
         Cli::Hotseat => {
             info!("starting hotseat");
             // Set all players to server to play from a single machine and start the game right away.
-            commands.spawn((
-                LocalPlayer,
-                Symbol::Cross,
-                PlayerClient(Entity::PLACEHOLDER),
-            ));
-            commands.spawn((
-                LocalPlayer,
-                Symbol::Nought,
-                PlayerClient(Entity::PLACEHOLDER),
-            ));
+            commands.spawn((LocalPlayer, Symbol::Cross, PlayerClient(SERVER)));
+            commands.spawn((LocalPlayer, Symbol::Nought, PlayerClient(SERVER)));
             commands.set_state(GameState::InGame);
         }
         Cli::Server { port, symbol } => {
             info!("starting server as {symbol} at port {port}");
             let server = ExampleServer::new(port)?;
             commands.insert_resource(server);
-            commands.spawn((LocalPlayer, symbol, PlayerClient(Entity::PLACEHOLDER)));
+            commands.spawn((LocalPlayer, symbol, PlayerClient(SERVER)));
         }
         Cli::Client { port } => {
             info!("connecting to port {port}");

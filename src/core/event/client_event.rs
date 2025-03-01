@@ -18,6 +18,7 @@ use crate::core::{
     postcard_utils,
     replicon_client::RepliconClient,
     replicon_server::RepliconServer,
+    SERVER,
 };
 
 /// An extension trait for [`App`] for creating client events.
@@ -27,7 +28,7 @@ pub trait ClientEventAppExt {
     /// The API matches [`ClientTriggerAppExt::add_client_trigger`](super::client_trigger::ClientTriggerAppExt::add_client_trigger):
     /// [`FromClient<E>`] will be emitted on the server after sending `E` event on client.
     /// When [`RepliconClient`] is inactive, the event will be drained right after sending and re-emitted
-    /// locally as [`FromClient<E>`] with [`Entity::PLACEHOLDER`].
+    /// locally as [`FromClient<E>`] with [`SERVER`].
     ///
     /// Can be called for events that were registered with [add_event](bevy::app::App::add_event).
     /// A duplicate registration for `E` won't be created.
@@ -315,7 +316,7 @@ impl ClientEvent {
                 any::type_name::<E>()
             );
             client_events.send_batch(events.drain().map(|event| FromClient {
-                client_entity: Entity::PLACEHOLDER,
+                client_entity: SERVER,
                 event,
             }));
         }

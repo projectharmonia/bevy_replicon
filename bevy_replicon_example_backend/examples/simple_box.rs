@@ -56,7 +56,7 @@ fn read_cli(mut commands: Commands, cli: Res<Cli>) -> io::Result<()> {
                 PlayerBox {
                     color: GREEN.into(),
                 },
-                BoxOwner(Entity::PLACEHOLDER),
+                BoxOwner(SERVER),
             ));
         }
         Cli::Server { port } => {
@@ -75,7 +75,7 @@ fn read_cli(mut commands: Commands, cli: Res<Cli>) -> io::Result<()> {
                 PlayerBox {
                     color: GREEN.into(),
                 },
-                BoxOwner(Entity::PLACEHOLDER),
+                BoxOwner(SERVER),
             ));
         }
         Cli::Client { port } => {

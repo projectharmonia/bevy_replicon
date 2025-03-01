@@ -22,7 +22,7 @@ pub trait ClientTriggerAppExt {
     /// The API matches [`ClientEventAppExt::add_client_event`](super::client_event::ClientEventAppExt::add_client_event):
     /// [`FromClient<E>`] will be triggered on the server after triggering `E` event on client.
     /// When [`RepliconClient`](crate::core::replicon_client::RepliconClient) is inactive, the event
-    /// will also be triggered locally as [`FromClient<E>`] with [`Entity::PLACEHOLDER`].
+    /// will also be triggered locally as [`FromClient<E>`] with [`SERVER`](crate::core::SERVER).
     ///
     /// See also [`Self::add_client_trigger_with`] and the [corresponding section](../index.html#from-client-to-server)
     /// from the quick start guide.

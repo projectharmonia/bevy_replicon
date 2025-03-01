@@ -25,7 +25,7 @@ use crate::core::{
     replicon_client::RepliconClient,
     replicon_server::RepliconServer,
     replicon_tick::RepliconTick,
-    ConnectedClient,
+    ConnectedClient, SERVER,
 };
 
 /// An extension trait for [`App`] for creating client events.
@@ -33,7 +33,7 @@ pub trait ServerEventAppExt {
     /// Registers `E` and [`ToClients<E>`] events.
     ///
     /// `E` will be emitted on client after sending [`ToClients<E>`] on the server.
-    /// If [`Entity::PLACEHOLDER`] is a recipient of the event, then [`ToClients<E>`] will be drained
+    /// If [`SERVER`] is a recipient of the event, then [`ToClients<E>`] will be drained
     /// after sending to clients and `E` events will be emitted on the server.
     ///
     /// Can be called for already existing regular events, a duplicate registration
@@ -350,7 +350,7 @@ impl ServerEvent {
                 }
             }
             SendMode::Direct(entity) => {
-                if entity != Entity::PLACEHOLDER {
+                if entity != SERVER {
                     server.send(entity, self.channel_id, message.clone());
                 }
             }
@@ -509,12 +509,12 @@ impl ServerEvent {
                     events.send(event);
                 }
                 SendMode::BroadcastExcept(entity) => {
-                    if entity != Entity::PLACEHOLDER {
+                    if entity != SERVER {
                         events.send(event);
                     }
                 }
                 SendMode::Direct(entity) => {
-                    if entity == Entity::PLACEHOLDER {
+                    if entity == SERVER {
                         events.send(event);
                     }
                 }
@@ -785,7 +785,7 @@ impl BufferedServerEvents {
                         }
                     }
                     SendMode::Direct(entity) => {
-                        if entity != Entity::PLACEHOLDER && !set.excluded.contains(&entity) {
+                        if entity != SERVER && !set.excluded.contains(&entity) {
                             if let Ok((client_entity, ticks)) = clients.get(entity) {
                                 event.send(server, client_entity, ticks)?;
                             }

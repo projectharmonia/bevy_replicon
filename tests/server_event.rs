@@ -33,9 +33,9 @@ fn sending_receiving() {
     let test_client_entity = **client_app.world().resource::<TestClientEntity>();
     for (mode, events_count) in [
         (SendMode::Broadcast, 1),
-        (SendMode::Direct(Entity::PLACEHOLDER), 0),
+        (SendMode::Direct(SERVER), 0),
         (SendMode::Direct(test_client_entity), 1),
-        (SendMode::BroadcastExcept(Entity::PLACEHOLDER), 1),
+        (SendMode::BroadcastExcept(SERVER), 1),
         (SendMode::BroadcastExcept(test_client_entity), 0),
     ] {
         server_app.world_mut().send_event(ToClients {
@@ -134,9 +134,9 @@ fn sending_receiving_without_plugins() {
     let test_client_entity = **client_app.world().resource::<TestClientEntity>();
     for (mode, events_count) in [
         (SendMode::Broadcast, 1),
-        (SendMode::Direct(Entity::PLACEHOLDER), 0),
+        (SendMode::Direct(SERVER), 0),
         (SendMode::Direct(test_client_entity), 1),
-        (SendMode::BroadcastExcept(Entity::PLACEHOLDER), 1),
+        (SendMode::BroadcastExcept(SERVER), 1),
         (SendMode::BroadcastExcept(test_client_entity), 0),
     ] {
         server_app.world_mut().send_event(ToClients {
@@ -174,9 +174,9 @@ fn local_resending() {
     const DUMMY_CLIENT_ID: Entity = Entity::from_raw(1);
     for (mode, events_count) in [
         (SendMode::Broadcast, 1),
-        (SendMode::Direct(Entity::PLACEHOLDER), 1),
+        (SendMode::Direct(SERVER), 1),
         (SendMode::Direct(DUMMY_CLIENT_ID), 0),
-        (SendMode::BroadcastExcept(Entity::PLACEHOLDER), 0),
+        (SendMode::BroadcastExcept(SERVER), 0),
         (SendMode::BroadcastExcept(DUMMY_CLIENT_ID), 1),
     ] {
         app.world_mut().send_event(ToClients {
@@ -454,9 +454,9 @@ fn independent() {
     let test_client_entity = **client_app.world().resource::<TestClientEntity>();
     for (mode, events_count) in [
         (SendMode::Broadcast, 1),
-        (SendMode::Direct(Entity::PLACEHOLDER), 0),
+        (SendMode::Direct(SERVER), 0),
         (SendMode::Direct(test_client_entity), 1),
-        (SendMode::BroadcastExcept(Entity::PLACEHOLDER), 1),
+        (SendMode::BroadcastExcept(SERVER), 1),
         (SendMode::BroadcastExcept(test_client_entity), 0),
     ] {
         server_app.world_mut().send_event(ToClients {

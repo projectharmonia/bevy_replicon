@@ -75,3 +75,10 @@ pub struct NetworkStats {
 #[derive(Component)]
 #[require(NetworkStats)]
 pub struct ConnectedClient;
+
+/// A placeholder entity for a connected client that refers to the listen server (when the server is also a client).
+///
+/// Equal to [`Entity::PLACEHOLDER`].
+///
+/// See also [`ToClients`](event::server_event::ToClients) and [`FromClient`](event::client_event::FromClient) events.
+pub const SERVER: Entity = Entity::PLACEHOLDER;

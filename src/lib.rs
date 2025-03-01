@@ -435,7 +435,7 @@ fn receive_events(mut dummy_events: EventReader<FromClient<DummyEvent>>) {
 struct DummyEvent;
 ```
 
-We consider the server or a singleplayer session also as a client with ID [`Entity::PLACEHOLDER`].
+We consider the server or a singleplayer session also as a client with ID [`SERVER`].
 So you can send such events even on server and [`FromClient`] will be emitted for them too.
 
 If you remove [`client_connected`] condition and replace [`server_running`] with
@@ -540,7 +540,7 @@ struct DummyEvent;
 ```
 
 Just like events sent from the client, you can send these events on the server or
-in singleplayer and they will appear locally as regular events (if [`Entity::PLACEHOLDER`] is not excluded
+in singleplayer and they will appear locally as regular events (if [`SERVER`] is not excluded
 from the send list). So the same trick with run conditions will work.
 
 If the event contains an entity, then
@@ -692,7 +692,7 @@ pub mod prelude {
             },
             replicon_client::{RepliconClient, RepliconClientStatus},
             replicon_server::RepliconServer,
-            ConnectedClient, NetworkStats, RepliconCorePlugin,
+            ConnectedClient, NetworkStats, RepliconCorePlugin, SERVER,
         },
         RepliconPlugins,
     };
