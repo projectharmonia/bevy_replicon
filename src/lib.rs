@@ -692,7 +692,7 @@ pub mod prelude {
             },
             replicon_client::{RepliconClient, RepliconClientStatus},
             replicon_server::RepliconServer,
-            ConnectedClient, RepliconCorePlugin,
+            ConnectedClient, NetworkStats, RepliconCorePlugin,
         },
         RepliconPlugins,
     };
