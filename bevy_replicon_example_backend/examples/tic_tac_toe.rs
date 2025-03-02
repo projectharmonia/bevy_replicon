@@ -638,7 +638,7 @@ struct CellPick {
 
 /// A trigger to send client cell entities to server to estabialize mappings for replication.
 ///
-/// See [`TicTacToePlugin::client_start`] for details.
+/// See [`client_start`] for details.
 #[derive(Event, Serialize, Deserialize)]
 struct MapBoard {
     cell_entities: HashMap<usize, Entity>,
