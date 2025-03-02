@@ -115,7 +115,7 @@ fn spawn_clients(trigger: Trigger<OnAdd, ConnectedClient>, mut commands: Command
     let b = (hash & 0xFF) as f32 / 255.0;
 
     // Generate pseudo random color from client entity.
-    info!("spawning box for `{:?}`", trigger.entity());
+    info!("spawning box for `{}`", trigger.entity());
     commands.spawn((
         PlayerBox {
             color: Color::srgb(r, g, b),
