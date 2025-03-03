@@ -328,6 +328,10 @@ fn init_client(
     cells: Query<(Entity, &Cell)>,
     server_symbol: Single<&Symbol, With<LocalPlayer>>,
 ) {
+    // Usually entity map modified directly on an connected client entity,
+    // it's a required component of `ReplicatedClient`.
+    // But since we set `replicate_after_connect` to `false`,
+    // we insert it together with `ReplicatedClient`.
     let mut entity_map = ClientEntityMap::default();
     for (server_entity, cell) in &cells {
         let Some(&client_entity) = trigger.get(&cell.index) else {
@@ -339,9 +343,7 @@ fn init_client(
         entity_map.insert(server_entity, client_entity);
     }
 
-    // When `replicate_after_connect` is set to false, `ReplicatedClient`
-    // needs to be manually inserted to start replication.
-    // We also utilize the same entity as a player.
+    // Utilize client entity as a player for convenient lookups by `client_entity`.
     commands.entity(trigger.client_entity).insert((
         Player,
         server_symbol.next(),
