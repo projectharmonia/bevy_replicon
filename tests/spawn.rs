@@ -1,7 +1,9 @@
 use bevy::prelude::*;
 use bevy_replicon::{
-    client::confirm_history::ConfirmHistory, core::server_entity_map::ServerEntityMap, prelude::*,
-    test_app::ServerTestAppExt,
+    client::confirm_history::ConfirmHistory,
+    core::server_entity_map::ServerEntityMap,
+    prelude::*,
+    test_app::{ServerTestAppExt, TestClientEntity},
 };
 use serde::{Deserialize, Serialize};
 
@@ -100,7 +102,7 @@ fn with_old_component() {
     server_app.exchange_with_client(&mut client_app);
 
     let mut replicated = client_app.world_mut().query::<&Replicated>();
-    assert!(replicated.iter(client_app.world()).next().is_none());
+    assert_eq!(replicated.iter(client_app.world()).len(), 0);
 
     // Enable replication for previously spawned entity
     server_app
@@ -164,26 +166,18 @@ fn pre_spawn() {
 
     server_app.connect_client(&mut client_app);
 
-    // Make client and server have different entity IDs.
-    server_app.world_mut().spawn_empty();
-
     let client_entity = client_app.world_mut().spawn_empty().id();
     let server_entity = server_app
         .world_mut()
         .spawn((Replicated, DummyComponent))
         .id();
 
-    let client = client_app.world().resource::<RepliconClient>();
-    let client_id = client.id().unwrap();
-
-    let mut entity_map = server_app.world_mut().resource_mut::<ClientEntityMap>();
-    entity_map.insert(
-        client_id,
-        ClientMapping {
-            server_entity,
-            client_entity,
-        },
-    );
+    let test_client_entity = **client_app.world().resource::<TestClientEntity>();
+    let mut entity_map = server_app
+        .world_mut()
+        .get_mut::<ClientEntityMap>(test_client_entity)
+        .unwrap();
+    entity_map.insert(server_entity, client_entity);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);

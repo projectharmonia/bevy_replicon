@@ -4,8 +4,11 @@ use bevy::{
     time::TimePlugin,
 };
 use bevy_replicon::{
-    client::ServerUpdateTick, core::server_entity_map::ServerEntityMap, prelude::*,
-    server::server_tick::ServerTick, test_app::ServerTestAppExt,
+    client::ServerUpdateTick,
+    core::server_entity_map::ServerEntityMap,
+    prelude::*,
+    server::server_tick::ServerTick,
+    test_app::{ServerTestAppExt, TestClientEntity},
 };
 use serde::{Deserialize, Serialize};
 
@@ -27,15 +30,13 @@ fn sending_receiving() {
 
     server_app.connect_client(&mut client_app);
 
-    let client = client_app.world().resource::<RepliconClient>();
-    let client_id = client.id().unwrap();
-
+    let test_client_entity = **client_app.world().resource::<TestClientEntity>();
     for (mode, events_count) in [
         (SendMode::Broadcast, 1),
-        (SendMode::Direct(ClientId::SERVER), 0),
-        (SendMode::Direct(client_id), 1),
-        (SendMode::BroadcastExcept(ClientId::SERVER), 1),
-        (SendMode::BroadcastExcept(client_id), 0),
+        (SendMode::Direct(SERVER), 0),
+        (SendMode::Direct(test_client_entity), 1),
+        (SendMode::BroadcastExcept(SERVER), 1),
+        (SendMode::BroadcastExcept(test_client_entity), 0),
     ] {
         server_app.world_mut().send_event(ToClients {
             mode,
@@ -130,15 +131,13 @@ fn sending_receiving_without_plugins() {
 
     server_app.connect_client(&mut client_app);
 
-    let client = client_app.world().resource::<RepliconClient>();
-    let client_id = client.id().unwrap();
-
+    let test_client_entity = **client_app.world().resource::<TestClientEntity>();
     for (mode, events_count) in [
         (SendMode::Broadcast, 1),
-        (SendMode::Direct(ClientId::SERVER), 0),
-        (SendMode::Direct(client_id), 1),
-        (SendMode::BroadcastExcept(ClientId::SERVER), 1),
-        (SendMode::BroadcastExcept(client_id), 0),
+        (SendMode::Direct(SERVER), 0),
+        (SendMode::Direct(test_client_entity), 1),
+        (SendMode::BroadcastExcept(SERVER), 1),
+        (SendMode::BroadcastExcept(test_client_entity), 0),
     ] {
         server_app.world_mut().send_event(ToClients {
             mode,
@@ -172,12 +171,12 @@ fn local_resending() {
     .add_server_event::<DummyEvent>(ChannelKind::Ordered)
     .finish();
 
-    const DUMMY_CLIENT_ID: ClientId = ClientId::new(1);
+    const DUMMY_CLIENT_ID: Entity = Entity::from_raw(1);
     for (mode, events_count) in [
         (SendMode::Broadcast, 1),
-        (SendMode::Direct(ClientId::SERVER), 1),
+        (SendMode::Direct(SERVER), 1),
         (SendMode::Direct(DUMMY_CLIENT_ID), 0),
-        (SendMode::BroadcastExcept(ClientId::SERVER), 0),
+        (SendMode::BroadcastExcept(SERVER), 0),
         (SendMode::BroadcastExcept(DUMMY_CLIENT_ID), 1),
     ] {
         app.world_mut().send_event(ToClients {
@@ -307,7 +306,7 @@ fn event_queue_and_mapping() {
                 ..Default::default()
             }),
         ))
-        .add_server_event::<EntityEvent>(ChannelKind::Ordered)
+        .add_mapped_server_event::<EntityEvent>(ChannelKind::Ordered)
         .finish();
     }
 
@@ -316,6 +315,8 @@ fn event_queue_and_mapping() {
     // Spawn an entity to trigger world change.
     let server_entity = server_app.world_mut().spawn(Replicated).id();
     let client_entity = client_app.world_mut().spawn_empty().id();
+    assert_ne!(server_entity, client_entity);
+
     client_app
         .world_mut()
         .resource_mut::<ServerEntityMap>()
@@ -450,15 +451,13 @@ fn independent() {
     // but our independent event should be triggered immediately.
     *client_app.world_mut().resource_mut::<ServerUpdateTick>() = Default::default();
 
-    let client = client_app.world().resource::<RepliconClient>();
-    let client_id = client.id().unwrap();
-
+    let test_client_entity = **client_app.world().resource::<TestClientEntity>();
     for (mode, events_count) in [
         (SendMode::Broadcast, 1),
-        (SendMode::Direct(ClientId::SERVER), 0),
-        (SendMode::Direct(client_id), 1),
-        (SendMode::BroadcastExcept(ClientId::SERVER), 1),
-        (SendMode::BroadcastExcept(client_id), 0),
+        (SendMode::Direct(SERVER), 0),
+        (SendMode::Direct(test_client_entity), 1),
+        (SendMode::BroadcastExcept(SERVER), 1),
+        (SendMode::BroadcastExcept(test_client_entity), 0),
     ] {
         server_app.world_mut().send_event(ToClients {
             mode,

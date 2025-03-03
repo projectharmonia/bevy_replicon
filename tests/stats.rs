@@ -1,5 +1,8 @@
 use bevy::prelude::*;
-use bevy_replicon::{prelude::*, test_app::ServerTestAppExt};
+use bevy_replicon::{
+    prelude::*,
+    test_app::{ServerTestAppExt, TestClientEntity},
+};
 use serde::{Deserialize, Serialize};
 
 #[test]
@@ -25,17 +28,12 @@ fn client_stats() {
         .spawn((Replicated, DummyComponent))
         .id();
 
-    let client = client_app.world().resource::<RepliconClient>();
-    let client_id = client.id().unwrap();
-
-    let mut entity_map = server_app.world_mut().resource_mut::<ClientEntityMap>();
-    entity_map.insert(
-        client_id,
-        ClientMapping {
-            server_entity,
-            client_entity,
-        },
-    );
+    let test_client_entity = **client_app.world().resource::<TestClientEntity>();
+    let mut entity_map = server_app
+        .world_mut()
+        .get_mut::<ClientEntityMap>(test_client_entity)
+        .unwrap();
+    entity_map.insert(server_entity, client_entity);
 
     server_app.world_mut().spawn(Replicated).despawn();
 
