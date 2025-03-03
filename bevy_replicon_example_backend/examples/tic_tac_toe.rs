@@ -44,10 +44,12 @@ impl Plugin for TicTacToePlugin {
             .init_resource::<TurnSymbol>()
             .replicate::<Symbol>()
             .add_client_trigger::<CellPick>(ChannelKind::Ordered)
-            .add_client_trigger::<MapBoard>(ChannelKind::Ordered)
+            .add_client_trigger::<MapCells>(ChannelKind::Ordered)
+            .add_server_trigger::<MakeLocal>(ChannelKind::Ordered)
             .insert_resource(ClearColor(BACKGROUND_COLOR))
             .add_observer(disconnect_by_client)
             .add_observer(init_client)
+            .add_observer(make_local)
             .add_observer(apply_pick)
             .add_observer(init_symbols)
             .add_observer(advance_turn)
@@ -96,21 +98,20 @@ fn read_cli(mut commands: Commands, cli: Res<Cli>) -> io::Result<()> {
         Cli::Hotseat => {
             info!("starting hotseat");
             // Set all players to server to play from a single machine and start the game right away.
-            commands.spawn((LocalPlayer, PlayerOwner(SERVER), Symbol::Cross));
-            commands.spawn((LocalPlayer, PlayerOwner(SERVER), Symbol::Nought));
+            commands.spawn((LocalPlayer, Symbol::Cross));
+            commands.spawn((LocalPlayer, Symbol::Nought));
             commands.set_state(GameState::InGame);
         }
         Cli::Server { port, symbol } => {
             info!("starting server as {symbol} at port {port}");
             let server = ExampleServer::new(port)?;
             commands.insert_resource(server);
-            commands.spawn((LocalPlayer, PlayerOwner(SERVER), symbol));
+            commands.spawn((LocalPlayer, symbol));
         }
         Cli::Client { port } => {
             info!("connecting to port {port}");
             let client = ExampleClient::new(port)?;
             commands.insert_resource(client);
-            commands.spawn(LocalPlayer);
         }
     }
 
@@ -231,6 +232,8 @@ fn pick_cell(
         let cell = cells
             .get(trigger.entity())
             .expect("cells should have assigned indices");
+        // We don't check if a cell can't be picked on client on purpose
+        // just to demonstrate how server can receive invalid requests from a client.
         info!("picking cell {}", cell.index);
         commands.client_trigger(CellPick { index: cell.index });
     }
@@ -242,30 +245,27 @@ fn pick_cell(
 fn apply_pick(
     trigger: Trigger<FromClient<CellPick>>,
     mut commands: Commands,
-    cells: Query<(Entity, &Cell)>,
+    cells: Query<(Entity, &Cell), Without<Symbol>>,
     turn_symbol: Res<TurnSymbol>,
-    players: Query<(&PlayerOwner, &Symbol)>,
+    players: Query<&Symbol>,
 ) {
     // It's good to check the received data because client could be cheating.
-    if trigger.index > GRID_SIZE * GRID_SIZE {
-        error!("received invalid cell index {}", trigger.index);
-        return;
-    }
-
-    if !players
-        .iter()
-        .any(|(&owner, &symbol)| *owner == trigger.client_entity && symbol == **turn_symbol)
-    {
-        error!(
-            "`{}` chose cell {} at wrong turn",
-            trigger.client_entity, trigger.index
-        );
-        return;
+    if trigger.client_entity != SERVER {
+        let symbol = *players
+            .get(trigger.client_entity)
+            .expect("all clients should have assigned symbols");
+        if symbol != **turn_symbol {
+            error!(
+                "`{}` chose cell {} at wrong turn",
+                trigger.client_entity, trigger.index
+            );
+            return;
+        }
     }
 
     let Some((entity, _)) = cells.iter().find(|(_, cell)| cell.index == trigger.index) else {
         error!(
-            "`{}` has chosen an already occupied cell {}",
+            "`{}` has chosen occupied or invalid cell {}",
             trigger.client_entity, trigger.index
         );
         return;
@@ -309,20 +309,13 @@ fn init_symbols(
 /// server to receive replication to already existing entities.
 ///
 /// Used only for client.
-fn client_start(
-    mut commands: Commands,
-    cells: Query<(Entity, &Cell)>,
-    player_entity: Single<Entity, With<LocalPlayer>>,
-) {
-    let mut cell_entities = HashMap::new();
+fn client_start(mut commands: Commands, cells: Query<(Entity, &Cell)>) {
+    let mut entities = HashMap::new();
     for (entity, cell) in &cells {
-        cell_entities.insert(cell.index, entity);
+        entities.insert(cell.index, entity);
     }
 
-    commands.client_trigger(MapBoard {
-        cell_entities,
-        player_entity: *player_entity,
-    });
+    commands.client_trigger(MapCells(entities));
     commands.set_state(GameState::InGame);
 }
 
@@ -330,14 +323,14 @@ fn client_start(
 ///
 /// Used only for server.
 fn init_client(
-    trigger: Trigger<FromClient<MapBoard>>,
+    trigger: Trigger<FromClient<MapCells>>,
     mut commands: Commands,
     cells: Query<(Entity, &Cell)>,
     server_symbol: Single<&Symbol, With<LocalPlayer>>,
 ) {
     let mut entity_map = ClientEntityMap::default();
     for (server_entity, cell) in &cells {
-        let Some(&client_entity) = trigger.cell_entities.get(&cell.index) else {
+        let Some(&client_entity) = trigger.get(&cell.index) else {
             error!("received cells missing index {}, disconnecting", cell.index);
             commands.set_state(GameState::Disconnected);
             return;
@@ -346,22 +339,29 @@ fn init_client(
         entity_map.insert(server_entity, client_entity);
     }
 
-    let player_entity = commands
-        .spawn((
-            Player,
-            PlayerOwner(trigger.client_entity),
-            server_symbol.next(),
-        ))
-        .id();
-    entity_map.insert(player_entity, trigger.player_entity);
-
     // When `replicate_after_connect` is set to false, `ReplicatedClient`
-    // and `ClientEntityMap` are not inserted automatically to client entities.
-    // We need to insert them manually to start replication.
+    // needs to be manually inserted to start replication.
+    // We also utilize the same entity as a player.
+    commands.entity(trigger.client_entity).insert((
+        Player,
+        server_symbol.next(),
+        ReplicatedClient,
+        entity_map,
+    ));
+
+    commands.server_trigger_targets(
+        ToClients {
+            mode: SendMode::Direct(trigger.client_entity),
+            event: MakeLocal,
+        },
+        trigger.client_entity,
+    );
+
     commands.set_state(GameState::InGame);
-    commands
-        .entity(trigger.client_entity)
-        .insert((ReplicatedClient, entity_map));
+}
+
+fn make_local(trigger: Trigger<MakeLocal>, mut commands: Commands) {
+    commands.entity(trigger.entity()).insert(LocalPlayer);
 }
 
 /// Sets the game in disconnected state if client closes the connection.
@@ -619,14 +619,6 @@ struct Player;
 #[require(Player)]
 struct LocalPlayer;
 
-/// Identifies which player controlled by which client.
-///
-/// Points to client entity. Used to verify client's turns.
-///
-/// It's not replicated and present only on server or singleplayer.
-#[derive(Clone, Copy, Component, Deref)]
-struct PlayerOwner(Entity);
-
 /// A trigger that indicates a symbol pick.
 ///
 /// We don't replicate the whole UI, so we can't just send the picked entity because on server it may be different.
@@ -639,8 +631,9 @@ struct CellPick {
 /// A trigger to send client cell entities to server to estabialize mappings for replication.
 ///
 /// See [`client_start`] for details.
+#[derive(Event, Deref, Serialize, Deserialize)]
+struct MapCells(HashMap<usize, Entity>);
+
+/// A trigger that instructs the client to mark a specific entity as [`LocalPlayer`].
 #[derive(Event, Serialize, Deserialize)]
-struct MapBoard {
-    cell_entities: HashMap<usize, Entity>,
-    player_entity: Entity,
-}
+struct MakeLocal;
