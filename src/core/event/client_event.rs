@@ -407,7 +407,11 @@ impl<E: Event> FromWorld for ClientEventReader<E> {
 /// Emitted only on server.
 #[derive(Clone, Copy, Event, Deref, DerefMut)]
 pub struct FromClient<T> {
+    /// Entity that represents a connected client.
+    ///
+    /// See also [`ConnectedClient`](crate::core::ConnectedClient).
     pub client_entity: Entity,
+    /// Transmitted event.
     #[deref]
     pub event: T,
 }

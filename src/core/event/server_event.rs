@@ -810,16 +810,21 @@ impl BufferedServerEvents {
 /// An event that will be send to client(s).
 #[derive(Clone, Copy, Debug, Event, Deref, DerefMut)]
 pub struct ToClients<T> {
+    /// Recipients.
     pub mode: SendMode,
+    /// Transmitted event.
     #[deref]
     pub event: T,
 }
 
-/// Type of server message sending.
+/// Type of server event sending.
 #[derive(Clone, Copy, Debug)]
 pub enum SendMode {
+    /// Send to every client.
     Broadcast,
+    /// Send to every client except the specified connected client.
     BroadcastExcept(Entity),
+    /// Send only to the specified client.
     Direct(Entity),
 }
 
