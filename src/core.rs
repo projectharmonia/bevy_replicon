@@ -73,7 +73,7 @@ pub struct NetworkStats {
 ///
 /// See also [`ReplicatedClient`](crate::server::ReplicatedClient).
 #[derive(Component)]
-#[require(NetworkStats)]
+#[require(Name(|| Name::new("Connected client")), NetworkStats)]
 pub struct ConnectedClient;
 
 /// A placeholder entity for a connected client that refers to the listen server (when the server is also a client).
