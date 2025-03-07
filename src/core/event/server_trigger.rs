@@ -163,7 +163,7 @@ fn trigger_deserialize<'a, E>(
     let mut targets = Vec::with_capacity(len);
     for _ in 0..len {
         let entity = entity_serde::deserialize_entity(message)?;
-        targets.push(ctx.map_entity(entity));
+        targets.push(ctx.get_mapped(entity));
     }
 
     let event = (deserialize)(ctx, message)?;

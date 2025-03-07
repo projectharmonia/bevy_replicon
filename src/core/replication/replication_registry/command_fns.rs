@@ -3,7 +3,7 @@ use std::{
     mem,
 };
 
-use bevy::prelude::*;
+use bevy::{ecs::component::Mutable, prelude::*};
 use bytes::Bytes;
 
 use super::{
@@ -24,7 +24,7 @@ pub(super) struct UntypedCommandFns {
 
 impl UntypedCommandFns {
     /// Creates a new instance with default command functions for `C`.
-    pub(super) fn default_fns<C: Component>() -> Self {
+    pub(super) fn default_fns<C: Component<Mutability = Mutable>>() -> Self {
         Self::new(default_write::<C>, default_remove::<C>)
     }
 
@@ -80,7 +80,7 @@ pub type RemoveFn = fn(&mut RemoveCtx, &mut DeferredEntity);
 ///
 /// If the component does not exist on the entity, it will be deserialized with [`RuleFns::deserialize`] and inserted via [`Commands`].
 /// If the component exists on the entity, [`RuleFns::deserialize_in_place`] will be used directly on the entity's component.
-pub fn default_write<C: Component>(
+pub fn default_write<C: Component<Mutability = Mutable>>(
     ctx: &mut WriteCtx,
     rule_fns: &RuleFns<C>,
     entity: &mut DeferredEntity,

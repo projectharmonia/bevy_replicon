@@ -2,13 +2,13 @@ use bevy::{
     ecs::{
         archetype::{Archetype, Archetypes},
         component::ComponentId,
-        entity::{Entities, EntityHashMap},
+        entity::{hash_map::EntityHashMap, Entities},
         event::EventCursor,
         removal_detection::{RemovedComponentEntity, RemovedComponentEvents},
         system::SystemParam,
     },
+    platform_support::collections::{HashMap, HashSet},
     prelude::*,
-    utils::{HashMap, HashSet},
 };
 
 use super::ServerSet;

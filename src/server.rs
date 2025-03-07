@@ -103,12 +103,7 @@ impl Plugin for ServerPlugin {
             )
             .configure_sets(
                 PostUpdate,
-                (
-                    ServerSet::StoreHierarchy,
-                    ServerSet::Send,
-                    ServerSet::SendPackets,
-                )
-                    .chain(),
+                (ServerSet::Send, ServerSet::SendPackets).chain(),
             )
             .add_observer(handle_connects)
             .add_observer(handle_disconnects)
@@ -662,10 +657,6 @@ pub enum ServerSet {
     ///
     /// Runs in [`PreUpdate`].
     Receive,
-    /// Systems that store hierarchy changes in [`ParentSync`](super::parent_sync::ParentSync).
-    ///
-    /// Runs in [`PostUpdate`].
-    StoreHierarchy,
     /// Systems that send data to [`RepliconServer`].
     ///
     /// Used by `bevy_replicon`.

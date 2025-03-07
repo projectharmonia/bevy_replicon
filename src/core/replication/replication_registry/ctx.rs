@@ -51,13 +51,17 @@ impl<'a, 'w, 's> WriteCtx<'a, 'w, 's> {
 }
 
 impl EntityMapper for WriteCtx<'_, '_, '_> {
-    fn map_entity(&mut self, entity: Entity) -> Entity {
+    fn get_mapped(&mut self, source: Entity) -> Entity {
         if self.ignore_mapping {
-            return entity;
+            return source;
         }
 
         self.entity_map
-            .get_by_server_or_insert(entity, || self.commands.spawn(Replicated).id())
+            .get_by_server_or_insert(source, || self.commands.spawn(Replicated).id())
+    }
+
+    fn set_mapped(&mut self, _source: Entity, _target: Entity) {
+        unimplemented!()
     }
 }
 

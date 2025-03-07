@@ -1,4 +1,7 @@
-use bevy::{ecs::entity::EntityHashMap, prelude::*, utils::hashbrown::hash_map::Entry};
+use bevy::{
+    ecs::entity::hash_map::EntityHashMap, platform_support::collections::hash_map::Entry,
+    prelude::*,
+};
 
 /// Maps server entities to client entities and vice versa.
 ///

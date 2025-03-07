@@ -51,7 +51,7 @@ fn table_storage() {
     client_app
         .world_mut()
         .query::<&DummyComponent>()
-        .single(client_app.world());
+        .single(client_app.world()).unwrap();
 }
 
 #[test]
@@ -90,7 +90,7 @@ fn sparse_set_storage() {
     client_app
         .world_mut()
         .query::<&SparseSetComponent>()
-        .single(client_app.world());
+        .single(client_app.world()).unwrap();
 }
 
 #[test]
@@ -114,13 +114,13 @@ fn mapped_existing_entity() {
     server_app.world_mut().spawn_empty();
 
     let server_entity = server_app.world_mut().spawn(Replicated).id();
-    let server_map_entity = server_app.world_mut().spawn_empty().id();
-    let client_map_entity = client_app.world_mut().spawn_empty().id();
+    let server_get_mapped = server_app.world_mut().spawn_empty().id();
+    let client_get_mapped = client_app.world_mut().spawn_empty().id();
 
     client_app
         .world_mut()
         .resource_mut::<ServerEntityMap>()
-        .insert(server_map_entity, client_map_entity);
+        .insert(server_get_mapped, client_get_mapped);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -130,7 +130,7 @@ fn mapped_existing_entity() {
     server_app
         .world_mut()
         .entity_mut(server_entity)
-        .insert(MappedComponent(server_map_entity));
+        .insert(MappedComponent(server_get_mapped));
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -139,8 +139,8 @@ fn mapped_existing_entity() {
     let mapped_component = client_app
         .world_mut()
         .query::<&MappedComponent>()
-        .single(client_app.world());
-    assert_eq!(mapped_component.0, client_map_entity);
+        .single(client_app.world()).unwrap();
+    assert_eq!(mapped_component.0, client_get_mapped);
 }
 
 #[test]
@@ -164,7 +164,7 @@ fn mapped_new_entity() {
     server_app.world_mut().spawn_empty();
 
     let server_entity = server_app.world_mut().spawn(Replicated).id();
-    let server_map_entity = server_app.world_mut().spawn_empty().id();
+    let server_get_mapped = server_app.world_mut().spawn_empty().id();
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -174,7 +174,7 @@ fn mapped_new_entity() {
     server_app
         .world_mut()
         .entity_mut(server_entity)
-        .insert(MappedComponent(server_map_entity));
+        .insert(MappedComponent(server_get_mapped));
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -183,7 +183,7 @@ fn mapped_new_entity() {
     let mapped_component = client_app
         .world_mut()
         .query::<&MappedComponent>()
-        .single(client_app.world());
+        .single(client_app.world()).unwrap();
     assert!(client_app.world().get_entity(mapped_component.0).is_ok());
 
     let mut replicated = client_app.world_mut().query::<&Replicated>();
@@ -227,7 +227,7 @@ fn command_fns() {
     client_app
         .world_mut()
         .query_filtered::<&ReplacedComponent, Without<OriginalComponent>>()
-        .single(client_app.world());
+        .single(client_app.world()).unwrap();
 }
 
 #[test]
@@ -322,7 +322,7 @@ fn group() {
     client_app
         .world_mut()
         .query::<(&GroupComponentA, &GroupComponentB)>()
-        .single(client_app.world());
+        .single(client_app.world()).unwrap();
 }
 
 #[test]
@@ -406,7 +406,7 @@ fn after_removal() {
     client_app
         .world_mut()
         .query::<&DummyComponent>()
-        .single(client_app.world());
+        .single(client_app.world()).unwrap();
 }
 
 #[test]
@@ -457,7 +457,7 @@ fn before_started_replication() {
     client_app
         .world_mut()
         .query::<&DummyComponent>()
-        .single(client_app.world());
+        .single(client_app.world()).unwrap();
 }
 
 #[test]
@@ -497,7 +497,7 @@ fn after_started_replication() {
     client_app
         .world_mut()
         .query::<&DummyComponent>()
-        .single(client_app.world());
+        .single(client_app.world()).unwrap();
 }
 
 #[test]
@@ -544,7 +544,7 @@ fn confirm_history() {
     let (client_entity, confirm_history) = client_app
         .world_mut()
         .query::<(Entity, &ConfirmHistory)>()
-        .single(client_app.world());
+        .single(client_app.world()).unwrap();
     assert!(confirm_history.contains(tick));
 
     let mut replicated_events = client_app
@@ -564,7 +564,7 @@ struct MappedComponent(Entity);
 
 impl MapEntities for MappedComponent {
     fn map_entities<M: EntityMapper>(&mut self, entity_mapper: &mut M) {
-        self.0 = entity_mapper.map_entity(self.0);
+        self.0 = entity_mapper.get_mapped(self.0);
     }
 }
 

@@ -30,7 +30,7 @@ fn empty() {
     let client_entity = client_app
         .world_mut()
         .query_filtered::<Entity, With<Replicated>>()
-        .single(client_app.world());
+        .single(client_app.world()).unwrap();
 
     let entity_map = client_app.world().resource::<ServerEntityMap>();
     assert_eq!(
@@ -71,7 +71,7 @@ fn with_component() {
     client_app
         .world_mut()
         .query::<(&Replicated, &DummyComponent)>()
-        .single(client_app.world());
+        .single(client_app.world()).unwrap();
 }
 
 #[test]
@@ -115,7 +115,7 @@ fn with_old_component() {
     client_app
         .world_mut()
         .query::<(&Replicated, &DummyComponent)>()
-        .single(client_app.world());
+        .single(client_app.world()).unwrap();
 }
 
 #[test]
@@ -144,7 +144,7 @@ fn before_connection() {
     client_app
         .world_mut()
         .query::<(&Replicated, &DummyComponent)>()
-        .single(client_app.world());
+        .single(client_app.world()).unwrap();
 }
 
 #[test]
@@ -254,7 +254,7 @@ fn after_despawn() {
     client_app
         .world_mut()
         .query::<(&Replicated, &DummyComponent)>()
-        .single(client_app.world());
+        .single(client_app.world()).unwrap();
 }
 
 #[derive(Component, Deserialize, Serialize)]

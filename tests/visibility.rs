@@ -38,7 +38,8 @@ fn all() {
     client_app
         .world_mut()
         .query::<(&Replicated, &DummyComponent)>()
-        .single(client_app.world());
+        .single(client_app.world())
+        .unwrap();
 
     // Reverse visibility back.
     let mut replicated_clients = server_app.world_mut().resource_mut::<ReplicatedClients>();
@@ -52,7 +53,8 @@ fn all() {
     client_app
         .world_mut()
         .query::<(&Replicated, &DummyComponent)>()
-        .single(client_app.world());
+        .single(client_app.world())
+        .unwrap();
 }
 
 #[test]
@@ -82,7 +84,8 @@ fn empty_blacklist() {
     client_app
         .world_mut()
         .query::<(&Replicated, &DummyComponent)>()
-        .single(client_app.world());
+        .single(client_app.world())
+        .unwrap();
 }
 
 #[test]
@@ -134,7 +137,8 @@ fn blacklist() {
     client_app
         .world_mut()
         .query::<(&Replicated, &DummyComponent)>()
-        .single(client_app.world());
+        .single(client_app.world())
+        .unwrap();
 }
 
 #[test]
@@ -244,7 +248,8 @@ fn whitelist() {
     let client_entity = client_app
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, With<DummyComponent>)>()
-        .single(client_app.world());
+        .single(client_app.world())
+        .unwrap();
 
     // Reverse visibility.
     let mut replicated_clients = server_app.world_mut().resource_mut::<ReplicatedClients>();

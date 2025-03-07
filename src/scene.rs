@@ -1,4 +1,4 @@
-use bevy::{ecs::entity::EntityHashMap, prelude::*, scene::DynamicEntity};
+use bevy::{ecs::entity::hash_map::EntityHashMap, prelude::*, scene::DynamicEntity};
 
 use crate::{core::replication::replication_rules::ReplicationRules, Replicated};
 

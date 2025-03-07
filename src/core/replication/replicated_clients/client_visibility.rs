@@ -1,7 +1,7 @@
 use bevy::{
-    ecs::entity::{EntityHashMap, EntityHashSet},
+    ecs::entity::{hash_map::EntityHashMap, hash_set::EntityHashSet},
+    platform_support::collections::hash_map::Entry,
     prelude::*,
-    utils::hashbrown::hash_map::Entry,
 };
 
 use super::VisibilityPolicy;

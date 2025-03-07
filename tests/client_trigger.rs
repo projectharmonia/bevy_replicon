@@ -157,7 +157,7 @@ struct EntityEvent(Entity);
 
 impl MapEntities for EntityEvent {
     fn map_entities<M: EntityMapper>(&mut self, entity_mapper: &mut M) {
-        self.0 = entity_mapper.map_entity(self.0);
+        self.0 = entity_mapper.get_mapped(self.0);
     }
 }
 
@@ -172,7 +172,7 @@ impl<E: Event + Clone> FromWorld for TriggerReader<E> {
         world.add_observer(
             |trigger: Trigger<FromClient<E>>, mut counter: ResMut<Self>| {
                 counter.events.push(trigger.event().clone());
-                counter.entities.push(trigger.entity());
+                counter.entities.push(trigger.target());
             },
         );
 

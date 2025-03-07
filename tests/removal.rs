@@ -42,7 +42,7 @@ fn single() {
     let client_entity = client_app
         .world_mut()
         .query_filtered::<Entity, With<DummyComponent>>()
-        .single(client_app.world());
+        .single(client_app.world()).unwrap();
 
     server_app
         .world_mut()
@@ -88,7 +88,7 @@ fn command_fns() {
     let client_entity = client_app
         .world_mut()
         .query_filtered::<Entity, With<ReplacedComponent>>()
-        .single(client_app.world());
+        .single(client_app.world()).unwrap();
 
     server_app
         .world_mut()
@@ -192,7 +192,7 @@ fn group() {
     let client_entity = client_app
         .world_mut()
         .query_filtered::<Entity, (With<GroupComponentA>, With<GroupComponentB>)>()
-        .single(client_app.world());
+        .single(client_app.world()).unwrap();
 
     server_app
         .world_mut()
@@ -237,7 +237,7 @@ fn not_replicated() {
     let client_entity = client_app
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, Without<NotReplicatedComponent>)>()
-        .single(client_app.world());
+        .single(client_app.world()).unwrap();
 
     client_app
         .world_mut()
@@ -287,7 +287,7 @@ fn after_insertion() {
     let client_entity = client_app
         .world_mut()
         .query_filtered::<Entity, With<DummyComponent>>()
-        .single(client_app.world());
+        .single(client_app.world()).unwrap();
 
     // Insert and remove at the same time.
     server_app
@@ -333,7 +333,7 @@ fn with_spawn() {
     client_app
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, Without<DummyComponent>)>()
-        .single(client_app.world());
+        .single(client_app.world()).unwrap();
 }
 
 #[test]
@@ -366,7 +366,7 @@ fn with_despawn() {
     client_app
         .world_mut()
         .query::<&Replicated>()
-        .single(client_app.world());
+        .single(client_app.world()).unwrap();
 
     // Un-replicate and remove at the same time.
     server_app
@@ -413,7 +413,7 @@ fn confirm_history() {
     let client_entity = client_app
         .world_mut()
         .query_filtered::<Entity, With<DummyComponent>>()
-        .single(client_app.world());
+        .single(client_app.world()).unwrap();
 
     server_app
         .world_mut()

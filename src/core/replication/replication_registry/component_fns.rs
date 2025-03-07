@@ -1,4 +1,4 @@
-use bevy::{prelude::*, ptr::Ptr};
+use bevy::{ecs::component::Mutable, prelude::*, ptr::Ptr};
 use bytes::Bytes;
 
 use super::{
@@ -24,7 +24,7 @@ pub(crate) struct ComponentFns {
 
 impl ComponentFns {
     /// Creates a new instance for `C` with the specified number of empty marker function slots.
-    pub(super) fn new<C: Component>(marker_slots: usize) -> Self {
+    pub(super) fn new<C: Component<Mutability = Mutable>>(marker_slots: usize) -> Self {
         Self {
             serialize: untyped_serialize::<C>,
             write: untyped_write::<C>,
