@@ -1,4 +1,4 @@
-use bevy::{prelude::*, utils::HashMap};
+use bevy::{platform_support::collections::HashMap, prelude::*};
 
 use crate::core::ClientId;
 

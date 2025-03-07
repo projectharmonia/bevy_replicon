@@ -227,6 +227,7 @@ pub(super) struct ReplicatedComponent {
 
 #[cfg(test)]
 mod tests {
+    use bevy::transform::components::Transform;
     use serde::{Deserialize, Serialize};
 
     use super::*;

@@ -4,8 +4,8 @@ use std::{
 };
 
 use bevy::{
+    platform_support::collections::{hash_map::Entry, HashMap},
     prelude::*,
-    utils::{Entry, HashMap},
 };
 use bevy_replicon::prelude::*;
 
@@ -21,7 +21,7 @@ impl Plugin for RepliconExampleServerPlugin {
             (
                 set_stopped.run_if(resource_removed::<ExampleServer>),
                 set_running.run_if(resource_added::<ExampleServer>),
-                receive_packets.never_param_warn(),
+                receive_packets.ignore_param_missing(),
             )
                 .chain()
                 .in_set(ServerSet::ReceivePackets),
@@ -29,7 +29,7 @@ impl Plugin for RepliconExampleServerPlugin {
         .add_systems(
             PostUpdate,
             send_packets
-                .never_param_warn()
+                .ignore_param_missing()
                 .in_set(ServerSet::SendPackets),
         );
     }

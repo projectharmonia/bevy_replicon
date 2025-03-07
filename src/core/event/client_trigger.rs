@@ -149,7 +149,7 @@ fn trigger_serialize<'a, E>(
 ) -> postcard::Result<()> {
     postcard_utils::to_extend_mut(&trigger.targets.len(), message)?;
     for &entity in &trigger.targets {
-        let entity = ctx.map_entity(entity);
+        let entity = ctx.get_mapped(entity);
         entity_serde::serialize_entity(message, entity)?;
     }
 

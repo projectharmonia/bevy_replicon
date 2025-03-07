@@ -1,6 +1,9 @@
 use std::cmp::Reverse;
 
-use bevy::{ecs::component::ComponentId, prelude::*};
+use bevy::{
+    ecs::component::{ComponentId, Mutable},
+    prelude::*,
+};
 
 use super::replication_registry::{
     command_fns::{RemoveFn, WriteFn},
@@ -24,10 +27,13 @@ pub trait AppMarkerExt {
     ///
     /// This function registers markers with default [`MarkerConfig`].
     /// See also [`Self::register_marker_with`].
-    fn register_marker<M: Component>(&mut self) -> &mut Self;
+    fn register_marker<M: Component<Mutability = Mutable>>(&mut self) -> &mut Self;
 
     /// Same as [`Self::register_marker`], but also accepts marker configuration.
-    fn register_marker_with<M: Component>(&mut self, config: MarkerConfig) -> &mut Self;
+    fn register_marker_with<M: Component<Mutability = Mutable>>(
+        &mut self,
+        config: MarkerConfig,
+    ) -> &mut Self;
 
     /**
     Associates command functions with a marker for a component.
@@ -47,7 +53,7 @@ pub trait AppMarkerExt {
     Then [`Transform`] updates after that will be inserted to the history.
 
     ```
-    use bevy::{ecs::system::EntityCommands, prelude::*, utils::HashMap};
+    use bevy::{ecs::system::EntityCommands, ecs::component::Mutable, prelude::*, platform_support::collections::HashMap};
     use bevy_replicon::{
         bytes::Bytes,
         core::{
@@ -73,7 +79,7 @@ pub trait AppMarkerExt {
     .set_marker_fns::<ComponentsHistory, Transform>(write_history, remove_history::<Transform>);
 
     /// Instead of writing into a component directly, it writes data into [`History<C>`].
-    fn write_history<C: Component>(
+    fn write_history<C: Component<Mutability = Mutable>>(
         ctx: &mut WriteCtx,
         rule_fns: &RuleFns<C>,
         entity: &mut DeferredEntity,
@@ -83,16 +89,16 @@ pub trait AppMarkerExt {
         if let Some(mut history) = entity.get_mut::<History<C>>() {
             history.insert(ctx.message_tick, component);
         } else {
-            ctx.commands
-                .entity(entity.id())
-                .insert(History([(ctx.message_tick, component)].into()));
+            let mut map = HashMap::default();
+            map.insert(ctx.message_tick, component);
+            ctx.commands.entity(entity.id()).insert(History(map));
         }
 
         Ok(())
     }
 
     /// Removes component `C` and its history.
-    fn remove_history<C: Component>(ctx: &mut RemoveCtx, entity: &mut DeferredEntity) {
+    fn remove_history<C: Component<Mutability = Mutable>>(ctx: &mut RemoveCtx, entity: &mut DeferredEntity) {
         ctx.commands.entity(entity.id()).remove::<History<C>>().remove::<C>();
     }
 
@@ -109,7 +115,7 @@ pub trait AppMarkerExt {
     struct History<C>(HashMap<RepliconTick, C>);
     ```
     **/
-    fn set_marker_fns<M: Component, C: Component>(
+    fn set_marker_fns<M: Component<Mutability = Mutable>, C: Component<Mutability = Mutable>>(
         &mut self,
         write: WriteFn<C>,
         remove: RemoveFn,
@@ -122,15 +128,22 @@ pub trait AppMarkerExt {
     /// [`default_write`](super::replication_registry::command_fns::default_write) and
     /// [`default_remove`](super::replication_registry::command_fns::default_remove).
     /// See also [`Self::set_marker_fns`].
-    fn set_command_fns<C: Component>(&mut self, write: WriteFn<C>, remove: RemoveFn) -> &mut Self;
+    fn set_command_fns<C: Component<Mutability = Mutable>>(
+        &mut self,
+        write: WriteFn<C>,
+        remove: RemoveFn,
+    ) -> &mut Self;
 }
 
 impl AppMarkerExt for App {
-    fn register_marker<M: Component>(&mut self) -> &mut Self {
+    fn register_marker<M: Component<Mutability = Mutable>>(&mut self) -> &mut Self {
         self.register_marker_with::<M>(MarkerConfig::default())
     }
 
-    fn register_marker_with<M: Component>(&mut self, config: MarkerConfig) -> &mut Self {
+    fn register_marker_with<M: Component<Mutability = Mutable>>(
+        &mut self,
+        config: MarkerConfig,
+    ) -> &mut Self {
         let component_id = self.world_mut().register_component::<M>();
         let mut command_markers = self.world_mut().resource_mut::<CommandMarkers>();
         let marker_id = command_markers.insert(CommandMarker {
@@ -144,7 +157,7 @@ impl AppMarkerExt for App {
         self
     }
 
-    fn set_marker_fns<M: Component, C: Component>(
+    fn set_marker_fns<M: Component<Mutability = Mutable>, C: Component<Mutability = Mutable>>(
         &mut self,
         write: WriteFn<C>,
         remove: RemoveFn,
@@ -160,7 +173,11 @@ impl AppMarkerExt for App {
         self
     }
 
-    fn set_command_fns<C: Component>(&mut self, write: WriteFn<C>, remove: RemoveFn) -> &mut Self {
+    fn set_command_fns<C: Component<Mutability = Mutable>>(
+        &mut self,
+        write: WriteFn<C>,
+        remove: RemoveFn,
+    ) -> &mut Self {
         self.world_mut()
             .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
                 registry.set_command_fns::<C>(world, write, remove);

@@ -6,7 +6,7 @@ use std::{
     io,
 };
 
-use bevy::{prelude::*, utils::hashbrown::HashMap};
+use bevy::{platform_support::collections::HashMap, prelude::*};
 use bevy_replicon::prelude::*;
 use bevy_replicon_example_backend::{ExampleClient, ExampleServer, RepliconExampleBackendPlugins};
 use clap::{Parser, ValueEnum};
@@ -229,7 +229,7 @@ fn pick_cell(
 ) {
     if *game_state == GameState::InGame {
         let cell = cells
-            .get(trigger.entity())
+            .get(trigger.target())
             .expect("cells should have assigned indices");
         info!("picking cell {}", cell.index);
         commands.client_trigger(CellPick { index: cell.index });
@@ -281,13 +281,13 @@ fn init_symbols(
     symbol_font: Res<SymbolFont>,
     mut cells: Query<(&mut BackgroundColor, &Symbol), With<Button>>,
 ) {
-    let Ok((mut background, symbol)) = cells.get_mut(trigger.entity()) else {
+    let Ok((mut background, symbol)) = cells.get_mut(trigger.target()) else {
         return;
     };
     *background = BACKGROUND_COLOR.into();
 
     commands
-        .entity(trigger.entity())
+        .entity(trigger.target())
         .remove::<Interaction>()
         .with_children(|parent| {
             parent.spawn((
@@ -310,7 +310,7 @@ fn init_symbols(
 ///
 /// Used only for client.
 fn client_start(mut commands: Commands, cells: Query<(Entity, &Cell)>) {
-    let mut entities = HashMap::new();
+    let mut entities = bevy::platform_support::collections::HashMap::default();
     for (entity, cell) in &cells {
         entities.insert(cell.index, entity);
     }

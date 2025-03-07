@@ -1,11 +1,11 @@
 pub mod client_visibility;
 
-use std::mem;
+use std::{mem, time::Duration};
 
 use bevy::{
-    ecs::{component::Tick, entity::EntityHashMap},
+    ecs::{component::Tick, entity::hash_map::EntityHashMap},
+    platform_support::collections::HashMap,
     prelude::*,
-    utils::{Duration, HashMap},
 };
 
 use super::mutate_index::MutateIndex;

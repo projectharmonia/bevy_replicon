@@ -455,7 +455,7 @@ struct MappedEvent(Entity);
 
 impl MapEntities for MappedEvent {
     fn map_entities<T: EntityMapper>(&mut self, entity_mapper: &mut T) {
-        self.0 = entity_mapper.map_entity(self.0);
+        self.0 = entity_mapper.get_mapped(self.0);
     }
 }
 ```
@@ -664,8 +664,6 @@ But on server we use `debug` for it to avoid flooding server logs with errors ca
 #[cfg(feature = "client")]
 pub mod client;
 pub mod core;
-#[cfg(feature = "parent_sync")]
-pub mod parent_sync;
 #[cfg(feature = "scene")]
 pub mod scene;
 #[cfg(feature = "server")]
@@ -715,8 +713,6 @@ pub mod prelude {
 
     #[cfg(feature = "client_diagnostics")]
     pub use super::client::diagnostics::ClientDiagnosticsPlugin;
-    #[cfg(feature = "parent_sync")]
-    pub use super::parent_sync::{ParentSync, ParentSyncPlugin};
 }
 
 pub use bytes;
@@ -733,7 +729,6 @@ use prelude::*;
 /// * [`ServerEventPlugin`] - with feature `server`.
 /// * [`ClientPlugin`] - with feature `client`.
 /// * [`ClientEventPlugin`] - with feature `client`.
-/// * [`ParentSyncPlugin`] - with feature `parent_sync`.
 /// * [`ClientDiagnosticsPlugin`] - with feature `client_diagnostics`.
 pub struct RepliconPlugins;
 
@@ -750,11 +745,6 @@ impl PluginGroup for RepliconPlugins {
         #[cfg(feature = "client")]
         {
             group = group.add(ClientPlugin).add(ClientEventPlugin);
-        }
-
-        #[cfg(feature = "parent_sync")]
-        {
-            group = group.add(ParentSyncPlugin);
         }
 
         #[cfg(feature = "client_diagnostics")]

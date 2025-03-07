@@ -53,7 +53,7 @@ impl Plugin for ClientPlugin {
                         ClientSet::Reset.run_if(client_just_disconnected),
                     ),
                     ClientSet::Receive,
-                    (ClientSet::Diagnostics, ClientSet::SyncHierarchy),
+                    ClientSet::Diagnostics,
                 )
                     .chain(),
             )
@@ -676,12 +676,6 @@ pub enum ClientSet {
     ///
     /// Runs in [`PreUpdate`].
     Diagnostics,
-    /// Systems that synchronize hierarchy changes in [`ParentSync`](super::parent_sync::ParentSync).
-    ///
-    /// Used by `bevy_replicon`.
-    ///
-    /// Runs in [`PreUpdate`].
-    SyncHierarchy,
     /// Systems that send data to [`RepliconClient`].
     ///
     /// Used by `bevy_replicon`.
