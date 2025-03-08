@@ -681,6 +681,7 @@ pub mod prelude {
         core::{
             channels::{ChannelKind, RepliconChannel, RepliconChannels},
             common_conditions::*,
+            connected_client::{ConnectedClient, NetworkStats},
             event::{
                 client_event::{ClientEventAppExt, FromClient},
                 client_trigger::{ClientTriggerAppExt, ClientTriggerExt},
@@ -692,7 +693,7 @@ pub mod prelude {
             },
             replicon_client::{RepliconClient, RepliconClientStatus},
             replicon_server::RepliconServer,
-            ConnectedClient, NetworkStats, RepliconCorePlugin, SERVER,
+            RepliconCorePlugin, SERVER,
         },
         RepliconPlugins,
     };

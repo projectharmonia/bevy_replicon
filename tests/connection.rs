@@ -1,6 +1,9 @@
 use bevy::prelude::*;
 use bevy_replicon::{
-    core::{channels::ReplicationChannel, ConnectedClient},
+    core::{
+        channels::ReplicationChannel,
+        connected_client::{ClientIdMap, ConnectedClient},
+    },
     prelude::*,
     server::server_tick::ServerTick,
     test_app::ServerTestAppExt,
@@ -81,9 +84,11 @@ fn connect_disconnect() {
 
     let mut clients = server_app.world_mut().query::<&ConnectedClient>();
     assert_eq!(clients.iter(server_app.world()).len(), 1);
+    assert_eq!(server_app.world().resource::<ClientIdMap>().len(), 1);
 
     server_app.disconnect_client(&mut client_app);
     assert_eq!(clients.iter(server_app.world()).len(), 0);
+    assert_eq!(server_app.world().resource::<ClientIdMap>().len(), 0);
 }
 
 #[test]

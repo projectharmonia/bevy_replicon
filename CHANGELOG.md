@@ -15,13 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Connected clients are now represented as entities with `ConnectedClient` components. Backends are responsible for spawning and despawning entities with this component.
+- Connected clients are now represented as entities with `ConnectedClient` components. Backends are responsible for spawning and despawning entities with this component. `ClientId` is accessible from `ConnectedClient::id` in case you need an identifier that is persistent across reconnects.
 - Statistics for connected clients now accessible via `ClientStats` component.
 - Replicated entities now represented by connected clients with `ReplicatedClient` component.
 - To access visibility, use `ClientVisibility` component on replicated entities.
 - `ServerEntityMap` resource now a component on replicated entities. It now accepts entity to entity mappings directly instead of `ClientId` to `ClientMapping`.
 - Replace statistic methods on `RepliconClient` with `RepliconClient::stats()` method that returns `ClientStats` struct.
 - Move `VisibilityPolicy` to `server` module.
+- Move `ClientId` to `connected_client` module and remove from `prelude`.
 - Use `TestClientEntity` instead of `ClientId` resource on clients in `ServerTestAppExt` to identify client entity.
 - Rename `FromClient::client_id` into `FromClient::client_entity`.
 - Replace `bincode` with `postcard`. It has more suitable variable integer encoding and potentially unlocks `no_std` support. If you use custom ser/de functions, replace `DefaultOptions::new().serialize_into(message, event)` with `postcard_utils::to_extend_mut(event, message)` and `DefaultOptions::new().deserialize_from(cursor)` with `postcard_utils::from_buf(message)`.
@@ -38,7 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- `ClientId`. Replicon doesn't need to know what backends use as client identifiers and now just uses `Entity` to refer to a connected client everywhere. Use `Entity::PLACEHOLDER` to refer to a server.
+- `ClientId` from `prelude`. Most operations now done using `Entity` as identifier. But it could be useful
 - `StartReplication` trigger. Just insert `ReplicatedClient` to enable replication.
 - `ConnectedClients` and `ReplicatedClients` resources. Use components on connected clients instead.
 - `ClientConnected` and `ClientDisconnected` triggers. Just observe for `Trigger<OnAdd, ConnectedClient>` or `Trigger<OnRemove, ConnectedClient>`. To get disconnect reason, obtain it from the ued backend.

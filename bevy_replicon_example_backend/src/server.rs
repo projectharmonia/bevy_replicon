@@ -48,7 +48,9 @@ fn receive_packets(
     loop {
         match server.listener.accept() {
             Ok((stream, addr)) => {
-                let client_entity = commands.spawn(ConnectedClient).id();
+                let client_entity = commands
+                    .spawn(ConnectedClient::new(addr.port().into()))
+                    .id();
                 if let Err(e) = server.add_connected(client_entity, stream) {
                     error!("unable to accept connection from `{addr}`: {e}");
                     commands.entity(client_entity).despawn();

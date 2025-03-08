@@ -20,6 +20,7 @@ use bytes::Buf;
 use crate::core::{
     channels::{ReplicationChannel, RepliconChannels},
     common_conditions::*,
+    connected_client::ConnectedClient,
     event::server_event::BufferedServerEvents,
     postcard_utils,
     replication::{
@@ -32,7 +33,6 @@ use crate::core::{
     },
     replicon_server::RepliconServer,
     replicon_tick::RepliconTick,
-    ConnectedClient,
 };
 use client_entity_map::ClientEntityMap;
 use client_visibility::{ClientVisibility, Visibility};

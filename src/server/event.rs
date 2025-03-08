@@ -6,6 +6,7 @@ use bevy::{
 use super::{server_tick::ServerTick, ServerSet};
 use crate::core::{
     common_conditions::*,
+    connected_client::ConnectedClient,
     event::{
         ctx::{ServerReceiveCtx, ServerSendCtx},
         event_registry::EventRegistry,
@@ -13,7 +14,6 @@ use crate::core::{
     },
     replication::client_ticks::ClientTicks,
     replicon_server::RepliconServer,
-    ConnectedClient,
 };
 
 /// Sending events from the server to clients.
