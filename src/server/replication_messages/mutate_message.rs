@@ -132,6 +132,7 @@ impl MutateMessage {
         server_tick: Range<usize>,
         tick: Tick,
         timestamp: Duration,
+        max_size: usize,
     ) -> postcard::Result<usize> {
         debug_assert_eq!(self.entities.len(), self.mutations.len());
 
@@ -153,8 +154,8 @@ impl MutateMessage {
 
             // Try to pack back first, then try to pack forward.
             if body_size != 0
-                && !can_pack(header_size + body_size, mutations_size)
-                && !can_pack(header_size + mutations_size, body_size)
+                && !can_pack(header_size + body_size, mutations_size, max_size)
+                && !can_pack(header_size + mutations_size, body_size, max_size)
             {
                 self.messages.push((
                     mutate_index,
@@ -226,11 +227,9 @@ impl MutateMessage {
     }
 }
 
-fn can_pack(message_size: usize, add: usize) -> bool {
-    const MAX_PACKET_SIZE: usize = 1200; // TODO: make it configurable by the messaging backend.
-
-    let dangling = message_size % MAX_PACKET_SIZE;
-    (dangling > 0) && ((dangling + add) <= MAX_PACKET_SIZE)
+fn can_pack(message_size: usize, add: usize, mtu: usize) -> bool {
+    let dangling = message_size % mtu;
+    (dangling > 0) && ((dangling + add) <= mtu)
 }
 
 #[cfg(test)]
@@ -239,14 +238,16 @@ mod tests {
 
     #[test]
     fn packing() {
-        assert!(can_pack(10, 5));
-        assert!(can_pack(10, 1190));
-        assert!(!can_pack(10, 1191));
-        assert!(!can_pack(10, 3000));
+        const MAX_SIZE: usize = 1200;
 
-        assert!(can_pack(1199, 1));
-        assert!(!can_pack(1200, 0));
-        assert!(!can_pack(1200, 1));
-        assert!(!can_pack(1200, 3000));
+        assert!(can_pack(10, 5, MAX_SIZE));
+        assert!(can_pack(10, 1190, MAX_SIZE));
+        assert!(!can_pack(10, 1191, MAX_SIZE));
+        assert!(!can_pack(10, 3000, MAX_SIZE));
+
+        assert!(can_pack(1199, 1, MAX_SIZE));
+        assert!(!can_pack(1200, 0, MAX_SIZE));
+        assert!(!can_pack(1200, 1, MAX_SIZE));
+        assert!(!can_pack(1200, 3000, MAX_SIZE));
     }
 }

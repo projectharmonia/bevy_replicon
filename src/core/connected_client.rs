@@ -22,12 +22,23 @@ use bevy::{
 #[require(Name(|| Name::new("Connected client")), NetworkStats)]
 pub struct ConnectedClient {
     id: ClientId,
+    /// Maximum size of a message that can be transferred over unreliable channel without
+    /// splitting into multiple packets.
+    ///
+    /// Used to manually split mutations over packet-size messages to allow applying them partially.
+    ///
+    /// <div class="warning">
+    ///
+    /// Should only be modified from the messaging backend.
+    ///
+    /// </div>
+    pub max_size: usize,
 }
 
 impl ConnectedClient {
-    /// Creates a new instance with a backend-provided ID.
-    pub fn new(id: ClientId) -> Self {
-        Self { id }
+    /// Creates a new instance with a backend-provided ID and maximum message size for unreliable channel.
+    pub fn new(id: ClientId, max_size: usize) -> Self {
+        Self { id, max_size }
     }
 
     /// Returns client ID provided by backend.
