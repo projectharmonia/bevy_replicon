@@ -235,8 +235,13 @@ impl ClientEvent {
         let reader: &mut ClientEventReader<E> = reader.deref_mut();
         for event in reader.read(events.deref()) {
             let mut message = Vec::new();
-            self.serialize::<E, I>(ctx, event, &mut message)
-                .expect("client event should be serializable");
+            if let Err(e) = self.serialize::<E, I>(ctx, event, &mut message) {
+                error!(
+                    "ignoring event `{}` that failed to serialize: {e}",
+                    any::type_name::<E>()
+                );
+                continue;
+            }
 
             debug!("sending event `{}`", any::type_name::<E>());
             client.send(self.channel_id, message);
@@ -358,7 +363,19 @@ impl ClientEvent {
     ) -> postcard::Result<()> {
         self.event_fns
             .typed::<ClientSendCtx, ServerReceiveCtx, E, I>()
-            .serialize(ctx, event, message)
+            .serialize(ctx, event, message)?;
+
+        if ctx.invalid_entities.is_empty() {
+            Ok(())
+        } else {
+            error!(
+                "unable to map entities `{:?}` for the server, \
+                make sure that the event references entities visible to the server",
+                ctx.invalid_entities,
+            );
+            ctx.invalid_entities.clear();
+            Err(postcard::Error::SerdeDeCustom)
+        }
     }
 
     /// Deserializes an event from a message.
