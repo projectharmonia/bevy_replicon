@@ -70,10 +70,10 @@ fn with_component() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    client_app
+    let mut components = client_app
         .world_mut()
-        .query::<(&Replicated, &DummyComponent)>()
-        .single(client_app.world());
+        .query::<(&Replicated, &DummyComponent)>();
+    assert_eq!(components.iter(client_app.world()).count(), 1);
 }
 
 #[test]
@@ -114,10 +114,10 @@ fn with_old_component() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    client_app
+    let mut components = client_app
         .world_mut()
-        .query::<(&Replicated, &DummyComponent)>()
-        .single(client_app.world());
+        .query::<(&Replicated, &DummyComponent)>();
+    assert_eq!(components.iter(client_app.world()).count(), 1);
 }
 
 #[test]
@@ -143,10 +143,10 @@ fn before_connection() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    client_app
+    let mut components = client_app
         .world_mut()
-        .query::<(&Replicated, &DummyComponent)>()
-        .single(client_app.world());
+        .query::<(&Replicated, &DummyComponent)>();
+    assert_eq!(components.iter(client_app.world()).count(), 1);
 }
 
 #[test]
@@ -245,10 +245,10 @@ fn after_despawn() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    client_app
+    let mut components = client_app
         .world_mut()
-        .query::<(&Replicated, &DummyComponent)>()
-        .single(client_app.world());
+        .query::<(&Replicated, &DummyComponent)>();
+    assert_eq!(components.iter(client_app.world()).count(), 1);
 }
 
 #[derive(Component, Deserialize, Serialize)]

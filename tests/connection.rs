@@ -214,8 +214,8 @@ fn deferred_replication() {
 
     server_app.connect_client(&mut client_app);
 
-    server_app
+    let mut clients = server_app
         .world_mut()
-        .query_filtered::<&ConnectedClient, Without<ReplicatedClient>>()
-        .single(server_app.world());
+        .query_filtered::<&ConnectedClient, Without<ReplicatedClient>>();
+    assert_eq!(clients.iter(server_app.world()).count(), 1);
 }

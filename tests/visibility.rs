@@ -39,10 +39,10 @@ fn all() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    client_app
+    let mut components = client_app
         .world_mut()
-        .query::<(&Replicated, &DummyComponent)>()
-        .single(client_app.world());
+        .query::<(&Replicated, &DummyComponent)>();
+    assert_eq!(components.iter(client_app.world()).count(), 1);
 
     // Reverse visibility back.
     let mut visibility = server_app
@@ -55,10 +55,7 @@ fn all() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    client_app
-        .world_mut()
-        .query::<(&Replicated, &DummyComponent)>()
-        .single(client_app.world());
+    assert_eq!(components.iter(client_app.world()).count(), 1);
 }
 
 #[test]
@@ -85,10 +82,10 @@ fn empty_blacklist() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    client_app
+    let mut components = client_app
         .world_mut()
-        .query::<(&Replicated, &DummyComponent)>()
-        .single(client_app.world());
+        .query::<(&Replicated, &DummyComponent)>();
+    assert_eq!(components.iter(client_app.world()).count(), 1);
 }
 
 #[test]
@@ -140,10 +137,10 @@ fn blacklist() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    client_app
+    let mut components = client_app
         .world_mut()
-        .query::<(&Replicated, &DummyComponent)>()
-        .single(client_app.world());
+        .query::<(&Replicated, &DummyComponent)>();
+    assert_eq!(components.iter(client_app.world()).count(), 1);
 }
 
 #[test]
@@ -255,10 +252,10 @@ fn whitelist() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    let client_entity = client_app
+    let mut components = client_app
         .world_mut()
-        .query_filtered::<Entity, (With<Replicated>, With<DummyComponent>)>()
-        .single(client_app.world());
+        .query::<(&Replicated, &DummyComponent)>();
+    assert_eq!(components.iter(client_app.world()).len(), 1);
 
     // Reverse visibility.
     let mut visibility = server_app
@@ -271,8 +268,9 @@ fn whitelist() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    assert!(
-        client_app.world().get_entity(client_entity).is_err(),
+    assert_eq!(
+        components.iter(client_app.world()).len(),
+        0,
         "entity should be despawned after removing from whitelist"
     );
 }

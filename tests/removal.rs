@@ -39,10 +39,8 @@ fn single() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    let client_entity = client_app
-        .world_mut()
-        .query_filtered::<Entity, With<DummyComponent>>()
-        .single(client_app.world());
+    let mut components = client_app.world_mut().query::<&DummyComponent>();
+    assert_eq!(components.iter(client_app.world()).len(), 1);
 
     server_app
         .world_mut()
@@ -53,8 +51,7 @@ fn single() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let client_entity = client_app.world().entity(client_entity);
-    assert!(!client_entity.contains::<DummyComponent>());
+    assert_eq!(components.iter(client_app.world()).len(), 0);
 }
 
 #[test]
@@ -85,10 +82,8 @@ fn command_fns() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    let client_entity = client_app
-        .world_mut()
-        .query_filtered::<Entity, With<ReplacedComponent>>()
-        .single(client_app.world());
+    let mut components = client_app.world_mut().query::<&ReplacedComponent>();
+    assert_eq!(components.iter(client_app.world()).len(), 1);
 
     server_app
         .world_mut()
@@ -99,8 +94,7 @@ fn command_fns() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let client_entity = client_app.world().entity(client_entity);
-    assert!(!client_entity.contains::<ReplacedComponent>());
+    assert_eq!(components.iter(client_app.world()).len(), 0);
 }
 
 #[test]
@@ -279,10 +273,8 @@ fn after_insertion() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    let client_entity = client_app
-        .world_mut()
-        .query_filtered::<Entity, With<DummyComponent>>()
-        .single(client_app.world());
+    let mut components = client_app.world_mut().query::<&DummyComponent>();
+    assert_eq!(components.iter(client_app.world()).len(), 1);
 
     // Insert and remove at the same time.
     server_app
@@ -295,8 +287,7 @@ fn after_insertion() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let client_entity = client_app.world().entity(client_entity);
-    assert!(!client_entity.contains::<DummyComponent>());
+    assert_eq!(components.iter(client_app.world()).len(), 0);
 }
 
 #[test]
@@ -325,10 +316,10 @@ fn with_spawn() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    client_app
+    let mut components = client_app
         .world_mut()
-        .query_filtered::<Entity, (With<Replicated>, Without<DummyComponent>)>()
-        .single(client_app.world());
+        .query_filtered::<&Replicated, Without<DummyComponent>>();
+    assert_eq!(components.iter(client_app.world()).len(), 1);
 }
 
 #[test]
@@ -358,10 +349,8 @@ fn with_despawn() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    client_app
-        .world_mut()
-        .query::<&Replicated>()
-        .single(client_app.world());
+    let mut replicated = client_app.world_mut().query::<&Replicated>();
+    assert_eq!(replicated.iter(client_app.world()).len(), 1);
 
     // Un-replicate and remove at the same time.
     server_app
@@ -374,7 +363,6 @@ fn with_despawn() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let mut replicated = client_app.world_mut().query::<&Replicated>();
     assert_eq!(replicated.iter(client_app.world()).len(), 0);
 }
 
