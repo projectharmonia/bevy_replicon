@@ -225,18 +225,26 @@ fn setup_ui(mut commands: Commands, symbol_font: Res<SymbolFont>) {
 fn pick_cell(
     trigger: Trigger<Pointer<Click>>,
     mut commands: Commands,
+    turn_symbol: Res<TurnSymbol>,
     game_state: Res<State<GameState>>,
     cells: Query<&Cell>,
+    players: Query<&Symbol, With<LocalPlayer>>,
 ) {
-    if *game_state == GameState::InGame {
-        let cell = cells
-            .get(trigger.entity())
-            .expect("cells should have assigned indices");
-        // We don't check if a cell can't be picked on client on purpose
-        // just to demonstrate how server can receive invalid requests from a client.
-        info!("picking cell {}", cell.index);
-        commands.client_trigger(CellPick { index: cell.index });
+    if *game_state != GameState::InGame {
+        return;
     }
+
+    if !local_player_turn(turn_symbol, players) {
+        return;
+    }
+
+    let cell = cells
+        .get(trigger.entity())
+        .expect("cells should have assigned indices");
+    // We don't check if a cell can't be picked on client on purpose
+    // just to demonstrate how server can receive invalid requests from a client.
+    info!("picking cell {}", cell.index);
+    commands.client_trigger(CellPick { index: cell.index });
 }
 
 /// Handles cell pick events.
