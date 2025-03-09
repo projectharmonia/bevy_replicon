@@ -441,9 +441,9 @@ impl ServerEvent {
                     events.send(event);
                 }
                 Err(e) => error!(
-                "ignoring event `{}` from queue with `{tick:?}` that failed to deserialize: {e}",
-                any::type_name::<E>()
-            ),
+                    "ignoring event `{}` from queue with `{tick:?}` that failed to deserialize: {e}",
+                    any::type_name::<E>()
+                ),
             }
         }
 
@@ -585,8 +585,8 @@ impl ServerEvent {
             Ok(event)
         } else {
             error!(
-                "unable to map entities `{:?}` from server, \
-                make sure that the event references visible entities for the client",
+                "unable to map entities `{:?}` from the server, \
+                make sure that the event references entities visible to the client",
                 ctx.invalid_entities,
             );
             ctx.invalid_entities.clear();
