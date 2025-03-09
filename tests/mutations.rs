@@ -197,10 +197,10 @@ fn command_fns() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    let client_entity = client_app
+    let mut components = client_app
         .world_mut()
-        .query_filtered::<Entity, With<ReplacedComponent>>()
-        .single(client_app.world());
+        .query_filtered::<&ReplacedComponent, Without<OriginalComponent>>();
+    assert_eq!(components.iter(client_app.world()).len(), 1);
 
     // Change value.
     let mut component = server_app
@@ -213,10 +213,7 @@ fn command_fns() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let client_entity = client_app.world().entity(client_entity);
-    assert!(!client_entity.contains::<OriginalComponent>());
-
-    let component = client_entity.get::<ReplacedComponent>().unwrap();
+    let component = components.single(client_app.world());
     assert!(component.0);
 }
 
@@ -746,10 +743,8 @@ fn buffering() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    let component = client_app
-        .world_mut()
-        .query::<&BoolComponent>()
-        .single(client_app.world());
+    let mut components = client_app.world_mut().query::<&BoolComponent>();
+    let component = components.single(client_app.world());
     assert!(!component.0, "client should buffer the mutation");
 
     // Restore the update tick to let the buffered mutation apply
@@ -759,10 +754,7 @@ fn buffering() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let component = client_app
-        .world_mut()
-        .query::<&BoolComponent>()
-        .single(client_app.world());
+    let component = components.single(client_app.world());
     assert!(component.0, "buffered mutation should be applied");
 }
 
@@ -869,10 +861,8 @@ fn acknowledgment() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let component = client_app
-        .world_mut()
-        .query::<Ref<BoolComponent>>()
-        .single(client_app.world());
+    let mut components = client_app.world_mut().query::<Ref<BoolComponent>>();
+    let component = components.single(client_app.world());
     let tick1 = component.last_changed();
 
     // Take and drop ack message.
@@ -884,10 +874,7 @@ fn acknowledgment() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    let component = client_app
-        .world_mut()
-        .query::<Ref<BoolComponent>>()
-        .single(client_app.world());
+    let component = components.single(client_app.world());
     let tick2 = component.last_changed();
 
     assert!(
