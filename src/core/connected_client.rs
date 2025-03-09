@@ -26,10 +26,8 @@ pub struct ConnectedClient {
 
 impl ConnectedClient {
     /// Creates a new instance with a backend-provided ID.
-    pub fn new(id: u64) -> Self {
-        Self {
-            id: ClientId::new(id),
-        }
+    pub fn new(id: ClientId) -> Self {
+        Self { id }
     }
 
     /// Returns client ID provided by backend.
@@ -46,8 +44,8 @@ impl ConnectedClient {
 fn on_client_add(mut world: DeferredWorld, entity: Entity, _id: ComponentId) {
     let connected_client = world.get::<ConnectedClient>(entity).unwrap();
     let client_id = connected_client.id;
-    let mut map = world.resource_mut::<ClientIdMap>();
-    if let Some(old_entity) = map.0.insert(client_id, entity) {
+    let mut client_map = world.resource_mut::<ClientIdMap>();
+    if let Some(old_entity) = client_map.0.insert(client_id, entity) {
         error!("backend-provided `{client_id:?}` that was already mapped to client `{old_entity}`");
     }
 }
@@ -55,8 +53,8 @@ fn on_client_add(mut world: DeferredWorld, entity: Entity, _id: ComponentId) {
 fn on_client_remove(mut world: DeferredWorld, entity: Entity, _id: ComponentId) {
     let connected_client = world.get::<ConnectedClient>(entity).unwrap();
     let client_id = connected_client.id;
-    let mut map = world.resource_mut::<ClientIdMap>();
-    map.0.remove(&client_id);
+    let mut client_map = world.resource_mut::<ClientIdMap>();
+    client_map.0.remove(&client_id);
 }
 
 /// Maps [`ConnectedClient::id`] to associated entity.

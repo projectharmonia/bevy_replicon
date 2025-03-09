@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::core::{
-    connected_client::ConnectedClient,
+    connected_client::{ClientId, ConnectedClient},
     replicon_client::{RepliconClient, RepliconClientStatus},
     replicon_server::RepliconServer,
 };
@@ -89,8 +89,8 @@ impl ServerTestAppExt for App {
         let mut server = self.world_mut().resource_mut::<RepliconServer>();
         server.set_running(true);
         let mut client_entity = self.world_mut().spawn_empty();
-        // Use entity ID for client ID since it's just for testing.
-        client_entity.insert(ConnectedClient::new(client_entity.id().to_bits()));
+        let client_id = ClientId::new(client_entity.id().to_bits()); // Use entity ID for client ID since it's just for testing.
+        client_entity.insert(ConnectedClient::new(client_id));
 
         let mut client = client_app.world_mut().resource_mut::<RepliconClient>();
         assert!(
