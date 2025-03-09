@@ -90,7 +90,7 @@ impl ServerTestAppExt for App {
         server.set_running(true);
         let mut client_entity = self.world_mut().spawn_empty();
         let client_id = ClientId::new(client_entity.id().to_bits()); // Use entity ID for client ID since it's just for testing.
-        client_entity.insert(ConnectedClient::new(client_id));
+        client_entity.insert(ConnectedClient::new(client_id, 1200));
 
         let mut client = client_app.world_mut().resource_mut::<RepliconClient>();
         assert!(
