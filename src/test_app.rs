@@ -1,13 +1,9 @@
 use bevy::prelude::*;
 
-use crate::{
-    core::{
-        replication::replicated_clients::ReplicatedClients,
-        replicon_client::{RepliconClient, RepliconClientStatus},
-        replicon_server::RepliconServer,
-        ClientId, DisconnectReason,
-    },
-    server::{ClientConnected, ClientDisconnected},
+use crate::core::{
+    connected_client::{ClientId, ConnectedClient},
+    replicon_client::{RepliconClient, RepliconClientStatus},
+    replicon_server::RepliconServer,
 };
 
 /**
@@ -46,7 +42,7 @@ client_app.update();
 
 let mut relicated = client_app.world_mut().query::<&Replicated>();
 assert_eq!(
-    relicated.iter(client_app.world()).count(),
+    relicated.iter(client_app.world()).len(),
     1,
     "client should replicate spawned entity"
 );
@@ -60,6 +56,8 @@ pub trait ServerTestAppExt {
     ///
     /// Can be called multiple times on different client apps.
     /// Internally updates both apps one time.
+    ///
+    /// Inserts [`TestClientEntity`] for tracking.
     ///
     /// # Panics
     ///
@@ -88,29 +86,21 @@ pub trait ServerTestAppExt {
 
 impl ServerTestAppExt for App {
     fn connect_client(&mut self, client_app: &mut App) {
+        let mut server = self.world_mut().resource_mut::<RepliconServer>();
+        server.set_running(true);
+        let mut client_entity = self.world_mut().spawn_empty();
+        let client_id = ClientId::new(client_entity.id().to_bits()); // Use entity ID for client ID since it's just for testing.
+        client_entity.insert(ConnectedClient::new(client_id));
+
         let mut client = client_app.world_mut().resource_mut::<RepliconClient>();
         assert!(
             client.is_disconnected(),
             "client can't be connected multiple times"
         );
-
-        // Use client number as ID.
-        // Server ID (0) will always be skipped.
-        let max_id = self
+        client.set_status(RepliconClientStatus::Connected);
+        client_app
             .world_mut()
-            .resource_mut::<ReplicatedClients>()
-            .iter_client_ids()
-            .max()
-            .unwrap_or(ClientId::SERVER);
-        let client_id = ClientId::new(max_id.get() + 1);
-        client.set_status(RepliconClientStatus::Connected {
-            client_id: Some(client_id),
-        });
-
-        let mut server = self.world_mut().resource_mut::<RepliconServer>();
-        server.set_running(true);
-
-        self.world_mut().trigger(ClientConnected { client_id });
+            .insert_resource(TestClientEntity(client_entity.id()));
 
         self.update();
         client_app.update();
@@ -118,34 +108,29 @@ impl ServerTestAppExt for App {
 
     fn disconnect_client(&mut self, client_app: &mut App) {
         let mut client = client_app.world_mut().resource_mut::<RepliconClient>();
-        let client_id = client
-            .id()
+        client.set_status(RepliconClientStatus::Disconnected);
+        let client_entity = *client_app
+            .world_mut()
+            .remove_resource::<TestClientEntity>()
             .expect("client should have an assigned ID for disconnect");
 
-        client.set_status(RepliconClientStatus::Disconnected);
-
-        self.world_mut().trigger(ClientDisconnected {
-            client_id,
-            reason: DisconnectReason::DisconnectedByServer,
-        });
+        self.world_mut().entity_mut(client_entity).despawn();
 
         self.update();
         client_app.update();
     }
 
     fn exchange_with_client(&mut self, client_app: &mut App) {
+        let client_entity = **client_app.world().resource::<TestClientEntity>();
         let mut client = client_app.world_mut().resource_mut::<RepliconClient>();
-        let client_id = client
-            .id()
-            .expect("client should have an assigned ID for exchanging messages");
 
         let mut server = self.world_mut().resource_mut::<RepliconServer>();
         for (channel_id, message) in client.drain_sent() {
-            server.insert_received(client_id, channel_id, message)
+            server.insert_received(client_entity, channel_id, message)
         }
 
-        server.retain_sent(|(sender_id, channel_id, message)| {
-            if *sender_id == client_id {
+        server.retain_sent(|(entity, channel_id, message)| {
+            if *entity == client_entity {
                 client.insert_received(*channel_id, message.clone());
                 false
             } else {
@@ -154,3 +139,10 @@ impl ServerTestAppExt for App {
         })
     }
 }
+
+/// Stores connected client entity from server on client.
+///
+/// Inserted in [`ServerTestAppExt::connect_client`] and removed by [`ServerTestAppExt::disconnect_client`].
+/// Used to track which client corresponds to which connection.
+#[derive(Resource, Deref, Clone, Copy, Debug)]
+pub struct TestClientEntity(Entity);

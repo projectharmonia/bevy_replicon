@@ -60,7 +60,7 @@ assert!(!entity.contains::<DummyComponent>());
 
 entity.apply_despawn(tick);
 let mut replicated = app.world_mut().query::<&DummyComponent>();
-assert!(replicated.iter(app.world()).next().is_none());
+assert_eq!(replicated.iter(app.world()).len(), 0);
 
 #[derive(Component, Serialize, Deserialize)]
 struct DummyComponent;

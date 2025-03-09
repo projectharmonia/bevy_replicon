@@ -1,7 +1,10 @@
-use std::{any, collections::HashSet, marker::PhantomData, mem};
+use std::{any, marker::PhantomData, mem};
 
 use bevy::{
-    ecs::{component::ComponentId, entity::MapEntities},
+    ecs::{
+        component::ComponentId,
+        entity::{EntityHashSet, MapEntities},
+    },
     prelude::*,
     ptr::{Ptr, PtrMut},
 };
@@ -17,13 +20,12 @@ use super::{
 };
 use crate::core::{
     channels::{RepliconChannel, RepliconChannels},
-    connected_clients::ConnectedClients,
     postcard_utils,
-    replication::replicated_clients::{ReplicatedClient, ReplicatedClients},
+    replication::client_ticks::ClientTicks,
     replicon_client::RepliconClient,
     replicon_server::RepliconServer,
     replicon_tick::RepliconTick,
-    ClientId,
+    ConnectedClient, SERVER,
 };
 
 /// An extension trait for [`App`] for creating client events.
@@ -31,7 +33,7 @@ pub trait ServerEventAppExt {
     /// Registers `E` and [`ToClients<E>`] events.
     ///
     /// `E` will be emitted on client after sending [`ToClients<E>`] on the server.
-    /// If [`ClientId::SERVER`] is a recipient of the event, then [`ToClients<E>`] will be drained
+    /// If [`SERVER`] is a recipient of the event, then [`ToClients<E>`] will be drained
     /// after sending to clients and `E` events will be emitted on the server.
     ///
     /// Can be called for already existing regular events, a duplicate registration
@@ -279,17 +281,10 @@ impl ServerEvent {
         ctx: &mut ServerSendCtx,
         server_events: &Ptr,
         server: &mut RepliconServer,
-        connected_clients: &ConnectedClients,
+        clients: &Query<Entity, With<ConnectedClient>>,
         buffered_events: &mut BufferedServerEvents,
     ) {
-        (self.send_or_buffer)(
-            self,
-            ctx,
-            server_events,
-            server,
-            connected_clients,
-            buffered_events,
-        );
+        (self.send_or_buffer)(self, ctx, server_events, server, clients, buffered_events);
     }
 
     /// Typed version of [`Self::send_or_buffer`].
@@ -303,7 +298,7 @@ impl ServerEvent {
         ctx: &mut ServerSendCtx,
         server_events: &Ptr,
         server: &mut RepliconServer,
-        connected_clients: &ConnectedClients,
+        clients: &Query<Entity, With<ConnectedClient>>,
         buffered_events: &mut BufferedServerEvents,
     ) {
         let events: &Events<ToClients<E>> = server_events.deref();
@@ -313,7 +308,7 @@ impl ServerEvent {
             debug!("sending event `{}` with `{mode:?}`", any::type_name::<E>());
 
             if self.is_independent() {
-                self.send_independent_event::<E, I>(ctx, event, mode, server, connected_clients)
+                self.send_independent_event::<E, I>(ctx, event, mode, server, clients)
                     .expect("independent server event should be serializable");
             } else {
                 self.buffer_event::<E, I>(ctx, event, *mode, buffered_events)
@@ -335,7 +330,7 @@ impl ServerEvent {
         event: &E,
         mode: &SendMode,
         server: &mut RepliconServer,
-        connected_clients: &ConnectedClients,
+        clients: &Query<Entity, With<ConnectedClient>>,
     ) -> postcard::Result<()> {
         let mut message = Vec::new();
         self.serialize::<E, I>(ctx, event, &mut message)?;
@@ -343,20 +338,20 @@ impl ServerEvent {
 
         match *mode {
             SendMode::Broadcast => {
-                for client in connected_clients.iter() {
-                    server.send(client.id(), self.channel_id, message.clone());
+                for client_entity in clients {
+                    server.send(client_entity, self.channel_id, message.clone());
                 }
             }
-            SendMode::BroadcastExcept(id) => {
-                for client in connected_clients.iter() {
-                    if client.id() != id {
-                        server.send(client.id(), self.channel_id, message.clone());
+            SendMode::BroadcastExcept(entity) => {
+                for client_entity in clients {
+                    if client_entity != entity {
+                        server.send(client_entity, self.channel_id, message.clone());
                     }
                 }
             }
-            SendMode::Direct(client_id) => {
-                if client_id != ClientId::SERVER {
-                    server.send(client_id, self.channel_id, message.clone());
+            SendMode::Direct(entity) => {
+                if entity != SERVER {
+                    server.send(entity, self.channel_id, message.clone());
                 }
             }
         }
@@ -513,13 +508,13 @@ impl ServerEvent {
                 SendMode::Broadcast => {
                     events.send(event);
                 }
-                SendMode::BroadcastExcept(client_id) => {
-                    if client_id != ClientId::SERVER {
+                SendMode::BroadcastExcept(entity) => {
+                    if entity != SERVER {
                         events.send(event);
                     }
                 }
-                SendMode::Direct(client_id) => {
-                    if client_id == ClientId::SERVER {
+                SendMode::Direct(entity) => {
+                    if entity == SERVER {
                         events.send(event);
                     }
                 }
@@ -606,7 +601,7 @@ type SendOrBufferFn = unsafe fn(
     &mut ServerSendCtx,
     &Ptr,
     &mut RepliconServer,
-    &ConnectedClients,
+    &Query<Entity, With<ConnectedClient>>,
     &mut BufferedServerEvents,
 );
 
@@ -698,10 +693,11 @@ impl BufferedServerEvent {
     fn send(
         &mut self,
         server: &mut RepliconServer,
-        client: &ReplicatedClient,
+        client_entity: Entity,
+        client: &ClientTicks,
     ) -> postcard::Result<()> {
         let message = self.message.get_bytes(client.update_tick())?;
-        server.send(client.id(), self.channel, message);
+        server.send(client_entity, self.channel, message);
         Ok(())
     }
 }
@@ -709,8 +705,8 @@ impl BufferedServerEvent {
 #[derive(Default)]
 struct BufferedServerEventSet {
     events: Vec<BufferedServerEvent>,
-    /// Client ids excluded from receiving events in this set because they connected after the events were sent.
-    excluded: HashSet<ClientId>,
+    /// Client entities excluded from receiving events in this set because they connected after the events were sent.
+    excluded: EntityHashSet,
 }
 
 impl BufferedServerEventSet {
@@ -757,43 +753,41 @@ impl BufferedServerEvents {
     }
 
     /// Used to prevent newly-connected clients from receiving old events.
-    pub(crate) fn exclude_client(&mut self, client: ClientId) {
+    pub(crate) fn exclude_client(&mut self, client_entity: Entity) {
         for set in self.buffer.iter_mut() {
-            set.excluded.insert(client);
+            set.excluded.insert(client_entity);
         }
     }
 
     pub(crate) fn send_all(
         &mut self,
         server: &mut RepliconServer,
-        replicated_clients: &ReplicatedClients,
+        clients: &Query<(Entity, &ClientTicks)>,
     ) -> postcard::Result<()> {
         for mut set in self.buffer.drain(..) {
             for mut event in set.events.drain(..) {
                 match event.mode {
                     SendMode::Broadcast => {
-                        for client in replicated_clients
-                            .iter()
-                            .filter(|c| !set.excluded.contains(&c.id()))
+                        for (client_entity, ticks) in
+                            clients.iter().filter(|(e, _)| !set.excluded.contains(e))
                         {
-                            event.send(server, client)?;
+                            event.send(server, client_entity, ticks)?;
                         }
                     }
-                    SendMode::BroadcastExcept(client_id) => {
-                        for client in replicated_clients
-                            .iter()
-                            .filter(|c| !set.excluded.contains(&c.id()))
+                    SendMode::BroadcastExcept(entity) => {
+                        for (client_entity, ticks) in
+                            clients.iter().filter(|(e, _)| !set.excluded.contains(e))
                         {
-                            if client.id() == client_id {
+                            if client_entity == entity {
                                 continue;
                             }
-                            event.send(server, client)?;
+                            event.send(server, client_entity, ticks)?;
                         }
                     }
-                    SendMode::Direct(client_id) => {
-                        if client_id != ClientId::SERVER && !set.excluded.contains(&client_id) {
-                            if let Some(client) = replicated_clients.get_client(client_id) {
-                                event.send(server, client)?;
+                    SendMode::Direct(entity) => {
+                        if entity != SERVER && !set.excluded.contains(&entity) {
+                            if let Ok((client_entity, ticks)) = clients.get(entity) {
+                                event.send(server, client_entity, ticks)?;
                             }
                         }
                     }
@@ -816,17 +810,22 @@ impl BufferedServerEvents {
 /// An event that will be send to client(s).
 #[derive(Clone, Copy, Debug, Event, Deref, DerefMut)]
 pub struct ToClients<T> {
+    /// Recipients.
     pub mode: SendMode,
+    /// Transmitted event.
     #[deref]
     pub event: T,
 }
 
-/// Type of server message sending.
+/// Type of server event sending.
 #[derive(Clone, Copy, Debug)]
 pub enum SendMode {
+    /// Send to every client.
     Broadcast,
-    BroadcastExcept(ClientId),
-    Direct(ClientId),
+    /// Send to every client except the specified connected client.
+    BroadcastExcept(Entity),
+    /// Send only to the specified client.
+    Direct(Entity),
 }
 
 /// Stores all received events from server that arrived earlier then replication message with their tick.

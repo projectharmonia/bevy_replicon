@@ -8,7 +8,7 @@ We provide a [`prelude`] module, which exports most of the typically used traits
 The library doesn't provide any I/O, so you need to add a
 [messaging backend](https://github.com/projectharmonia/bevy_replicon#messaging-backends).
 If you want to write an integration for a messaging backend,
-see the documentation for [`RepliconServer`], [`RepliconClient`], [`ClientConnected`] and [`ClientDisconnected`].
+see the documentation for [`RepliconServer`], [`RepliconClient`] and [`ConnectedClient`].
 You can also use `bevy_replicon_renet`, which we maintain, as a reference.
 
 Also depending on your game, you may want to use additional crates. For example, if your game
@@ -95,7 +95,7 @@ fn send_movement(mut movement_events: EventWriter<MovementEvent>) {
 }
 
 fn apply_movement(mut movement_events: EventReader<FromClient<MovementEvent>>) {
-    for FromClient { client_id, event } in movement_events.read() {
+    for FromClient { client_entity, event } in movement_events.read() {
         // Apply user inputs to entities.
         // Since it runs on server, all changes will be replicated back to clients.
     }
@@ -215,6 +215,8 @@ in combination with [network events](#network-events) instead.
 
 </div>
 
+On server connected clients represented as entities with [`ConnectedClient`] component.
+
 ## System sets and conditions
 
 To run a system based on a network condition, use the [`core::common_conditions`] module.
@@ -237,6 +239,9 @@ keep the world in sync.
 
 To prevent cheating, we do not support replicating from the client. If you need to send
 information from clients to the server, use [events](#network-events).
+
+Replication is enabled by default for all connected clients via [`ReplicatedClient`] component.
+It can be disabled via [`ServerPlugin::replicate_after_connect`] is set to `false`.
 
 ### Marking for replication
 
@@ -421,8 +426,8 @@ fn send_events(mut dummy_events: EventWriter<DummyEvent>) {
 }
 
 fn receive_events(mut dummy_events: EventReader<FromClient<DummyEvent>>) {
-    for FromClient { client_id, event } in dummy_events.read() {
-        info!("received event {event:?} from {client_id:?}");
+    for FromClient { client_entity, event } in dummy_events.read() {
+        info!("received event `{event:?}` from client `{client_entity}`");
     }
 }
 
@@ -430,7 +435,7 @@ fn receive_events(mut dummy_events: EventReader<FromClient<DummyEvent>>) {
 struct DummyEvent;
 ```
 
-We consider the server or a singleplayer session also as a client with ID [`ClientId::SERVER`].
+We consider the server or a singleplayer session also as a client with ID [`SERVER`].
 So you can send such events even on server and [`FromClient`] will be emitted for them too.
 
 If you remove [`client_connected`] condition and replace [`server_running`] with
@@ -486,7 +491,7 @@ fn send_events(mut commands: Commands) {
 }
 
 fn receive_events(trigger: Trigger<FromClient<DummyEvent>>) {
-    info!("received event {:?} from {:?}", **trigger, trigger.client_id);
+    info!("received event `{:?}` from client `{}`", **trigger, trigger.client_entity);
 }
 # #[derive(Event, Debug, Deserialize, Serialize)]
 # struct DummyEvent;
@@ -535,7 +540,7 @@ struct DummyEvent;
 ```
 
 Just like events sent from the client, you can send these events on the server or
-in singleplayer and they will appear locally as regular events (if [`ClientId::SERVER`] is not excluded
+in singleplayer and they will appear locally as regular events (if [`SERVER`] is not excluded
 from the send list). So the same trick with run conditions will work.
 
 If the event contains an entity, then
@@ -582,13 +587,12 @@ Just like with components, all networked events should be registered in the same
 You can control which parts of the world are visible for each client by setting visibility policy
 in [`ServerPlugin`] to [`VisibilityPolicy::Whitelist`] or [`VisibilityPolicy::Blacklist`].
 
-In order to set which entity is visible, you need to use the [`ReplicatedClients`] resource
-to obtain the [`ReplicatedClient`] for a specific client and get its [`ClientVisibility`]:
+In order to set which entity is visible, you need to use the [`ClientVisibility`] component
+on replicated clients.
 
 ```
 # use bevy::prelude::*;
 # use bevy_replicon::prelude::*;
-# use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 app.add_plugins((
     MinimalPlugins,
@@ -601,27 +605,26 @@ app.add_plugins((
 
 /// Disables the visibility of other players' entities that are further away than the visible distance.
 fn update_visibility(
-    mut replicated_clients: ResMut<ReplicatedClients>,
-    moved_players: Query<(&Transform, &Player), Changed<Transform>>,
-    other_players: Query<(Entity, &Transform, &Player)>,
+    mut clients: Query<&mut ClientVisibility>,
+    moved_players: Query<(&Transform, &PlayerOwner), Changed<Transform>>,
+    other_players: Query<(Entity, &Transform, &PlayerOwner)>,
 ) {
-    for (moved_transform, moved_player) in &moved_players {
-        let client = replicated_clients.client_mut(moved_player.0);
+    for (moved_transform, &owner) in &moved_players {
+        let mut visibility = clients.get_mut(*owner).unwrap();
         for (entity, transform, _) in other_players
             .iter()
-            .filter(|(.., player)| player.0 != moved_player.0)
+            .filter(|(.., &other_owner)| *other_owner != *owner)
         {
             const VISIBLE_DISTANCE: f32 = 100.0;
             let distance = moved_transform.translation.distance(transform.translation);
-            client
-                .visibility_mut()
-                .set_visibility(entity, distance < VISIBLE_DISTANCE);
+            visibility.set_visibility(entity, distance < VISIBLE_DISTANCE);
         }
     }
 }
 
-#[derive(Component, Deserialize, Serialize)]
-struct Player(ClientId);
+/// Points to client entity.
+#[derive(Component, Deref, Clone, Copy)]
+struct PlayerOwner(Entity);
 ```
 
 For a higher level API consider using [`bevy_replicon_attributes`](https://docs.rs/bevy_replicon_attributes).
@@ -678,7 +681,7 @@ pub mod prelude {
         core::{
             channels::{ChannelKind, RepliconChannel, RepliconChannels},
             common_conditions::*,
-            connected_clients::ConnectedClients,
+            connected_client::{ConnectedClient, NetworkStats},
             event::{
                 client_event::{ClientEventAppExt, FromClient},
                 client_trigger::{ClientTriggerAppExt, ClientTriggerExt},
@@ -686,17 +689,11 @@ pub mod prelude {
                 server_trigger::{ServerTriggerAppExt, ServerTriggerExt},
             },
             replication::{
-                command_markers::AppMarkerExt,
-                replicated_clients::{
-                    client_visibility::ClientVisibility, ReplicatedClient, ReplicatedClients,
-                    VisibilityPolicy,
-                },
-                replication_rules::AppRuleExt,
-                Replicated,
+                command_markers::AppMarkerExt, replication_rules::AppRuleExt, Replicated,
             },
             replicon_client::{RepliconClient, RepliconClientStatus},
             replicon_server::RepliconServer,
-            BackendError, ClientId, DisconnectReason, RepliconCorePlugin,
+            RepliconCorePlugin, SERVER,
         },
         RepliconPlugins,
     };
@@ -708,9 +705,9 @@ pub mod prelude {
 
     #[cfg(feature = "server")]
     pub use super::server::{
-        client_entity_map::{ClientEntityMap, ClientMapping},
-        event::ServerEventPlugin,
-        ClientConnected, ClientDisconnected, ServerPlugin, ServerSet, StartReplication, TickPolicy,
+        client_entity_map::ClientEntityMap, client_visibility::ClientVisibility,
+        event::ServerEventPlugin, ReplicatedClient, ServerPlugin, ServerSet, TickPolicy,
+        VisibilityPolicy,
     };
 
     #[cfg(feature = "client_diagnostics")]
