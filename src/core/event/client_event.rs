@@ -23,19 +23,21 @@ use crate::core::{
 
 /// An extension trait for [`App`] for creating client events.
 pub trait ClientEventAppExt {
-    /// Registers [`FromClient<E>`] and `E` events.
+    /// Registers a remote client event.
     ///
-    /// The API matches [`ClientTriggerAppExt::add_client_trigger`](super::client_trigger::ClientTriggerAppExt::add_client_trigger):
-    /// [`FromClient<E>`] will be emitted on the server after sending `E` event on client.
-    /// When [`RepliconClient`] is inactive, the event will be drained right after sending and re-emitted
-    /// locally as [`FromClient<E>`] with [`SERVER`].
+    /// After emitting `E` event on the client, [`FromClient<E>`] event will be emitted on the server.
     ///
-    /// Can be called for events that were registered with [add_event](bevy::app::App::add_event).
-    /// A duplicate registration for `E` won't be created.
-    /// But be careful, since on listen servers all events `E` are drained,
+    /// If [`ServerEventPlugin`](crate::server::event::ServerEventPlugin) is enabled and
+    /// [`RepliconClient`] is inactive, the event will be drained right after sending and
+    /// re-emitted locally as [`FromClient<E>`] event with [`FromClient::client_entity`]
+    /// equal to [`SERVER`].
+    ///
+    /// Calling [`App::add_event`] is not necessary. Can used for regular events that were
+    /// previously registered. But be careful, since on listen servers all events `E` are drained,
     /// which could break other Bevy or third-party plugin systems that listen for `E`.
     ///
-    /// See also [`Self::add_client_event_with`] and the [corresponding section](../index.html#from-client-to-server)
+    /// See also [`ClientTriggerAppExt::add_client_trigger`](super::client_trigger::ClientTriggerAppExt::add_client_trigger),
+    /// [`Self::add_client_event_with`] and the [corresponding section](../index.html#from-client-to-server)
     /// from the quick start guide.
     fn add_client_event<E: Event + Serialize + DeserializeOwned>(
         &mut self,

@@ -17,14 +17,17 @@ use crate::core::{channels::RepliconChannel, entity_serde, postcard_utils};
 ///
 /// See also [`ClientTriggerExt`].
 pub trait ClientTriggerAppExt {
-    /// Registers an event that can be triggered using [`ClientTriggerExt::client_trigger`].
+    /// Registers a remote event that can be triggered using [`ClientTriggerExt::client_trigger`].
     ///
-    /// The API matches [`ClientEventAppExt::add_client_event`](super::client_event::ClientEventAppExt::add_client_event):
-    /// [`FromClient<E>`] will be triggered on the server after triggering `E` event on client.
-    /// When [`RepliconClient`](crate::core::replicon_client::RepliconClient) is inactive, the event
-    /// will also be triggered locally as [`FromClient<E>`] with [`SERVER`](crate::core::SERVER).
+    /// After triggering `E` event on the client, [`FromClient<E>`] event will be triggered on the server.
     ///
-    /// See also [`Self::add_client_trigger_with`] and the [corresponding section](../index.html#from-client-to-server)
+    /// If [`ServerEventPlugin`](crate::server::event::ServerEventPlugin) is enabled and
+    /// [`RepliconClient`](crate::core::replicon_client::RepliconClient) is inactive, the event
+    /// will also be triggered locally as [`FromClient<E>`] event with [`FromClient::client_entity`]
+    /// equal to [`SERVER`](crate::core::SERVER).
+    ///
+    /// See also [`ClientEventAppExt::add_client_event`](super::client_event::ClientEventAppExt::add_client_event),
+    /// [`Self::add_client_trigger_with`] and the [corresponding section](../index.html#from-client-to-server)
     /// from the quick start guide.
     fn add_client_trigger<E: Event + Serialize + DeserializeOwned>(
         &mut self,

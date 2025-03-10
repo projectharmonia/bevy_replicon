@@ -17,12 +17,13 @@ use crate::core::{channels::RepliconChannel, entity_serde, postcard_utils};
 ///
 /// See also [`ServerTriggerExt`].
 pub trait ServerTriggerAppExt {
-    /// Registers an event that can be triggered using [`ServerTriggerExt::server_trigger`].
+    /// Registers a remote event that can be triggered using [`ServerTriggerExt::server_trigger`].
     ///
-    /// The API matches [`ServerEventAppExt::add_server_event`](super::server_event::ServerEventAppExt::add_server_event):
-    /// `E` will be triggered on the client after triggering [`ToClients<E>`] event on server.
-    /// If [`SERVER`](crate::core::SERVER) is a recipient of the event (not to be confused with trigger target),
-    /// then `E` events will be emitted on the server as well.
+    /// After triggering [`ToClients<E>`] event on the server, `E` event will be triggered on clients.
+    ///
+    /// If [`ClientEventPlugin`](crate::client::event::ClientEventPlugin) is enabled and
+    /// [`SERVER`](crate::core::SERVER) is a recipient of the event (not to be confused with trigger target),
+    /// then `E` event will be emitted on the server as well.
     ///
     /// See also [`Self::add_server_trigger_with`] and the [corresponding section](../index.html#from-server-to-client)
     /// from the quick start guide.
