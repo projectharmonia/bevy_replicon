@@ -236,6 +236,7 @@ pub(super) fn send_replication(
         Entity,
         &mut UpdateMessage,
         &mut MutateMessage,
+        &mut ConnectedClient,
         &mut ClientEntityMap,
         &mut ClientTicks,
         &mut ClientVisibility,
@@ -301,6 +302,7 @@ fn send_messages(
         Entity,
         &mut UpdateMessage,
         &mut MutateMessage,
+        &mut ConnectedClient,
         &mut ClientEntityMap,
         &mut ClientTicks,
         &mut ClientVisibility,
@@ -314,7 +316,15 @@ fn send_messages(
     time: &Time,
 ) -> postcard::Result<()> {
     let mut server_tick_range = None;
-    for (client_entity, update_message, mut mutate_message, _, mut ticks, mut visibility) in clients
+    for (
+        client_entity,
+        update_message,
+        mut mutate_message,
+        client,
+        ..,
+        mut ticks,
+        mut visibility,
+    ) in clients
     {
         if !update_message.is_empty() {
             ticks.set_update_tick(server_tick);
@@ -339,6 +349,7 @@ fn send_messages(
                 server_tick,
                 change_tick.this_run(),
                 time.elapsed(),
+                client.max_size,
             )?;
             trace!("sending {messages_count} mutate message(s) to client `{client_entity}`");
         } else {
@@ -358,12 +369,13 @@ fn collect_mappings(
         Entity,
         &mut UpdateMessage,
         &mut MutateMessage,
+        &mut ConnectedClient,
         &mut ClientEntityMap,
         &mut ClientTicks,
         &mut ClientVisibility,
     )>,
 ) -> postcard::Result<()> {
-    for (_, mut message, _, mut entity_map, ..) in clients {
+    for (_, mut message, _, _, mut entity_map, ..) in clients {
         let len = entity_map.len();
         let mappings = serialized.write_mappings(entity_map.0.drain(..))?;
         message.set_mappings(mappings, len);
@@ -379,6 +391,7 @@ fn collect_despawns(
         Entity,
         &mut UpdateMessage,
         &mut MutateMessage,
+        &mut ConnectedClient,
         &mut ClientEntityMap,
         &mut ClientTicks,
         &mut ClientVisibility,
@@ -414,6 +427,7 @@ fn collect_removals(
         Entity,
         &mut UpdateMessage,
         &mut MutateMessage,
+        &mut ConnectedClient,
         &mut ClientEntityMap,
         &mut ClientTicks,
         &mut ClientVisibility,
@@ -441,6 +455,7 @@ fn collect_changes(
         Entity,
         &mut UpdateMessage,
         &mut MutateMessage,
+        &mut ConnectedClient,
         &mut ClientEntityMap,
         &mut ClientTicks,
         &mut ClientVisibility,

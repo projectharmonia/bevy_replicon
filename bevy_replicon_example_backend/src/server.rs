@@ -59,7 +59,7 @@ fn receive_packets(
                 }
                 let client_id = ClientId::new(addr.port().into());
                 let client_entity = commands
-                    .spawn((ConnectedClient::new(client_id), ClientStream(stream)))
+                    .spawn((ConnectedClient::new(client_id, 1200), ClientStream(stream)))
                     .id();
                 debug!("connecting `{client_entity}` with `{client_id:?}`");
             }
