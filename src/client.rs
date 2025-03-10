@@ -4,7 +4,7 @@ pub mod diagnostics;
 pub mod event;
 pub mod server_mutate_ticks;
 
-use bevy::{ecs::world::CommandQueue, prelude::*};
+use bevy::{ecs::world::CommandQueue, prelude::*, reflect::TypeRegistry};
 use bytes::{Buf, Bytes};
 use postcard::experimental::max_size::MaxSize;
 
@@ -109,38 +109,43 @@ pub(super) fn receive_replication(
             world.resource_scope(|world, mut buffered_mutations: Mut<BufferedMutations>| {
                 world.resource_scope(|world, command_markers: Mut<CommandMarkers>| {
                     world.resource_scope(|world, registry: Mut<ReplicationRegistry>| {
-                        world.resource_scope(
-                            |world, mut replicated_events: Mut<Events<EntityReplicated>>| {
-                                let mut stats = world.remove_resource::<ClientReplicationStats>();
-                                let mut mutate_ticks = world.remove_resource::<ServerMutateTicks>();
-                                let mut params = ReceiveParams {
-                                    queue: &mut queue,
-                                    entity_markers: &mut entity_markers,
-                                    entity_map: &mut entity_map,
-                                    replicated_events: &mut replicated_events,
-                                    mutate_ticks: mutate_ticks.as_mut(),
-                                    stats: stats.as_mut(),
-                                    command_markers: &command_markers,
-                                    registry: &registry,
-                                };
+                        world.resource_scope(|world, type_registry: Mut<AppTypeRegistry>| {
+                            world.resource_scope(
+                                |world, mut replicated_events: Mut<Events<EntityReplicated>>| {
+                                    let mut stats =
+                                        world.remove_resource::<ClientReplicationStats>();
+                                    let mut mutate_ticks =
+                                        world.remove_resource::<ServerMutateTicks>();
+                                    let mut params = ReceiveParams {
+                                        queue: &mut queue,
+                                        entity_markers: &mut entity_markers,
+                                        entity_map: &mut entity_map,
+                                        replicated_events: &mut replicated_events,
+                                        mutate_ticks: mutate_ticks.as_mut(),
+                                        stats: stats.as_mut(),
+                                        command_markers: &command_markers,
+                                        registry: &registry,
+                                        type_registry: &type_registry.read(),
+                                    };
 
-                                apply_replication(
-                                    world,
-                                    &mut params,
-                                    &mut client,
-                                    &mut buffered_mutations,
-                                )?;
+                                    apply_replication(
+                                        world,
+                                        &mut params,
+                                        &mut client,
+                                        &mut buffered_mutations,
+                                    )?;
 
-                                if let Some(stats) = stats {
-                                    world.insert_resource(stats);
-                                }
-                                if let Some(mutate_ticks) = mutate_ticks {
-                                    world.insert_resource(mutate_ticks);
-                                }
+                                    if let Some(stats) = stats {
+                                        world.insert_resource(stats);
+                                    }
+                                    if let Some(mutate_ticks) = mutate_ticks {
+                                        world.insert_resource(mutate_ticks);
+                                    }
 
-                                Ok(())
-                            },
-                        )
+                                    Ok(())
+                                },
+                            )
+                        })
                     })
                 })
             })
@@ -463,7 +468,14 @@ fn apply_changes(
     let len = apply_array(ArrayKind::Sized, message, |message| {
         let fns_id = postcard_utils::from_buf(message)?;
         let (component_id, component_fns, rule_fns) = params.registry.get(fns_id);
-        let mut ctx = WriteCtx::new(&mut commands, params.entity_map, component_id, message_tick);
+        let mut ctx = WriteCtx {
+            commands: &mut commands,
+            entity_map: params.entity_map,
+            type_registry: params.type_registry,
+            component_id,
+            message_tick,
+            ignore_mapping: false,
+        };
 
         // SAFETY: `rule_fns` and `component_fns` were created for the same type.
         unsafe {
@@ -605,7 +617,14 @@ fn apply_mutations(
     while data.has_remaining() {
         let fns_id = postcard_utils::from_buf(&mut data)?;
         let (component_id, component_fns, rule_fns) = params.registry.get(fns_id);
-        let mut ctx = WriteCtx::new(&mut commands, params.entity_map, component_id, message_tick);
+        let mut ctx = WriteCtx {
+            commands: &mut commands,
+            entity_map: params.entity_map,
+            type_registry: params.type_registry,
+            component_id,
+            message_tick,
+            ignore_mapping: false,
+        };
 
         // SAFETY: `rule_fns` and `component_fns` were created for the same type.
         unsafe {
@@ -653,6 +672,7 @@ struct ReceiveParams<'a> {
     stats: Option<&'a mut ClientReplicationStats>,
     command_markers: &'a CommandMarkers,
     registry: &'a ReplicationRegistry,
+    type_registry: &'a TypeRegistry,
 }
 
 /// Set with replication and event systems related to client.

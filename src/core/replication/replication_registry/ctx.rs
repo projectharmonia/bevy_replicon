@@ -1,4 +1,4 @@
-use bevy::{ecs::component::ComponentId, prelude::*};
+use bevy::{ecs::component::ComponentId, prelude::*, reflect::TypeRegistry};
 
 use crate::core::{
     replication::Replicated, replicon_tick::RepliconTick, server_entity_map::ServerEntityMap,
@@ -6,12 +6,15 @@ use crate::core::{
 
 /// Replication context for serialization function.
 #[non_exhaustive]
-pub struct SerializeCtx {
+pub struct SerializeCtx<'a> {
     /// ID of the serializing component.
     pub component_id: ComponentId,
 
     /// Current tick.
     pub server_tick: RepliconTick,
+
+    /// Registry of reflected types.
+    pub type_registry: &'a TypeRegistry,
 }
 
 /// Replication context for writing and deserialization.
@@ -23,6 +26,9 @@ pub struct WriteCtx<'a, 'w, 's> {
     /// Maps server entities to client entities and vice versa.
     pub entity_map: &'a mut ServerEntityMap,
 
+    /// Registry of reflected types.
+    pub type_registry: &'a TypeRegistry,
+
     /// ID of the writing component.
     pub component_id: ComponentId,
 
@@ -30,24 +36,7 @@ pub struct WriteCtx<'a, 'w, 's> {
     pub message_tick: RepliconTick,
 
     /// Disables mapping logic to avoid spawning entities for consume functions.
-    pub(super) ignore_mapping: bool,
-}
-
-impl<'a, 'w, 's> WriteCtx<'a, 'w, 's> {
-    pub(crate) fn new(
-        commands: &'a mut Commands<'w, 's>,
-        entity_map: &'a mut ServerEntityMap,
-        component_id: ComponentId,
-        message_tick: RepliconTick,
-    ) -> Self {
-        Self {
-            commands,
-            entity_map,
-            component_id,
-            message_tick,
-            ignore_mapping: false,
-        }
-    }
+    pub(crate) ignore_mapping: bool,
 }
 
 impl EntityMapper for WriteCtx<'_, '_, '_> {

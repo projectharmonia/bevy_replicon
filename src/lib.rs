@@ -468,10 +468,10 @@ impl MapEntities for MappedEvent {
 As shown above, mapped client events must also implement [`Clone`].
 
 There is also [`ClientEventAppExt::add_client_event_with()`] to register an event with special serialization and
-deserialization functions. This could be used for sending events that contain [`Box<dyn Reflect>`], which
+deserialization functions. This could be used for sending events that contain [`Box<dyn PartialReflect>`], which
 require access to the [`AppTypeRegistry`] resource.
 
-Don't forget to validate the contents of every [`Box<dyn Reflect>`] from a client, it could be anything!
+Don't forget to validate the contents of every [`Box<dyn PartialReflect>`] from a client, it could be anything!
 
 Alternatively you can use triggers with similar API. First, you need to register the event
 with [`ClientTriggerAppExt::add_client_trigger()`] and then use [`ClientTriggerExt::client_trigger`]:

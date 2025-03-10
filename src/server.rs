@@ -13,6 +13,7 @@ use bevy::{
     ecs::{component::StorageType, system::SystemChangeTick},
     prelude::*,
     ptr::Ptr,
+    reflect::TypeRegistry,
     time::common_conditions::on_timer,
 };
 use bytes::Buf;
@@ -247,6 +248,7 @@ pub(super) fn send_replication(
     mut server: ResMut<RepliconServer>,
     track_mutate_messages: Res<TrackMutateMessages>,
     registry: Res<ReplicationRegistry>,
+    type_registry: Res<AppTypeRegistry>,
     server_tick: Res<ServerTick>,
     time: Res<Time>,
 ) -> postcard::Result<()> {
@@ -262,6 +264,7 @@ pub(super) fn send_replication(
         &mut serialized,
         &mut clients,
         &registry,
+        &type_registry.read(),
         &removal_buffer,
         &world,
         &change_tick,
@@ -461,6 +464,7 @@ fn collect_changes(
         &mut ClientVisibility,
     )>,
     registry: &ReplicationRegistry,
+    type_registry: &TypeRegistry,
     removal_buffer: &RemovalBuffer,
     world: &ServerWorld,
     change_tick: &SystemChangeTick,
@@ -507,6 +511,7 @@ fn collect_changes(
                 let ctx = SerializeCtx {
                     server_tick,
                     component_id,
+                    type_registry,
                 };
                 let mut component_range = None;
                 for (_, mut update_message, mut mutate_message, .., client_ticks, _) in
