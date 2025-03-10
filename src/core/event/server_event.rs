@@ -30,16 +30,19 @@ use crate::core::{
 
 /// An extension trait for [`App`] for creating client events.
 pub trait ServerEventAppExt {
-    /// Registers `E` and [`ToClients<E>`] events.
+    /// Registers a remote server event.
     ///
-    /// `E` will be emitted on client after sending [`ToClients<E>`] on the server.
-    /// If [`SERVER`] is a recipient of the event, then [`ToClients<E>`] will be drained
-    /// after sending to clients and `E` events will be emitted on the server.
+    /// After emitting [`ToClients<E>`] event on the server, `E` event  will be emitted on clients.
     ///
-    /// Can be called for already existing regular events, a duplicate registration
-    /// for `E` won't be created.
+    /// If [`ClientEventPlugin`](crate::client::event::ClientEventPlugin) is enabled and
+    /// [`SERVER`] is a recipient of the event, then [`ToClients<E>`] event will be drained
+    /// after sending to clients and `E` event will be emitted on the server as well.
     ///
-    /// See also [`Self::add_server_event_with`] and the [corresponding section](../index.html#from-server-to-client)
+    /// Calling [`App::add_event`] is not necessary. Can used for regular events that were
+    /// previously registered.
+    ///
+    /// See also [`ServerTriggerAppExt::add_server_trigger`](super::server_trigger::ServerTriggerAppExt::add_server_trigger),
+    /// [`Self::add_server_event_with`] and the [corresponding section](../index.html#from-server-to-client)
     /// from the quick start guide.
     fn add_server_event<E: Event + Serialize + DeserializeOwned>(
         &mut self,
