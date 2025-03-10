@@ -48,10 +48,8 @@ fn table_storage() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    client_app
-        .world_mut()
-        .query::<&DummyComponent>()
-        .single(client_app.world());
+    let mut components = client_app.world_mut().query::<&DummyComponent>();
+    assert_eq!(components.iter(client_app.world()).count(), 1);
 }
 
 #[test]
@@ -87,10 +85,8 @@ fn sparse_set_storage() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    client_app
-        .world_mut()
-        .query::<&SparseSetComponent>()
-        .single(client_app.world());
+    let mut components = client_app.world_mut().query::<&SparseSetComponent>();
+    assert_eq!(components.iter(client_app.world()).count(), 1);
 }
 
 #[test]
@@ -219,10 +215,10 @@ fn command_fns() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    client_app
+    let mut components = client_app
         .world_mut()
-        .query_filtered::<&ReplacedComponent, Without<OriginalComponent>>()
-        .single(client_app.world());
+        .query_filtered::<&ReplacedComponent, Without<OriginalComponent>>();
+    assert_eq!(components.iter(client_app.world()).count(), 1);
 }
 
 #[test]
@@ -310,10 +306,10 @@ fn group() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    client_app
+    let mut groups = client_app
         .world_mut()
-        .query::<(&GroupComponentA, &GroupComponentB)>()
-        .single(client_app.world());
+        .query::<(&GroupComponentA, &GroupComponentB)>();
+    assert_eq!(groups.iter(client_app.world()).count(), 1);
 }
 
 #[test]
@@ -348,12 +344,8 @@ fn not_replicated() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let components = client_app
-        .world_mut()
-        .query::<&DummyComponent>()
-        .iter(client_app.world())
-        .count();
-    assert_eq!(components, 0);
+    let mut components = client_app.world_mut().query::<&DummyComponent>();
+    assert_eq!(components.iter(client_app.world()).count(), 0);
 }
 
 #[test]
@@ -394,10 +386,8 @@ fn after_removal() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    client_app
-        .world_mut()
-        .query::<&DummyComponent>()
-        .single(client_app.world());
+    let mut components = client_app.world_mut().query::<&DummyComponent>();
+    assert_eq!(components.iter(client_app.world()).count(), 1);
 }
 
 #[test]
@@ -425,14 +415,10 @@ fn before_started_replication() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    let replicated_components = client_app
-        .world_mut()
-        .query::<&DummyComponent>()
-        .iter(client_app.world())
-        .count();
-
+    let mut components = client_app.world_mut().query::<&DummyComponent>();
     assert_eq!(
-        replicated_components, 0,
+        components.iter(client_app.world()).count(),
+        0,
         "no entities should have been sent to the client"
     );
 
@@ -447,10 +433,7 @@ fn before_started_replication() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    client_app
-        .world_mut()
-        .query::<&DummyComponent>()
-        .single(client_app.world());
+    assert_eq!(components.iter(client_app.world()).count(), 1);
 }
 
 #[test]
@@ -489,10 +472,8 @@ fn after_started_replication() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    client_app
-        .world_mut()
-        .query::<&DummyComponent>()
-        .single(client_app.world());
+    let mut components = client_app.world_mut().query::<&DummyComponent>();
+    assert_eq!(components.iter(client_app.world()).count(), 1);
 }
 
 #[test]

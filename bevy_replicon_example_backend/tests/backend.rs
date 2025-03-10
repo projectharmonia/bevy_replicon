@@ -72,10 +72,8 @@ fn replication() {
     server_app.update();
     client_app.update();
 
-    client_app
-        .world_mut()
-        .query::<&Replicated>()
-        .single(client_app.world());
+    let mut replicated = client_app.world_mut().query::<&Replicated>();
+    assert_eq!(replicated.iter(client_app.world()).len(), 1);
 }
 
 #[test]
