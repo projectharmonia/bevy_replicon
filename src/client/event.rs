@@ -151,6 +151,7 @@ fn send(
     let mut ctx = ClientSendCtx {
         entity_map: &entity_map,
         registry: &registry.read(),
+        invalid_entities: Vec::new(),
     };
 
     for event in event_registry.iter_client_events() {
