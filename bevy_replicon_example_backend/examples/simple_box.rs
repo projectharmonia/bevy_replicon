@@ -1,7 +1,10 @@
 //! A simple demo to showcase how player could send inputs to move a box and server replicates position back.
 //! Also demonstrates the single-player and how sever also could be a player.
 
-use std::io;
+use std::{
+    hash::{DefaultHasher, Hash, Hasher},
+    io,
+};
 
 use bevy::{
     color::palettes::css::GREEN,
@@ -35,7 +38,7 @@ struct SimpleBoxPlugin;
 impl Plugin for SimpleBoxPlugin {
     fn build(&self, app: &mut App) {
         app.replicate::<BoxPosition>()
-            .replicate::<BoxColor>()
+            .replicate::<PlayerBox>()
             .add_client_trigger::<MoveBox>(ChannelKind::Ordered)
             .add_observer(spawn_clients)
             .add_observer(despawn_clients)
@@ -49,7 +52,12 @@ fn read_cli(mut commands: Commands, cli: Res<Cli>) -> io::Result<()> {
     match *cli {
         Cli::SinglePlayer => {
             info!("starting single-player game");
-            commands.spawn((BoxPlayer(ClientId::SERVER), BoxColor(GREEN.into())));
+            commands.spawn((
+                PlayerBox {
+                    color: GREEN.into(),
+                },
+                BoxOwner(SERVER),
+            ));
         }
         Cli::Server { port } => {
             info!("starting server at port {port}");
@@ -63,15 +71,20 @@ fn read_cli(mut commands: Commands, cli: Res<Cli>) -> io::Result<()> {
                 },
                 TextColor::WHITE,
             ));
-            commands.spawn((BoxPlayer(ClientId::SERVER), BoxColor(GREEN.into())));
+            commands.spawn((
+                PlayerBox {
+                    color: GREEN.into(),
+                },
+                BoxOwner(SERVER),
+            ));
         }
         Cli::Client { port } => {
             info!("connecting to port {port}");
             let client = ExampleClient::new(port)?;
-            let client_id = client.id()?;
+            let addr = client.local_addr()?;
             commands.insert_resource(client);
             commands.spawn((
-                Text(format!("Client: {client_id:?}")),
+                Text(format!("Client: {addr}")),
                 TextFont {
                     font_size: 30.0,
                     ..default()
@@ -89,24 +102,37 @@ fn spawn_camera(mut commands: Commands) {
 }
 
 /// Spawns a new box whenever a client connects.
-fn spawn_clients(trigger: Trigger<ClientConnected>, mut commands: Commands) {
-    // Generate pseudo random color from client id.
-    let r = ((trigger.client_id.get() % 23) as f32) / 23.0;
-    let g = ((trigger.client_id.get() % 27) as f32) / 27.0;
-    let b = ((trigger.client_id.get() % 39) as f32) / 39.0;
-    info!("spawning box for `{:?}`", trigger.client_id);
-    commands.spawn((BoxPlayer(trigger.client_id), BoxColor(Color::srgb(r, g, b))));
+fn spawn_clients(trigger: Trigger<OnAdd, ConnectedClient>, mut commands: Commands) {
+    // Hash index to generate visually distinctive color.
+    let mut hasher = DefaultHasher::new();
+    trigger.target().index().hash(&mut hasher);
+    let hash = hasher.finish();
+
+    // Use the lower 24 bits.
+    // Divide by 255 to convert bytes into 0..1 floats.
+    let r = ((hash >> 16) & 0xFF) as f32 / 255.0;
+    let g = ((hash >> 8) & 0xFF) as f32 / 255.0;
+    let b = (hash & 0xFF) as f32 / 255.0;
+
+    // Generate pseudo random color from client entity.
+    info!("spawning box for `{}`", trigger.target());
+    commands.spawn((
+        PlayerBox {
+            color: Color::srgb(r, g, b),
+        },
+        BoxOwner(trigger.target()),
+    ));
 }
 
 /// Despawns a box whenever a client disconnects.
 fn despawn_clients(
-    trigger: Trigger<ClientDisconnected>,
+    trigger: Trigger<OnRemove, ConnectedClient>,
     mut commands: Commands,
-    boxes: Query<(Entity, &BoxPlayer)>,
+    boxes: Query<(Entity, &BoxOwner)>,
 ) {
     let (entity, _) = boxes
         .iter()
-        .find(|(_, &player)| *player == trigger.client_id)
+        .find(|(_, &owner)| *owner == trigger.target())
         .expect("all clients should have entities");
     commands.entity(entity).despawn();
 }
@@ -139,26 +165,28 @@ fn read_input(mut commands: Commands, input: Res<ButtonInput<KeyCode>>) {
 fn apply_movement(
     trigger: Trigger<FromClient<MoveBox>>,
     time: Res<Time>,
-    mut boxes: Query<(&BoxPlayer, &mut BoxPosition)>,
+    mut boxes: Query<(&BoxOwner, &mut BoxPosition)>,
 ) {
     const MOVE_SPEED: f32 = 300.0;
-    info!("received movement from `{:?}`", trigger.client_id);
-    for (player, mut position) in &mut boxes {
-        // Find the sender entity. We don't include the entity as a trigger target to save traffic, since the server knows
-        // which entity to apply the input to. We could have a resource that maps connected clients to controlled entities,
-        // but we didn't implement it for the sake of simplicity.
-        if trigger.client_id == **player {
-            **position += *trigger.event * time.delta_secs() * MOVE_SPEED;
-        }
-    }
+    info!("received movement from `{}`", trigger.client_entity);
+
+    // Find the sender entity. We don't include the entity as a trigger target to save traffic, since the server knows
+    // which entity to apply the input to. We could have a resource that maps connected clients to controlled entities,
+    // but we didn't implement it for the sake of simplicity.
+    let (_, mut position) = boxes
+        .iter_mut()
+        .find(|(&owner, _)| *owner == trigger.client_entity)
+        .unwrap_or_else(|| panic!("`{}` should be connected", trigger.client_entity));
+
+    **position += *trigger.event * time.delta_secs() * MOVE_SPEED;
 }
 
-fn draw_boxes(mut gizmos: Gizmos, boxes: Query<(&BoxPosition, &BoxColor)>) {
-    for (position, color) in &boxes {
+fn draw_boxes(mut gizmos: Gizmos, boxes: Query<(&BoxPosition, &PlayerBox)>) {
+    for (position, player) in &boxes {
         gizmos.rect(
             Vec3::new(position.x, position.y, 0.0),
             Vec2::ONE * 50.0,
-            **color,
+            player.color,
         );
     }
 }
@@ -188,18 +216,30 @@ impl Default for Cli {
     }
 }
 
-/// Identifies which player controls the box.
+/// Player-controlled box.
 ///
 /// We want to replicate all boxes, so we just set [`Replicated`] as a required component.
-#[derive(Component, Clone, Copy, Deref, Serialize, Deserialize)]
-#[require(BoxPosition, BoxColor, Replicated)]
-struct BoxPlayer(ClientId);
+#[derive(Component, Deref, Deserialize, Serialize, Default)]
+#[require(BoxPosition, Replicated)]
+struct PlayerBox {
+    /// Color to visually distinguish boxes.
+    color: Color,
+}
 
+/// Position of a player-controlled box.
+///
+/// This is a separate component from [`PlayerBox`] because, when the position
+/// changes, we only want to send this component (and it changes often!).
 #[derive(Component, Deserialize, Serialize, Deref, DerefMut, Default)]
 struct BoxPosition(Vec2);
 
-#[derive(Component, Deref, Deserialize, Serialize, Default)]
-struct BoxColor(Color);
+/// Identifies which player controls the box.
+///
+/// Points to client entity. Used to apply movement to the correct box.
+///
+/// It's not replicated and present only on server or singleplayer.
+#[derive(Component, Clone, Copy, Deref)]
+struct BoxOwner(Entity);
 
 /// A movement event for the controlled box.
 #[derive(Deserialize, Deref, Event, Serialize)]

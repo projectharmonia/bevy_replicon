@@ -1,6 +1,4 @@
-use bevy::{platform_support::collections::HashMap, prelude::*};
-
-use crate::core::ClientId;
+use bevy::prelude::*;
 
 /**
 A resource that exists on the server for mapping server entities to
@@ -13,7 +11,7 @@ then match up that entity with the eventual replicated server spawn, rather than
 a brand new entity on the client.
 
 In this situation, the client can send the server its pre-spawned entity id, then the server can spawn its own entity
-and inject the [`ClientMapping`] into its [`ClientEntityMap`].
+and inject the mapping into its [`ClientEntityMap`].
 
 Replication packets will send a list of such mappings to clients, which will
 be inserted into the client's [`ServerEntityMap`](crate::core::server_entity_map::ServerEntityMap). Using replication
@@ -45,18 +43,12 @@ fn shoot_bullet(mut commands: Commands, mut bullet_events: EventWriter<SpawnBull
 fn confirm_bullet(
     mut commands: Commands,
     mut bullet_events: EventReader<FromClient<SpawnBullet>>,
-    mut entity_map: ResMut<ClientEntityMap>,
+    mut clients: Query<&mut ClientEntityMap>,
 ) {
-    for FromClient { client_id, event } in bullet_events.read() {
+    for event in bullet_events.read() {
+        let mut entity_map = clients.get_mut(event.client_entity).unwrap();
         let server_entity = commands.spawn(Bullet).id(); // You can insert more components, they will be sent to the client's entity correctly.
-
-        entity_map.insert(
-            *client_id,
-            ClientMapping {
-                server_entity,
-                client_entity: event.0,
-            },
-        );
+        entity_map.insert(server_entity, event.0);
     }
 }
 ```
@@ -69,26 +61,16 @@ client entity.
 If client's original entity is not found, a new entity will be spawned on the client,
 just the same as when no client entity is provided.
 **/
-#[derive(Resource, Debug, Default, Deref)]
-pub struct ClientEntityMap(pub(super) HashMap<ClientId, Vec<ClientMapping>>);
+#[derive(Debug, Default, Deref, Component)]
+pub struct ClientEntityMap(pub(super) Vec<(Entity, Entity)>);
 
 impl ClientEntityMap {
-    /// Registers `mapping` for a client entity pre-spawned by the specified client.
+    /// Registers a mapping from server to client entity.
     ///
     /// This will be sent as part of replication data and added to the client's
     /// [`ServerEntityMap`](crate::core::server_entity_map::ServerEntityMap).
-    pub fn insert(&mut self, client_id: ClientId, mapping: ClientMapping) {
-        debug!(
-            "mapping `{}` to `{}` for `{client_id:?}`",
-            mapping.client_entity, mapping.server_entity
-        );
-        self.0.entry(client_id).or_default().push(mapping);
+    pub fn insert(&mut self, server_entity: Entity, client_entity: Entity) {
+        debug!("mapping server's `{server_entity}` to client's `{client_entity}`");
+        self.0.push((server_entity, client_entity));
     }
-}
-
-/// Stores the server entity corresponding to a client's pre-spawned entity.
-#[derive(Debug)]
-pub struct ClientMapping {
-    pub server_entity: Entity,
-    pub client_entity: Entity,
 }

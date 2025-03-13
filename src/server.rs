@@ -1,4 +1,5 @@
 pub mod client_entity_map;
+pub mod client_visibility;
 pub(super) mod despawn_buffer;
 pub mod event;
 pub(super) mod removal_buffer;
@@ -12,20 +13,19 @@ use bevy::{
     ecs::{component::StorageType, system::SystemChangeTick},
     prelude::*,
     ptr::Ptr,
+    reflect::TypeRegistry,
     time::common_conditions::on_timer,
 };
 use bytes::Buf;
 
 use crate::core::{
     channels::{ReplicationChannel, RepliconChannels},
-    common_conditions::{server_just_stopped, server_running},
-    connected_clients::ConnectedClients,
+    common_conditions::*,
+    connected_client::ConnectedClient,
     event::server_event::BufferedServerEvents,
     postcard_utils,
     replication::{
-        replicated_clients::{
-            client_visibility::Visibility, ClientBuffers, ReplicatedClients, VisibilityPolicy,
-        },
+        client_ticks::{ClientTicks, EntityBuffer},
         replication_registry::{
             component_fns::ComponentFns, ctx::SerializeCtx, rule_fns::UntypedRuleFns,
             ReplicationRegistry,
@@ -34,17 +34,21 @@ use crate::core::{
     },
     replicon_server::RepliconServer,
     replicon_tick::RepliconTick,
-    ClientId, DisconnectReason,
 };
 use client_entity_map::ClientEntityMap;
+use client_visibility::{ClientVisibility, Visibility};
 use despawn_buffer::{DespawnBuffer, DespawnBufferPlugin};
 use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
-use replication_messages::{serialized_data::SerializedData, ReplicationMessages};
+use replication_messages::{
+    mutate_message::MutateMessage, serialized_data::SerializedData, update_message::UpdateMessage,
+};
 use server_tick::ServerTick;
 use server_world::{ReplicatedComponent, ServerWorld};
 
 pub struct ServerPlugin {
     /// Tick configuration.
+    ///
+    /// By default it's 30 ticks per second.
     pub tick_policy: TickPolicy,
 
     /// Visibility configuration.
@@ -57,7 +61,7 @@ pub struct ServerPlugin {
 
     /// If enabled, replication will be started automatically after connection.
     ///
-    /// If disabled, replication should be started manually by sending the [`StartReplication`] event.
+    /// If disabled, replication should be started manually by inserting [`ReplicatedClient`] on the client entity.
     /// Until replication has started, the client and server can still exchange network events.
     ///
     /// All events from server will be buffered on client until replication starts, except the ones marked as independent.
@@ -84,22 +88,11 @@ impl Plugin for ServerPlugin {
         app.add_plugins((DespawnBufferPlugin, RemovalBufferPlugin))
             .init_resource::<RepliconServer>()
             .init_resource::<ServerTick>()
-            .init_resource::<ClientBuffers>()
-            .init_resource::<ClientEntityMap>()
-            .init_resource::<ConnectedClients>()
-            .insert_resource(ReplicatedClients::new(
-                self.visibility_policy,
-                self.replicate_after_connect,
-            ))
+            .init_resource::<EntityBuffer>()
             .init_resource::<BufferedServerEvents>()
             .configure_sets(
                 PreUpdate,
-                (
-                    ServerSet::ReceivePackets,
-                    ServerSet::TriggerConnectionEvents,
-                    ServerSet::Receive,
-                )
-                    .chain(),
+                (ServerSet::ReceivePackets, ServerSet::Receive).chain(),
             )
             .configure_sets(
                 PostUpdate,
@@ -107,7 +100,6 @@ impl Plugin for ServerPlugin {
             )
             .add_observer(handle_connects)
             .add_observer(handle_disconnects)
-            .add_observer(enable_replication)
             .add_systems(Startup, setup_channels)
             .add_systems(
                 PreUpdate,
@@ -152,6 +144,17 @@ impl Plugin for ServerPlugin {
             }
             TickPolicy::Manual => (),
         }
+
+        let visibility = match self.visibility_policy {
+            VisibilityPolicy::All => ClientVisibility::all,
+            VisibilityPolicy::Blacklist => ClientVisibility::blacklist,
+            VisibilityPolicy::Whitelist => ClientVisibility::whitelist,
+        };
+        app.register_required_components_with::<ReplicatedClient, _>(visibility);
+
+        if self.replicate_after_connect {
+            app.register_required_components::<ConnectedClient, ReplicatedClient>();
+        }
     }
 }
 
@@ -166,52 +169,30 @@ pub fn increment_tick(mut server_tick: ResMut<ServerTick>) {
 }
 
 fn handle_connects(
-    trigger: Trigger<ClientConnected>,
-    mut connected_clients: ResMut<ConnectedClients>,
-    mut replicated_clients: ResMut<ReplicatedClients>,
+    trigger: Trigger<OnAdd, ConnectedClient>,
     mut buffered_events: ResMut<BufferedServerEvents>,
-    mut client_buffers: ResMut<ClientBuffers>,
 ) {
-    debug!("`{:?}` connected", trigger.client_id);
-    connected_clients.add(trigger.client_id);
-    if replicated_clients.replicate_after_connect() {
-        replicated_clients.add(&mut client_buffers, trigger.client_id);
-    }
-    buffered_events.exclude_client(trigger.client_id);
+    debug!("client `{}` connected", trigger.target());
+    buffered_events.exclude_client(trigger.target());
 }
 
 fn handle_disconnects(
-    trigger: Trigger<ClientDisconnected>,
-    mut entity_map: ResMut<ClientEntityMap>,
-    mut connected_clients: ResMut<ConnectedClients>,
-    mut replicated_clients: ResMut<ReplicatedClients>,
+    trigger: Trigger<OnRemove, ConnectedClient>,
     mut server: ResMut<RepliconServer>,
-    mut client_buffers: ResMut<ClientBuffers>,
 ) {
-    debug!("`{:?}` disconnected: {}", trigger.client_id, trigger.reason);
-    entity_map.0.remove(&trigger.client_id);
-    connected_clients.remove(trigger.client_id);
-    replicated_clients.remove(&mut client_buffers, trigger.client_id);
-    server.remove_client(trigger.client_id);
-}
-
-fn enable_replication(
-    trigger: Trigger<StartReplication>,
-    mut replicated_clients: ResMut<ReplicatedClients>,
-    mut client_buffers: ResMut<ClientBuffers>,
-) {
-    replicated_clients.add(&mut client_buffers, **trigger);
+    debug!("client `{}` disconnected", trigger.target());
+    server.remove_client(trigger.target());
 }
 
 fn cleanup_acks(
     mutations_timeout: Duration,
-) -> impl FnMut(ResMut<ReplicatedClients>, ResMut<ClientBuffers>, Res<Time>) {
-    move |mut replicated_clients: ResMut<ReplicatedClients>,
-          mut client_buffers: ResMut<ClientBuffers>,
+) -> impl FnMut(Query<&mut ClientTicks>, ResMut<EntityBuffer>, Res<Time>) {
+    move |mut clients: Query<&mut ClientTicks>,
+          mut entity_buffer: ResMut<EntityBuffer>,
           time: Res<Time>| {
         let min_timestamp = time.elapsed().saturating_sub(mutations_timeout);
-        for client in replicated_clients.iter_mut() {
-            client.cleanup_older_mutations(&mut client_buffers, min_timestamp);
+        for mut ticks in &mut clients {
+            ticks.cleanup_older_mutations(&mut entity_buffer, min_timestamp);
         }
     }
 }
@@ -219,21 +200,26 @@ fn cleanup_acks(
 fn receive_acks(
     change_tick: SystemChangeTick,
     mut server: ResMut<RepliconServer>,
-    mut replicated_clients: ResMut<ReplicatedClients>,
-    mut client_buffers: ResMut<ClientBuffers>,
+    mut clients: Query<&mut ClientTicks>,
+    mut entity_buffer: ResMut<EntityBuffer>,
 ) {
-    for (client_id, mut message) in server.receive(ReplicationChannel::Updates) {
+    for (client_entity, mut message) in server.receive(ReplicationChannel::Updates) {
         while message.has_remaining() {
             match postcard_utils::from_buf(&mut message) {
                 Ok(mutate_index) => {
-                    let client = replicated_clients.client_mut(client_id);
-                    client.ack_mutate_message(
-                        &mut client_buffers,
+                    let mut ticks = clients.get_mut(client_entity).unwrap_or_else(|_| {
+                        panic!("messages from client `{client_entity}` should have been removed on disconnect previously")
+                    });
+                    ticks.ack_mutate_message(
+                        client_entity,
+                        &mut entity_buffer,
                         change_tick.this_run(),
                         mutate_index,
                     );
                 }
-                Err(e) => debug!("unable to deserialize mutate index from {client_id:?}: {e}"),
+                Err(e) => {
+                    debug!("unable to deserialize mutate index from client `{client_entity}`: {e}")
+                }
             }
         }
     }
@@ -242,45 +228,40 @@ fn receive_acks(
 /// Collects [`ReplicationMessages`] and sends them.
 pub(super) fn send_replication(
     mut serialized: Local<SerializedData>,
-    mut messages: Local<ReplicationMessages>,
     change_tick: SystemChangeTick,
     world: ServerWorld,
-    mut replicated_clients: ResMut<ReplicatedClients>,
+    mut clients: Query<(
+        Entity,
+        &mut UpdateMessage,
+        &mut MutateMessage,
+        &mut ConnectedClient,
+        &mut ClientEntityMap,
+        &mut ClientTicks,
+        &mut ClientVisibility,
+    )>,
     mut removal_buffer: ResMut<RemovalBuffer>,
-    mut client_buffers: ResMut<ClientBuffers>,
-    mut entity_map: ResMut<ClientEntityMap>,
+    mut entity_buffer: ResMut<EntityBuffer>,
     mut despawn_buffer: ResMut<DespawnBuffer>,
     mut server: ResMut<RepliconServer>,
     track_mutate_messages: Res<TrackMutateMessages>,
     registry: Res<ReplicationRegistry>,
+    type_registry: Res<AppTypeRegistry>,
     server_tick: Res<ServerTick>,
     time: Res<Time>,
 ) -> postcard::Result<()> {
-    messages.reset(replicated_clients.len());
+    for (_, mut mutate_message, mut update_message, ..) in &mut clients {
+        update_message.clear();
+        mutate_message.clear();
+    }
 
-    collect_mappings(
-        &mut messages,
-        &mut serialized,
-        &replicated_clients,
-        &mut entity_map,
-    )?;
-    collect_despawns(
-        &mut messages,
-        &mut serialized,
-        &mut replicated_clients,
-        &mut despawn_buffer,
-    )?;
-    collect_removals(
-        &mut messages,
-        &mut serialized,
-        &replicated_clients,
-        &removal_buffer,
-    )?;
+    collect_mappings(&mut serialized, &mut clients)?;
+    collect_despawns(&mut serialized, &mut clients, &mut despawn_buffer)?;
+    collect_removals(&mut serialized, &mut clients, &removal_buffer)?;
     collect_changes(
-        &mut messages,
         &mut serialized,
-        &mut replicated_clients,
+        &mut clients,
         &registry,
+        &type_registry.read(),
         &removal_buffer,
         &world,
         &change_tick,
@@ -289,13 +270,12 @@ pub(super) fn send_replication(
     removal_buffer.clear();
 
     send_messages(
-        &mut messages,
-        &mut replicated_clients,
+        &mut clients,
         &mut server,
         **server_tick,
         **track_mutate_messages,
         &mut serialized,
-        &mut client_buffers,
+        &mut entity_buffer,
         change_tick,
         &time,
     )?;
@@ -305,41 +285,55 @@ pub(super) fn send_replication(
 }
 
 fn reset(
+    mut commands: Commands,
     mut server_tick: ResMut<ServerTick>,
-    mut entity_map: ResMut<ClientEntityMap>,
-    mut replicated_clients: ResMut<ReplicatedClients>,
-    mut client_buffers: ResMut<ClientBuffers>,
+    clients: Query<Entity, With<ConnectedClient>>,
     mut buffered_events: ResMut<BufferedServerEvents>,
 ) {
     *server_tick = Default::default();
-    entity_map.0.clear();
-    replicated_clients.clear(&mut client_buffers);
     buffered_events.clear();
+    for entity in &clients {
+        commands.entity(entity).despawn();
+    }
 }
 
 fn send_messages(
-    messages: &mut ReplicationMessages,
-    replicated_clients: &mut ReplicatedClients,
+    clients: &mut Query<(
+        Entity,
+        &mut UpdateMessage,
+        &mut MutateMessage,
+        &mut ConnectedClient,
+        &mut ClientEntityMap,
+        &mut ClientTicks,
+        &mut ClientVisibility,
+    )>,
     server: &mut RepliconServer,
     server_tick: RepliconTick,
     track_mutate_messages: bool,
     serialized: &mut SerializedData,
-    client_buffers: &mut ClientBuffers,
+    entity_buffer: &mut EntityBuffer,
     change_tick: SystemChangeTick,
     time: &Time,
 ) -> postcard::Result<()> {
     let mut server_tick_range = None;
-    for ((update_message, mutate_message), client) in
-        messages.iter_mut().zip(replicated_clients.iter_mut())
+    for (
+        client_entity,
+        update_message,
+        mut mutate_message,
+        client,
+        ..,
+        mut ticks,
+        mut visibility,
+    ) in clients
     {
         if !update_message.is_empty() {
-            client.set_update_tick(server_tick);
+            ticks.set_update_tick(server_tick);
             let server_tick = write_tick_cached(&mut server_tick_range, serialized, server_tick)?;
 
-            trace!("sending update message to {:?}", client.id());
-            update_message.send(server, client, serialized, server_tick)?;
+            trace!("sending update message to client `{client_entity}`");
+            update_message.send(server, client_entity, serialized, server_tick)?;
         } else {
-            trace!("no updates to send for {:?}", client.id());
+            trace!("no updates to send for client `{client_entity}`");
         }
 
         if !mutate_message.is_empty() || track_mutate_messages {
@@ -347,23 +341,22 @@ fn send_messages(
 
             let messages_count = mutate_message.send(
                 server,
-                client,
-                client_buffers,
+                client_entity,
+                &mut ticks,
+                entity_buffer,
                 serialized,
                 track_mutate_messages,
                 server_tick,
                 change_tick.this_run(),
                 time.elapsed(),
+                client.max_size,
             )?;
-            trace!(
-                "sending {messages_count} mutate message(s) to {:?}",
-                client.id()
-            );
+            trace!("sending {messages_count} mutate message(s) to client `{client_entity}`");
         } else {
-            trace!("no mutations to send for {:?}", client.id());
+            trace!("no mutations to send for client `{client_entity}`");
         }
 
-        client.visibility_mut().update();
+        visibility.update();
     }
 
     Ok(())
@@ -371,17 +364,21 @@ fn send_messages(
 
 /// Collects and writes any new entity mappings that happened in this tick.
 fn collect_mappings(
-    messages: &mut ReplicationMessages,
     serialized: &mut SerializedData,
-    replicated_clients: &ReplicatedClients,
-    entity_map: &mut ClientEntityMap,
+    clients: &mut Query<(
+        Entity,
+        &mut UpdateMessage,
+        &mut MutateMessage,
+        &mut ConnectedClient,
+        &mut ClientEntityMap,
+        &mut ClientTicks,
+        &mut ClientVisibility,
+    )>,
 ) -> postcard::Result<()> {
-    for ((message, _), client) in messages.iter_mut().zip(replicated_clients.iter()) {
-        if let Some(mappings) = entity_map.0.get_mut(&client.id()) {
-            let len = mappings.len();
-            let mappings = serialized.write_mappings(mappings.drain(..))?;
-            message.set_mappings(mappings, len);
-        }
+    for (_, mut message, _, _, mut entity_map, ..) in clients {
+        let len = entity_map.len();
+        let mappings = serialized.write_mappings(entity_map.0.drain(..))?;
+        message.set_mappings(mappings, len);
     }
 
     Ok(())
@@ -389,25 +386,34 @@ fn collect_mappings(
 
 /// Collect entity despawns from this tick into update messages.
 fn collect_despawns(
-    messages: &mut ReplicationMessages,
     serialized: &mut SerializedData,
-    replicated_clients: &mut ReplicatedClients,
+    clients: &mut Query<(
+        Entity,
+        &mut UpdateMessage,
+        &mut MutateMessage,
+        &mut ConnectedClient,
+        &mut ClientEntityMap,
+        &mut ClientTicks,
+        &mut ClientVisibility,
+    )>,
     despawn_buffer: &mut DespawnBuffer,
 ) -> postcard::Result<()> {
     for entity in despawn_buffer.drain(..) {
         let entity_range = serialized.write_entity(entity)?;
-        for ((message, _), client) in messages.iter_mut().zip(replicated_clients.iter_mut()) {
-            if client.visibility().is_visible(entity) {
+        for (_, mut message, .., mut ticks, mut visibility) in &mut *clients {
+            if visibility.is_visible(entity) {
                 message.add_despawn(entity_range.clone());
             }
-            client.remove_despawned(entity);
+            visibility.remove_despawned(entity);
+            ticks.remove_entity(entity);
         }
     }
 
-    for ((message, _), client) in messages.iter_mut().zip(replicated_clients.iter_mut()) {
-        for entity in client.drain_lost_visibility() {
+    for (_, mut message, .., mut ticks, mut visibility) in clients {
+        for entity in visibility.drain_lost() {
             let entity_range = serialized.write_entity(entity)?;
             message.add_despawn(entity_range);
+            ticks.remove_entity(entity);
         }
     }
 
@@ -416,17 +422,24 @@ fn collect_despawns(
 
 /// Collects component removals from this tick into update messages.
 fn collect_removals(
-    messages: &mut ReplicationMessages,
     serialized: &mut SerializedData,
-    replicated_clients: &ReplicatedClients,
+    clients: &mut Query<(
+        Entity,
+        &mut UpdateMessage,
+        &mut MutateMessage,
+        &mut ConnectedClient,
+        &mut ClientEntityMap,
+        &mut ClientTicks,
+        &mut ClientVisibility,
+    )>,
     removal_buffer: &RemovalBuffer,
 ) -> postcard::Result<()> {
     for (&entity, remove_ids) in removal_buffer.iter() {
         let entity_range = serialized.write_entity(entity)?;
         let ids_len = remove_ids.len();
         let fn_ids = serialized.write_fn_ids(remove_ids.iter().map(|&(_, fns_id)| fns_id))?;
-        for ((message, _), client) in messages.iter_mut().zip(replicated_clients.iter()) {
-            if client.visibility().is_visible(entity) {
+        for (_, mut message, .., visibility) in &mut *clients {
+            if visibility.is_visible(entity) {
                 message.add_removals(entity_range.clone(), ids_len, fn_ids.clone());
             }
         }
@@ -437,10 +450,18 @@ fn collect_removals(
 
 /// Collects component changes from this tick into update and mutate messages since the last entity tick.
 fn collect_changes(
-    messages: &mut ReplicationMessages,
     serialized: &mut SerializedData,
-    replicated_clients: &mut ReplicatedClients,
+    clients: &mut Query<(
+        Entity,
+        &mut UpdateMessage,
+        &mut MutateMessage,
+        &mut ConnectedClient,
+        &mut ClientEntityMap,
+        &mut ClientTicks,
+        &mut ClientVisibility,
+    )>,
     registry: &ReplicationRegistry,
+    type_registry: &TypeRegistry,
     removal_buffer: &RemovalBuffer,
     world: &ServerWorld,
     change_tick: &SystemChangeTick,
@@ -449,10 +470,8 @@ fn collect_changes(
     for (archetype, replicated_archetype) in world.iter_archetypes() {
         for entity in archetype.entities() {
             let mut entity_range = None;
-            for ((update_message, mutate_message), client) in
-                messages.iter_mut().zip(replicated_clients.iter())
-            {
-                let visibility = client.visibility().state(entity.id());
+            for (_, mut update_message, mut mutate_message, .., visibility) in &mut *clients {
+                let visibility = visibility.state(entity.id());
                 update_message.start_entity_changes(visibility);
                 mutate_message.start_entity_mutations();
             }
@@ -489,16 +508,17 @@ fn collect_changes(
                 let ctx = SerializeCtx {
                     server_tick,
                     component_id,
+                    type_registry,
                 };
                 let mut component_range = None;
-                for ((update_message, mutate_message), client) in
-                    messages.iter_mut().zip(replicated_clients.iter())
+                for (_, mut update_message, mut mutate_message, .., client_ticks, _) in
+                    &mut *clients
                 {
                     if update_message.entity_visibility() == Visibility::Hidden {
                         continue;
                     }
 
-                    if let Some(tick) = client
+                    if let Some(tick) = client_ticks
                         .mutation_tick(entity.id())
                         .filter(|_| !marker_added)
                         .filter(|_| update_message.entity_visibility() != Visibility::Gained)
@@ -544,9 +564,7 @@ fn collect_changes(
                 }
             }
 
-            for ((update_message, mutate_message), client) in
-                messages.iter_mut().zip(replicated_clients.iter_mut())
-            {
+            for (_, mut update_message, mut mutate_message, .., mut ticks, _) in &mut *clients {
                 let visibility = update_message.entity_visibility();
                 if visibility == Visibility::Hidden {
                     continue;
@@ -559,8 +577,8 @@ fn collect_changes(
                 {
                     // If there is any insertion, removal, or it's a new entity for a client, include all mutations
                     // into update message and bump the last acknowledged tick to keep entity updates atomic.
-                    update_message.take_mutations(mutate_message);
-                    client.set_mutation_tick(entity.id(), change_tick.this_run());
+                    update_message.take_mutations(&mut mutate_message);
+                    ticks.set_mutation_tick(entity.id(), change_tick.this_run());
                 }
 
                 if new_entity && !update_message.entity_written() {
@@ -643,14 +661,6 @@ pub enum ServerSet {
     ///
     /// Runs in [`PreUpdate`].
     ReceivePackets,
-    /// Systems that trigger [`ClientConnected`] and [`ClientDisconnected`].
-    ///
-    /// The messaging backend should convert its own server events in this set.
-    ///
-    /// Needed only for backends that use batched events instead of triggers.
-    ///
-    /// Runs in [`PreUpdate`].
-    TriggerConnectionEvents,
     /// Systems that receive data from [`RepliconServer`].
     ///
     /// Used by `bevy_replicon`.
@@ -682,41 +692,31 @@ pub enum ServerSet {
 pub enum TickPolicy {
     /// The replicon tick is incremented at most max ticks per second. In practice the tick rate may be lower if the
     /// app's update cycle duration is too long.
-    ///
-    /// By default it's 30 ticks per second.
     MaxTickRate(u16),
     /// The replicon tick is incremented every frame.
     EveryFrame,
-    /// The user should manually configure [`increment_tick`] or manually increment
-    /// [`RepliconTick`].
+    /// The user should manually schedule [`increment_tick`] or increment [`RepliconTick`].
     Manual,
 }
 
-/// Triggered on connection on the server.
+/// Marker that enables replication for client entity.
 ///
-/// The messaging backend is responsible for triggering.
+/// If [`ServerPlugin::replicate_after_connect`] is set, it will be marked as required
+/// for [`ConnectedClient`].
 ///
-/// See also [`ClientDisconnected`] and [`Trigger`].
-#[derive(Event, Debug, Clone, Copy)]
-pub struct ClientConnected {
-    pub client_id: ClientId,
-}
+/// Pausing replication by temporarily removing this component is not supported.
+#[derive(Component, Default)]
+#[require(ClientTicks, ClientEntityMap, UpdateMessage, MutateMessage)]
+pub struct ReplicatedClient;
 
-/// Triggered on disconnection on the server.
-///
-/// The messaging backend is responsible for triggering.
-///
-/// See also [`ClientConnected`] and [`Trigger`].
-#[derive(Event, Debug)]
-pub struct ClientDisconnected {
-    pub client_id: ClientId,
-    pub reason: DisconnectReason,
+/// Controls how visibility will be managed via [`ClientVisibility`].
+#[derive(Default, Debug, Clone, Copy)]
+pub enum VisibilityPolicy {
+    /// All entities are visible by default and visibility can't be changed.
+    #[default]
+    All,
+    /// All entities are visible by default and should be explicitly registered to be hidden.
+    Blacklist,
+    /// All entities are hidden by default and should be explicitly registered to be visible.
+    Whitelist,
 }
-
-/// Triggers replication for a connected client.
-///
-/// This event needs to be triggered manually if [`ServerPlugin::replicate_after_connect`] is set to `false`.
-///
-/// See also [`Trigger`].
-#[derive(Debug, Clone, Copy, Event, Deref)]
-pub struct StartReplication(pub ClientId);

@@ -129,7 +129,7 @@ pub trait AppRuleExt {
     /// Applies the assigned deserialization function and assigns only translation.
     ///
     /// Called by Replicon on component mutations.
-    pub fn deserialize_transform_in_place(
+    fn deserialize_transform_in_place(
         deserialize: DeserializeFn<Transform>,
         ctx: &mut WriteCtx,
         component: &mut Transform,
@@ -167,8 +167,7 @@ pub trait AppRuleExt {
         deserialize_big_component,
     ));
 
-    /// Serializes [`BigComponent`] with compression.
-    pub fn serialize_big_component(
+    fn serialize_big_component(
         _ctx: &SerializeCtx,
         component: &BigComponent,
         message: &mut Vec<u8>,
@@ -190,8 +189,7 @@ pub trait AppRuleExt {
         Ok(())
     }
 
-    /// Deserializes [`BigComponent`] with decompression.
-    pub fn deserialize_big_component(
+    fn deserialize_big_component(
         _ctx: &mut WriteCtx,
         message: &mut Bytes,
     ) -> postcard::Result<BigComponent> {
@@ -233,12 +231,12 @@ pub trait AppRuleExt {
     let mut app = App::new();
     app.add_plugins(RepliconPlugins);
     app.replicate_with(RuleFns::new(
-        serialize_big_component,
-        deserialize_big_component,
+        serialize_mapped_component,
+        deserialize_mapped_component,
     ));
 
     /// Serializes [`MappedComponent`], but skips [`MappedComponent::unused_field`].
-    pub fn serialize_big_component(
+    fn serialize_mapped_component(
         _ctx: &SerializeCtx,
         component: &MappedComponent,
         message: &mut Vec<u8>,
@@ -247,7 +245,7 @@ pub trait AppRuleExt {
     }
 
     /// Deserializes an entity and creates [`MappedComponent`] from it.
-    pub fn deserialize_big_component(
+    fn deserialize_mapped_component(
         ctx: &mut WriteCtx,
         message: &mut Bytes,
     ) -> postcard::Result<MappedComponent> {
@@ -271,6 +269,55 @@ pub trait AppRuleExt {
             self.entity = mapper.get_mapped(self.entity);
         }
     }
+    ```
+
+    Component with [`Box<dyn PartialReflect>`]:
+
+    ```
+    use bevy::{
+        prelude::*,
+        reflect::serde::{ReflectDeserializer, ReflectSerializer},
+    };
+    use bevy_replicon::{
+        bytes::Bytes,
+        core::{
+            postcard_utils::{BufFlavor, ExtendMutFlavor},
+            replication::replication_registry::{
+                ctx::{SerializeCtx, WriteCtx},
+                rule_fns::RuleFns,
+            },
+        },
+        postcard::{self, Deserializer, Serializer},
+        prelude::*,
+    };
+    use serde::{de::DeserializeSeed, Serialize};
+
+    let mut app = App::new();
+    app.add_plugins(RepliconPlugins);
+    app.replicate_with(RuleFns::new(serialize_reflect, deserialize_reflect));
+
+    fn serialize_reflect(
+        ctx: &SerializeCtx,
+        component: &ReflectedComponent,
+        message: &mut Vec<u8>,
+    ) -> postcard::Result<()> {
+        let mut serializer = Serializer {
+            output: ExtendMutFlavor::new(message),
+        };
+        ReflectSerializer::new(&*component.0, ctx.type_registry).serialize(&mut serializer)
+    }
+
+    fn deserialize_reflect(
+        ctx: &mut WriteCtx,
+        message: &mut Bytes,
+    ) -> postcard::Result<ReflectedComponent> {
+        let mut deserializer = Deserializer::from_flavor(BufFlavor::new(message));
+        let reflect = ReflectDeserializer::new(ctx.type_registry).deserialize(&mut deserializer)?;
+        Ok(ReflectedComponent(reflect))
+    }
+
+    #[derive(Component)]
+    struct ReflectedComponent(Box<dyn PartialReflect>);
     ```
     */
     fn replicate_with<C>(&mut self, rule_fns: RuleFns<C>) -> &mut Self

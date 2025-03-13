@@ -60,7 +60,7 @@ assert!(!entity.contains::<DummyComponent>());
 
 entity.apply_despawn(tick);
 let mut replicated = app.world_mut().query::<&DummyComponent>();
-assert!(replicated.iter(app.world()).next().is_none());
+assert_eq!(replicated.iter(app.world()).len(), 0);
 
 #[derive(Component, Serialize, Deserialize)]
 struct DummyComponent;
@@ -95,12 +95,14 @@ pub trait TestFnsEntityExt {
 
 impl TestFnsEntityExt for EntityWorldMut<'_> {
     fn serialize(&mut self, fns_id: FnsId, server_tick: RepliconTick) -> Vec<u8> {
+        let type_registry = self.world().resource::<AppTypeRegistry>();
         let registry = self.world().resource::<ReplicationRegistry>();
         let (component_id, component_fns, rule_fns) = registry.get(fns_id);
         let mut message = Vec::new();
         let ctx = SerializeCtx {
             server_tick,
             component_id,
+            type_registry: &type_registry.read(),
         };
         let ptr = self.get_by_id(component_id).unwrap_or_else(|_| {
             let components = self.world().components();
@@ -133,27 +135,35 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
         self.world_scope(|world| {
             world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
                 world.resource_scope(|world, registry: Mut<ReplicationRegistry>| {
-                    let mut queue = CommandQueue::default();
-                    let mut entity = DeferredEntity::new(world, entity);
-                    let mut commands = entity.commands(&mut queue);
+                    world.resource_scope(|world, type_registry: Mut<AppTypeRegistry>| {
+                        let mut queue = CommandQueue::default();
+                        let mut entity = DeferredEntity::new(world, entity);
+                        let mut commands = entity.commands(&mut queue);
 
-                    let (component_id, component_fns, rule_fns) = registry.get(fns_id);
-                    let mut ctx =
-                        WriteCtx::new(&mut commands, &mut entity_map, component_id, message_tick);
+                        let (component_id, component_fns, rule_fns) = registry.get(fns_id);
+                        let mut ctx = WriteCtx {
+                            commands: &mut commands,
+                            entity_map: &mut entity_map,
+                            type_registry: &type_registry.read(),
+                            component_id,
+                            message_tick,
+                            ignore_mapping: false,
+                        };
 
-                    unsafe {
-                        component_fns
-                            .write(
-                                &mut ctx,
-                                rule_fns,
-                                &entity_markers,
-                                &mut entity,
-                                &mut data.into(),
-                            )
-                            .expect("writing data into an entity shouldn't fail");
-                    }
+                        unsafe {
+                            component_fns
+                                .write(
+                                    &mut ctx,
+                                    rule_fns,
+                                    &entity_markers,
+                                    &mut entity,
+                                    &mut data.into(),
+                                )
+                                .expect("writing data into an entity shouldn't fail");
+                        }
 
-                    queue.apply(world);
+                        queue.apply(world);
+                    })
                 })
             })
         });

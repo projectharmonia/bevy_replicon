@@ -16,7 +16,7 @@ use bevy_replicon::{
     },
     prelude::*,
     server::server_tick::ServerTick,
-    test_app::ServerTestAppExt,
+    test_app::{ServerTestAppExt, TestClientEntity},
 };
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
@@ -202,11 +202,10 @@ fn command_fns() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    let client_entity = client_app
+    let mut components = client_app
         .world_mut()
-        .query_filtered::<Entity, With<ReplacedComponent>>()
-        .single(client_app.world())
-        .unwrap();
+        .query_filtered::<&ReplacedComponent, Without<OriginalComponent>>();
+    assert_eq!(components.iter(client_app.world()).len(), 1);
 
     // Change value.
     let mut component = server_app
@@ -219,10 +218,7 @@ fn command_fns() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let client_entity = client_app.world().entity(client_entity);
-    assert!(!client_entity.contains::<OriginalComponent>());
-
-    let component = client_entity.get::<ReplacedComponent>().unwrap();
+    let component = components.single(client_app.world()).unwrap();
     assert!(component.0);
 }
 
@@ -255,17 +251,12 @@ fn marker() {
 
     let client_entity = client_app.world_mut().spawn(ReplaceMarker).id();
 
-    let client = client_app.world().resource::<RepliconClient>();
-    let client_id = client.id().unwrap();
-
-    let mut entity_map = server_app.world_mut().resource_mut::<ClientEntityMap>();
-    entity_map.insert(
-        client_id,
-        ClientMapping {
-            server_entity,
-            client_entity,
-        },
-    );
+    let test_client_entity = **client_app.world().resource::<TestClientEntity>();
+    let mut entity_map = server_app
+        .world_mut()
+        .get_mut::<ClientEntityMap>(test_client_entity)
+        .unwrap();
+    entity_map.insert(server_entity, client_entity);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -322,17 +313,12 @@ fn marker_with_history() {
 
     let client_entity = client_app.world_mut().spawn(HistoryMarker).id();
 
-    let client = client_app.world().resource::<RepliconClient>();
-    let client_id = client.id().unwrap();
-
-    let mut entity_map = server_app.world_mut().resource_mut::<ClientEntityMap>();
-    entity_map.insert(
-        client_id,
-        ClientMapping {
-            server_entity,
-            client_entity,
-        },
-    );
+    let test_client_entity = **client_app.world().resource::<TestClientEntity>();
+    let mut entity_map = server_app
+        .world_mut()
+        .get_mut::<ClientEntityMap>(test_client_entity)
+        .unwrap();
+    entity_map.insert(server_entity, client_entity);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -408,17 +394,12 @@ fn marker_with_history_consume() {
 
     let client_entity = client_app.world_mut().spawn(HistoryMarker).id();
 
-    let client = client_app.world().resource::<RepliconClient>();
-    let client_id = client.id().unwrap();
-
-    let mut entity_map = server_app.world_mut().resource_mut::<ClientEntityMap>();
-    entity_map.insert(
-        client_id,
-        ClientMapping {
-            server_entity,
-            client_entity,
-        },
-    );
+    let test_client_entity = **client_app.world().resource::<TestClientEntity>();
+    let mut entity_map = server_app
+        .world_mut()
+        .get_mut::<ClientEntityMap>(test_client_entity)
+        .unwrap();
+    entity_map.insert(server_entity, client_entity);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -495,17 +476,12 @@ fn marker_with_history_old_update() {
 
     let client_entity = client_app.world_mut().spawn(HistoryMarker).id();
 
-    let client = client_app.world().resource::<RepliconClient>();
-    let client_id = client.id().unwrap();
-
-    let mut entity_map = server_app.world_mut().resource_mut::<ClientEntityMap>();
-    entity_map.insert(
-        client_id,
-        ClientMapping {
-            server_entity,
-            client_entity,
-        },
-    );
+    let test_client_entity = **client_app.world().resource::<TestClientEntity>();
+    let mut entity_map = server_app
+        .world_mut()
+        .get_mut::<ClientEntityMap>(test_client_entity)
+        .unwrap();
+    entity_map.insert(server_entity, client_entity);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -729,7 +705,7 @@ fn with_despawn() {
     server_app.update(); // Let server receive an update to trigger acknowledgment.
 
     let mut replicated = client_app.world_mut().query::<&Replicated>();
-    assert!(replicated.iter(client_app.world()).next().is_none());
+    assert_eq!(replicated.iter(client_app.world()).len(), 0);
 }
 
 #[test]
@@ -774,11 +750,8 @@ fn buffering() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    let component = client_app
-        .world_mut()
-        .query::<&BoolComponent>()
-        .single(client_app.world())
-        .unwrap();
+    let mut components = client_app.world_mut().query::<&BoolComponent>();
+    let component = components.single(client_app.world()).unwrap();
     assert!(!component.0, "client should buffer the mutation");
 
     // Restore the update tick to let the buffered mutation apply
@@ -788,11 +761,7 @@ fn buffering() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let component = client_app
-        .world_mut()
-        .query::<&BoolComponent>()
-        .single(client_app.world())
-        .unwrap();
+    let component = components.single(client_app.world()).unwrap();
     assert!(component.0, "buffered mutation should be applied");
 }
 
@@ -899,11 +868,8 @@ fn acknowledgment() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let component = client_app
-        .world_mut()
-        .query::<Ref<BoolComponent>>()
-        .single(client_app.world())
-        .unwrap();
+    let mut components = client_app.world_mut().query::<Ref<BoolComponent>>();
+    let component = components.single(client_app.world()).unwrap();
     let tick1 = component.last_changed();
 
     // Take and drop ack message.
@@ -915,11 +881,7 @@ fn acknowledgment() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    let component = client_app
-        .world_mut()
-        .query::<Ref<BoolComponent>>()
-        .single(client_app.world())
-        .unwrap();
+    let component = components.single(client_app.world()).unwrap();
     let tick2 = component.last_changed();
 
     assert!(
@@ -1009,6 +971,53 @@ fn confirm_history() {
         .unwrap();
     assert_eq!(event.entity, client_entity);
     assert_eq!(event.tick, tick);
+}
+
+#[test]
+fn after_disconnect() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<BoolComponent>();
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    let server_entity = server_app
+        .world_mut()
+        .spawn((Replicated, BoolComponent(false)))
+        .id();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    // Change value.
+    let mut component = server_app
+        .world_mut()
+        .get_mut::<BoolComponent>(server_entity)
+        .unwrap();
+    component.0 = true;
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    let test_client_entity = **client_app.world().resource::<TestClientEntity>();
+    server_app
+        .world_mut()
+        .entity_mut(test_client_entity)
+        .despawn();
+    server_app.update();
 }
 
 #[derive(Component, Deserialize, Serialize)]

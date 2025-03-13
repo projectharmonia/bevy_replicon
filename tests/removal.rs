@@ -7,7 +7,7 @@ use bevy_replicon::{
     },
     prelude::*,
     server::server_tick::ServerTick,
-    test_app::ServerTestAppExt,
+    test_app::{ServerTestAppExt, TestClientEntity},
 };
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
@@ -39,10 +39,8 @@ fn single() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    let client_entity = client_app
-        .world_mut()
-        .query_filtered::<Entity, With<DummyComponent>>()
-        .single(client_app.world()).unwrap();
+    let mut components = client_app.world_mut().query::<&DummyComponent>();
+    assert_eq!(components.iter(client_app.world()).len(), 1);
 
     server_app
         .world_mut()
@@ -53,8 +51,7 @@ fn single() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let client_entity = client_app.world().entity(client_entity);
-    assert!(!client_entity.contains::<DummyComponent>());
+    assert_eq!(components.iter(client_app.world()).len(), 0);
 }
 
 #[test]
@@ -85,10 +82,8 @@ fn command_fns() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    let client_entity = client_app
-        .world_mut()
-        .query_filtered::<Entity, With<ReplacedComponent>>()
-        .single(client_app.world()).unwrap();
+    let mut components = client_app.world_mut().query::<&ReplacedComponent>();
+    assert_eq!(components.iter(client_app.world()).len(), 1);
 
     server_app
         .world_mut()
@@ -99,8 +94,7 @@ fn command_fns() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let client_entity = client_app.world().entity(client_entity);
-    assert!(!client_entity.contains::<ReplacedComponent>());
+    assert_eq!(components.iter(client_app.world()).len(), 0);
 }
 
 #[test]
@@ -132,17 +126,12 @@ fn marker() {
 
     let client_entity = client_app.world_mut().spawn(ReplaceMarker).id();
 
-    let client = client_app.world().resource::<RepliconClient>();
-    let client_id = client.id().unwrap();
-
-    let mut entity_map = server_app.world_mut().resource_mut::<ClientEntityMap>();
-    entity_map.insert(
-        client_id,
-        ClientMapping {
-            server_entity,
-            client_entity,
-        },
-    );
+    let test_client_entity = **client_app.world().resource::<TestClientEntity>();
+    let mut entity_map = server_app
+        .world_mut()
+        .get_mut::<ClientEntityMap>(test_client_entity)
+        .unwrap();
+    entity_map.insert(server_entity, client_entity);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -192,7 +181,8 @@ fn group() {
     let client_entity = client_app
         .world_mut()
         .query_filtered::<Entity, (With<GroupComponentA>, With<GroupComponentB>)>()
-        .single(client_app.world()).unwrap();
+        .single(client_app.world())
+        .unwrap();
 
     server_app
         .world_mut()
@@ -237,7 +227,8 @@ fn not_replicated() {
     let client_entity = client_app
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, Without<NotReplicatedComponent>)>()
-        .single(client_app.world()).unwrap();
+        .single(client_app.world())
+        .unwrap();
 
     client_app
         .world_mut()
@@ -284,10 +275,8 @@ fn after_insertion() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    let client_entity = client_app
-        .world_mut()
-        .query_filtered::<Entity, With<DummyComponent>>()
-        .single(client_app.world()).unwrap();
+    let mut components = client_app.world_mut().query::<&DummyComponent>();
+    assert_eq!(components.iter(client_app.world()).len(), 1);
 
     // Insert and remove at the same time.
     server_app
@@ -300,8 +289,7 @@ fn after_insertion() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let client_entity = client_app.world().entity(client_entity);
-    assert!(!client_entity.contains::<DummyComponent>());
+    assert_eq!(components.iter(client_app.world()).len(), 0);
 }
 
 #[test]
@@ -330,10 +318,10 @@ fn with_spawn() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    client_app
+    let mut components = client_app
         .world_mut()
-        .query_filtered::<Entity, (With<Replicated>, Without<DummyComponent>)>()
-        .single(client_app.world()).unwrap();
+        .query_filtered::<&Replicated, Without<DummyComponent>>();
+    assert_eq!(components.iter(client_app.world()).len(), 1);
 }
 
 #[test]
@@ -363,10 +351,8 @@ fn with_despawn() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    client_app
-        .world_mut()
-        .query::<&Replicated>()
-        .single(client_app.world()).unwrap();
+    let mut replicated = client_app.world_mut().query::<&Replicated>();
+    assert_eq!(replicated.iter(client_app.world()).len(), 1);
 
     // Un-replicate and remove at the same time.
     server_app
@@ -379,8 +365,7 @@ fn with_despawn() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let mut replicated = client_app.world_mut().query::<&Replicated>();
-    assert!(replicated.iter(client_app.world()).next().is_none());
+    assert_eq!(replicated.iter(client_app.world()).len(), 0);
 }
 
 #[test]
@@ -413,7 +398,8 @@ fn confirm_history() {
     let client_entity = client_app
         .world_mut()
         .query_filtered::<Entity, With<DummyComponent>>()
-        .single(client_app.world()).unwrap();
+        .single(client_app.world())
+        .unwrap();
 
     server_app
         .world_mut()
@@ -488,8 +474,9 @@ fn hidden() {
     client_app.update();
 
     let mut replicated = client_app.world_mut().query::<&Replicated>();
-    assert!(
-        replicated.iter(client_app.world()).next().is_none(),
+    assert_eq!(
+        replicated.iter(client_app.world()).len(),
+        0,
         "client shouldn't know about hidden entity"
     );
 }

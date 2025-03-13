@@ -144,13 +144,14 @@ fn send(
     events: FilteredResources,
     mut readers: FilteredResourcesMut,
     mut client: ResMut<RepliconClient>,
-    registry: Res<AppTypeRegistry>,
+    type_registry: Res<AppTypeRegistry>,
     entity_map: Res<ServerEntityMap>,
     event_registry: Res<EventRegistry>,
 ) {
     let mut ctx = ClientSendCtx {
         entity_map: &entity_map,
-        registry: &registry.read(),
+        type_registry: &type_registry.read(),
+        invalid_entities: Vec::new(),
     };
 
     for event in event_registry.iter_client_events() {
@@ -172,13 +173,13 @@ fn receive(
     mut events: FilteredResourcesMut,
     mut queues: FilteredResourcesMut,
     mut client: ResMut<RepliconClient>,
-    registry: Res<AppTypeRegistry>,
+    type_registry: Res<AppTypeRegistry>,
     entity_map: Res<ServerEntityMap>,
     event_registry: Res<EventRegistry>,
     update_tick: Res<ServerUpdateTick>,
 ) {
     let mut ctx = ClientReceiveCtx {
-        registry: &registry.read(),
+        type_registry: &type_registry.read(),
         entity_map: &entity_map,
         invalid_entities: Vec::new(),
     };

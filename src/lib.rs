@@ -1,155 +1,20 @@
 /*!
-ECS-focused high-level networking crate for the [Bevy game engine](https://bevyengine.org).
+Server-authoritative networking crate for the [Bevy game engine](https://bevyengine.org).
 
 # Quick start
 
-We provide a [`prelude`] module, which exports most of the typically used traits and types.
-
 The library doesn't provide any I/O, so you need to add a
 [messaging backend](https://github.com/projectharmonia/bevy_replicon#messaging-backends).
-If you want to write an integration for a messaging backend,
-see the documentation for [`RepliconServer`], [`RepliconClient`], [`ClientConnected`] and [`ClientDisconnected`].
-You can also use `bevy_replicon_renet`, which we maintain, as a reference.
+If you want to write an integration yourself, see
+[this section](#writing-integration-for-a-messaging-crate).
 
-Also depending on your game, you may want to use additional crates. For example, if your game
-is fast-paced, you will need interpolation and rollback.
-For details see [`goals`](https://github.com/projectharmonia/bevy_replicon#goals) and
-[`related crates`](https://github.com/projectharmonia/bevy_replicon#related-crates).
-Before adding advanced functionality, it's recommended to read the quick start guide
-first to understand the basics.
+## Prelude
 
-## API showcase
+We provide a [`prelude`] module, which exports most of the typically used traits and types.
 
-```
-# use bevy::app::PluginGroupBuilder;
-use bevy::prelude::*;
-use bevy_replicon::prelude::*;
-use serde::{Deserialize, Serialize};
+## Plugins
 
-let mut app = App::new();
-app.add_plugins((
-    MinimalPlugins,
-    RepliconPlugins,
-    MyMessagingPlugins, // Plugins for your messaging backend of choice.
-))
-.add_systems(
-    PreUpdate,
-    (
-        // Run systems that read events right after receiving them.
-        // But it can be done in any other place.
-        apply_movement
-            .after(ClientSet::Receive)
-            .run_if(client_connected),
-        show_message
-            .after(ServerSet::Receive)
-            .run_if(server_running),
-    ),
-)
-.add_systems(
-    Update,
-    (spawn_entities, update_health).run_if(server_running),
-)
-.add_systems(
-    PostUpdate,
-    (
-        // Run systems that write events right before sending them.
-        // But it can be done in any other place.
-        send_movement
-            .before(ClientSet::Send)
-            .run_if(client_connected),
-        send_message
-            .before(ServerSet::Send)
-            .run_if(server_running),
-    ),
-)
-.replicate::<Health>() // Component that will be replicated.
-.replicate_group::<(Transform, Player)>() // Replicate multiple components only if all of them are present.
-.add_client_event::<MovementEvent>(ChannelKind::Ordered) // Bevy event that will replicated from clients to server.
-.add_server_event::<MessageEvent>(ChannelKind::Unordered); // Bevy event that will replicated from server to client.
-
-fn spawn_entities(mut commands: Commands) {
-    // All entities with `Replicated` marker will be automatically replicated.
-    commands.spawn((
-        Replicated,
-        Health(100),
-        Transform::default(),
-        Player,
-        NotReplicatedComponent, // This component will be ignored since it's not replicated for replication.
-    ));
-
-    // `Transform` won't be replicated in this case since `Player` marker is missing.
-    commands.spawn((Replicated, Health(100), Transform::default()));
-}
-
-fn update_health(mut players: Query<&mut Health, With<Player>>) {
-    // Changed values on server will be automatically replicated to clients.
-    for mut health in &mut players {
-        health.0 += 1;
-    }
-}
-
-fn send_movement(mut movement_events: EventWriter<MovementEvent>) {
-    // This event will be available on server, but in form of
-    // `FromClient<MovementEvent>` to include the sender ID.
-    movement_events.send(MovementEvent(Vec2::ONE));
-}
-
-fn apply_movement(mut movement_events: EventReader<FromClient<MovementEvent>>) {
-    for FromClient { client_id, event } in movement_events.read() {
-        // Apply user inputs to entities.
-        // Since it runs on server, all changes will be replicated back to clients.
-    }
-}
-
-fn send_message(mut message_events: EventWriter<ToClients<MessageEvent>>) {
-    // This event will be available on clients, but in form of
-    // just `MessageEvent`. On server we use `ToClients` wrapper to include `mode`.
-    message_events.send(ToClients {
-        mode: SendMode::Broadcast,
-        event: MessageEvent("Hello from server".to_string()),
-    });
-}
-
-fn show_message(mut message_events: EventReader<MessageEvent>) {
-    for event in message_events.read() {
-        // Process the message, show in UI, etc...
-    }
-}
-
-#[derive(Component, Serialize, Deserialize)]
-struct Health(u32);
-
-#[derive(Component, Serialize, Deserialize)]
-struct Player;
-
-#[derive(Component)]
-struct NotReplicatedComponent;
-
-#[derive(Event, Serialize, Deserialize)]
-struct MovementEvent(Vec2);
-
-#[derive(Event, Serialize, Deserialize)]
-struct MessageEvent(String);
-#
-# struct MyMessagingPlugins;
-#
-# impl PluginGroup for MyMessagingPlugins {
-#     fn build(self) -> PluginGroupBuilder {
-#         PluginGroupBuilder::start::<Self>()
-#     }
-# }
-```
-
-This example shows a server and client logic inside a single app managed by
-[run conditions](#system-sets-and-conditions). But it's possible to split server and client into
-multiple apps if needed. Seamless singleplayer and listen-server mode (when server is also a client)
-are also supported by just adjusting the run conditions.
-
-Below we describe each part and more advanced features in more detail.
-
-## Initialization
-
-You need to add [`RepliconPlugins`] and plugins for your chosen messaging backend to your app:
+Add [`RepliconPlugins`] and plugins for your chosen messaging backend to your app:
 
 ```
 use bevy::prelude::*;
@@ -158,9 +23,7 @@ use bevy_replicon::prelude::*;
 
 let mut app = App::new();
 app.add_plugins((MinimalPlugins, RepliconPlugins, MyMessagingPlugins));
-#
 # struct MyMessagingPlugins;
-#
 # impl PluginGroup for MyMessagingPlugins {
 #     fn build(self) -> PluginGroupBuilder {
 #         PluginGroupBuilder::start::<Self>()
@@ -168,17 +31,41 @@ app.add_plugins((MinimalPlugins, RepliconPlugins, MyMessagingPlugins));
 # }
 ```
 
-If you want to separate the client and server, you can use the `client` and `server` features
-(both enabled by default), which control enabled plugins.
+## Server and client creation
 
-It's also possible to do it at runtime via [`PluginGroupBuilder::disable()`].
-For server disable [`ClientPlugin`] and [`ClientEventPlugin`].
-For client disable [`ServerPlugin`] and [`ServerEventPlugin`].
+This part is specific to your messaging backend. For `bevy_replicon_renet`,
+see [this section](https://docs.rs/bevy_replicon_renet#server-and-client-creation).
 
-You will need to disable similar features or plugins on your messaing library of choice too.
+Backends manage [`RepliconServer`] and [`RepliconClient`] resources. They can be used
+to obtain things like state or statistic in backend-independent way.
+
+On server connected clients represented as entities with [`ConnectedClient`] component.
+Their data represented as components, such as [`NetworkStats`]. Users can also attach their
+own metadata to them or even replicate these entiteis back to clients.
+
+## Replication
+
+It's a process of exchanging data in order to keep the world in sync. Replicon
+provides a high-level API to automate this process.
+
+Replication happens only from server to clients. It's necessary to prevent cheating.
+If you need to send information from clients to the server, use
+[events](#network-events-and-triggers).
+
+Replication is enabled by default for all connected clients via [`ReplicatedClient`] component.
+It can be disabled via [`ServerPlugin::replicate_after_connect`] is set to `false`.
+
+For implementation details see [`ReplicationChannel`](core::channels::ReplicationChannel).
+
+### Tick rate
 
 Typically updates are not sent every frame. Instead, they are sent at a certain interval
-to save traffic. You can change the defaults with [`TickPolicy`] in the [`ServerPlugin`]:
+to save traffic.
+
+On server current tick stored in [`RepliconTick`](core::replicon_tick::RepliconTick) resource.
+Replication runs when this resource changes.
+
+You can change the defaults with [`TickPolicy`] in the [`ServerPlugin`]:
 
 ```
 # use bevy::prelude::*;
@@ -195,55 +82,7 @@ app.add_plugins(
 );
 ```
 
-Depending on the game, you may notice that the lower the interval, the less smooth the game feels.
-To smooth updates, you will need to apply interpolation.
-
-## Server and client creation
-
-This part is customized based on your messaging backend. For `bevy_replicon_renet`
-see [this](https://docs.rs/bevy_replicon_renet#server-and-client-creation) section.
-
-The backend will automatically update the [`RepliconServer`] or [`RepliconClient`] resources, which
-can be interacted with without knowing what backend is used. Those resources typically don't need to
-be used directly, it is preferred to use more high-level abstractions described later.
-
-<div class="warning">
-
-Never initialize a client and server in the same app for singleplayer; doing so will cause a replication loop.
-Use the described pattern in [system sets and conditions](#system-sets-and-conditions)
-in combination with [network events](#network-events) instead.
-
-</div>
-
-## System sets and conditions
-
-To run a system based on a network condition, use the [`core::common_conditions`] module.
-This module is also available from [`prelude`].
-
-This way you can run specific systems only on server ([`server_running`]) or
-only on client ([`client_connected`]). To display a "connecting" message, you can use [`client_connecting`].
-
-If your game needs singleplayer or listen-server mode (when server is also a client),
-just use [`server_or_singleplayer`] instead of [`server_running`] and remove all [`client_connected`].
-No other changes needed. We will describe later what replicon does internally to achieve it.
-
-We also provide [`ClientSet`] and [`ServerSet`] to schedule your system at specific time in the frame.
-For example, you most likely want to react on receive after [`ClientSet::Receive`] or [`ServerSet::Receive`].
-
-## Replication
-
-It's a process of sending changes from server to clients in order to
-keep the world in sync.
-
-To prevent cheating, we do not support replicating from the client. If you need to send
-information from clients to the server, use [events](#network-events).
-
-### Marking for replication
-
-By default nothing is replicated. User needs to choose which entities
-and components need to be replicated.
-
-#### Entities
+### Entities
 
 By default no entities are replicated. Add the [`Replicated`] marker
 component on the server for entities you want to replicate.
@@ -252,7 +91,11 @@ On clients [`Replicated`] will be automatically inserted to newly-replicated ent
 
 If you remove the [`Replicated`] component from an entity on the server, it will be despawned on all clients.
 
-#### Components
+Entity IDs differ between clients and server. As a result, clients maps server entities to local entities
+on receive. These mappings are stored in the [`ServerEntityMap`](core::server_entity_map::ServerEntityMap)
+resource.
+
+### Components
 
 Components will be replicated only on entities marked for replication.
 By default no components are replicated.
@@ -271,51 +114,27 @@ app.replicate::<DummyComponent>();
 struct DummyComponent;
 ```
 
-If your component contains an entity then it cannot be deserialized as is
-because entity IDs are different on server and client. The client should do the
-mapping. Therefore, to replicate such components properly, they need to implement
-the [`MapEntities`](bevy::ecs::entity::MapEntities) trait and register
+If your component contains an entity, it cannot be deserialized as is
+because entities inside components also need to be mapped. Therefore,
+to replicate such components properly, they need to implement
+the [`MapEntities`](bevy::ecs::entity::MapEntities) trait and be registered
 using [`AppRuleExt::replicate_mapped()`].
 
 By default all components are serialized with [`postcard`].
-If your component doesn't implement serde traits or you want to serialize it partially
-(for example, only replicate the `translation` field from [`Transform`]),
-you can use [`AppRuleExt::replicate_with`].
-
-If you want a group of components to be replicated only if all of them are present on an entity,
-you can use [`AppRuleExt::replicate_group`].
-
-If you want to customize how the received component will be written or removed on clients based
-on some marker component (for example, write into a different component), see [`AppMarkerExt`].
-Useful for implementing rollback and interpolation.
-
 In order to serialize Bevy components you need to enable the `serialize` feature on Bevy.
 
-<div class="warning">
+If your component doesn't implement serde traits or you want to customize the serialization
+(for example, quantize or apply compression), you can use [`AppRuleExt::replicate_with()`].
 
-If you are planning to have separate apps for the client and server, make sure that the component
-registration order is the same on both.
+If you want a group of components to be replicated only if all of them are present on an entity,
+you can use [`AppRuleExt::replicate_group()`].
 
-Typically, in this setup, you have a "shared" crate that contains type definitions and possibly some logic.
-This is also where you want to add all component registrations.
-
-</div>
-
-### Mapping to existing client entities
-
-If you want the server to replicate an entity into a client entity that was already spawned on a client, see [`ClientEntityMap`].
-
-This can be useful for certain types of game. For example, spawning bullets on the client immediately without
-waiting on replication.
-
-### Required components
+#### Required components
 
 You don't want to replicate all components because not all of them are
-necessary to send over the network. For example, 'background' components
-can be automatically inserted after replication thanks to Bevy's required components.
-For components that require world access you can create a special system that inserts such
-components after entity spawn. To avoid one frame delay, put your initialization systems
-in [`ClientSet::Receive`]:
+necessary to send over the network. Components that can be calculated on the client can
+be inserted using Bevy's required components feature. For components that require world access,
+you can create a special system to insert such components after entity spawn.
 
 ```
 # use bevy::prelude::*;
@@ -326,19 +145,15 @@ in [`ClientSet::Receive`]:
 // Replicate only transform and player marker.
 app.replicate::<Transform>()
     .replicate::<Player>()
-    .add_systems(PreUpdate, init_player_mesh.after(ClientSet::Receive));
+    .add_observer(init_player_mesh);
 
 fn init_player_mesh(
-    mut commands: Commands,
+    trigger: Trigger<OnAdd, Mesh2d>,
     mut meshes: ResMut<Assets<Mesh>>,
-    // Infer that the player was just spawned by the fact it's missing `Mesh2d`.
-    players: Query<Entity, (With<Player>, Without<Mesh2d>)>,
+    mut players: Query<&mut Mesh2d>,
 ) {
-    for entity in &players {
-        commands.entity(entity).insert((
-            Mesh2d(meshes.add(Capsule2d::default())),
-        ));
-    }
+    let mut mesh = players.get_mut(trigger.target()).unwrap();
+    **mesh = meshes.add(Capsule2d::default());
 }
 
 /// Main player component.
@@ -350,7 +165,7 @@ fn init_player_mesh(
 /// as required. However, it may still be useful to mark it as required if you want to avoid
 /// inserting it explicitly on the server.
 #[derive(Component, Deserialize, Serialize)]
-#[require(Replicated, NotReplicatedComponent)]
+#[require(Replicated, NotReplicatedComponent, Mesh2d)]
 struct Player;
 
 #[derive(Default, Component)]
@@ -358,33 +173,30 @@ struct NotReplicatedComponent;
 ```
 
 This pairs nicely with server state serialization and keeps saves clean.
-You can use [`replicate_into`](scene::replicate_into) to
-fill [`DynamicScene`] with replicated entities and their components.
+You can use [`scene::replicate_into()`] to fill [`DynamicScene`] with replicated entities and their components.
 On deserialization all missing required components will be inserted, and initialization
 systems will restore the correct game state.
 
-**Performance note**: We used [`With<Player>`] and [`Without<Mesh2d>`] to
-filter all non-initialized entities. It's possible to use [`Added`] / [`Changed`] too,
-but they aren't true archetype-level filters like [`With`] or [`Without`].
-See [the Bevy docs](https://docs.rs/bevy/latest/bevy/ecs/prelude/struct.Added.html#time-complexity)
-for more details. There is also an [open Bevy ticket](https://github.com/bevyengine/bevy/issues/5097)
-for improving the performance of [`Added`] / [`Changed`].
+If a component can't be used with the required components due to the inability to insert it
+without world access, you can create an observer for a replicated marker and insert the actual
+component inside it.
 
-### Component relations
+#### Component relations
 
-Sometimes components depend on each other. For example, [`Parent`] and
-[`Children`] In this case, you can't just replicate the [`Parent`] because you
-not only need to add it to the [`Children`] of the parent, but also remove it
-from the [`Children`] of the old one. In this case, you need to create a third
-component that correctly updates the other two when it changes, and only
-replicate that one. This crate provides [`ParentSync`] component that replicates
-Bevy hierarchy. For your custom components with relations you need to write your
-own with a similar pattern.
+Some components depend on each other. For example, [`Parent`] and [`Children`]. However, enabling
+replication for [`Parent`] won't work because [`Children`] won't be automatically updated. In this
+case, you need to create a third component that correctly updates the other two when it changes,
+and only replicate that one. This crate provides the [`ParentSync`] component, which replicates the
+Bevy hierarchy. For your custom components with relations, you need to write your own using a similar
+pattern.
+
+This won't be necessary after Bevy 0.16, as you will be able to replicate [`Parent`] directly
+thanks to 1:many relations support.
 
 ## Network events and triggers
 
 This replaces RPCs (remote procedure calls) in other engines and,
-unlike components, can be sent both from server to clients and from clients to
+unlike replication, can be sent both from server to clients and from clients to
 server.
 
 ### From client to server
@@ -421,8 +233,8 @@ fn send_events(mut dummy_events: EventWriter<DummyEvent>) {
 }
 
 fn receive_events(mut dummy_events: EventReader<FromClient<DummyEvent>>) {
-    for FromClient { client_id, event } in dummy_events.read() {
-        info!("received event {event:?} from {client_id:?}");
+    for FromClient { client_entity, event } in dummy_events.read() {
+        info!("received event `{event:?}` from client `{client_entity}`");
     }
 }
 
@@ -430,46 +242,17 @@ fn receive_events(mut dummy_events: EventReader<FromClient<DummyEvent>>) {
 struct DummyEvent;
 ```
 
-We consider the server or a singleplayer session also as a client with ID [`ClientId::SERVER`].
-So you can send such events even on server and [`FromClient`] will be emitted for them too.
-
-If you remove [`client_connected`] condition and replace [`server_running`] with
-[`server_or_singleplayer`], your game logic will work the same on client, listen server,
-and in singleplayer session.
-
-Just like components, if an event contains an entity, then the client should
-map it before sending it to the server.
-To do this, use [`ClientEventAppExt::add_mapped_client_event()`] and implement
-[`MapEntities`](bevy::ecs::entity::MapEntities):
-
-```
-# use bevy::{prelude::*, ecs::entity::MapEntities};
-# use bevy_replicon::prelude::*;
-# use serde::{Deserialize, Serialize};
-# let mut app = App::new();
-# app.add_plugins(RepliconPlugins);
-app.add_mapped_client_event::<MappedEvent>(ChannelKind::Ordered);
-
-#[derive(Debug, Deserialize, Event, Serialize, Clone)]
-struct MappedEvent(Entity);
-
-impl MapEntities for MappedEvent {
-    fn map_entities<T: EntityMapper>(&mut self, entity_mapper: &mut T) {
-        self.0 = entity_mapper.get_mapped(self.0);
-    }
-}
-```
-
-As shown above, mapped client events must also implement [`Clone`].
+Just like for components, if an event contains an entities, implement
+[`MapEntities`](bevy::ecs::entity::MapEntities) for it and use use
+[`ClientEventAppExt::add_mapped_client_event()`] instead.
 
 There is also [`ClientEventAppExt::add_client_event_with()`] to register an event with special serialization and
-deserialization functions. This could be used for sending events that contain [`Box<dyn Reflect>`], which
-require access to the [`AppTypeRegistry`] resource.
+deserialization functions. This could be used for sending events that contain [`Box<dyn PartialReflect>`], which
+require access to the [`AppTypeRegistry`] resource. Don't forget to validate the contents of every
+[`Box<dyn PartialReflect>`] from a client, it could be anything!
 
-Don't forget to validate the contents of every [`Box<dyn Reflect>`] from a client, it could be anything!
-
-Alternatively you can use triggers with similar API. First, you need to register the event
-with [`ClientTriggerAppExt::add_client_trigger()`] and then use [`ClientTriggerExt::client_trigger`]:
+Alternatively, you can use triggers with a similar API. First, you need to register the event
+using [`ClientTriggerAppExt::add_client_trigger()`], and then use [`ClientTriggerExt::client_trigger()`].
 
 ```
 # use bevy::prelude::*;
@@ -486,11 +269,17 @@ fn send_events(mut commands: Commands) {
 }
 
 fn receive_events(trigger: Trigger<FromClient<DummyEvent>>) {
-    info!("received event {:?} from {:?}", **trigger, trigger.client_id);
+    info!("received event `{:?}` from client `{}`", **trigger, trigger.client_entity);
 }
 # #[derive(Event, Debug, Deserialize, Serialize)]
 # struct DummyEvent;
 ```
+
+Trigger targets are also supported via [`ClientTriggerExt::client_trigger_targets()`], no change
+in registration needed. Target entities will be automatically mapped to server entities before sending.
+
+For event triggers with entities inside use [`ClientTriggerAppExt::add_mapped_client_trigger()`].
+Similar to events, serialization can also be customized with [`ClientTriggerAppExt::add_client_trigger_with()`].
 
 ### From server to client
 
@@ -534,18 +323,11 @@ fn receive_events(mut dummy_events: EventReader<DummyEvent>) {
 struct DummyEvent;
 ```
 
-Just like events sent from the client, you can send these events on the server or
-in singleplayer and they will appear locally as regular events (if [`ClientId::SERVER`] is not excluded
-from the send list). So the same trick with run conditions will work.
-
-If the event contains an entity, then
-[`ServerEventAppExt::add_mapped_server_event()`] should be used instead.
-
-For events that require special serialization and deserialization functions you can use
-[`ServerEventAppExt::add_server_event_with()`].
+Just like for client events, we provide [`ServerEventAppExt::add_mapped_server_event()`]
+and [`ServerEventAppExt::add_server_event_with()`].
 
 Trigger-based API available for server events as well. First, you need to register the event
-with [`ServerTriggerAppExt::add_server_trigger()`] and then use [`ServerTriggerExt::server_trigger`]:
+with [`ServerTriggerAppExt::add_server_trigger()`] and then use [`ServerTriggerExt::server_trigger()`]:
 
 ```
 # use bevy::prelude::*;
@@ -571,24 +353,108 @@ fn receive_events(trigger: Trigger<DummyEvent>) {
 # struct DummyEvent;
 ```
 
+And just like for client trigger, we provide [`ServerTriggerAppExt::add_mapped_server_trigger()`]
+and [`ServerTriggerAppExt::add_server_trigger_with()`].
+
+We guarantee that clients will never receive events that point to an entity or require specific
+component to be presentt which client haven't received yet. For more details see the documentation on
+[`ServerEventAppExt::make_independent()`].
+
+## Abstracting over configurations
+
+Depending on the game, you may need to support some of these configurations:
+
+- Client
+- Dedicated (headless) server
+- Listen server (where the server is also a client)
+- Singleplayer
+
+Theere are 2 ways to support multiple configurations at the same time.
+
+### Classic way
+
+Just split client and server logic. Then for listen server and singleplayer run both the server and client,
+just don't accept outside connections for singleplayer.
+
+However, **running the client and server in a single app is not supported**. We rely on change detection to
+decide on which data to send, and since the world is shared, applying replication will trigger changes.
+To avoid this, you can use one of the following workarounds:
+
+- Two Bevy apps inside a single process, running in separate threads.
+- Two executables. After starting the client app, the server starts in the background.
+
+It's not easy to set up and requires more resources due to the synchronization between two worlds.
+This is why, while it's possible to use Replicon this way, we recommend a different approach.
+
+### The recommended way
+
+Instead of recreating full client-server logic, we provide a way to emulate client and server functionality
+without actually running them:
+
+- Client configuration runs only the client and its logic.
+- Dedicated server configuration runs only the server and its logic (all client logic usually compiled out).
+- Listen server configuration runs only the server and both logics.
+- Singleplayer configuration doesn't run the client or server but runs both logics.
+
+To achieve this, just use provided [run conditions](core::common_conditions):
+
+- Use [`server_or_singleplayer()`] for systems that require server authority. For example, systems that
+  apply damage or send server events.
+- Use client or server conditions like [`client_connecting()`], [`client_connected()`], [`server_running()`], etc.
+  **only** for miscellaneous things, like display a connection message or a menu to kick connected players
+  (things that actually require server or client running)
+- For everything else don't use Replicon's conditions.
+
+We also provide [`ClientSet`] and [`ServerSet`] to schedule your system at specific time in the frame.
+For example, you can run your systems right after receive using [`ClientSet::Receive`] or [`ServerSet::Receive`].
+
+Everything else is done automatically by the crate. All provided
+[examples](https://github.com/projectharmonia/bevy_replicon/tree/master/bevy_replicon_example_backend/examples)
+use this approach.
+
+Internally we run replication sending system only if [`server_running()`] and replication receiving
+only if [`client_connected()`]. This way for singleplayer replication systems won't run at all and
+for listen server replication will only be sending (server world is already in the correct state).
+
+For events it's a bit trickier. For all client events we internally drain events as `E` and re-emit
+them as [`FromClient<E>`] locally with a special [`SERVER`] entity if [`server_or_singleplayer()`].
+For server events we drain [`ToClients<E>`] and, if the [`SERVER`] entity is the recipient of the event,
+re-emit it as `E` locally.
+
+## Organizing your game code
+
+If you support a dedicated server, it's recommended to split your game logic into "client", "server", and "shared"
+crates. This way, you can compile out all unnecessary code for the dedicated server configuration.
+Alternatively, you can use [Cargo features](https://doc.rust-lang.org/cargo/reference/features.html) and split
+the logic into modules.
+
+We provide `client` and `server` features to disable unneeded functionality for this use case.
+You will need to disable similar features on your messaing backend crate too.
+
 <div class="warning">
 
-Just like with components, all networked events should be registered in the same order.
+Make sure that the component and event registration order is the same on the client and server. Simply put all
+registration code in your "shared" crate.
 
 </div>
+
+If you don't need to support a dedicated server configuration, it's easier to keep the logic grouped together.
+Splitting your game into crates is still useful, but it should be done logically rather than on server/client
+basis.
+
+## Advanced features
 
 ## Client visibility
 
 You can control which parts of the world are visible for each client by setting visibility policy
 in [`ServerPlugin`] to [`VisibilityPolicy::Whitelist`] or [`VisibilityPolicy::Blacklist`].
 
-In order to set which entity is visible, you need to use the [`ReplicatedClients`] resource
-to obtain the [`ReplicatedClient`] for a specific client and get its [`ClientVisibility`]:
+In order to set which entity is visible, you need to use the [`ClientVisibility`] component
+on replicated clients.
 
 ```
 # use bevy::prelude::*;
 # use bevy_replicon::prelude::*;
-# use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 app.add_plugins((
     MinimalPlugins,
@@ -601,30 +467,117 @@ app.add_plugins((
 
 /// Disables the visibility of other players' entities that are further away than the visible distance.
 fn update_visibility(
-    mut replicated_clients: ResMut<ReplicatedClients>,
-    moved_players: Query<(&Transform, &Player), Changed<Transform>>,
-    other_players: Query<(Entity, &Transform, &Player)>,
+    mut clients: Query<&mut ClientVisibility>,
+    moved_players: Query<(&Transform, &PlayerOwner), Changed<Transform>>,
+    other_players: Query<(Entity, &Transform, &PlayerOwner)>,
 ) {
-    for (moved_transform, moved_player) in &moved_players {
-        let client = replicated_clients.client_mut(moved_player.0);
+    for (moved_transform, &owner) in &moved_players {
+        let mut visibility = clients.get_mut(*owner).unwrap();
         for (entity, transform, _) in other_players
             .iter()
-            .filter(|(.., player)| player.0 != moved_player.0)
+            .filter(|(.., &other_owner)| *other_owner != *owner)
         {
             const VISIBLE_DISTANCE: f32 = 100.0;
             let distance = moved_transform.translation.distance(transform.translation);
-            client
-                .visibility_mut()
-                .set_visibility(entity, distance < VISIBLE_DISTANCE);
+            visibility.set_visibility(entity, distance < VISIBLE_DISTANCE);
         }
     }
 }
 
-#[derive(Component, Deserialize, Serialize)]
-struct Player(ClientId);
+/// Points to client entity.
+#[derive(Component, Deref, Clone, Copy)]
+struct PlayerOwner(Entity);
 ```
 
-For a higher level API consider using [`bevy_replicon_attributes`](https://docs.rs/bevy_replicon_attributes).
+Check also the [corresponding section](https://github.com/projectharmonia/bevy_replicon#visibility)
+in our README for more high-level abstractions.
+
+### Spawning the client on an entity first
+
+If you want the server to replicate an entity into a client entity that was already spawned, see [`ClientEntityMap`].
+
+This can be useful for certain types of games. For example, spawning bullets on the client immediately without
+waiting for replication.
+
+### Interpolation and/or client-side prediction
+
+Due to network round-trip time and [tick rate](#tick-rate), you may notice that the state isn't updated
+immediately. This might be fine depending on your type of game. However, sometimes this needs to be visually hidden.
+
+To make value updates look smooth, you can just to interpolate the received state. If the input delay doesn't matter
+for your type of game, it can be enough.
+
+But if your game is fast-paced, waiting for server to receive your inputs and replicate the state back might
+might be unacceptable. The solution is to predict simulation on the client.
+
+However, it introduces another problem - misspredictions. For example, player 1 might predict movement to point X,
+while player 2 might have stunned it, the player 1 just didn't receive it yet. To solve this, client must apply
+the received state from server and replay its inputs.
+
+How much to predict also depends on the game. Common approaches are:
+
+- Predict individual entities. Common for shooters or games where you don't have many entities. In the case of
+  a misprediction or non-deterministic mismatch, the state will be corrected. Determinism is important for this
+  approach to reduce the number of rollbacks.
+- Predict the entire world. Common for physics-based games or games with many entities. With this approach,
+  all predicted entities are rolled back to the oldest received tick. For example, if one entity have confirmed tick 1
+  and another entity have confirmed tick 2, both entities are rolled back to tick 1. This approach is usually more expensive
+  but produces better results for physics. Additionally, if there are many predicted entities, it might even be faster
+  since there's no need to check each entity for misprediction. The more entities you predict, the more likely it is
+  that at least one will trigger a world rollback. So with this approach client usually just always rollbacks.
+
+We don't have these features built-in, but we provide a low-level API to implement these abstractions on top.
+Check the [corresponding section](https://github.com/projectharmonia/bevy_replicon#interpolation-andor-rollback)
+in our README for existing implementations.
+
+#### Client markers
+
+To apply interpolation or store value history for client-side prediction, you need to override how components are
+written. However, the server knows nothing about archetypes on the client, and while some entities need to be predicted,
+others might need to be interpolated.
+
+This is why writing functions are marker-based. First, you register a marker using [`AppMarkerExt::register_marker<M>()`].
+Then you can override how specific component is written and removed using [`AppMarkerExt::set_marker_fns<M, C>()`].
+
+You can control marker priority or enable processing of old values using [`AppMarkerExt::register_marker_with<M>()`].
+
+### Ticks information
+
+This requires an understanding of how replication works. See the documentation on
+[`ReplicationChannel`](core::channels::ReplicationChannel) and [this section](#eventual-consistency) for more details.
+
+To get information about confirmed ticks for individual entities, we provide
+[`ConfirmHistory`](client::confirm_history::ConfirmHistory) along with the [`EntityReplicated`](client::confirm_history::ConfirmHistory)
+trigger. This component is updated when any replication for its entity is received. However, we don't update this component if an entity
+hasn't changed for performance reasons.
+
+This means that to check if a tick is confirmed for an entity, you also need to check the received messages for this
+tick. The [`ServerUpdateTick`](client::ServerUpdateTick) resource stores the last received tick from an update message.
+The [`ServerMutateTicks`](client::server_mutate_ticks::ServerMutateTicks) resource and
+[`MutateTickReceived`](client::server_mutate_ticks::MutateTickReceived) trigger provide information about received mutate
+messages for the past 64 ticks.
+
+A tick for an entity is confirmed if one of the following is true:
+- [`ServerUpdateTick`](client::ServerUpdateTick) is greater than the tick.
+- [`ConfirmHistory`](client::confirm_history::ConfirmHistory) is greater than the tick.
+- [`ServerMutateTicks`](client::server_mutate_ticks::ServerMutateTicks) reports that for at least one of the next ticks, all update
+  messages have been received.
+
+### Writing integration for a messaging crate
+
+We don't provide any traits to avoid Rust's "orphan rule". Instead, we provide [`RepliconServer`] and
+[`RepliconClient`] resources, along with the [`ConnectedClient`] component, which backends need to manage.
+This way, integrations can be provided as separate crates without requiring us or crate authors to
+maintain them under a feature. See the documentation on liked types for details.
+
+It's also recommended to split the crate into client and server plugins, along with `server` and `client` features.
+This way, plugins can be conveniently disabled at compile time, which is useful for dedicated server or client
+configurations.
+
+You can also use
+[bevy_replicon_example_backend](https://github.com/projectharmonia/bevy_replicon/tree/master/bevy_replicon_example_backend)
+as a reference. For a real backend integration, see [bevy_replicon_renet](https://github.com/projectharmonia/bevy_replicon_renet),
+which we maintain.
 
 # Eventual consistency
 
@@ -676,7 +629,7 @@ pub mod prelude {
         core::{
             channels::{ChannelKind, RepliconChannel, RepliconChannels},
             common_conditions::*,
-            connected_clients::ConnectedClients,
+            connected_client::{ConnectedClient, NetworkStats},
             event::{
                 client_event::{ClientEventAppExt, FromClient},
                 client_trigger::{ClientTriggerAppExt, ClientTriggerExt},
@@ -684,17 +637,11 @@ pub mod prelude {
                 server_trigger::{ServerTriggerAppExt, ServerTriggerExt},
             },
             replication::{
-                command_markers::AppMarkerExt,
-                replicated_clients::{
-                    client_visibility::ClientVisibility, ReplicatedClient, ReplicatedClients,
-                    VisibilityPolicy,
-                },
-                replication_rules::AppRuleExt,
-                Replicated,
+                command_markers::AppMarkerExt, replication_rules::AppRuleExt, Replicated,
             },
             replicon_client::{RepliconClient, RepliconClientStatus},
             replicon_server::RepliconServer,
-            BackendError, ClientId, DisconnectReason, RepliconCorePlugin,
+            RepliconCorePlugin, SERVER,
         },
         RepliconPlugins,
     };
@@ -706,9 +653,9 @@ pub mod prelude {
 
     #[cfg(feature = "server")]
     pub use super::server::{
-        client_entity_map::{ClientEntityMap, ClientMapping},
-        event::ServerEventPlugin,
-        ClientConnected, ClientDisconnected, ServerPlugin, ServerSet, StartReplication, TickPolicy,
+        client_entity_map::ClientEntityMap, client_visibility::ClientVisibility,
+        event::ServerEventPlugin, ReplicatedClient, ServerPlugin, ServerSet, TickPolicy,
+        VisibilityPolicy,
     };
 
     #[cfg(feature = "client_diagnostics")]

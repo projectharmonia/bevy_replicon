@@ -6,13 +6,13 @@ use bevy::{
 use super::{server_tick::ServerTick, ServerSet};
 use crate::core::{
     common_conditions::*,
-    connected_clients::ConnectedClients,
+    connected_client::ConnectedClient,
     event::{
         ctx::{ServerReceiveCtx, ServerSendCtx},
         event_registry::EventRegistry,
         server_event::BufferedServerEvents,
     },
-    replication::replicated_clients::ReplicatedClients,
+    replication::client_ticks::ClientTicks,
     replicon_server::RepliconServer,
 };
 
@@ -119,13 +119,13 @@ fn send_or_buffer(
     server_events: FilteredResources,
     mut server: ResMut<RepliconServer>,
     mut buffered_events: ResMut<BufferedServerEvents>,
-    registry: Res<AppTypeRegistry>,
-    connected_clients: Res<ConnectedClients>,
+    type_registry: Res<AppTypeRegistry>,
     event_registry: Res<EventRegistry>,
+    clients: Query<Entity, With<ConnectedClient>>,
 ) {
     buffered_events.start_tick();
     let mut ctx = ServerSendCtx {
-        registry: &registry.read(),
+        type_registry: &type_registry.read(),
     };
 
     for event in event_registry.iter_server_events() {
@@ -139,7 +139,7 @@ fn send_or_buffer(
                 &mut ctx,
                 &server_events,
                 &mut server,
-                &connected_clients,
+                &clients,
                 &mut buffered_events,
             );
         }
@@ -149,21 +149,21 @@ fn send_or_buffer(
 fn send_buffered(
     mut server: ResMut<RepliconServer>,
     mut buffered_events: ResMut<BufferedServerEvents>,
-    replicated_clients: Res<ReplicatedClients>,
+    clients: Query<(Entity, &ClientTicks)>,
 ) {
     buffered_events
-        .send_all(&mut server, &replicated_clients)
+        .send_all(&mut server, &clients)
         .expect("buffered server events should send");
 }
 
 fn receive(
     mut client_events: FilteredResourcesMut,
     mut server: ResMut<RepliconServer>,
-    registry: Res<AppTypeRegistry>,
+    type_registry: Res<AppTypeRegistry>,
     event_registry: Res<EventRegistry>,
 ) {
     let mut ctx = ServerReceiveCtx {
-        registry: &registry.read(),
+        type_registry: &type_registry.read(),
     };
 
     for event in event_registry.iter_client_events() {

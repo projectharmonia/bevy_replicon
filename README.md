@@ -7,35 +7,19 @@
 
 Server-authoritative networking crate for the [Bevy game engine](https://bevyengine.org).
 
+If you are new to networking, see [glossary](https://gist.github.com/maniwani/f92cc5d827b00163f5846ea7dcb90d44) and
+[What kind of networking should X game use?](https://github.com/bevyengine/bevy/discussions/8675).
+
 ## Features
 
 - Automatic world replication.
-- Events-based messaging API.
+- Remote events and triggers.
 - Control over client visibility of entities and events.
-- Replication into scene to save server state.
-- Support for client and server both in one `App` and in separate.
-- Customizable serialization and deserialization even for types that don't implement `serde` traits (like `Box<dyn Reflect>`).
+- Abstracts game logic to support singleplayer, client, dedicated server, and listen server configurations simultaneously.
 - No builtin I/O, can be used with any messaging library. See [messaging backends](#messaging-backends) for already available integrations.
-- API focused on writing logic once that automatically works for singleplayer, client, server, and listen server (when server is also a player).
-- Extensible architecture. See [related crates](#related-crates).
-
-If you are new to networking, see [glossary](https://gist.github.com/maniwani/f92cc5d827b00163f5846ea7dcb90d44).
-
-## Goals
-
-The purpose of the crate is to provide a minimal and fast core that can be extended with the necessary features to ensure smooth gameplay. Consider the following examples:
-
-- A slow paced centrally hosted game wants ECS-level replication, and maybe some interpolation on top.
-- A slightly faster paced game might care more about order and need a lockstep system.
-- A shooter needs client prediction for the player and interpolation for everything else.
-- A sports game, or an online game featuring mechanics more complex than most shooters, needs ECS-level replication with full rollback on the entire world.
-- A fighting game only needs to replicate some input events and needs rollback on top.
-
-All of these examples also have drastically different optimization requirements. This is why modularity is essential. It also allows for more developers to be involved and for each to maintain what they use.
-
-Check out [related crates](#related-crates) to extend the core functionality.
-
-See also [What kind of networking should X game use?](https://github.com/bevyengine/bevy/discussions/8675).
+- Replication into scene to save server state.
+- Customizable serialization and deserialization even for types that don't implement `serde` traits (like `Box<dyn Reflect>`).
+- Extensible architecture. See [ecosystem](#ecosystem).
 
 ## Getting Started
 
@@ -45,7 +29,11 @@ For examples navigate to the [`bevy_replicon_example_backend`](bevy_replicon_exa
 
 Have any questions? Feel free to ask in the dedicated [`bevy_replicon` channel](https://discord.com/channels/691052431525675048/1090432346907492443) in Bevy's Discord server.
 
-## Related Crates
+## Ecosystem
+
+We have a growing ecosystem of crates that can be integrated with Replicon or built on top of it.
+Networking is quite complex, and maintaining everything in a single crate would be a nightmare.
+So we are trying to provide an extensible core and encourage users to build their own abstractions as separate crates.
 
 > [!WARNING]
 > Ensure that your `bevy_replicon` version is compatible with the used crate according to semantic versioning.
@@ -57,28 +45,28 @@ Have any questions? Feel free to ask in the dedicated [`bevy_replicon` channel](
 - [`bevy_replicon_quinnet`](https://github.com/Henauxg/bevy_replicon_quinnet) - integration for [`bevy_quinnet`](https://github.com/Henauxg/bevy_quinnet).
 - [`aeronet_replicon`](https://github.com/aecsocket/aeronet/tree/main/crates/aeronet_replicon) - integration for [`aeronet`](https://github.com/aecsocket/aeronet). Works on any IO layer supported by `aeronet_io`, but requires `aeronet_transport`.
 
-#### Helpers
-
-- [`bevy_bundlication`](https://github.com/NiseVoid/bevy_bundlication) - adds registration of replication groups using a bundle-like api.
-- [`bevy_replicon_attributes`](https://github.com/UkoeHB/bevy_replicon_attributes) - adds ergonomic visibility control through client attributes and entity/event visibility conditions. An extension of this crate's raw client visibility API.
-
 #### Interpolation and/or rollback
 
 - [`bevy_replicon_snap`](https://github.com/Bendzae/bevy_replicon_snap) - adds snapshot interpolation and client-side prediction.
 
+#### Visibility
+
+- [`bevy_replicon_attributes`](https://github.com/UkoeHB/bevy_replicon_attributes) - adds ergonomic visibility control through client attributes and entity/event visibility conditions. An extension of this crate's raw client visibility API.
+
 #### Miscellaneous
 
 - [`bevy_replicon_repair`](https://github.com/UkoeHB/bevy_replicon_repair) - preserves replicated client state across reconnects.
+- [`bevy_bundlication`](https://github.com/NiseVoid/bevy_bundlication) - adds registration of replication groups using a bundle-like api.
 
 #### Unmaintained
 
-- [`bevy_timewarp`](https://github.com/RJ/bevy_timewarp) - a rollback library that buffers component state. See [this](https://github.com/RJ/bevy_timewarp/blob/main/REPLICON_INTEGRATION.md) instruction about how to integrate.
+- [`bevy_timewarp`](https://github.com/RJ/bevy_timewarp) - a rollback library that buffers component state. See [this instruction](https://github.com/RJ/bevy_timewarp/blob/main/REPLICON_INTEGRATION.md) about how to integrate.
 
 ## Bevy compatibility
 
 | bevy   | bevy_replicon |
 | ------ | ------------- |
-| 0.15.0 | 0.29-0.30     |
+| 0.15.0 | 0.29-0.31     |
 | 0.14.0 | 0.27-0.28     |
 | 0.13.0 | 0.23-0.26     |
 | 0.12.1 | 0.18-0.22     |

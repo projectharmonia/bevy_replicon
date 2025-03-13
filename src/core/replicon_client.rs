@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bytes::Bytes;
 
-use crate::core::ClientId;
+use super::NetworkStats;
 
 /// Stores information about a client independent from the messaging backend.
 ///
@@ -14,6 +14,7 @@ use crate::core::ClientId;
 /// - For sending messages, [`Self::drain_sent`] should be used to drain all sent messages.
 ///   A system to forward Replicon messages to the backend should run in
 ///   [`ClientSet::SendPackets`](crate::client::ClientSet::SendPackets).
+/// - Optionally update statistic using [`Self::stats_mut`].
 ///
 /// Inserted as resource by [`ClientPlugin`](crate::client::ClientPlugin).
 #[derive(Resource, Default)]
@@ -30,10 +31,7 @@ pub struct RepliconClient {
     /// List of sent messages and their channels since the last tick.
     sent_messages: Vec<(u8, Bytes)>,
 
-    rtt: f64,
-    packet_loss: f64,
-    sent_bps: f64,
-    received_bps: f64,
+    stats: NetworkStats,
 }
 
 impl RepliconClient {
@@ -128,10 +126,7 @@ impl RepliconClient {
             }
             self.sent_messages.clear();
 
-            self.rtt = 0.0;
-            self.packet_loss = 0.0;
-            self.sent_bps = 0.0;
-            self.received_bps = 0.0;
+            self.stats = Default::default();
         }
 
         self.status = status;
@@ -150,7 +145,7 @@ impl RepliconClient {
     /// See also [`Self::status`].
     #[inline]
     pub fn is_disconnected(&self) -> bool {
-        matches!(self.status, RepliconClientStatus::Disconnected)
+        self.status == RepliconClientStatus::Disconnected
     }
 
     /// Returns `true` if the client is connecting.
@@ -158,7 +153,7 @@ impl RepliconClient {
     /// See also [`Self::status`].
     #[inline]
     pub fn is_connecting(&self) -> bool {
-        matches!(self.status, RepliconClientStatus::Connecting)
+        self.status == RepliconClientStatus::Connecting
     }
 
     /// Returns `true` if the client is connected.
@@ -166,20 +161,7 @@ impl RepliconClient {
     /// See also [`Self::status`].
     #[inline]
     pub fn is_connected(&self) -> bool {
-        matches!(self.status, RepliconClientStatus::Connected { .. })
-    }
-
-    /// Returns the client's ID.
-    ///
-    /// The client ID is available only if the client state is [`RepliconClientStatus::Connected`].
-    /// See also [`Self::status`].
-    #[inline]
-    pub fn id(&self) -> Option<ClientId> {
-        if let RepliconClientStatus::Connected { client_id } = self.status {
-            client_id
-        } else {
-            None
-        }
+        self.status == RepliconClientStatus::Connected
     }
 
     /// Removes all sent messages, returning them as an iterator with channel.
@@ -215,81 +197,25 @@ impl RepliconClient {
         channel_messages.push(message.into());
     }
 
-    /// Returns the round-time trip in seconds for the connection.
-    ///
-    /// Returns zero if not provided by the backend.
-    pub fn rtt(&self) -> f64 {
-        self.rtt
+    /// Returns network statistic.
+    pub fn stats(&self) -> &NetworkStats {
+        &self.stats
     }
 
-    /// Sets the round-time trip in seconds for the connection.
+    /// Returns a mutable reference to set network statistic.
     ///
     /// <div class="warning">
     ///
     /// Should only be called from the messaging backend.
     ///
     /// </div>
-    pub fn set_rtt(&mut self, rtt: f64) {
-        self.rtt = rtt;
-    }
-
-    /// Returns the packet loss % for the connection.
-    ///
-    /// Returns zero if not provided by the backend.
-    pub fn packet_loss(&self) -> f64 {
-        self.packet_loss
-    }
-
-    /// Sets the packet loss % for the connection.
-    ///
-    /// <div class="warning">
-    ///
-    /// Should only be called from the messaging backend.
-    ///
-    /// </div>
-    pub fn set_packet_loss(&mut self, packet_loss: f64) {
-        self.packet_loss = packet_loss;
-    }
-
-    /// Returns the bytes sent per second for the connection.
-    ///
-    /// Returns zero if not provided by the backend.
-    pub fn sent_bps(&self) -> f64 {
-        self.sent_bps
-    }
-
-    /// Sets the bytes sent per second for the connection.
-    ///
-    /// <div class="warning">
-    ///
-    /// Should only be called from the messaging backend.
-    ///
-    /// </div>
-    pub fn set_sent_bps(&mut self, sent_bps: f64) {
-        self.sent_bps = sent_bps;
-    }
-
-    /// Returns the bytes received per second for the connection.
-    ///
-    /// Returns zero if not provided by the backend.
-    pub fn received_bps(&self) -> f64 {
-        self.received_bps
-    }
-
-    /// Sets the bytes received per second for the connection.
-    ///
-    /// <div class="warning">
-    ///
-    /// Should only be called from the messaging backend.
-    ///
-    /// </div>
-    pub fn set_received_bps(&mut self, received_bps: f64) {
-        self.received_bps = received_bps;
+    pub fn stats_mut(&mut self) -> &mut NetworkStats {
+        &mut self.stats
     }
 }
 
 /// Connection status of the [`RepliconClient`].
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug, Default)]
 pub enum RepliconClientStatus {
     /// Not connected or trying to connect.
     #[default]
@@ -297,8 +223,5 @@ pub enum RepliconClientStatus {
     /// Trying to connect to the server.
     Connecting,
     /// Connected to the server.
-    ///
-    /// Stores the assigned ID if one was assigned by the server.
-    /// Needed only for users to access ID independent from messaging library.
-    Connected { client_id: Option<ClientId> },
+    Connected,
 }

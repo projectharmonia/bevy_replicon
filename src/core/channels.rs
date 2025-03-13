@@ -4,7 +4,33 @@ use bevy::prelude::*;
 
 /// ID of a server replication channel.
 ///
-/// See also [`RepliconChannels`].
+/// We can't use only a reliable channel. This is because messages are split into packets based on the
+/// MTU and are considered received only if all their packets are received. If any packet is dropped,
+/// it gets resent with the same data. However, on the client, we care only about the latest data. For example:
+///
+/// - Tick 1, position X - received.
+/// - Tick 2, position Y - missed.
+/// - Tick 3, position Z - received.
+///
+/// By tick 3, we no longer care about the missing position from tick 2, but it will still be resent.
+///
+/// We also can't use only an unreliable channel. We could implement a custom acknowledgment system on top of it
+/// and resend the latest data if a message is lost. However, partial updates would break the game logic.
+/// For example, if a component that references an entity is lost, we can't resend it with the new entity
+/// because the client might not have received the entity yet.
+///
+/// This is why we use a dual-channel approach to send data.
+///
+/// For everything except mutations, we use a reliable channel. This data can't be outdated and is sent in
+/// a single update message for each tick to ensure atomic updates.
+///
+/// For mutations, we use an unreliable channel. This data can be outdated, so we always send the latest values
+/// since the last acknowledgement. Messages also include a minimum required tick and are buffered until an
+/// update message for the required tick is received. Mutations are split into packet-size messages to allow
+/// applying them partially without waiting for all parts of the message.
+///
+/// See also [`RepliconChannels`] and [corresponding section](../index.html#eventual-consistency)
+/// from the quick start guide.
 #[repr(u8)]
 pub enum ReplicationChannel {
     /// For sending messages with entity mappings, inserts, removals and despawns.

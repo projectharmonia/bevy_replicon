@@ -36,12 +36,8 @@ fn set_disconnected(mut replicon_client: ResMut<RepliconClient>) {
     replicon_client.set_status(RepliconClientStatus::Disconnected);
 }
 
-fn set_connected(client: Res<ExampleClient>, mut replicon_client: ResMut<RepliconClient>) {
-    if let Ok(addr) = client.local_addr() {
-        replicon_client.set_status(RepliconClientStatus::Connected {
-            client_id: Some(ClientId::new(addr.port().into())),
-        });
-    }
+fn set_connected(mut replicon_client: ResMut<RepliconClient>) {
+    replicon_client.set_status(RepliconClientStatus::Connected);
 }
 
 fn receive_packets(
@@ -56,7 +52,7 @@ fn receive_packets(
                 match e.kind() {
                     io::ErrorKind::WouldBlock => (),
                     io::ErrorKind::UnexpectedEof => {
-                        debug!("connection was closed by server");
+                        debug!("server closed the connection");
                         commands.remove_resource::<ExampleClient>();
                     }
                     _ => {
@@ -105,11 +101,5 @@ impl ExampleClient {
     /// Returns true if the client is connected.
     pub fn is_connected(&self) -> bool {
         self.local_addr().is_ok()
-    }
-
-    /// Returns assigned ID.
-    pub fn id(&self) -> io::Result<ClientId> {
-        self.local_addr()
-            .map(|addr| ClientId::new(addr.port().into()))
     }
 }

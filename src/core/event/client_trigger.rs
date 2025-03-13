@@ -17,14 +17,17 @@ use crate::core::{channels::RepliconChannel, entity_serde, postcard_utils};
 ///
 /// See also [`ClientTriggerExt`].
 pub trait ClientTriggerAppExt {
-    /// Registers an event that can be triggered using [`ClientTriggerExt::client_trigger`].
+    /// Registers a remote event that can be triggered using [`ClientTriggerExt::client_trigger`].
     ///
-    /// The API matches [`ClientEventAppExt::add_client_event`](super::client_event::ClientEventAppExt::add_client_event):
-    /// [`FromClient<E>`] will be triggered on the server after triggering `E` event on client.
-    /// When [`RepliconClient`](crate::core::replicon_client::RepliconClient) is inactive, the event
-    /// will also be triggered locally as [`FromClient<E>`] with [`ClientId::SERVER`](crate::core::ClientId::SERVER).
+    /// After triggering `E` event on the client, [`FromClient<E>`] event will be triggered on the server.
     ///
-    /// See also [`Self::add_client_trigger_with`] and the [corresponding section](../index.html#from-client-to-server)
+    /// If [`ServerEventPlugin`](crate::server::event::ServerEventPlugin) is enabled and
+    /// [`RepliconClient`](crate::core::replicon_client::RepliconClient) is inactive, the event
+    /// will also be triggered locally as [`FromClient<E>`] event with [`FromClient::client_entity`]
+    /// equal to [`SERVER`](crate::core::SERVER).
+    ///
+    /// See also [`ClientEventAppExt::add_client_event`](super::client_event::ClientEventAppExt::add_client_event),
+    /// [`Self::add_client_trigger_with`] and the [corresponding section](../index.html#from-client-to-server)
     /// from the quick start guide.
     fn add_client_trigger<E: Event + Serialize + DeserializeOwned>(
         &mut self,
@@ -114,14 +117,18 @@ impl ClientTrigger {
     /// and this instance was created for `E`.
     unsafe fn trigger_typed<E: Event>(commands: &mut Commands, client_events: PtrMut) {
         let client_events: &mut Events<FromClient<RemoteTrigger<E>>> = client_events.deref_mut();
-        for FromClient { client_id, event } in client_events.drain() {
+        for FromClient {
+            client_entity,
+            event,
+        } in client_events.drain()
+        {
             debug!(
-                "triggering `{}` from `{client_id:?}`",
+                "triggering `{}` from `{client_entity}`",
                 any::type_name::<FromClient<E>>()
             );
             commands.trigger_targets(
                 FromClient {
-                    client_id,
+                    client_entity,
                     event: event.event,
                 },
                 event.targets,

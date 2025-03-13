@@ -8,8 +8,8 @@ use crate::core::{
     channels::ReplicationChannel,
     postcard_utils,
     replication::{
+        client_ticks::{ClientTicks, EntityBuffer},
         mutate_index::MutateIndex,
-        replicated_clients::{ClientBuffers, ReplicatedClient},
     },
     replicon_server::RepliconServer,
     replicon_tick::RepliconTick,
@@ -33,7 +33,7 @@ use crate::core::{
 /// using the last up-to-date mutations to avoid re-sending old values.
 ///
 /// Stored inside [`ReplicationMessages`](super::ReplicationMessages).
-#[derive(Default)]
+#[derive(Default, Component)]
 pub(crate) struct MutateMessage {
     /// List of entity values for [`Self::mutations`].
     ///
@@ -124,13 +124,15 @@ impl MutateMessage {
     pub(crate) fn send(
         &mut self,
         server: &mut RepliconServer,
-        client: &mut ReplicatedClient,
-        client_buffers: &mut ClientBuffers,
+        client_entity: Entity,
+        client: &mut ClientTicks,
+        entity_buffer: &mut EntityBuffer,
         serialized: &SerializedData,
         track_mutate_messages: bool,
         server_tick: Range<usize>,
         tick: Tick,
         timestamp: Duration,
+        max_size: usize,
     ) -> postcard::Result<usize> {
         debug_assert_eq!(self.entities.len(), self.mutations.len());
 
@@ -143,7 +145,7 @@ impl MutateMessage {
         }
 
         let (mut mutate_index, mut entities) =
-            client.register_mutate_message(client_buffers, tick, timestamp);
+            client.register_mutate_message(entity_buffer, tick, timestamp);
         let mut header_size = metadata_size + serialized_size(&mutate_index)?;
         let mut body_size = 0;
         let mut mutations_range = Range::<usize>::default();
@@ -152,8 +154,8 @@ impl MutateMessage {
 
             // Try to pack back first, then try to pack forward.
             if body_size != 0
-                && !can_pack(header_size + body_size, mutations_size)
-                && !can_pack(header_size + mutations_size, body_size)
+                && !can_pack(header_size + body_size, mutations_size, max_size)
+                && !can_pack(header_size + mutations_size, body_size, max_size)
             {
                 self.messages.push((
                     mutate_index,
@@ -163,7 +165,7 @@ impl MutateMessage {
 
                 mutations_range.start = mutations_range.end;
                 (mutate_index, entities) =
-                    client.register_mutate_message(client_buffers, tick, timestamp);
+                    client.register_mutate_message(entity_buffer, tick, timestamp);
                 header_size = metadata_size + serialized_size(&mutate_index)?; // Recalculate since the mutate index changed.
                 body_size = 0;
             }
@@ -206,7 +208,7 @@ impl MutateMessage {
 
             debug_assert_eq!(message.len(), message_size);
 
-            server.send(client.id(), ReplicationChannel::Mutations, message);
+            server.send(client_entity, ReplicationChannel::Mutations, message);
         }
 
         Ok(messages_count)
@@ -215,7 +217,7 @@ impl MutateMessage {
     /// Clears all chunks.
     ///
     /// Keeps allocated memory for reuse.
-    pub(super) fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         self.entities.clear();
         self.buffer
             .extend(self.mutations.drain(..).map(|mut mutations| {
@@ -225,11 +227,9 @@ impl MutateMessage {
     }
 }
 
-fn can_pack(message_size: usize, add: usize) -> bool {
-    const MAX_PACKET_SIZE: usize = 1200; // TODO: make it configurable by the messaging backend.
-
-    let dangling = message_size % MAX_PACKET_SIZE;
-    (dangling > 0) && ((dangling + add) <= MAX_PACKET_SIZE)
+fn can_pack(message_size: usize, add: usize, mtu: usize) -> bool {
+    let dangling = message_size % mtu;
+    (dangling > 0) && ((dangling + add) <= mtu)
 }
 
 #[cfg(test)]
@@ -238,14 +238,16 @@ mod tests {
 
     #[test]
     fn packing() {
-        assert!(can_pack(10, 5));
-        assert!(can_pack(10, 1190));
-        assert!(!can_pack(10, 1191));
-        assert!(!can_pack(10, 3000));
+        const MAX_SIZE: usize = 1200;
 
-        assert!(can_pack(1199, 1));
-        assert!(!can_pack(1200, 0));
-        assert!(!can_pack(1200, 1));
-        assert!(!can_pack(1200, 3000));
+        assert!(can_pack(10, 5, MAX_SIZE));
+        assert!(can_pack(10, 1190, MAX_SIZE));
+        assert!(!can_pack(10, 1191, MAX_SIZE));
+        assert!(!can_pack(10, 3000, MAX_SIZE));
+
+        assert!(can_pack(1199, 1, MAX_SIZE));
+        assert!(!can_pack(1200, 0, MAX_SIZE));
+        assert!(!can_pack(1200, 1, MAX_SIZE));
+        assert!(!can_pack(1200, 3000, MAX_SIZE));
     }
 }

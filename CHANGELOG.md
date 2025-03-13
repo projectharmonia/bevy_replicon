@@ -7,13 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.0] - 2025-03-13
+
 ### Added
 
 - Derive `Debug` for `FnsId`.
 - Derive `Deref` and `DerefMut` to underlying event in `ToClients` and `FromClient`.
+- Derive `PartialEq` for `RepliconClientStatus`.
+- `SerializeCtx::type_registry` and `WriteCtx::type_registry` to replicate components with reflection.
 
 ### Changed
 
+- Connected clients are now represented as entities with `ConnectedClient` components. Backends are responsible for spawning and despawning entities with this component. `ClientId` is accessible from `ConnectedClient::id` in case you need an identifier that is persistent across reconnects.
+- Statistics for connected clients now accessible via `ClientStats` component.
+- Replicated entities now represented by connected clients with `ReplicatedClient` component.
+- To access visibility, use `ClientVisibility` component on replicated entities.
+- `ServerEntityMap` resource now a component on replicated entities. It now accepts entity to entity mappings directly instead of `ClientId` to `ClientMapping`.
+- Replace statistic methods on `RepliconClient` with `RepliconClient::stats()` method that returns `ClientStats` struct.
+- Move `VisibilityPolicy` to `server` module.
+- Move `ClientId` to `connected_client` module and remove from `prelude`.
+- Use `TestClientEntity` instead of `ClientId` resource on clients in `ServerTestAppExt` to identify client entity.
+- Rename `FromClient::client_id` into `FromClient::client_entity`.
+- Rename `registry` in all event contexts into `type_registry`.
 - Replace `bincode` with `postcard`. It has more suitable variable integer encoding and potentially unlocks `no_std` support. If you use custom ser/de functions, replace `DefaultOptions::new().serialize_into(message, event)` with `postcard_utils::to_extend_mut(event, message)` and `DefaultOptions::new().deserialize_from(cursor)` with `postcard_utils::from_buf(message)`.
 - All serde methods now use `postcard::Result` instead of `bincode::Result`.
 - All deserialization methods now accept `Bytes` instead of `std::io::Cursor` because deserialization from `std::io::Read` requires a temporary buffer. `Bytes` already provide cursor-like functionality. The crate now re-exported under `bevy_replicon::bytes`.
@@ -25,6 +40,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Local re-trigger for listen server mode.
+
+### Removed
+
+- `ClientId` from `prelude`. Most operations now done using `Entity` as identifier. But it could be useful
+- `StartReplication` trigger. Just insert `ReplicatedClient` to enable replication.
+- `ConnectedClients` and `ReplicatedClients` resources. Use components on connected clients instead.
+- `ClientConnected` and `ClientDisconnected` triggers. Just observe for `Trigger<OnAdd, ConnectedClient>` or `Trigger<OnRemove, ConnectedClient>`. To get disconnect reason, obtain it from the ued backend.
+- `ServerSet::TriggerConnectionEvents` variant. We no longer use events for connections.
 
 ## [0.30.1] - 2025-02-07
 
@@ -702,7 +725,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release after separation from [Project Harmonia](https://github.com/projectharmonia/project_harmonia).
 
-[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.30.1...HEAD
+[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.31.0...HEAD
+[0.31.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.30.1...v0.31.0
 [0.30.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.30.0...v0.30.1
 [0.30.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.29.2...v0.30.0
 [0.29.2]: https://github.com/projectharmonia/bevy_replicon/compare/v0.29.1...v0.29.2

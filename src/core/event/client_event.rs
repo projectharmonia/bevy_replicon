@@ -18,24 +18,26 @@ use crate::core::{
     postcard_utils,
     replicon_client::RepliconClient,
     replicon_server::RepliconServer,
-    ClientId,
+    SERVER,
 };
 
 /// An extension trait for [`App`] for creating client events.
 pub trait ClientEventAppExt {
-    /// Registers [`FromClient<E>`] and `E` events.
+    /// Registers a remote client event.
     ///
-    /// The API matches [`ClientTriggerAppExt::add_client_trigger`](super::client_trigger::ClientTriggerAppExt::add_client_trigger):
-    /// [`FromClient<E>`] will be emitted on the server after sending `E` event on client.
-    /// When [`RepliconClient`] is inactive, the event will be drained right after sending and re-emitted
-    /// locally as [`FromClient<E>`] with [`ClientId::SERVER`](crate::core::ClientId::SERVER).
+    /// After emitting `E` event on the client, [`FromClient<E>`] event will be emitted on the server.
     ///
-    /// Can be called for events that were registered with [add_event](bevy::app::App::add_event).
-    /// A duplicate registration for `E` won't be created.
-    /// But be careful, since on listen servers all events `E` are drained,
+    /// If [`ServerEventPlugin`](crate::server::event::ServerEventPlugin) is enabled and
+    /// [`RepliconClient`] is inactive, the event will be drained right after sending and
+    /// re-emitted locally as [`FromClient<E>`] event with [`FromClient::client_entity`]
+    /// equal to [`SERVER`].
+    ///
+    /// Calling [`App::add_event`] is not necessary. Can used for regular events that were
+    /// previously registered. But be careful, since on listen servers all events `E` are drained,
     /// which could break other Bevy or third-party plugin systems that listen for `E`.
     ///
-    /// See also [`Self::add_client_event_with`] and the [corresponding section](../index.html#from-client-to-server)
+    /// See also [`ClientTriggerAppExt::add_client_trigger`](super::client_trigger::ClientTriggerAppExt::add_client_trigger),
+    /// [`Self::add_client_event_with`] and the [corresponding section](../index.html#from-client-to-server)
     /// from the quick start guide.
     fn add_client_event<E: Event + Serialize + DeserializeOwned>(
         &mut self,
@@ -47,6 +49,29 @@ pub trait ClientEventAppExt {
     /// Same as [`Self::add_client_event`], but additionally maps client entities to server inside the event before sending.
     ///
     /// Always use it for events that contain entities.
+    ///
+    /// [`Clone`] is required because, before sending, we need to map entities from the client to the server without
+    /// modifying the original component.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use bevy::{prelude::*, ecs::entity::MapEntities};
+    /// # use bevy_replicon::prelude::*;
+    /// # use serde::{Deserialize, Serialize};
+    /// # let mut app = App::new();
+    /// # app.add_plugins(RepliconPlugins);
+    /// app.add_mapped_client_event::<MappedEvent>(ChannelKind::Ordered);
+    ///
+    /// #[derive(Debug, Deserialize, Event, Serialize, Clone)]
+    /// struct MappedEvent(Entity);
+    ///
+    /// impl MapEntities for MappedEvent {
+    ///     fn map_entities<T: EntityMapper>(&mut self, entity_mapper: &mut T) {
+    ///         self.0 = entity_mapper.get_mapped(self.0);
+    ///     }
+    /// }
+    /// ```
     fn add_mapped_client_event<E: Event + Serialize + DeserializeOwned + MapEntities + Clone>(
         &mut self,
         channel: impl Into<RepliconChannel>,
@@ -94,7 +119,7 @@ pub trait ClientEventAppExt {
         message: &mut Vec<u8>,
     ) -> postcard::Result<()> {
         let mut serializer = Serializer { output: ExtendMutFlavor::new(message) };
-        ReflectSerializer::new(&*event.0, ctx.registry).serialize(&mut serializer)
+        ReflectSerializer::new(&*event.0, ctx.type_registry).serialize(&mut serializer)
     }
 
     fn deserialize_reflect(
@@ -102,7 +127,7 @@ pub trait ClientEventAppExt {
         message: &mut Bytes,
     ) -> postcard::Result<ReflectEvent> {
         let mut deserializer = Deserializer::from_flavor(BufFlavor::new(message));
-        let reflect = ReflectDeserializer::new(ctx.registry).deserialize(&mut deserializer)?;
+        let reflect = ReflectDeserializer::new(ctx.type_registry).deserialize(&mut deserializer)?;
         Ok(ReflectEvent(reflect))
     }
 
@@ -235,8 +260,13 @@ impl ClientEvent {
         let reader: &mut ClientEventReader<E> = reader.deref_mut();
         for event in reader.read(events.deref()) {
             let mut message = Vec::new();
-            self.serialize::<E, I>(ctx, event, &mut message)
-                .expect("client event should be serializable");
+            if let Err(e) = self.serialize::<E, I>(ctx, event, &mut message) {
+                error!(
+                    "ignoring event `{}` that failed to serialize: {e}",
+                    any::type_name::<E>()
+                );
+                continue;
+            }
 
             debug!("sending event `{}`", any::type_name::<E>());
             client.send(self.channel_id, message);
@@ -271,17 +301,20 @@ impl ClientEvent {
         server: &mut RepliconServer,
     ) {
         let client_events: &mut Events<FromClient<E>> = client_events.deref_mut();
-        for (client_id, mut message) in server.receive(self.channel_id) {
+        for (client_entity, mut message) in server.receive(self.channel_id) {
             match self.deserialize::<E, I>(ctx, &mut message) {
                 Ok(event) => {
                     debug!(
-                        "applying event `{}` from `{client_id:?}`",
+                        "applying event `{}` from client `{client_entity}`",
                         any::type_name::<E>()
                     );
-                    client_events.send(FromClient { client_id, event });
+                    client_events.send(FromClient {
+                        client_entity,
+                        event,
+                    });
                 }
                 Err(e) => debug!(
-                    "ignoring event `{}` from {client_id:?} that failed to deserialize: {e}",
+                    "ignoring event `{}` from client `{client_entity}` that failed to deserialize: {e}",
                     any::type_name::<E>()
                 ),
             }
@@ -313,7 +346,7 @@ impl ClientEvent {
                 any::type_name::<E>()
             );
             client_events.send_batch(events.drain().map(|event| FromClient {
-                client_id: ClientId::SERVER,
+                client_entity: SERVER,
                 event,
             }));
         }
@@ -355,7 +388,19 @@ impl ClientEvent {
     ) -> postcard::Result<()> {
         self.event_fns
             .typed::<ClientSendCtx, ServerReceiveCtx, E, I>()
-            .serialize(ctx, event, message)
+            .serialize(ctx, event, message)?;
+
+        if ctx.invalid_entities.is_empty() {
+            Ok(())
+        } else {
+            error!(
+                "unable to map entities `{:?}` for the server, \
+                make sure that the event references entities visible to the server",
+                ctx.invalid_entities,
+            );
+            ctx.invalid_entities.clear();
+            Err(postcard::Error::SerdeDeCustom)
+        }
     }
 
     /// Deserializes an event from a message.
@@ -400,10 +445,15 @@ impl<E: Event> FromWorld for ClientEventReader<E> {
 }
 
 /// An event indicating that a message from client was received.
+///
 /// Emitted only on server.
 #[derive(Clone, Copy, Event, Deref, DerefMut)]
 pub struct FromClient<T> {
-    pub client_id: ClientId,
+    /// Entity that represents a connected client.
+    ///
+    /// See also [`ConnectedClient`](crate::core::ConnectedClient).
+    pub client_entity: Entity,
+    /// Transmitted event.
     #[deref]
     pub event: T,
 }

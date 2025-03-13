@@ -1,6 +1,11 @@
 use bevy::prelude::*;
 use bevy_replicon::{
-    core::channels::ReplicationChannel, prelude::*, server::server_tick::ServerTick,
+    core::{
+        channels::ReplicationChannel,
+        connected_client::{ClientIdMap, ConnectedClient},
+    },
+    prelude::*,
+    server::server_tick::ServerTick,
     test_app::ServerTestAppExt,
 };
 
@@ -14,12 +19,8 @@ fn client_to_server() {
     }
 
     const MESSAGES: &[&[u8]] = &[&[0], &[1]];
-    const CLIENT_ID: ClientId = ClientId::new(0);
-
     let mut client = client_app.world_mut().resource_mut::<RepliconClient>();
-    client.set_status(RepliconClientStatus::Connected {
-        client_id: Some(CLIENT_ID),
-    });
+    client.set_status(RepliconClientStatus::Connected);
     for &message in MESSAGES {
         client.send(ReplicationChannel::Updates, message);
     }
@@ -28,7 +29,7 @@ fn client_to_server() {
     server.set_running(true);
 
     for (channel_id, message) in client.drain_sent() {
-        server.insert_received(CLIENT_ID, channel_id, message);
+        server.insert_received(Entity::PLACEHOLDER, channel_id, message);
     }
 
     let messages: Vec<_> = server
@@ -48,18 +49,14 @@ fn server_to_client() {
     }
 
     const MESSAGES: &[&[u8]] = &[&[0], &[1]];
-    const CLIENT_ID: ClientId = ClientId::new(0);
-
     let mut server = server_app.world_mut().resource_mut::<RepliconServer>();
     server.set_running(true);
     for &message in MESSAGES {
-        server.send(CLIENT_ID, ReplicationChannel::Updates, message);
+        server.send(Entity::PLACEHOLDER, ReplicationChannel::Updates, message);
     }
 
     let mut client = client_app.world_mut().resource_mut::<RepliconClient>();
-    client.set_status(RepliconClientStatus::Connected {
-        client_id: Some(CLIENT_ID),
-    });
+    client.set_status(RepliconClientStatus::Connected);
 
     for (_, channel_id, message) in server.drain_sent() {
         client.insert_received(channel_id, message);
@@ -85,13 +82,13 @@ fn connect_disconnect() {
 
     server_app.connect_client(&mut client_app);
 
-    let replicated_clients = server_app.world().resource::<ReplicatedClients>();
-    assert_eq!(replicated_clients.len(), 1);
+    let mut clients = server_app.world_mut().query::<&ConnectedClient>();
+    assert_eq!(clients.iter(server_app.world()).len(), 1);
+    assert_eq!(server_app.world().resource::<ClientIdMap>().len(), 1);
 
     server_app.disconnect_client(&mut client_app);
-
-    let replicated_clients = server_app.world().resource::<ReplicatedClients>();
-    assert!(replicated_clients.is_empty());
+    assert_eq!(clients.iter(server_app.world()).len(), 0);
+    assert_eq!(server_app.world().resource::<ClientIdMap>().len(), 0);
 }
 
 #[test]
@@ -108,7 +105,7 @@ fn client_cleanup_on_disconnect() {
     app.update();
 
     let mut client = app.world_mut().resource_mut::<RepliconClient>();
-    client.set_status(RepliconClientStatus::Connected { client_id: None });
+    client.set_status(RepliconClientStatus::Connected);
 
     client.send(ReplicationChannel::Updates, Vec::new());
     client.insert_received(ReplicationChannel::Updates, Vec::new());
@@ -137,9 +134,8 @@ fn server_cleanup_on_stop() {
     let mut server = app.world_mut().resource_mut::<RepliconServer>();
     server.set_running(true);
 
-    const DUMMY_CLIENT_ID: ClientId = ClientId::new(1);
-    server.send(DUMMY_CLIENT_ID, ReplicationChannel::Updates, Vec::new());
-    server.insert_received(DUMMY_CLIENT_ID, ReplicationChannel::Updates, Vec::new());
+    server.send(Entity::PLACEHOLDER, ReplicationChannel::Updates, Vec::new());
+    server.insert_received(Entity::PLACEHOLDER, ReplicationChannel::Updates, Vec::new());
 
     server.set_running(false);
 
@@ -190,10 +186,8 @@ fn server_inactive() {
 
     let mut server = app.world_mut().resource_mut::<RepliconServer>();
 
-    const DUMMY_CLIENT_ID: ClientId = ClientId::new(1);
-
-    server.send(DUMMY_CLIENT_ID, ReplicationChannel::Updates, Vec::new());
-    server.insert_received(DUMMY_CLIENT_ID, ReplicationChannel::Updates, Vec::new());
+    server.send(Entity::PLACEHOLDER, ReplicationChannel::Updates, Vec::new());
+    server.insert_received(Entity::PLACEHOLDER, ReplicationChannel::Updates, Vec::new());
 
     assert_eq!(server.drain_sent().count(), 0);
     assert_eq!(server.receive(ReplicationChannel::Updates).count(), 0);
@@ -220,28 +214,8 @@ fn deferred_replication() {
 
     server_app.connect_client(&mut client_app);
 
-    let connected_clients = server_app.world().resource::<ConnectedClients>();
-    assert!(!connected_clients.is_empty());
-
-    let replicated_clients = server_app.world().resource::<ReplicatedClients>();
-    assert!(
-        replicated_clients.is_empty(),
-        "server shouldn't replicate to yet"
-    );
-
-    let client = client_app.world().resource::<RepliconClient>();
-    let client_id = client.id().unwrap();
-    server_app.world_mut().trigger(StartReplication(client_id));
-
-    let replicated_clients = server_app.world().resource::<ReplicatedClients>();
-    assert!(
-        !replicated_clients.is_empty(),
-        "server now should start replicating"
-    );
-
-    // Make sure that enabling replication twice do nothing.
-    server_app.world_mut().trigger(StartReplication(client_id));
-
-    let replicated_clients = server_app.world().resource::<ReplicatedClients>();
-    assert_eq!(replicated_clients.len(), 1);
+    let mut clients = server_app
+        .world_mut()
+        .query_filtered::<&ConnectedClient, Without<ReplicatedClient>>();
+    assert_eq!(clients.iter(server_app.world()).count(), 1);
 }

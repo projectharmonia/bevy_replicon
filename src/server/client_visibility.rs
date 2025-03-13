@@ -7,64 +7,45 @@ use bevy::{
 use super::VisibilityPolicy;
 
 /// Entity visibility settings for a client.
+///
+/// Present on connected clients after [`ReplicatedClient`](super::ReplicatedClient) insertion.
+#[derive(Component)]
 pub struct ClientVisibility {
+    /// Wrapped enum to make its fields private.
     filter: VisibilityFilter,
 }
 
 impl ClientVisibility {
-    /// Creates a new instance based on the preconfigured policy.
-    pub(super) fn new(policy: VisibilityPolicy) -> Self {
-        match policy {
-            VisibilityPolicy::All => Self::with_filter(VisibilityFilter::All),
-            VisibilityPolicy::Blacklist => Self::with_filter(VisibilityFilter::Blacklist {
-                list: Default::default(),
-                added: Default::default(),
-                removed: Default::default(),
-            }),
-            VisibilityPolicy::Whitelist => Self::with_filter(VisibilityFilter::Whitelist {
-                list: Default::default(),
-                added: Default::default(),
-                removed: Default::default(),
-            }),
+    pub(super) fn all() -> Self {
+        Self {
+            filter: VisibilityFilter::All,
         }
     }
 
-    /// Creates a new instance with a specific filter.
-    fn with_filter(filter: VisibilityFilter) -> Self {
-        Self { filter }
+    pub(super) fn blacklist() -> Self {
+        Self {
+            filter: VisibilityFilter::Blacklist {
+                list: Default::default(),
+                added: Default::default(),
+                removed: Default::default(),
+            },
+        }
     }
 
-    /// Resets the filter state to as it was after [`Self::new`].
-    ///
-    /// `cached_visibility` remains untouched.
-    pub(super) fn clear(&mut self) {
-        match &mut self.filter {
-            VisibilityFilter::All => (),
-            VisibilityFilter::Blacklist {
-                list,
-                added,
-                removed,
-            } => {
-                list.clear();
-                added.clear();
-                removed.clear();
-            }
-            VisibilityFilter::Whitelist {
-                list,
-                added,
-                removed,
-            } => {
-                list.clear();
-                added.clear();
-                removed.clear();
-            }
+    pub(super) fn whitelist() -> Self {
+        Self {
+            filter: VisibilityFilter::Whitelist {
+                list: Default::default(),
+                added: Default::default(),
+                removed: Default::default(),
+            },
         }
     }
 
     /// Updates list information and its sets based on the filter.
     ///
     /// Should be called after each tick.
-    pub(crate) fn update(&mut self) {
+    pub(super) fn update(&mut self) {
         match &mut self.filter {
             VisibilityFilter::All => (),
             VisibilityFilter::Blacklist {
@@ -226,7 +207,7 @@ impl ClientVisibility {
     }
 
     /// Returns visibility of a specific entity.
-    pub(crate) fn state(&self, entity: Entity) -> Visibility {
+    pub(super) fn state(&self, entity: Entity) -> Visibility {
         match &self.filter {
             VisibilityFilter::All => Visibility::Visible,
             VisibilityFilter::Blacklist { list, .. } => match list.get(&entity) {
@@ -329,7 +310,7 @@ mod tests {
 
     #[test]
     fn all() {
-        let mut visibility = ClientVisibility::new(VisibilityPolicy::All);
+        let mut visibility = ClientVisibility::all();
         assert!(visibility.is_visible(Entity::PLACEHOLDER));
 
         visibility.set_visibility(Entity::PLACEHOLDER, true);
@@ -344,7 +325,7 @@ mod tests {
 
     #[test]
     fn blacklist_insertion() {
-        let mut visibility = ClientVisibility::new(VisibilityPolicy::Blacklist);
+        let mut visibility = ClientVisibility::blacklist();
         visibility.set_visibility(Entity::PLACEHOLDER, false);
         assert!(!visibility.is_visible(Entity::PLACEHOLDER));
 
@@ -379,7 +360,7 @@ mod tests {
 
     #[test]
     fn blacklist_empty_removal() {
-        let mut visibility = ClientVisibility::new(VisibilityPolicy::Blacklist);
+        let mut visibility = ClientVisibility::blacklist();
         assert!(visibility.is_visible(Entity::PLACEHOLDER));
 
         visibility.set_visibility(Entity::PLACEHOLDER, true);
@@ -401,7 +382,7 @@ mod tests {
 
     #[test]
     fn blacklist_removal() {
-        let mut visibility = ClientVisibility::new(VisibilityPolicy::Blacklist);
+        let mut visibility = ClientVisibility::blacklist();
         visibility.set_visibility(Entity::PLACEHOLDER, false);
         visibility.update();
         visibility.set_visibility(Entity::PLACEHOLDER, true);
@@ -438,7 +419,7 @@ mod tests {
 
     #[test]
     fn blacklist_insertion_removal() {
-        let mut visibility = ClientVisibility::new(VisibilityPolicy::Blacklist);
+        let mut visibility = ClientVisibility::blacklist();
 
         // Insert and remove from the list.
         visibility.set_visibility(Entity::PLACEHOLDER, false);
@@ -461,7 +442,7 @@ mod tests {
 
     #[test]
     fn blacklist_duplicate_insertion() {
-        let mut visibility = ClientVisibility::new(VisibilityPolicy::Blacklist);
+        let mut visibility = ClientVisibility::blacklist();
         visibility.set_visibility(Entity::PLACEHOLDER, false);
         visibility.update();
 
@@ -485,7 +466,7 @@ mod tests {
 
     #[test]
     fn whitelist_insertion() {
-        let mut visibility = ClientVisibility::new(VisibilityPolicy::Whitelist);
+        let mut visibility = ClientVisibility::whitelist();
         visibility.set_visibility(Entity::PLACEHOLDER, true);
         assert!(visibility.is_visible(Entity::PLACEHOLDER));
 
@@ -520,7 +501,7 @@ mod tests {
 
     #[test]
     fn whitelist_empty_removal() {
-        let mut visibility = ClientVisibility::new(VisibilityPolicy::Whitelist);
+        let mut visibility = ClientVisibility::whitelist();
         assert!(!visibility.is_visible(Entity::PLACEHOLDER));
 
         visibility.set_visibility(Entity::PLACEHOLDER, false);
@@ -542,7 +523,7 @@ mod tests {
 
     #[test]
     fn whitelist_removal() {
-        let mut visibility = ClientVisibility::new(VisibilityPolicy::Whitelist);
+        let mut visibility = ClientVisibility::whitelist();
         visibility.set_visibility(Entity::PLACEHOLDER, true);
         visibility.update();
         visibility.set_visibility(Entity::PLACEHOLDER, false);
@@ -579,7 +560,7 @@ mod tests {
 
     #[test]
     fn whitelist_insertion_removal() {
-        let mut visibility = ClientVisibility::new(VisibilityPolicy::Whitelist);
+        let mut visibility = ClientVisibility::whitelist();
 
         // Insert and remove from the list.
         visibility.set_visibility(Entity::PLACEHOLDER, true);
@@ -602,7 +583,7 @@ mod tests {
 
     #[test]
     fn whitelist_duplicate_insertion() {
-        let mut visibility = ClientVisibility::new(VisibilityPolicy::Whitelist);
+        let mut visibility = ClientVisibility::whitelist();
         visibility.set_visibility(Entity::PLACEHOLDER, true);
         visibility.update();
 
