@@ -382,13 +382,13 @@ fn marker_with_history_consume() {
 
     server_app.connect_client(&mut client_app);
 
-    let server_get_mapped = server_app.world_mut().spawn_empty().id();
+    let server_map_entity = server_app.world_mut().spawn_empty().id();
     let server_entity = server_app
         .world_mut()
         .spawn((
             Replicated,
             BoolComponent(false),
-            MappedComponent(server_get_mapped),
+            MappedComponent(server_map_entity),
         ))
         .id();
 
@@ -782,10 +782,10 @@ fn old_ignored() {
 
     server_app.connect_client(&mut client_app);
 
-    let server_get_mapped = server_app.world_mut().spawn_empty().id();
+    let server_map_entity = server_app.world_mut().spawn_empty().id();
     let server_entity = server_app
         .world_mut()
-        .spawn((Replicated, MappedComponent(server_get_mapped)))
+        .spawn((Replicated, MappedComponent(server_map_entity)))
         .id();
 
     server_app.update();

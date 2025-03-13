@@ -156,7 +156,7 @@ fn mapped_new_entity() {
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app.world_mut().spawn(Replicated).id();
-    let server_get_mapped = server_app.world_mut().spawn_empty().id();
+    let server_map_entity = server_app.world_mut().spawn_empty().id();
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -166,7 +166,7 @@ fn mapped_new_entity() {
     server_app
         .world_mut()
         .entity_mut(server_entity)
-        .insert(MappedComponent(server_get_mapped));
+        .insert(MappedComponent(server_map_entity));
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
