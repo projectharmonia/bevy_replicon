@@ -47,6 +47,8 @@ use server_world::{ReplicatedComponent, ServerWorld};
 
 pub struct ServerPlugin {
     /// Tick configuration.
+    ///
+    /// By default it's 30 ticks per second.
     pub tick_policy: TickPolicy,
 
     /// Visibility configuration.
@@ -699,13 +701,10 @@ pub enum ServerSet {
 pub enum TickPolicy {
     /// The replicon tick is incremented at most max ticks per second. In practice the tick rate may be lower if the
     /// app's update cycle duration is too long.
-    ///
-    /// By default it's 30 ticks per second.
     MaxTickRate(u16),
     /// The replicon tick is incremented every frame.
     EveryFrame,
-    /// The user should manually configure [`increment_tick`] or manually increment
-    /// [`RepliconTick`].
+    /// The user should manually schedule [`increment_tick`] or increment [`RepliconTick`].
     Manual,
 }
 

@@ -49,6 +49,29 @@ pub trait ClientEventAppExt {
     /// Same as [`Self::add_client_event`], but additionally maps client entities to server inside the event before sending.
     ///
     /// Always use it for events that contain entities.
+    ///
+    /// [`Clone`] is required because, before sending, we need to map entities from the client to the server without
+    /// modifying the original component.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use bevy::{prelude::*, ecs::entity::MapEntities};
+    /// # use bevy_replicon::prelude::*;
+    /// # use serde::{Deserialize, Serialize};
+    /// # let mut app = App::new();
+    /// # app.add_plugins(RepliconPlugins);
+    /// app.add_mapped_client_event::<MappedEvent>(ChannelKind::Ordered);
+    ///
+    /// #[derive(Debug, Deserialize, Event, Serialize, Clone)]
+    /// struct MappedEvent(Entity);
+    ///
+    /// impl MapEntities for MappedEvent {
+    ///     fn map_entities<T: EntityMapper>(&mut self, entity_mapper: &mut T) {
+    ///         self.0 = entity_mapper.map_entity(self.0);
+    ///     }
+    /// }
+    /// ```
     fn add_mapped_client_event<E: Event + Serialize + DeserializeOwned + MapEntities + Clone>(
         &mut self,
         channel: impl Into<RepliconChannel>,
