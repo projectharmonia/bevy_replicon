@@ -6,7 +6,7 @@ use crate::core::server_entity_map::ServerEntityMap;
 #[non_exhaustive]
 pub struct ClientSendCtx<'a> {
     /// Registry of reflected types.
-    pub registry: &'a TypeRegistry,
+    pub type_registry: &'a TypeRegistry,
 
     /// Maps server entities to client entities and vice versa.
     pub entity_map: &'a ServerEntityMap,
@@ -32,21 +32,21 @@ impl EntityMapper for ClientSendCtx<'_> {
 #[non_exhaustive]
 pub struct ServerReceiveCtx<'a> {
     /// Registry of reflected types.
-    pub registry: &'a TypeRegistry,
+    pub type_registry: &'a TypeRegistry,
 }
 
 /// Event sending context for server.
 #[non_exhaustive]
 pub struct ServerSendCtx<'a> {
     /// Registry of reflected types.
-    pub registry: &'a TypeRegistry,
+    pub type_registry: &'a TypeRegistry,
 }
 
 /// Event receiving context for client.
 #[non_exhaustive]
 pub struct ClientReceiveCtx<'a> {
     /// Registry of reflected types.
-    pub registry: &'a TypeRegistry,
+    pub type_registry: &'a TypeRegistry,
 
     /// Maps server entities to client entities and vice versa.
     pub entity_map: &'a ServerEntityMap,

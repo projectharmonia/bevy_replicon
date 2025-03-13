@@ -119,13 +119,13 @@ fn send_or_buffer(
     server_events: FilteredResources,
     mut server: ResMut<RepliconServer>,
     mut buffered_events: ResMut<BufferedServerEvents>,
-    registry: Res<AppTypeRegistry>,
+    type_registry: Res<AppTypeRegistry>,
     event_registry: Res<EventRegistry>,
     clients: Query<Entity, With<ConnectedClient>>,
 ) {
     buffered_events.start_tick();
     let mut ctx = ServerSendCtx {
-        registry: &registry.read(),
+        type_registry: &type_registry.read(),
     };
 
     for event in event_registry.iter_server_events() {
@@ -159,11 +159,11 @@ fn send_buffered(
 fn receive(
     mut client_events: FilteredResourcesMut,
     mut server: ResMut<RepliconServer>,
-    registry: Res<AppTypeRegistry>,
+    type_registry: Res<AppTypeRegistry>,
     event_registry: Res<EventRegistry>,
 ) {
     let mut ctx = ServerReceiveCtx {
-        registry: &registry.read(),
+        type_registry: &type_registry.read(),
     };
 
     for event in event_registry.iter_client_events() {

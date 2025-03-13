@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Derive `Debug` for `FnsId`.
 - Derive `Deref` and `DerefMut` to underlying event in `ToClients` and `FromClient`.
 - Derive `PartialEq` for `RepliconClientStatus`.
+- `SerializeCtx::type_registry` and `WriteCtx::type_registry` to replicate components with reflection.
 
 ### Changed
 
@@ -25,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Move `ClientId` to `connected_client` module and remove from `prelude`.
 - Use `TestClientEntity` instead of `ClientId` resource on clients in `ServerTestAppExt` to identify client entity.
 - Rename `FromClient::client_id` into `FromClient::client_entity`.
+- Rename `registry` in all event contexts into `type_registry`.
 - Replace `bincode` with `postcard`. It has more suitable variable integer encoding and potentially unlocks `no_std` support. If you use custom ser/de functions, replace `DefaultOptions::new().serialize_into(message, event)` with `postcard_utils::to_extend_mut(event, message)` and `DefaultOptions::new().deserialize_from(cursor)` with `postcard_utils::from_buf(message)`.
 - All serde methods now use `postcard::Result` instead of `bincode::Result`.
 - All deserialization methods now accept `Bytes` instead of `std::io::Cursor` because deserialization from `std::io::Read` requires a temporary buffer. `Bytes` already provide cursor-like functionality. The crate now re-exported under `bevy_replicon::bytes`.
