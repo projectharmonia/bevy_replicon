@@ -14,6 +14,7 @@ use super::NetworkStats;
 /// - For sending messages, [`Self::drain_sent`] should be used to drain all sent messages.
 ///   A system to forward Replicon messages to the backend should run in
 ///   [`ClientSet::SendPackets`](crate::client::ClientSet::SendPackets).
+/// - Optionally update statistic using [`Self::stats_mut`].
 ///
 /// Inserted as resource by [`ClientPlugin`](crate::client::ClientPlugin).
 #[derive(Resource, Default)]

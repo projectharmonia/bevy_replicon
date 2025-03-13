@@ -134,6 +134,9 @@ pub trait ServerEventAppExt {
     /// during the event does not affect components or entities that the client
     /// has not yet received.
     ///
+    /// For more details about replication see the documentation on
+    /// [`ReplicationChannel`](crate::core::channels::ReplicationChannel).
+    ///
     /// However, if you know your event doesn't rely on that, you can mark it
     /// as independent to always emit it immediately. For example, a chat
     /// message event - which does not hold references to any entities - may be

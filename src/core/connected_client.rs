@@ -6,7 +6,11 @@ use bevy::{
 
 /// Marker for a connected client.
 ///
-/// Backends should spawn and despawn entities with this component on connect and disconnect.
+/// Backends should spawn and despawn entities with this component on connect and disconnect
+/// and optionally update the [`NetworkStats`] component.
+///
+/// If the MTU of the connected client is dynamic, it's required for the backend to update
+/// [`Self::max_size`] to ensure message splitting works properly.
 ///
 /// `Entity` is used an identifier to refer to a client.
 ///
@@ -26,6 +30,7 @@ pub struct ConnectedClient {
     /// splitting into multiple packets.
     ///
     /// Used to manually split mutations over packet-size messages to allow applying them partially.
+    /// For more details on replication see [`ReplicationChannel`](super::channels::ReplicationChannel).
     ///
     /// <div class="warning">
     ///
