@@ -96,7 +96,7 @@ pub trait ClientEventAppExt {
         message: &mut Vec<u8>,
     ) -> postcard::Result<()> {
         let mut serializer = Serializer { output: ExtendMutFlavor::new(message) };
-        ReflectSerializer::new(&*event.0, ctx.registry).serialize(&mut serializer)
+        ReflectSerializer::new(&*event.0, ctx.type_registry).serialize(&mut serializer)
     }
 
     fn deserialize_reflect(
@@ -104,7 +104,7 @@ pub trait ClientEventAppExt {
         message: &mut Bytes,
     ) -> postcard::Result<ReflectEvent> {
         let mut deserializer = Deserializer::from_flavor(BufFlavor::new(message));
-        let reflect = ReflectDeserializer::new(ctx.registry).deserialize(&mut deserializer)?;
+        let reflect = ReflectDeserializer::new(ctx.type_registry).deserialize(&mut deserializer)?;
         Ok(ReflectEvent(reflect))
     }
 
