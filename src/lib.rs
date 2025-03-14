@@ -444,7 +444,7 @@ basis.
 
 ## Advanced features
 
-## Client visibility
+### Client visibility
 
 You can control which parts of the world are visible for each client by setting visibility policy
 in [`ServerPlugin`] to [`VisibilityPolicy::Whitelist`] or [`VisibilityPolicy::Blacklist`].
