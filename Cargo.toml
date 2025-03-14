@@ -28,7 +28,9 @@ all-features = true
 members = ["bevy_replicon_example_backend"]
 
 [dependencies]
-bevy = { version = "0.15.3", default-features = false, features = ["serialize"] }
+bevy = { version = "0.15.3", default-features = false, features = [
+  "serialize",
+] }
 typeid = "1.0"
 bytes = "1.10"
 serde = "1.0"
