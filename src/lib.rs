@@ -53,7 +53,9 @@ If you need to send information from clients to the server, use
 [events](#network-events-and-triggers).
 
 Replication is enabled by default for all connected clients via [`ReplicatedClient`] component.
-It can be disabled via [`ServerPlugin::replicate_after_connect`] is set to `false`.
+It can be disabled by setting [`ServerPlugin::replicate_after_connect`] to `false`. Note that
+some components on connected clients are only present after replication starts.
+See the required components for [`ReplicatedClient`].
 
 For implementation details see [`ReplicationChannel`](core::channels::ReplicationChannel).
 
