@@ -18,7 +18,10 @@ be inserted into the client's [`ServerEntityMap`](crate::core::server_entity_map
 to propagate the mappings ensures any replication messages related to the pre-mapped
 server entities will synchronize with updating the client's [`ServerEntityMap`](crate::core::server_entity_map::ServerEntityMap).
 
-### Example:
+It's a required component for [`ReplicatedClient`](super::ReplicatedClient). So if you want to map entities before enabling
+replication, you need to insert this component, already filled with entities.
+
+### Examples
 
 ```
 use bevy::prelude::*;
