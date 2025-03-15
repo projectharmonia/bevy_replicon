@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.1] - 2025-03-15
+
 ### Fixed
 
 - Bump the `bevy` dependency to 0.15.3 since we use some fields that were made public in a patch release.
@@ -729,7 +731,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release after separation from [Project Harmonia](https://github.com/projectharmonia/project_harmonia).
 
-[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.31.0...HEAD
+[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.31.1...HEAD
+[0.31.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.31.0...v0.31.1
 [0.31.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.30.1...v0.31.0
 [0.30.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.30.0...v0.30.1
 [0.30.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.29.2...v0.30.0
