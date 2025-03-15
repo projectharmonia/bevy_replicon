@@ -53,7 +53,9 @@ If you need to send information from clients to the server, use
 [events](#network-events-and-triggers).
 
 Replication is enabled by default for all connected clients via [`ReplicatedClient`] component.
-It can be disabled via [`ServerPlugin::replicate_after_connect`] is set to `false`.
+It can be disabled by setting [`ServerPlugin::replicate_after_connect`] to `false`. Note that
+some components on connected clients are only present after replication starts.
+See the required components for [`ReplicatedClient`].
 
 For implementation details see [`ReplicationChannel`](core::channels::ReplicationChannel).
 
@@ -449,45 +451,8 @@ basis.
 You can control which parts of the world are visible for each client by setting visibility policy
 in [`ServerPlugin`] to [`VisibilityPolicy::Whitelist`] or [`VisibilityPolicy::Blacklist`].
 
-In order to set which entity is visible, you need to use the [`ClientVisibility`] component
-on replicated clients.
-
-```
-# use bevy::prelude::*;
-# use bevy_replicon::prelude::*;
-# let mut app = App::new();
-app.add_plugins((
-    MinimalPlugins,
-    RepliconPlugins.set(ServerPlugin {
-        visibility_policy: VisibilityPolicy::Whitelist, // Makes all entities invisible for clients by default.
-        ..Default::default()
-    }),
-))
-.add_systems(Update, update_visibility.run_if(server_running));
-
-/// Disables the visibility of other players' entities that are further away than the visible distance.
-fn update_visibility(
-    mut clients: Query<&mut ClientVisibility>,
-    moved_players: Query<(&Transform, &PlayerOwner), Changed<Transform>>,
-    other_players: Query<(Entity, &Transform, &PlayerOwner)>,
-) {
-    for (moved_transform, &owner) in &moved_players {
-        let mut visibility = clients.get_mut(*owner).unwrap();
-        for (entity, transform, _) in other_players
-            .iter()
-            .filter(|(.., &other_owner)| *other_owner != *owner)
-        {
-            const VISIBLE_DISTANCE: f32 = 100.0;
-            let distance = moved_transform.translation.distance(transform.translation);
-            visibility.set_visibility(entity, distance < VISIBLE_DISTANCE);
-        }
-    }
-}
-
-/// Points to client entity.
-#[derive(Component, Deref, Clone, Copy)]
-struct PlayerOwner(Entity);
-```
+To set which entity is visible, you need to use the [`ClientVisibility`] component
+on replicated clients (not to be confused with replicated entities).
 
 Check also the [corresponding section](https://github.com/projectharmonia/bevy_replicon#visibility)
 in our README for more high-level abstractions.

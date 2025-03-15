@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Connected clients are now represented as entities with `ConnectedClient` components. Backends are responsible for spawning and despawning entities with this component. `ClientId` is accessible from `ConnectedClient::id` in case you need an identifier that is persistent across reconnects.
+- Connected clients are now represented as entities with `ConnectedClient` components. Backends are responsible for spawning and despawning entities with this component. `ClientId` is accessible from `ConnectedClient::id` in case you need to identify which client belongs to which connection.
 - Statistics for connected clients now accessible via `ClientStats` component.
 - Replicated entities now represented by connected clients with `ReplicatedClient` component.
 - To access visibility, use `ClientVisibility` component on replicated entities.

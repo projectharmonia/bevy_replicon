@@ -48,8 +48,7 @@ impl ConnectedClient {
 
     /// Returns client ID provided by backend.
     ///
-    /// Unlike [`Entity`], it's a persistent identifier that could
-    /// be used to identify the same client after reconnects.
+    /// Can be used to identify which client belongs to which connection.
     ///
     /// See also [`ClientIdMap`].
     pub fn id(&self) -> ClientId {
