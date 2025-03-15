@@ -1,7 +1,7 @@
 use bevy::{
-    ecs::{component::ComponentId, world::DeferredWorld},
+    ecs::{component::HookContext, world::DeferredWorld},
+    platform_support::collections::HashMap,
     prelude::*,
-    utils::HashMap,
 };
 
 /// Marker for a connected client.
@@ -56,17 +56,17 @@ impl ConnectedClient {
     }
 }
 
-fn on_client_add(mut world: DeferredWorld, entity: Entity, _id: ComponentId) {
-    let connected_client = world.get::<ConnectedClient>(entity).unwrap();
+fn on_client_add(mut world: DeferredWorld, ctx: HookContext) {
+    let connected_client = world.get::<ConnectedClient>(ctx.entity).unwrap();
     let client_id = connected_client.id;
     let mut client_map = world.resource_mut::<ClientIdMap>();
-    if let Some(old_entity) = client_map.0.insert(client_id, entity) {
+    if let Some(old_entity) = client_map.0.insert(client_id, ctx.entity) {
         error!("backend-provided `{client_id:?}` that was already mapped to client `{old_entity}`");
     }
 }
 
-fn on_client_remove(mut world: DeferredWorld, entity: Entity, _id: ComponentId) {
-    let connected_client = world.get::<ConnectedClient>(entity).unwrap();
+fn on_client_remove(mut world: DeferredWorld, ctx: HookContext) {
+    let connected_client = world.get::<ConnectedClient>(ctx.entity).unwrap();
     let client_id = connected_client.id;
     let mut client_map = world.resource_mut::<ClientIdMap>();
     client_map.0.remove(&client_id);

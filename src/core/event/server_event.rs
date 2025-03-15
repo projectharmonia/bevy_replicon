@@ -3,7 +3,7 @@ use std::{any, marker::PhantomData, mem};
 use bevy::{
     ecs::{
         component::ComponentId,
-        entity::{EntityHashSet, MapEntities},
+        entity::{hash_set::EntityHashSet, MapEntities},
     },
     prelude::*,
     ptr::{Ptr, PtrMut},

@@ -154,7 +154,7 @@ fn init_player_mesh(
     mut meshes: ResMut<Assets<Mesh>>,
     mut players: Query<&mut Mesh2d>,
 ) {
-    let mut mesh = players.get_mut(trigger.entity()).unwrap();
+    let mut mesh = players.get_mut(trigger.target()).unwrap();
     **mesh = meshes.add(Capsule2d::default());
 }
 
@@ -582,8 +582,6 @@ But on server we use `debug` for it to avoid flooding server logs with errors ca
 #[cfg(feature = "client")]
 pub mod client;
 pub mod core;
-#[cfg(feature = "parent_sync")]
-pub mod parent_sync;
 #[cfg(feature = "scene")]
 pub mod scene;
 #[cfg(feature = "server")]
@@ -627,8 +625,6 @@ pub mod prelude {
 
     #[cfg(feature = "client_diagnostics")]
     pub use super::client::diagnostics::ClientDiagnosticsPlugin;
-    #[cfg(feature = "parent_sync")]
-    pub use super::parent_sync::{ParentSync, ParentSyncPlugin};
 }
 
 pub use bytes;
@@ -645,7 +641,6 @@ use prelude::*;
 /// * [`ServerEventPlugin`] - with feature `server`.
 /// * [`ClientPlugin`] - with feature `client`.
 /// * [`ClientEventPlugin`] - with feature `client`.
-/// * [`ParentSyncPlugin`] - with feature `parent_sync`.
 /// * [`ClientDiagnosticsPlugin`] - with feature `client_diagnostics`.
 pub struct RepliconPlugins;
 
@@ -662,11 +657,6 @@ impl PluginGroup for RepliconPlugins {
         #[cfg(feature = "client")]
         {
             group = group.add(ClientPlugin).add(ClientEventPlugin);
-        }
-
-        #[cfg(feature = "parent_sync")]
-        {
-            group = group.add(ParentSyncPlugin);
         }
 
         #[cfg(feature = "client_diagnostics")]
