@@ -5,12 +5,14 @@
 
 #[cfg(feature = "client")]
 mod client;
+mod link_conditioner;
 #[cfg(feature = "server")]
 mod server;
 mod tcp;
 
 #[cfg(feature = "client")]
 pub use client::*;
+pub use link_conditioner::*;
 #[cfg(feature = "server")]
 pub use server::*;
 
@@ -25,7 +27,7 @@ pub struct RepliconExampleBackendPlugins;
 
 impl PluginGroup for RepliconExampleBackendPlugins {
     fn build(self) -> PluginGroupBuilder {
-        let mut group = PluginGroupBuilder::start::<Self>();
+        let mut group = PluginGroupBuilder::start::<Self>().add(LinkConditionerPlugin);
 
         #[cfg(feature = "server")]
         {

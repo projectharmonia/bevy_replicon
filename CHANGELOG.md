@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `ConditionerConfig` for `bevy_replicon_example_backend` to simulate various network conditions.
+
 ## [0.31.1] - 2025-03-15
 
 ### Fixed
