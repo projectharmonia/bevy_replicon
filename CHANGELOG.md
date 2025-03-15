@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Don't insert `ClientVisibility` at all if `ServerPlugin::visibility_policy` is set to `VisibilityPolicy::All`. Previously all calls were just no-op.
+
 ## [0.31.1] - 2025-03-15
 
 ### Fixed

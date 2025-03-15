@@ -4,12 +4,11 @@ use bevy::{
     utils::hashbrown::hash_map::Entry,
 };
 
-use super::VisibilityPolicy;
-
 /// Entity visibility settings for a client.
 ///
 /// Dynamically marked as required for [`ReplicatedClient`](super::ReplicatedClient)
-/// based on the value from [`ServerPlugin::visibility_policy`](super::ServerPlugin::visibility_policy).
+/// if [`ServerPlugin::visibility_policy`](super::ServerPlugin::visibility_policy)
+/// is not set to [`VisibilityPolicy::All`](super::VisibilityPolicy::All).
 ///
 /// # Examples
 ///
@@ -51,34 +50,34 @@ use super::VisibilityPolicy;
 /// ```
 #[derive(Component)]
 pub struct ClientVisibility {
-    /// Wrapped enum to make its fields private.
-    filter: VisibilityFilter,
+    /// List of entities.
+    list: VisibilityList,
+
+    /// All entities that were added to the list in this tick.
+    ///
+    /// Visibility of these entities has been gained or removed based on [`Self::list`].
+    added: EntityHashSet,
+
+    /// All entities that were removed from the list in this tick.
+    ///
+    /// Visibility of these entities has been gained or removed based on [`Self::list`].
+    removed: EntityHashSet,
 }
 
 impl ClientVisibility {
-    pub(super) fn all() -> Self {
-        Self {
-            filter: VisibilityFilter::All,
-        }
-    }
-
     pub(super) fn blacklist() -> Self {
         Self {
-            filter: VisibilityFilter::Blacklist {
-                list: Default::default(),
-                added: Default::default(),
-                removed: Default::default(),
-            },
+            list: VisibilityList::Blacklist(Default::default()),
+            added: Default::default(),
+            removed: Default::default(),
         }
     }
 
     pub(super) fn whitelist() -> Self {
         Self {
-            filter: VisibilityFilter::Whitelist {
-                list: Default::default(),
-                added: Default::default(),
-                removed: Default::default(),
-            },
+            list: VisibilityList::Whitelist(Default::default()),
+            added: Default::default(),
+            removed: Default::default(),
         }
     }
 
@@ -86,95 +85,50 @@ impl ClientVisibility {
     ///
     /// Should be called after each tick.
     pub(super) fn update(&mut self) {
-        match &mut self.filter {
-            VisibilityFilter::All => (),
-            VisibilityFilter::Blacklist {
-                list,
-                added,
-                removed,
-            } => {
+        match &mut self.list {
+            VisibilityList::Blacklist(list) => {
                 // Remove all entities queued for removal.
-                for entity in removed.drain() {
+                for entity in self.removed.drain() {
                     list.remove(&entity);
                 }
-                added.clear();
+                self.added.clear();
             }
-            VisibilityFilter::Whitelist {
-                list,
-                added,
-                removed,
-            } => {
+            VisibilityList::Whitelist(list) => {
                 // Change all recently added entities to `WhitelistInfo::Visible`
                 // from `WhitelistInfo::JustVisible`.
-                for entity in added.drain() {
+                for entity in self.added.drain() {
                     list.insert(entity, WhitelistInfo::Visible);
                 }
-                removed.clear();
+                self.removed.clear();
             }
         }
     }
 
     /// Removes a despawned entity tracked by this client.
     pub(super) fn remove_despawned(&mut self, entity: Entity) {
-        match &mut self.filter {
-            VisibilityFilter::All { .. } => (),
-            VisibilityFilter::Blacklist {
-                list,
-                added,
-                removed,
-            } => {
-                if list.remove(&entity).is_some() {
-                    added.remove(&entity);
-                    removed.remove(&entity);
-                }
-            }
-            VisibilityFilter::Whitelist {
-                list,
-                added,
-                removed,
-            } => {
-                if list.remove(&entity).is_some() {
-                    added.remove(&entity);
-                    removed.remove(&entity);
-                }
-            }
+        let removed = match &mut self.list {
+            VisibilityList::Blacklist(list) => list.remove(&entity).is_some(),
+            VisibilityList::Whitelist(list) => list.remove(&entity).is_some(),
+        };
+
+        if removed {
+            self.added.remove(&entity);
+            self.removed.remove(&entity);
         }
     }
 
     /// Drains all entities for which visibility was lost during this tick.
     pub(super) fn drain_lost(&mut self) -> impl Iterator<Item = Entity> + '_ {
-        match &mut self.filter {
-            VisibilityFilter::All { .. } => VisibilityLostIter::AllVisible,
-            VisibilityFilter::Blacklist { added, .. } => VisibilityLostIter::Lost(added.drain()),
-            VisibilityFilter::Whitelist { removed, .. } => {
-                VisibilityLostIter::Lost(removed.drain())
-            }
+        match &mut self.list {
+            VisibilityList::Blacklist(_) => self.added.drain(),
+            VisibilityList::Whitelist(_) => self.removed.drain(),
         }
     }
 
     /// Sets visibility for a specific entity.
-    ///
-    /// Does nothing if the visibility policy for the server plugin is set to [`VisibilityPolicy::All`].
     pub fn set_visibility(&mut self, entity: Entity, visible: bool) {
-        match &mut self.filter {
-            VisibilityFilter::All { .. } => {
-                if visible {
-                    debug!(
-                        "ignoring visibility enable due to {:?}",
-                        VisibilityPolicy::All
-                    );
-                } else {
-                    warn!(
-                        "ignoring visibility disable due to {:?}",
-                        VisibilityPolicy::All
-                    );
-                }
-            }
-            VisibilityFilter::Blacklist {
-                list,
-                added,
-                removed,
-            } => {
+        match &mut self.list {
+            VisibilityList::Blacklist(list) => {
                 if visible {
                     // If the entity is already visible, do nothing.
                     let Entry::Occupied(mut entry) = list.entry(entity) else {
@@ -182,7 +136,7 @@ impl ClientVisibility {
                     };
 
                     // If the entity was previously added in this tick, then undo it.
-                    if added.remove(&entity) {
+                    if self.added.remove(&entity) {
                         entry.remove();
                         return;
                     }
@@ -192,22 +146,18 @@ impl ClientVisibility {
                     // later in `Self::update`. This allows us to avoid accessing
                     // the blacklist's `removed` field in `Self::visibility_state`.
                     entry.insert(BlacklistInfo::QueuedForRemoval);
-                    removed.insert(entity);
+                    self.removed.insert(entity);
                 } else {
                     // If the entity is already registered, reset its removal status.
                     if list.insert(entity, BlacklistInfo::Hidden).is_some() {
-                        removed.remove(&entity);
+                        self.removed.remove(&entity);
                         return;
                     };
 
-                    added.insert(entity);
+                    self.added.insert(entity);
                 }
             }
-            VisibilityFilter::Whitelist {
-                list,
-                added,
-                removed,
-            } => {
+            VisibilityList::Whitelist(list) => {
                 if visible {
                     // Similar to blacklist removal, we don't just add the entity to the list.
                     // Instead we mark it as `WhitelistInfo::JustAdded` and then set it to
@@ -218,9 +168,9 @@ impl ClientVisibility {
                         == WhitelistInfo::JustAdded
                     {
                         // Do not mark an entry as newly added if the entry was already in the list.
-                        added.insert(entity);
+                        self.added.insert(entity);
                     }
-                    removed.remove(&entity);
+                    self.removed.remove(&entity);
                 } else {
                     // If the entity is not in the whitelist, do nothing.
                     if list.remove(&entity).is_none() {
@@ -228,11 +178,11 @@ impl ClientVisibility {
                     }
 
                     // If the entity was added in this tick, then undo it.
-                    if added.remove(&entity) {
+                    if self.added.remove(&entity) {
                         return;
                     }
 
-                    removed.insert(entity);
+                    self.removed.insert(entity);
                 }
             }
         }
@@ -248,14 +198,13 @@ impl ClientVisibility {
 
     /// Returns visibility of a specific entity.
     pub(super) fn state(&self, entity: Entity) -> Visibility {
-        match &self.filter {
-            VisibilityFilter::All => Visibility::Visible,
-            VisibilityFilter::Blacklist { list, .. } => match list.get(&entity) {
+        match &self.list {
+            VisibilityList::Blacklist(list) => match list.get(&entity) {
                 Some(BlacklistInfo::QueuedForRemoval) => Visibility::Gained,
                 Some(BlacklistInfo::Hidden) => Visibility::Hidden,
                 None => Visibility::Visible,
             },
-            VisibilityFilter::Whitelist { list, .. } => match list.get(&entity) {
+            VisibilityList::Whitelist(list) => match list.get(&entity) {
                 Some(WhitelistInfo::JustAdded) => Visibility::Gained,
                 Some(WhitelistInfo::Visible) => Visibility::Visible,
                 None => Visibility::Hidden,
@@ -264,39 +213,9 @@ impl ClientVisibility {
     }
 }
 
-/// Filter for [`ClientVisibility`] based on [`VisibilityPolicy`].
-enum VisibilityFilter {
-    All,
-    Blacklist {
-        /// All blacklisted entities and an indicator of whether they are in the queue for deletion
-        /// at the end of this tick.
-        list: EntityHashMap<BlacklistInfo>,
-
-        /// All entities that were removed from the list in this tick.
-        ///
-        /// Visibility of these entities has been lost.
-        added: EntityHashSet,
-
-        /// All entities that were added to the list in this tick.
-        ///
-        /// Visibility of these entities has been gained.
-        removed: EntityHashSet,
-    },
-    Whitelist {
-        /// All whitelisted entities and an indicator of whether they were added to the list in
-        /// this tick.
-        list: EntityHashMap<WhitelistInfo>,
-
-        /// All entities that were added to the list in this tick.
-        ///
-        /// Visibility of these entities has been gained.
-        added: EntityHashSet,
-
-        /// All entities that were removed from the list in this tick.
-        ///
-        /// Visibility of these entities has been lost.
-        removed: EntityHashSet,
-    },
+enum VisibilityList {
+    Blacklist(EntityHashMap<BlacklistInfo>),
+    Whitelist(EntityHashMap<WhitelistInfo>),
 }
 
 #[derive(PartialEq, Clone, Copy)]
@@ -328,40 +247,9 @@ pub(crate) enum Visibility {
     Visible,
 }
 
-enum VisibilityLostIter<T> {
-    AllVisible,
-    Lost(T),
-}
-
-impl<T: Iterator> Iterator for VisibilityLostIter<T> {
-    type Item = T::Item;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            VisibilityLostIter::AllVisible => None,
-            VisibilityLostIter::Lost(entities) => entities.next(),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn all() {
-        let mut visibility = ClientVisibility::all();
-        assert!(visibility.is_visible(Entity::PLACEHOLDER));
-
-        visibility.set_visibility(Entity::PLACEHOLDER, true);
-        assert!(visibility.is_visible(Entity::PLACEHOLDER));
-
-        visibility.set_visibility(Entity::PLACEHOLDER, false);
-        assert!(
-            visibility.is_visible(Entity::PLACEHOLDER),
-            "shouldn't have any effect for this policy"
-        );
-    }
 
     #[test]
     fn blacklist_insertion() {
@@ -369,33 +257,23 @@ mod tests {
         visibility.set_visibility(Entity::PLACEHOLDER, false);
         assert!(!visibility.is_visible(Entity::PLACEHOLDER));
 
-        let VisibilityFilter::Blacklist {
-            list,
-            added,
-            removed,
-        } = &visibility.filter
-        else {
+        let VisibilityList::Blacklist(list) = &visibility.list else {
             panic!("filter should be a blacklist");
         };
 
         assert!(list.contains_key(&Entity::PLACEHOLDER));
-        assert!(added.contains(&Entity::PLACEHOLDER));
-        assert!(!removed.contains(&Entity::PLACEHOLDER));
+        assert!(visibility.added.contains(&Entity::PLACEHOLDER));
+        assert!(!visibility.removed.contains(&Entity::PLACEHOLDER));
 
         visibility.update();
 
-        let VisibilityFilter::Blacklist {
-            list,
-            added,
-            removed,
-        } = &visibility.filter
-        else {
+        let VisibilityList::Blacklist(list) = &visibility.list else {
             panic!("filter should be a blacklist");
         };
 
         assert!(list.contains_key(&Entity::PLACEHOLDER));
-        assert!(!added.contains(&Entity::PLACEHOLDER));
-        assert!(!removed.contains(&Entity::PLACEHOLDER));
+        assert!(!visibility.added.contains(&Entity::PLACEHOLDER));
+        assert!(!visibility.removed.contains(&Entity::PLACEHOLDER));
     }
 
     #[test]
@@ -406,18 +284,13 @@ mod tests {
         visibility.set_visibility(Entity::PLACEHOLDER, true);
         assert!(visibility.is_visible(Entity::PLACEHOLDER));
 
-        let VisibilityFilter::Blacklist {
-            list,
-            added,
-            removed,
-        } = visibility.filter
-        else {
+        let VisibilityList::Blacklist(list) = visibility.list else {
             panic!("filter should be a blacklist");
         };
 
         assert!(!list.contains_key(&Entity::PLACEHOLDER));
-        assert!(!added.contains(&Entity::PLACEHOLDER));
-        assert!(!removed.contains(&Entity::PLACEHOLDER));
+        assert!(!visibility.added.contains(&Entity::PLACEHOLDER));
+        assert!(!visibility.removed.contains(&Entity::PLACEHOLDER));
     }
 
     #[test]
@@ -428,33 +301,23 @@ mod tests {
         visibility.set_visibility(Entity::PLACEHOLDER, true);
         assert!(visibility.is_visible(Entity::PLACEHOLDER));
 
-        let VisibilityFilter::Blacklist {
-            list,
-            added,
-            removed,
-        } = &visibility.filter
-        else {
+        let VisibilityList::Blacklist(list) = &visibility.list else {
             panic!("filter should be a blacklist");
         };
 
         assert!(list.contains_key(&Entity::PLACEHOLDER));
-        assert!(!added.contains(&Entity::PLACEHOLDER));
-        assert!(removed.contains(&Entity::PLACEHOLDER));
+        assert!(!visibility.added.contains(&Entity::PLACEHOLDER));
+        assert!(visibility.removed.contains(&Entity::PLACEHOLDER));
 
         visibility.update();
 
-        let VisibilityFilter::Blacklist {
-            list,
-            added,
-            removed,
-        } = &visibility.filter
-        else {
+        let VisibilityList::Blacklist(list) = &visibility.list else {
             panic!("filter should be a blacklist");
         };
 
         assert!(!list.contains_key(&Entity::PLACEHOLDER));
-        assert!(!added.contains(&Entity::PLACEHOLDER));
-        assert!(!removed.contains(&Entity::PLACEHOLDER));
+        assert!(!visibility.added.contains(&Entity::PLACEHOLDER));
+        assert!(!visibility.removed.contains(&Entity::PLACEHOLDER));
     }
 
     #[test]
@@ -466,18 +329,13 @@ mod tests {
         visibility.set_visibility(Entity::PLACEHOLDER, true);
         assert!(visibility.is_visible(Entity::PLACEHOLDER));
 
-        let VisibilityFilter::Blacklist {
-            list,
-            added,
-            removed,
-        } = visibility.filter
-        else {
+        let VisibilityList::Blacklist(list) = visibility.list else {
             panic!("filter should be a blacklist");
         };
 
         assert!(!list.contains_key(&Entity::PLACEHOLDER));
-        assert!(!added.contains(&Entity::PLACEHOLDER));
-        assert!(!removed.contains(&Entity::PLACEHOLDER));
+        assert!(!visibility.added.contains(&Entity::PLACEHOLDER));
+        assert!(!visibility.removed.contains(&Entity::PLACEHOLDER));
     }
 
     #[test]
@@ -490,18 +348,13 @@ mod tests {
         visibility.set_visibility(Entity::PLACEHOLDER, false);
         assert!(!visibility.is_visible(Entity::PLACEHOLDER));
 
-        let VisibilityFilter::Blacklist {
-            list,
-            added,
-            removed,
-        } = visibility.filter
-        else {
+        let VisibilityList::Blacklist(list) = visibility.list else {
             panic!("filter should be a blacklist");
         };
 
         assert!(list.contains_key(&Entity::PLACEHOLDER));
-        assert!(!added.contains(&Entity::PLACEHOLDER));
-        assert!(!removed.contains(&Entity::PLACEHOLDER));
+        assert!(!visibility.added.contains(&Entity::PLACEHOLDER));
+        assert!(!visibility.removed.contains(&Entity::PLACEHOLDER));
     }
 
     #[test]
@@ -510,33 +363,23 @@ mod tests {
         visibility.set_visibility(Entity::PLACEHOLDER, true);
         assert!(visibility.is_visible(Entity::PLACEHOLDER));
 
-        let VisibilityFilter::Whitelist {
-            list,
-            added,
-            removed,
-        } = &visibility.filter
-        else {
+        let VisibilityList::Whitelist(list) = &visibility.list else {
             panic!("filter should be a whitelist");
         };
 
         assert!(list.contains_key(&Entity::PLACEHOLDER));
-        assert!(added.contains(&Entity::PLACEHOLDER));
-        assert!(!removed.contains(&Entity::PLACEHOLDER));
+        assert!(visibility.added.contains(&Entity::PLACEHOLDER));
+        assert!(!visibility.removed.contains(&Entity::PLACEHOLDER));
 
         visibility.update();
 
-        let VisibilityFilter::Whitelist {
-            list,
-            added,
-            removed,
-        } = &visibility.filter
-        else {
+        let VisibilityList::Whitelist(list) = &visibility.list else {
             panic!("filter should be a blacklist");
         };
 
         assert!(list.contains_key(&Entity::PLACEHOLDER));
-        assert!(!added.contains(&Entity::PLACEHOLDER));
-        assert!(!removed.contains(&Entity::PLACEHOLDER));
+        assert!(!visibility.added.contains(&Entity::PLACEHOLDER));
+        assert!(!visibility.removed.contains(&Entity::PLACEHOLDER));
     }
 
     #[test]
@@ -547,18 +390,13 @@ mod tests {
         visibility.set_visibility(Entity::PLACEHOLDER, false);
         assert!(!visibility.is_visible(Entity::PLACEHOLDER));
 
-        let VisibilityFilter::Whitelist {
-            list,
-            added,
-            removed,
-        } = visibility.filter
-        else {
+        let VisibilityList::Whitelist(list) = visibility.list else {
             panic!("filter should be a whitelist");
         };
 
         assert!(!list.contains_key(&Entity::PLACEHOLDER));
-        assert!(!added.contains(&Entity::PLACEHOLDER));
-        assert!(!removed.contains(&Entity::PLACEHOLDER));
+        assert!(!visibility.added.contains(&Entity::PLACEHOLDER));
+        assert!(!visibility.removed.contains(&Entity::PLACEHOLDER));
     }
 
     #[test]
@@ -569,33 +407,23 @@ mod tests {
         visibility.set_visibility(Entity::PLACEHOLDER, false);
         assert!(!visibility.is_visible(Entity::PLACEHOLDER));
 
-        let VisibilityFilter::Whitelist {
-            list,
-            added,
-            removed,
-        } = &visibility.filter
-        else {
+        let VisibilityList::Whitelist(list) = &visibility.list else {
             panic!("filter should be a whitelist");
         };
 
         assert!(!list.contains_key(&Entity::PLACEHOLDER));
-        assert!(!added.contains(&Entity::PLACEHOLDER));
-        assert!(removed.contains(&Entity::PLACEHOLDER));
+        assert!(!visibility.added.contains(&Entity::PLACEHOLDER));
+        assert!(visibility.removed.contains(&Entity::PLACEHOLDER));
 
         visibility.update();
 
-        let VisibilityFilter::Whitelist {
-            list,
-            added,
-            removed,
-        } = &visibility.filter
-        else {
+        let VisibilityList::Whitelist(list) = &visibility.list else {
             panic!("filter should be a blacklist");
         };
 
         assert!(!list.contains_key(&Entity::PLACEHOLDER));
-        assert!(!added.contains(&Entity::PLACEHOLDER));
-        assert!(!removed.contains(&Entity::PLACEHOLDER));
+        assert!(!visibility.added.contains(&Entity::PLACEHOLDER));
+        assert!(!visibility.removed.contains(&Entity::PLACEHOLDER));
     }
 
     #[test]
@@ -607,18 +435,13 @@ mod tests {
         visibility.set_visibility(Entity::PLACEHOLDER, false);
         assert!(!visibility.is_visible(Entity::PLACEHOLDER));
 
-        let VisibilityFilter::Whitelist {
-            list,
-            added,
-            removed,
-        } = visibility.filter
-        else {
+        let VisibilityList::Whitelist(list) = visibility.list else {
             panic!("filter should be a blacklist");
         };
 
         assert!(!list.contains_key(&Entity::PLACEHOLDER));
-        assert!(!added.contains(&Entity::PLACEHOLDER));
-        assert!(!removed.contains(&Entity::PLACEHOLDER));
+        assert!(!visibility.added.contains(&Entity::PLACEHOLDER));
+        assert!(!visibility.removed.contains(&Entity::PLACEHOLDER));
     }
 
     #[test]
@@ -631,17 +454,12 @@ mod tests {
         visibility.set_visibility(Entity::PLACEHOLDER, true);
         assert!(visibility.is_visible(Entity::PLACEHOLDER));
 
-        let VisibilityFilter::Whitelist {
-            list,
-            added,
-            removed,
-        } = visibility.filter
-        else {
+        let VisibilityList::Whitelist(list) = visibility.list else {
             panic!("filter should be a blacklist");
         };
 
         assert!(list.contains_key(&Entity::PLACEHOLDER));
-        assert!(!added.contains(&Entity::PLACEHOLDER));
-        assert!(!removed.contains(&Entity::PLACEHOLDER));
+        assert!(!visibility.added.contains(&Entity::PLACEHOLDER));
+        assert!(!visibility.removed.contains(&Entity::PLACEHOLDER));
     }
 }
