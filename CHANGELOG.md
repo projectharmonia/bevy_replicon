@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.1] - 2025-03-15
+
+### Fixed
+
+- Bump the `bevy` dependency to 0.15.3 since we use some fields that were made public in a patch release.
+
 ## [0.31.0] - 2025-03-13
 
 ### Added
@@ -18,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Connected clients are now represented as entities with `ConnectedClient` components. Backends are responsible for spawning and despawning entities with this component. `ClientId` is accessible from `ConnectedClient::id` in case you need an identifier that is persistent across reconnects.
+- Connected clients are now represented as entities with `ConnectedClient` components. Backends are responsible for spawning and despawning entities with this component. `ClientId` is accessible from `ConnectedClient::id` in case you need to identify which client belongs to which connection.
 - Statistics for connected clients now accessible via `ClientStats` component.
 - Replicated entities now represented by connected clients with `ReplicatedClient` component.
 - To access visibility, use `ClientVisibility` component on replicated entities.
@@ -725,7 +731,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release after separation from [Project Harmonia](https://github.com/projectharmonia/project_harmonia).
 
-[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.31.0...HEAD
+[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.31.1...HEAD
+[0.31.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.31.0...v0.31.1
 [0.31.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.30.1...v0.31.0
 [0.30.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.30.0...v0.30.1
 [0.30.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.29.2...v0.30.0

@@ -8,7 +8,47 @@ use super::VisibilityPolicy;
 
 /// Entity visibility settings for a client.
 ///
-/// Present on connected clients after [`ReplicatedClient`](super::ReplicatedClient) insertion.
+/// Dynamically marked as required for [`ReplicatedClient`](super::ReplicatedClient)
+/// based on the value from [`ServerPlugin::visibility_policy`](super::ServerPlugin::visibility_policy).
+///
+/// # Examples
+///
+/// ```
+/// # use bevy::prelude::*;
+/// # use bevy_replicon::prelude::*;
+/// # let mut app = App::new();
+/// app.add_plugins((
+///     MinimalPlugins,
+///     RepliconPlugins.set(ServerPlugin {
+///         visibility_policy: VisibilityPolicy::Whitelist, // Makes all entities invisible for clients by default.
+///         ..Default::default()
+///     }),
+/// ))
+/// .add_systems(Update, update_visibility.run_if(server_running));
+///
+/// /// Disables the visibility of other players' entities that are further away than the visible distance.
+/// fn update_visibility(
+///     mut clients: Query<&mut ClientVisibility>,
+///     moved_players: Query<(&Transform, &PlayerOwner), Changed<Transform>>,
+///     other_players: Query<(Entity, &Transform, &PlayerOwner)>,
+/// ) {
+///     for (moved_transform, &owner) in &moved_players {
+///         let mut visibility = clients.get_mut(*owner).unwrap();
+///         for (entity, transform, _) in other_players
+///             .iter()
+///             .filter(|(.., &other_owner)| *other_owner != *owner)
+///         {
+///             const VISIBLE_DISTANCE: f32 = 100.0;
+///             let distance = moved_transform.translation.distance(transform.translation);
+///             visibility.set_visibility(entity, distance < VISIBLE_DISTANCE);
+///         }
+///     }
+/// }
+///
+/// /// Points to client entity.
+/// #[derive(Component, Deref, Clone, Copy)]
+/// struct PlayerOwner(Entity);
+/// ```
 #[derive(Component)]
 pub struct ClientVisibility {
     /// Wrapped enum to make its fields private.
