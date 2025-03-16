@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy_replicon::{
     core::{
         channels::ReplicationChannel,
-        connected_client::{ConnectedClient, ConnectionId, ConnectionIdMap},
+        connected_client::{ConnectedClient, NetworkId, NetworkIdMap},
     },
     prelude::*,
     server::server_tick::ServerTick,
@@ -87,16 +87,16 @@ fn connect_disconnect() {
         .query_filtered::<Entity, With<ConnectedClient>>();
     let client_entity = clients.single(server_app.world_mut());
 
-    // Assign a dummy connection ID to test connection map.
+    // Assign a dummy network ID to test network map.
     server_app
         .world_mut()
         .entity_mut(client_entity)
-        .insert(ConnectionId::new(0));
-    assert_eq!(server_app.world().resource::<ConnectionIdMap>().len(), 1);
+        .insert(NetworkId::new(0));
+    assert_eq!(server_app.world().resource::<NetworkIdMap>().len(), 1);
 
     server_app.disconnect_client(&mut client_app);
     assert_eq!(clients.iter(server_app.world()).len(), 0);
-    assert_eq!(server_app.world().resource::<ConnectionIdMap>().len(), 0);
+    assert_eq!(server_app.world().resource::<NetworkIdMap>().len(), 0);
 }
 
 #[test]
