@@ -4,7 +4,7 @@ use std::{
 };
 
 use bevy::prelude::*;
-use bevy_replicon::{core::connected_client::ClientId, prelude::*};
+use bevy_replicon::{core::connected_client::ConnectionId, prelude::*};
 
 use super::tcp;
 
@@ -57,11 +57,15 @@ fn receive_packets(
                     error!("unable to enable non-blocking for `{addr}`: {e}");
                     continue;
                 }
-                let client_id = ClientId::new(addr.port().into());
+                let connection_id = ConnectionId::new(addr.port().into());
                 let client_entity = commands
-                    .spawn((ConnectedClient::new(client_id, 1200), ClientStream(stream)))
+                    .spawn((
+                        ConnectedClient { max_size: 1200 },
+                        connection_id,
+                        ClientStream(stream),
+                    ))
                     .id();
-                debug!("connecting `{client_entity}` with `{client_id:?}`");
+                debug!("connecting `{client_entity}` with `{connection_id:?}`");
             }
             Err(e) => {
                 if e.kind() != io::ErrorKind::WouldBlock {

@@ -9,9 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.31.1] - 2025-03-15
 
+### Changed
+
+- Rename `ClientId` into `ConnectionId`.
+- Move `ConnectedClient::id` into a separate optional component for backends that doesn't provide persistent identifiers.
+
 ### Fixed
 
 - Bump the `bevy` dependency to 0.15.3 since we use some fields that were made public in a patch release.
+
+### Removed
+
+- `ConnectedClient::new`, you can now construct the struct directly.
 
 ## [0.31.0] - 2025-03-13
 
