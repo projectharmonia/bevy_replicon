@@ -13,7 +13,7 @@ pub mod server_entity_map;
 use bevy::prelude::*;
 
 use channels::RepliconChannels;
-use connected_client::{ClientIdMap, ConnectedClient, NetworkStats};
+use connected_client::{ConnectedClient, NetworkIdMap, NetworkStats};
 use event::event_registry::EventRegistry;
 use replication::{
     command_markers::CommandMarkers, replication_registry::ReplicationRegistry,
@@ -27,8 +27,9 @@ impl Plugin for RepliconCorePlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<Replicated>()
             .register_type::<ConnectedClient>()
+            .register_type::<NetworkIdMap>()
             .register_type::<NetworkStats>()
-            .init_resource::<ClientIdMap>()
+            .init_resource::<NetworkIdMap>()
             .init_resource::<TrackMutateMessages>()
             .init_resource::<RepliconChannels>()
             .init_resource::<ReplicationRegistry>()

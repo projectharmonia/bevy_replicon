@@ -5,7 +5,7 @@ use std::{
 };
 
 use bevy::prelude::*;
-use bevy_replicon::{core::connected_client::ClientId, prelude::*};
+use bevy_replicon::{core::connected_client::NetworkId, prelude::*};
 
 use super::{
     link_conditioner::{ConditionerConfig, LinkConditioner},
@@ -62,17 +62,18 @@ fn receive_packets(
                     error!("unable to enable non-blocking for `{addr}`: {e}");
                     continue;
                 }
-                let client_id = ClientId::new(addr.port().into());
+                let network_id = NetworkId::new(addr.port().into());
                 let client_entity = commands
                     .spawn((
-                        ConnectedClient::new(client_id, 1200),
+                        ConnectedClient { max_size: 1200 },
+                        network_id,
                         ExampleConnection {
                             stream,
                             conditioner: Default::default(),
                         },
                     ))
                     .id();
-                debug!("connecting `{client_entity}` with `{client_id:?}`");
+                debug!("connecting `{client_entity}` with `{network_id:?}`");
             }
             Err(e) => {
                 if e.kind() != io::ErrorKind::WouldBlock {
