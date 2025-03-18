@@ -27,8 +27,8 @@ use crate::core::{
     replication::{
         client_ticks::{ClientTicks, EntityBuffer},
         replication_registry::{
-            component_fns::ComponentFns, ctx::SerializeCtx, rule_fns::UntypedRuleFns,
-            ReplicationRegistry,
+            ReplicationRegistry, component_fns::ComponentFns, ctx::SerializeCtx,
+            rule_fns::UntypedRuleFns,
         },
         track_mutate_messages::TrackMutateMessages,
     },

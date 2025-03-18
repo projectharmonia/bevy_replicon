@@ -2,8 +2,8 @@ use bevy::{ecs::world::CommandQueue, prelude::*};
 use bytes::Bytes;
 
 use super::{
-    ctx::{DespawnCtx, RemoveCtx, SerializeCtx, WriteCtx},
     FnsId, ReplicationRegistry,
+    ctx::{DespawnCtx, RemoveCtx, SerializeCtx, WriteCtx},
 };
 use crate::core::{
     replication::{

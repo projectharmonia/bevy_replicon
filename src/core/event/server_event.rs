@@ -11,7 +11,7 @@ use bevy::{
 use bytes::Bytes;
 use ordered_multimap::ListOrderedMultimap;
 use postcard::experimental::{max_size::MaxSize, serialized_size};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 use super::{
     ctx::{ClientReceiveCtx, ServerSendCtx},
@@ -19,13 +19,13 @@ use super::{
     event_registry::EventRegistry,
 };
 use crate::core::{
+    ConnectedClient, SERVER,
     channels::{RepliconChannel, RepliconChannels},
     postcard_utils,
     replication::client_ticks::ClientTicks,
     replicon_client::RepliconClient,
     replicon_server::RepliconServer,
     replicon_tick::RepliconTick,
-    ConnectedClient, SERVER,
 };
 
 /// An extension trait for [`App`] for creating client events.

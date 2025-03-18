@@ -5,8 +5,8 @@ use std::{
 
 use bevy::prelude::*;
 use bevy_replicon::{prelude::*, test_app::ServerTestAppExt};
-use criterion::{criterion_group, criterion_main, Criterion};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use criterion::{Criterion, criterion_group, criterion_main};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 #[derive(Clone, Component, Default, Deserialize, Serialize)]
 struct UsizeComponent(usize);

@@ -5,11 +5,10 @@ use bevy_replicon::{
             command_markers::MarkerConfig,
             deferred_entity::DeferredEntity,
             replication_registry::{
-                command_fns,
+                ReplicationRegistry, command_fns,
                 ctx::{DespawnCtx, WriteCtx},
                 rule_fns::RuleFns,
                 test_fns::TestFnsEntityExt,
-                ReplicationRegistry,
             },
         },
         replicon_tick::RepliconTick,

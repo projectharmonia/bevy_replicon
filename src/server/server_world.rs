@@ -12,7 +12,7 @@ use bevy::{
 };
 
 use crate::core::replication::{
-    replication_registry::FnsId, replication_rules::ReplicationRules, Replicated,
+    Replicated, replication_registry::FnsId, replication_rules::ReplicationRules,
 };
 
 /// A [`SystemParam`] that wraps [`World`], but provides access only for replicated components.

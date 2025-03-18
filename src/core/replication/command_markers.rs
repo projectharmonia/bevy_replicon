@@ -3,8 +3,8 @@ use std::cmp::Reverse;
 use bevy::{ecs::component::ComponentId, prelude::*};
 
 use super::replication_registry::{
-    command_fns::{RemoveFn, WriteFn},
     ReplicationRegistry,
+    command_fns::{RemoveFn, WriteFn},
 };
 
 /// Marker-based functions for [`App`].

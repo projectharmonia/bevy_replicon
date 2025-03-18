@@ -595,7 +595,9 @@ pub mod test_app;
 
 pub mod prelude {
     pub use super::{
+        RepliconPlugins,
         core::{
+            RepliconCorePlugin, SERVER,
             channels::{ChannelKind, RepliconChannel, RepliconChannels},
             common_conditions::*,
             connected_client::{ConnectedClient, NetworkStats},
@@ -606,25 +608,23 @@ pub mod prelude {
                 server_trigger::{ServerTriggerAppExt, ServerTriggerExt},
             },
             replication::{
-                command_markers::AppMarkerExt, replication_rules::AppRuleExt, Replicated,
+                Replicated, command_markers::AppMarkerExt, replication_rules::AppRuleExt,
             },
             replicon_client::{RepliconClient, RepliconClientStatus},
             replicon_server::RepliconServer,
-            RepliconCorePlugin, SERVER,
         },
-        RepliconPlugins,
     };
 
     #[cfg(feature = "client")]
     pub use super::client::{
-        event::ClientEventPlugin, ClientPlugin, ClientReplicationStats, ClientSet,
+        ClientPlugin, ClientReplicationStats, ClientSet, event::ClientEventPlugin,
     };
 
     #[cfg(feature = "server")]
     pub use super::server::{
+        ReplicatedClient, ServerPlugin, ServerSet, TickPolicy, VisibilityPolicy,
         client_entity_map::ClientEntityMap, client_visibility::ClientVisibility,
-        event::ServerEventPlugin, ReplicatedClient, ServerPlugin, ServerSet, TickPolicy,
-        VisibilityPolicy,
+        event::ServerEventPlugin,
     };
 
     #[cfg(feature = "client_diagnostics")]
