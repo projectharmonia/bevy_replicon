@@ -3,7 +3,7 @@ use bevy::{
     prelude::*,
 };
 
-use super::{server_tick::ServerTick, ServerSet};
+use super::{ServerSet, server_tick::ServerTick};
 use crate::core::{
     common_conditions::*,
     connected_client::ConnectedClient,

@@ -5,9 +5,9 @@ use bevy::{
     prelude::*,
     utils::HashSet,
 };
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
-use super::replication_registry::{rule_fns::RuleFns, FnsId, ReplicationRegistry};
+use super::replication_registry::{FnsId, ReplicationRegistry, rule_fns::RuleFns};
 
 /// Replication functions for [`App`].
 pub trait AppRuleExt {

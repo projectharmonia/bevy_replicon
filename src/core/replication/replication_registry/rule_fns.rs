@@ -5,7 +5,7 @@ use std::{
 
 use bevy::{ecs::entity::MapEntities, prelude::*};
 use bytes::Bytes;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 use super::ctx::{SerializeCtx, WriteCtx};
 use crate::core::postcard_utils;

@@ -16,8 +16,8 @@ use channels::RepliconChannels;
 use connected_client::{ConnectedClient, NetworkIdMap, NetworkStats};
 use event::event_registry::EventRegistry;
 use replication::{
-    command_markers::CommandMarkers, replication_registry::ReplicationRegistry,
-    replication_rules::ReplicationRules, track_mutate_messages::TrackMutateMessages, Replicated,
+    Replicated, command_markers::CommandMarkers, replication_registry::ReplicationRegistry,
+    replication_rules::ReplicationRules, track_mutate_messages::TrackMutateMessages,
 };
 
 /// Initializes types and resources needed for both client and server.

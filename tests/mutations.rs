@@ -1,8 +1,8 @@
 use bevy::{ecs::entity::MapEntities, prelude::*, utils::Duration};
 use bevy_replicon::{
     client::{
-        confirm_history::{ConfirmHistory, EntityReplicated},
         ServerUpdateTick,
+        confirm_history::{ConfirmHistory, EntityReplicated},
     },
     core::{
         replication::{

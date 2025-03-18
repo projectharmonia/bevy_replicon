@@ -6,7 +6,7 @@ use bevy::{
     ptr::{Ptr, PtrMut},
 };
 use bytes::Bytes;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 use super::{
     ctx::{ClientSendCtx, ServerReceiveCtx},
@@ -14,11 +14,11 @@ use super::{
     event_registry::EventRegistry,
 };
 use crate::core::{
+    SERVER,
     channels::{RepliconChannel, RepliconChannels},
     postcard_utils,
     replicon_client::RepliconClient,
     replicon_server::RepliconServer,
-    SERVER,
 };
 
 /// An extension trait for [`App`] for creating client events.
@@ -241,7 +241,7 @@ impl ClientEvent {
         reader: PtrMut,
         client: &mut RepliconClient,
     ) {
-        (self.send)(self, ctx, events, reader, client);
+        unsafe { (self.send)(self, ctx, events, reader, client) };
     }
 
     /// Typed version of [`Self::send`].
@@ -257,10 +257,11 @@ impl ClientEvent {
         reader: PtrMut,
         client: &mut RepliconClient,
     ) {
-        let reader: &mut ClientEventReader<E> = reader.deref_mut();
-        for event in reader.read(events.deref()) {
+        let reader: &mut ClientEventReader<E> = unsafe { reader.deref_mut() };
+        let events = unsafe { events.deref() };
+        for event in reader.read(events) {
             let mut message = Vec::new();
-            if let Err(e) = self.serialize::<E, I>(ctx, event, &mut message) {
+            if let Err(e) = unsafe { self.serialize::<E, I>(ctx, event, &mut message) } {
                 error!(
                     "ignoring event `{}` that failed to serialize: {e}",
                     any::type_name::<E>()
@@ -285,7 +286,7 @@ impl ClientEvent {
         client_events: PtrMut,
         server: &mut RepliconServer,
     ) {
-        (self.receive)(self, ctx, client_events, server);
+        unsafe { (self.receive)(self, ctx, client_events, server) }
     }
 
     /// Typed version of [`Self::receive`].
@@ -300,9 +301,9 @@ impl ClientEvent {
         client_events: PtrMut,
         server: &mut RepliconServer,
     ) {
-        let client_events: &mut Events<FromClient<E>> = client_events.deref_mut();
+        let client_events: &mut Events<FromClient<E>> = unsafe { client_events.deref_mut() };
         for (client_entity, mut message) in server.receive(self.channel_id) {
-            match self.deserialize::<E, I>(ctx, &mut message) {
+            match unsafe { self.deserialize::<E, I>(ctx, &mut message) } {
                 Ok(event) => {
                     debug!(
                         "applying event `{}` from client `{client_entity}`",
@@ -328,7 +329,7 @@ impl ClientEvent {
     /// The caller must ensure that `events` is [`Events<E>`], `client_events` is [`Events<FromClient<E>>`]
     /// and this instance was created for `E`.
     pub(crate) unsafe fn resend_locally(&self, client_events: PtrMut, events: PtrMut) {
-        (self.resend_locally)(client_events, events);
+        unsafe { (self.resend_locally)(client_events, events) }
     }
 
     /// Typed version of [`ClientEvent::resend_locally`].
@@ -337,8 +338,8 @@ impl ClientEvent {
     ///
     /// The caller must ensure that `events` is [`Events<E>`] and `server_events` is [`Events<ToClients<E>>`].
     unsafe fn resend_locally_typed<E: Event>(server_events: PtrMut, events: PtrMut) {
-        let client_events: &mut Events<FromClient<E>> = server_events.deref_mut();
-        let events: &mut Events<E> = events.deref_mut();
+        let client_events: &mut Events<FromClient<E>> = unsafe { server_events.deref_mut() };
+        let events: &mut Events<E> = unsafe { events.deref_mut() };
         if !events.is_empty() {
             debug!(
                 "resending {} event(s) `{}` locally",
@@ -359,7 +360,7 @@ impl ClientEvent {
     /// The caller must ensure that `events` is [`Events<E>`]
     /// and this instance was created for `E`.
     pub(crate) unsafe fn reset(&self, events: PtrMut) {
-        (self.reset)(events);
+        unsafe { (self.reset)(events) }
     }
 
     /// Typed version of [`ClientEvent::reset`].
@@ -368,7 +369,7 @@ impl ClientEvent {
     ///
     /// The caller must ensure that `events` is [`Events<E>`].
     unsafe fn reset_typed<E: Event>(events: PtrMut) {
-        let events: &mut Events<E> = events.deref_mut();
+        let events: &mut Events<E> = unsafe { events.deref_mut() };
         let drained_count = events.drain().count();
         if drained_count > 0 {
             warn!("discarded {drained_count} events due to a disconnect");
@@ -386,9 +387,11 @@ impl ClientEvent {
         event: &E,
         message: &mut Vec<u8>,
     ) -> postcard::Result<()> {
-        self.event_fns
-            .typed::<ClientSendCtx, ServerReceiveCtx, E, I>()
-            .serialize(ctx, event, message)?;
+        unsafe {
+            self.event_fns
+                .typed::<ClientSendCtx, ServerReceiveCtx, E, I>()
+                .serialize(ctx, event, message)?;
+        }
 
         if ctx.invalid_entities.is_empty() {
             Ok(())
@@ -413,9 +416,11 @@ impl ClientEvent {
         ctx: &mut ServerReceiveCtx,
         message: &mut Bytes,
     ) -> postcard::Result<E> {
-        self.event_fns
-            .typed::<ClientSendCtx, ServerReceiveCtx, E, I>()
-            .deserialize(ctx, message)
+        unsafe {
+            self.event_fns
+                .typed::<ClientSendCtx, ServerReceiveCtx, E, I>()
+                .deserialize(ctx, message)
+        }
     }
 }
 

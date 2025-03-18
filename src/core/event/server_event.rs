@@ -11,7 +11,7 @@ use bevy::{
 use bytes::Bytes;
 use ordered_multimap::ListOrderedMultimap;
 use postcard::experimental::{max_size::MaxSize, serialized_size};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 use super::{
     ctx::{ClientReceiveCtx, ServerSendCtx},
@@ -19,13 +19,13 @@ use super::{
     event_registry::EventRegistry,
 };
 use crate::core::{
+    ConnectedClient, SERVER,
     channels::{RepliconChannel, RepliconChannels},
     postcard_utils,
     replication::client_ticks::ClientTicks,
     replicon_client::RepliconClient,
     replicon_server::RepliconServer,
     replicon_tick::RepliconTick,
-    ConnectedClient, SERVER,
 };
 
 /// An extension trait for [`App`] for creating client events.
@@ -290,7 +290,7 @@ impl ServerEvent {
         clients: &Query<Entity, With<ConnectedClient>>,
         buffered_events: &mut BufferedServerEvents,
     ) {
-        (self.send_or_buffer)(self, ctx, server_events, server, clients, buffered_events);
+        unsafe { (self.send_or_buffer)(self, ctx, server_events, server, clients, buffered_events) }
     }
 
     /// Typed version of [`Self::send_or_buffer`].
@@ -307,18 +307,22 @@ impl ServerEvent {
         clients: &Query<Entity, With<ConnectedClient>>,
         buffered_events: &mut BufferedServerEvents,
     ) {
-        let events: &Events<ToClients<E>> = server_events.deref();
+        let events: &Events<ToClients<E>> = unsafe { server_events.deref() };
         // For server events we don't track read events because
         // all of them will always be drained in the local resending system.
         for ToClients { event, mode } in events.get_cursor().read(events) {
             debug!("sending event `{}` with `{mode:?}`", any::type_name::<E>());
 
             if self.is_independent() {
-                self.send_independent_event::<E, I>(ctx, event, mode, server, clients)
-                    .expect("independent server event should be serializable");
+                unsafe {
+                    self.send_independent_event::<E, I>(ctx, event, mode, server, clients)
+                        .expect("independent server event should be serializable");
+                }
             } else {
-                self.buffer_event::<E, I>(ctx, event, *mode, buffered_events)
-                    .expect("server event should be serializable");
+                unsafe {
+                    self.buffer_event::<E, I>(ctx, event, *mode, buffered_events)
+                        .expect("server event should be serializable");
+                }
             }
         }
     }
@@ -339,7 +343,7 @@ impl ServerEvent {
         clients: &Query<Entity, With<ConnectedClient>>,
     ) -> postcard::Result<()> {
         let mut message = Vec::new();
-        self.serialize::<E, I>(ctx, event, &mut message)?;
+        unsafe { self.serialize::<E, I>(ctx, event, &mut message)? }
         let message: Bytes = message.into();
 
         match *mode {
@@ -379,7 +383,7 @@ impl ServerEvent {
         mode: SendMode,
         buffered_events: &mut BufferedServerEvents,
     ) -> postcard::Result<()> {
-        let message = self.serialize_with_padding::<E, I>(ctx, event)?;
+        let message = unsafe { self.serialize_with_padding::<E, I>(ctx, event)? };
         buffered_events.insert(mode, self.channel_id, message);
         Ok(())
     }
@@ -397,7 +401,7 @@ impl ServerEvent {
         event: &E,
     ) -> postcard::Result<SerializedMessage> {
         let mut message = vec![0; RepliconTick::POSTCARD_MAX_SIZE]; // Padding for the tick.
-        self.serialize::<E, I>(ctx, event, &mut message)?;
+        unsafe { self.serialize::<E, I>(ctx, event, &mut message)? }
         let message = SerializedMessage::Raw(message);
 
         Ok(message)
@@ -417,7 +421,7 @@ impl ServerEvent {
         client: &mut RepliconClient,
         update_tick: RepliconTick,
     ) {
-        (self.receive)(self, ctx, events, queue, client, update_tick);
+        unsafe { (self.receive)(self, ctx, events, queue, client, update_tick) }
     }
 
     /// Typed version of [`ServerEvent::receive`].
@@ -434,11 +438,11 @@ impl ServerEvent {
         client: &mut RepliconClient,
         update_tick: RepliconTick,
     ) {
-        let events: &mut Events<E> = events.deref_mut();
-        let queue: &mut ServerEventQueue<E> = queue.deref_mut();
+        let events: &mut Events<E> = unsafe { events.deref_mut() };
+        let queue: &mut ServerEventQueue<E> = unsafe { queue.deref_mut() };
 
         while let Some((tick, mut message)) = queue.pop_if_le(update_tick) {
-            match self.deserialize::<E, I>(ctx, &mut message) {
+            match unsafe { self.deserialize::<E, I>(ctx, &mut message) } {
                 Ok(event) => {
                     debug!(
                         "applying event `{}` from queue with `{tick:?}`",
@@ -477,7 +481,7 @@ impl ServerEvent {
                 }
             }
 
-            match self.deserialize::<E, I>(ctx, &mut message) {
+            match unsafe { self.deserialize::<E, I>(ctx, &mut message) } {
                 Ok(event) => {
                     debug!("applying event `{}`", any::type_name::<E>());
                     events.send(event);
@@ -497,7 +501,7 @@ impl ServerEvent {
     /// The caller must ensure that `events` is [`Events<E>`], `server_events` is [`Events<ToClients<E>>`],
     /// and this instance was created for `E`.
     pub(crate) unsafe fn resend_locally(&self, server_events: PtrMut, events: PtrMut) {
-        (self.resend_locally)(server_events, events);
+        unsafe { (self.resend_locally)(server_events, events) }
     }
 
     /// Typed version of [`Self::resend_locally`].
@@ -506,8 +510,8 @@ impl ServerEvent {
     ///
     /// The caller must ensure that `events` is [`Events<E>`] and `server_events` is [`Events<ToClients<E>>`].
     unsafe fn resend_locally_typed<E: Event>(server_events: PtrMut, events: PtrMut) {
-        let server_events: &mut Events<ToClients<E>> = server_events.deref_mut();
-        let events: &mut Events<E> = events.deref_mut();
+        let server_events: &mut Events<ToClients<E>> = unsafe { server_events.deref_mut() };
+        let events: &mut Events<E> = unsafe { events.deref_mut() };
         for ToClients { event, mode } in server_events.drain() {
             debug!("resending event `{}` locally", any::type_name::<E>());
             match mode {
@@ -537,7 +541,7 @@ impl ServerEvent {
     /// The caller must ensure that `queue` is [`Events<E>`]
     /// and this instance was created for `E`.
     pub(crate) unsafe fn reset(&self, queue: PtrMut) {
-        (self.reset)(queue);
+        unsafe { (self.reset)(queue) }
     }
 
     /// Typed version of [`Self::reset`].
@@ -546,7 +550,7 @@ impl ServerEvent {
     ///
     /// The caller must ensure that `queue` is [`Events<E>`].
     unsafe fn reset_typed<E: Event>(queue: PtrMut) {
-        let queue: &mut ServerEventQueue<E> = queue.deref_mut();
+        let queue: &mut ServerEventQueue<E> = unsafe { queue.deref_mut() };
         if !queue.is_empty() {
             warn!(
                 "discarding {} queued events due to a disconnect",
@@ -567,9 +571,11 @@ impl ServerEvent {
         event: &E,
         message: &mut Vec<u8>,
     ) -> postcard::Result<()> {
-        self.event_fns
-            .typed::<ServerSendCtx, ClientReceiveCtx, E, I>()
-            .serialize(ctx, event, message)
+        unsafe {
+            self.event_fns
+                .typed::<ServerSendCtx, ClientReceiveCtx, E, I>()
+                .serialize(ctx, event, message)
+        }
     }
 
     /// Deserializes an event from a message.
@@ -582,10 +588,11 @@ impl ServerEvent {
         ctx: &mut ClientReceiveCtx,
         message: &mut Bytes,
     ) -> postcard::Result<E> {
-        let event = self
-            .event_fns
-            .typed::<ServerSendCtx, ClientReceiveCtx, E, I>()
-            .deserialize(ctx, message)?;
+        let event = unsafe {
+            self.event_fns
+                .typed::<ServerSendCtx, ClientReceiveCtx, E, I>()
+                .deserialize(ctx, message)?
+        };
 
         if ctx.invalid_entities.is_empty() {
             Ok(event)

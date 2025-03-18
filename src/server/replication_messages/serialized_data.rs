@@ -5,7 +5,7 @@ use bevy::{prelude::*, ptr::Ptr};
 use crate::core::{
     entity_serde, postcard_utils,
     replication::replication_registry::{
-        component_fns::ComponentFns, ctx::SerializeCtx, rule_fns::UntypedRuleFns, FnsId,
+        FnsId, component_fns::ComponentFns, ctx::SerializeCtx, rule_fns::UntypedRuleFns,
     },
     replicon_tick::RepliconTick,
 };

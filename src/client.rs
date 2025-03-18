@@ -13,16 +13,16 @@ use crate::core::{
     common_conditions::{client_connected, client_just_connected, client_just_disconnected},
     entity_serde, postcard_utils,
     replication::{
+        Replicated,
         command_markers::{CommandMarkers, EntityMarkers},
         deferred_entity::DeferredEntity,
         mutate_index::MutateIndex,
         replication_registry::{
-            ctx::{DespawnCtx, RemoveCtx, WriteCtx},
             ReplicationRegistry,
+            ctx::{DespawnCtx, RemoveCtx, WriteCtx},
         },
         track_mutate_messages::TrackMutateMessages,
         update_message_flags::UpdateMessageFlags,
-        Replicated,
     },
     replicon_client::RepliconClient,
     replicon_tick::RepliconTick,
@@ -362,7 +362,9 @@ fn apply_entity_mapping(
         params.entity_map.insert(server_entity, client_entity);
     } else {
         // Entity could be despawned on client already.
-        debug!("received mapping from {server_entity:?} to {client_entity:?}, but the entity doesn't exists");
+        debug!(
+            "received mapping from {server_entity:?} to {client_entity:?}, but the entity doesn't exists"
+        );
     }
 
     Ok(())
