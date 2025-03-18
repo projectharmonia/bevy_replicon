@@ -35,7 +35,7 @@ use bevy::{
 ///         let mut visibility = clients.get_mut(*owner).unwrap();
 ///         for (entity, transform, _) in other_players
 ///             .iter()
-///             .filter(|(.., &other_owner)| *other_owner != *owner)
+///             .filter(|&(.., other_owner)| **other_owner != *owner)
 ///         {
 ///             const VISIBLE_DISTANCE: f32 = 100.0;
 ///             let distance = moved_transform.translation.distance(transform.translation);
