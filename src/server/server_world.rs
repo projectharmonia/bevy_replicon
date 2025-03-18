@@ -39,9 +39,9 @@ impl<'w> ServerWorld<'w, '_> {
     ) -> (Ptr<'w>, ComponentTicks) {
         debug_assert!(self.state.access.has_component_read(component_id));
 
-        let storages = self.world.storages();
+        let storages = unsafe { self.world.storages() };
         match storage_type {
-            StorageType::Table => {
+            StorageType::Table => unsafe {
                 let table = storages.tables.get(table_id).unwrap_unchecked();
                 // TODO: re-use column lookup, asked in https://github.com/bevyengine/bevy/issues/16593.
                 let component: Ptr<'w> = table
@@ -52,14 +52,14 @@ impl<'w> ServerWorld<'w, '_> {
                     .unwrap_unchecked();
 
                 (component, ticks)
-            }
-            StorageType::SparseSet => {
+            },
+            StorageType::SparseSet => unsafe {
                 let sparse_set = storages.sparse_sets.get(component_id).unwrap_unchecked();
                 let component = sparse_set.get(entity.id()).unwrap_unchecked();
                 let ticks = sparse_set.get_ticks(entity.id()).unwrap_unchecked();
 
                 (component, ticks)
-            }
+            },
         }
     }
 
@@ -150,7 +150,9 @@ unsafe impl SystemParam for ServerWorld<'_, '_> {
                     continue;
                 }
 
-                let storage_type = archetype.get_storage_type(component_id).unwrap_unchecked();
+                // SAFETY: archetype matches the rule, so the component is present.
+                let storage_type =
+                    unsafe { archetype.get_storage_type(component_id).unwrap_unchecked() };
                 replicated_archetype.components.push(ReplicatedComponent {
                     component_id,
                     storage_type,
@@ -161,12 +163,15 @@ unsafe impl SystemParam for ServerWorld<'_, '_> {
 
         // Update system access for proper parallelization.
         for component in &replicated_archetype.components {
-            let archetype_id = archetype
-                .get_archetype_component_id(component.component_id)
-                .unwrap_unchecked();
-            system_meta
-                .archetype_component_access_mut()
-                .add_component_read(archetype_id)
+            // SAFETY: archetype contains this component and we don't remove access from system meta.
+            unsafe {
+                let archetype_id = archetype
+                    .get_archetype_component_id(component.component_id)
+                    .unwrap_unchecked();
+                system_meta
+                    .archetype_component_access_mut()
+                    .add_component_read(archetype_id)
+            }
         }
 
         // Store for future iteration.

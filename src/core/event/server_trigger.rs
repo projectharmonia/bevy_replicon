@@ -114,7 +114,7 @@ impl ServerTrigger {
     /// The caller must ensure that `events` is [`Events<RemoteTrigger<E>>`]
     /// and this instance was created for `E`.
     unsafe fn trigger_typed<E: Event>(commands: &mut Commands, events: PtrMut) {
-        let events: &mut Events<RemoteTrigger<E>> = events.deref_mut();
+        let events: &mut Events<RemoteTrigger<E>> = unsafe { events.deref_mut() };
         for trigger in events.drain() {
             debug!("triggering `{}`", any::type_name::<E>());
             commands.trigger_targets(trigger.event, trigger.targets);
