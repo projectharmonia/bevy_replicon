@@ -126,7 +126,8 @@ By default all components are serialized with [`postcard`].
 In order to serialize Bevy components you need to enable the `serialize` feature on Bevy.
 
 If your component doesn't implement serde traits or you want to customize the serialization
-(for example, quantize or apply compression), you can use [`AppRuleExt::replicate_with()`].
+(for example, quantize, skip some fields or apply compression), you can use
+[`AppRuleExt::replicate_with()`].
 
 If you want a group of components to be replicated only if all of them are present on an entity,
 you can use [`AppRuleExt::replicate_group()`].
@@ -135,8 +136,7 @@ you can use [`AppRuleExt::replicate_group()`].
 
 You don't want to replicate all components because not all of them are
 necessary to send over the network. Components that can be calculated on the client can
-be inserted using Bevy's required components feature. For components that require world access,
-you can create a special system to insert such components after entity spawn.
+be inserted using Bevy's required components feature.
 
 ```
 # use bevy::prelude::*;
@@ -181,7 +181,9 @@ systems will restore the correct game state.
 
 If a component can't be used with the required components due to the inability to insert it
 without world access, you can create an observer for a replicated marker and insert the actual
-component inside it.
+component inside it. However, it's preferred to use required components when possible. For example,
+it's better to require a [`Handle<T>`] with a default value that doesn't point to any asset
+and initialize it later in a hook or observer. This way you avoid archetype moves in ECS.
 
 #### Component relations
 
