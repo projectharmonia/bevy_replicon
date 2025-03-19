@@ -1,12 +1,16 @@
 use std::{
     io,
     net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
+    time::Instant,
 };
 
 use bevy::prelude::*;
 use bevy_replicon::{core::connected_client::NetworkId, prelude::*};
 
-use super::tcp;
+use super::{
+    link_conditioner::{ConditionerConfig, LinkConditioner},
+    tcp,
+};
 
 /// Adds a server messaging backend made for examples to `bevy_replicon`.
 pub struct RepliconExampleServerPlugin;
@@ -44,7 +48,8 @@ fn receive_packets(
     mut commands: Commands,
     server: Res<ExampleServer>,
     mut replicon_server: ResMut<RepliconServer>,
-    mut clients: Query<(Entity, &mut ClientStream)>,
+    mut clients: Query<(Entity, &mut ExampleConnection, Option<&ConditionerConfig>)>,
+    global_config: Option<Res<ConditionerConfig>>,
 ) {
     loop {
         match server.0.accept() {
@@ -62,7 +67,10 @@ fn receive_packets(
                     .spawn((
                         ConnectedClient { max_size: 1200 },
                         network_id,
-                        ClientStream(stream),
+                        ExampleConnection {
+                            stream,
+                            conditioner: Default::default(),
+                        },
                     ))
                     .id();
                 debug!("connecting `{client_entity}` with `{network_id:?}`");
@@ -77,12 +85,14 @@ fn receive_packets(
         }
     }
 
-    for (client_entity, mut stream) in &mut clients {
+    let now = Instant::now();
+    for (client_entity, mut connection, config) in &mut clients {
+        let config = config.or(global_config.as_deref());
         loop {
-            match tcp::read_message(&mut stream) {
-                Ok((channel_id, message)) => {
-                    replicon_server.insert_received(client_entity, channel_id, message)
-                }
+            match tcp::read_message(&mut connection.stream) {
+                Ok((channel_id, message)) => connection
+                    .conditioner
+                    .insert(config, now, channel_id, message),
                 Err(e) => {
                     match e.kind() {
                         io::ErrorKind::WouldBlock => (),
@@ -99,19 +109,23 @@ fn receive_packets(
                 }
             }
         }
+
+        while let Some((channel_id, message)) = connection.conditioner.pop(now) {
+            replicon_server.insert_received(client_entity, channel_id, message)
+        }
     }
 }
 
 fn send_packets(
     mut commands: Commands,
     mut replicon_server: ResMut<RepliconServer>,
-    mut clients: Query<&mut ClientStream>,
+    mut clients: Query<&mut ExampleConnection>,
 ) {
     for (client_entity, channel_id, message) in replicon_server.drain_sent() {
-        let mut stream = clients
+        let mut connection = clients
             .get_mut(client_entity)
             .expect("all connected clients should have streams");
-        if let Err(e) = tcp::send_message(&mut stream, channel_id, &message) {
+        if let Err(e) = tcp::send_message(&mut connection.stream, channel_id, &message) {
             commands.entity(client_entity).despawn();
             error!("disconnecting client `{client_entity}` due to error: {e}");
         }
@@ -136,6 +150,9 @@ impl ExampleServer {
     }
 }
 
-/// A stream for a connected client.
-#[derive(Component, Deref, DerefMut)]
-struct ClientStream(TcpStream);
+/// A connected for a client.
+#[derive(Component)]
+struct ExampleConnection {
+    stream: TcpStream,
+    conditioner: LinkConditioner,
+}
