@@ -775,7 +775,7 @@ impl BufferedServerEvents {
     pub(crate) fn send_all(
         &mut self,
         server: &mut RepliconServer,
-        clients: &Query<(Entity, &ClientTicks)>,
+        clients: &Query<(Entity, Option<&ClientTicks>)>,
     ) -> postcard::Result<()> {
         for mut set in self.buffer.drain(..) {
             for mut event in set.events.drain(..) {
@@ -784,7 +784,14 @@ impl BufferedServerEvents {
                         for (client_entity, ticks) in
                             clients.iter().filter(|(e, _)| !set.excluded.contains(e))
                         {
-                            event.send(server, client_entity, ticks)?;
+                            if let Some(ticks) = ticks {
+                                event.send(server, client_entity, ticks)?;
+                            } else {
+                                debug!(
+                                    "ignoring broadcast for channel {} for non-replicated client `{client_entity}`",
+                                    event.channel
+                                );
+                            }
                         }
                     }
                     SendMode::BroadcastExcept(entity) => {
@@ -794,13 +801,27 @@ impl BufferedServerEvents {
                             if client_entity == entity {
                                 continue;
                             }
-                            event.send(server, client_entity, ticks)?;
+                            if let Some(ticks) = ticks {
+                                event.send(server, client_entity, ticks)?;
+                            } else {
+                                debug!(
+                                    "ignoring broadcast except `{entity}` for channel {} for non-replicated client `{client_entity}`",
+                                    event.channel
+                                );
+                            }
                         }
                     }
                     SendMode::Direct(entity) => {
                         if entity != SERVER && !set.excluded.contains(&entity) {
                             if let Ok((client_entity, ticks)) = clients.get(entity) {
-                                event.send(server, client_entity, ticks)?;
+                                if let Some(ticks) = ticks {
+                                    event.send(server, client_entity, ticks)?;
+                                } else {
+                                    error!(
+                                        "ignoring direct event for non-replicated client `{client_entity}`, \
+                                         mark it as independent to allow this"
+                                    );
+                                }
                             }
                         }
                     }
