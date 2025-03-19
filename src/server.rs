@@ -62,10 +62,10 @@ pub struct ServerPlugin {
     /// If enabled, replication will be started automatically after connection.
     ///
     /// If disabled, replication should be started manually by inserting [`ReplicatedClient`] on the client entity.
-    /// Until replication has started, the client and server can still exchange network events.
     ///
-    /// All events from server will be buffered on client until replication starts, except the ones marked as independent.
-    /// See also [`ServerEventAppExt::make_independent`](crate::core::event::server_event::ServerEventAppExt::make_independent).
+    /// Until replication has started, the client and server can still exchange network events that are marked as
+    /// independent via [`ServerEventAppExt::make_independent`](crate::core::event::server_event::ServerEventAppExt::make_independent).
+    /// **All other events will be ignored**.
     pub replicate_after_connect: bool,
 }
 
