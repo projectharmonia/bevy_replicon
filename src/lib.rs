@@ -187,15 +187,8 @@ and initialize it later in a hook or observer. This way you avoid archetype move
 
 #### Component relations
 
-Some components depend on each other. For example, [`Parent`] and [`Children`]. However, enabling
-replication for [`Parent`] won't work because [`Children`] won't be automatically updated. In this
-case, you need to create a third component that correctly updates the other two when it changes,
-and only replicate that one. This crate provides the [`ParentSync`] component, which replicates the
-Bevy hierarchy. For your custom components with relations, you need to write your own using a similar
-pattern.
-
-This won't be necessary after Bevy 0.16, as you will be able to replicate [`Parent`] directly
-thanks to 1:many relations support.
+Some components depend on each other. For example, [`ChildOf`] and [`Children`]. You can enable
+replication only for [`ChildOf`] and [`Children`] will be updated automatically on insertion.
 
 ## Network events and triggers
 

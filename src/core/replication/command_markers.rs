@@ -46,11 +46,10 @@ pub trait AppMarkerExt {
 
     # Examples
 
-    In this example we write all received updates for [`Transform`] into user's
-    `History<Transform>` if `History` marker is present on the client entity. In this
-    scenario, you'd insert `History` the first time the entity
-    is replicated (e.g. by detecting a `Player` marker component using the blueprint pattern).
-    Then [`Transform`] updates after that will be inserted to the history.
+    In this example we write all received updates for `Health` component into user's
+    `History<Health>` if `Predicted` marker is present on the client entity. In this
+    scenario, you'd insert `Predicted` the first time the entity is replicated.
+    Then `Health` updates after that will be inserted to the history.
 
     ```
     use bevy::{ecs::system::EntityCommands, ecs::component::Mutable, prelude::*, platform_support::collections::HashMap};
@@ -69,14 +68,15 @@ pub trait AppMarkerExt {
         },
         prelude::*,
     };
+    use serde::{Serialize, Deserialize};
 
     # let mut app = App::new();
     # app.add_plugins(RepliconPlugins);
-    app.register_marker_with::<ComponentsHistory>(MarkerConfig {
+    app.register_marker_with::<Predicted>(MarkerConfig {
         need_history: true, // Enable writing for values that are older than the last received value.
         ..Default::default()
     })
-    .set_marker_fns::<ComponentsHistory, Transform>(write_history, remove_history::<Transform>);
+    .set_marker_fns::<Predicted, Health>(write_history, remove_history::<Health>);
 
     /// Instead of writing into a component directly, it writes data into [`History<C>`].
     fn write_history<C: Component<Mutability = Mutable>>(
@@ -104,15 +104,18 @@ pub trait AppMarkerExt {
 
     /// If this marker is present on an entity, registered components will be stored in [`History<T>`].
     ///
-    ///Present only on client.
+    /// Present only on clients.
     #[derive(Component)]
-    struct ComponentsHistory;
+    struct Predicted;
 
-    /// Stores history of values of `C` received from server. Present only on client.
+    /// Stores history of values of `C` received from server.
     ///
-    /// Present only on client.
+    /// Present only on clients.
     #[derive(Component, Deref, DerefMut)]
     struct History<C>(HashMap<RepliconTick, C>);
+
+    #[derive(Component, Deref, DerefMut, Serialize, Deserialize)]
+    struct Health(u32);
     ```
     **/
     fn set_marker_fns<M: Component<Mutability = Mutable>, C: Component<Mutability = Mutable>>(

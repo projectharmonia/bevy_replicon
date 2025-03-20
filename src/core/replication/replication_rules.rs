@@ -82,7 +82,7 @@ pub trait AppRuleExt {
 
     # Examples
 
-    Ser/de only [`Transform::translation`]:
+    Ser/de only specific field:
 
     ```
     use bevy::prelude::*;
@@ -332,8 +332,8 @@ pub trait AppRuleExt {
     If a group contains a single component, it will work the same as [`Self::replicate`].
 
     If an entity matches multiple groups, functions from a group with higher priority
-    will take precedence for overlapping components. For example, a rule with [`Transform`]
-    and a `Player` marker will take precedence over a single [`Transform`] rule.
+    will take precedence for overlapping components. For example, a rule with `Health`
+    and a `Player` marker will take precedence over a single `Health` rule.
 
     If you remove a single component from a group, only a single removal will be sent to clients.
     Other group components will continue to be present on both server and clients.
@@ -348,7 +348,7 @@ pub trait AppRuleExt {
 
     # Examples
 
-    Replicate [`Transform`] and user's `Player` marker only if both of them are present on an entity:
+    Replicate `Health` and `Player` components only if both of them are present on an entity:
 
     ```
     use bevy::prelude::*;
@@ -357,10 +357,13 @@ pub trait AppRuleExt {
 
     # let mut app = App::new();
     # app.add_plugins(RepliconPlugins);
-    app.replicate_group::<(Transform, Player)>();
+    app.replicate_group::<(Player, Health)>();
 
     #[derive(Component, Deserialize, Serialize)]
     struct Player;
+
+    #[derive(Component, Deserialize, Serialize)]
+    struct Health(u32);
     ```
     **/
     fn replicate_group<C: GroupReplication>(&mut self) -> &mut Self;
