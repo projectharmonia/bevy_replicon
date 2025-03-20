@@ -1,4 +1,4 @@
-use bevy::{ecs::entity::EntityHashMap, prelude::*, scene::DynamicEntity};
+use bevy::{ecs::entity::hash_map::EntityHashMap, prelude::*, scene::DynamicEntity};
 
 use crate::{Replicated, core::replication::replication_rules::ReplicationRules};
 
@@ -50,11 +50,11 @@ pub fn replicate_into(scene: &mut DynamicScene, world: &World) {
         return;
     };
 
-    let entities_iter = scene
+    let mut entities: EntityHashMap<_> = scene
         .entities
         .drain(..)
-        .map(|dyn_entity| (dyn_entity.entity, dyn_entity.components));
-    let mut entities = EntityHashMap::from_iter(entities_iter);
+        .map(|dyn_entity| (dyn_entity.entity, dyn_entity.components))
+        .collect();
 
     let registry = world.resource::<AppTypeRegistry>();
     let rules = world.resource::<ReplicationRules>();

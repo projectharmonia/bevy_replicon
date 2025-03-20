@@ -1,7 +1,7 @@
 use bevy::{
-    ecs::{component::ComponentId, world::DeferredWorld},
+    ecs::{component::HookContext, world::DeferredWorld},
+    platform_support::collections::HashMap,
     prelude::*,
-    utils::HashMap,
 };
 
 /// Marker for a connected client.
@@ -77,18 +77,18 @@ impl NetworkId {
     }
 }
 
-fn on_id_add(mut world: DeferredWorld, entity: Entity, _id: ComponentId) {
-    let network_id = *world.get::<NetworkId>(entity).unwrap();
+fn on_id_add(mut world: DeferredWorld, ctx: HookContext) {
+    let network_id = *world.get::<NetworkId>(ctx.entity).unwrap();
     let mut network_map = world.resource_mut::<NetworkIdMap>();
-    if let Some(old_entity) = network_map.0.insert(network_id, entity) {
+    if let Some(old_entity) = network_map.0.insert(network_id, ctx.entity) {
         error!(
             "backend-provided `{network_id:?}` that was already mapped to client `{old_entity}`"
         );
     }
 }
 
-fn on_id_remove(mut world: DeferredWorld, entity: Entity, _id: ComponentId) {
-    let network_id = *world.get::<NetworkId>(entity).unwrap();
+fn on_id_remove(mut world: DeferredWorld, ctx: HookContext) {
+    let network_id = *world.get::<NetworkId>(ctx.entity).unwrap();
     let mut network_map = world.resource_mut::<NetworkIdMap>();
     network_map.0.remove(&network_id);
 }

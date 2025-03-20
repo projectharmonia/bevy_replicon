@@ -7,7 +7,7 @@ pub(super) mod replication_messages;
 pub mod server_tick;
 mod server_world;
 
-use std::{ops::Range, time::Duration};
+use core::{ops::Range, time::Duration};
 
 use bevy::{
     ecs::{component::StorageType, system::SystemChangeTick},
@@ -96,12 +96,7 @@ impl Plugin for ServerPlugin {
             )
             .configure_sets(
                 PostUpdate,
-                (
-                    ServerSet::StoreHierarchy,
-                    ServerSet::Send,
-                    ServerSet::SendPackets,
-                )
-                    .chain(),
+                (ServerSet::Send, ServerSet::SendPackets).chain(),
             )
             .add_observer(handle_connects)
             .add_observer(handle_disconnects)
@@ -184,16 +179,16 @@ fn handle_connects(
     trigger: Trigger<OnAdd, ConnectedClient>,
     mut buffered_events: ResMut<BufferedServerEvents>,
 ) {
-    debug!("client `{}` connected", trigger.entity());
-    buffered_events.exclude_client(trigger.entity());
+    debug!("client `{}` connected", trigger.target());
+    buffered_events.exclude_client(trigger.target());
 }
 
 fn handle_disconnects(
     trigger: Trigger<OnRemove, ConnectedClient>,
     mut server: ResMut<RepliconServer>,
 ) {
-    debug!("client `{}` disconnected", trigger.entity());
-    server.remove_client(trigger.entity());
+    debug!("client `{}` disconnected", trigger.target());
+    server.remove_client(trigger.target());
 }
 
 fn cleanup_acks(
@@ -682,10 +677,6 @@ pub enum ServerSet {
     ///
     /// Runs in [`PreUpdate`].
     Receive,
-    /// Systems that store hierarchy changes in [`ParentSync`](super::parent_sync::ParentSync).
-    ///
-    /// Runs in [`PostUpdate`].
-    StoreHierarchy,
     /// Systems that send data to [`RepliconServer`].
     ///
     /// Used by `bevy_replicon`.

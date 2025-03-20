@@ -1,11 +1,16 @@
-use std::cmp::Reverse;
+use core::cmp::Reverse;
 
 use bevy::{
-    ecs::{archetype::Archetype, component::ComponentId, entity::MapEntities},
+    ecs::{
+        archetype::Archetype,
+        component::{ComponentId, Mutable},
+        entity::MapEntities,
+    },
+    platform_support::collections::HashSet,
     prelude::*,
-    utils::HashSet,
 };
 use serde::{Serialize, de::DeserializeOwned};
+use variadics_please::all_tuples;
 
 use super::replication_registry::{FnsId, ReplicationRegistry, rule_fns::RuleFns};
 
@@ -25,7 +30,7 @@ pub trait AppRuleExt {
     /// from the quick start guide.
     fn replicate<C>(&mut self) -> &mut Self
     where
-        C: Component + Serialize + DeserializeOwned,
+        C: Component<Mutability = Mutable> + Serialize + DeserializeOwned,
     {
         self.replicate_with::<C>(RuleFns::default())
     }
@@ -52,14 +57,14 @@ pub trait AppRuleExt {
 
     impl MapEntities for MappedComponent {
         fn map_entities<T: EntityMapper>(&mut self, mapper: &mut T) {
-            self.0 = mapper.map_entity(self.0);
+            self.0 = mapper.get_mapped(self.0);
         }
     }
     ```
     **/
     fn replicate_mapped<C>(&mut self) -> &mut Self
     where
-        C: Component + Serialize + DeserializeOwned + MapEntities,
+        C: Component<Mutability = Mutable> + Serialize + DeserializeOwned + MapEntities,
     {
         self.replicate_with::<C>(RuleFns::default_mapped())
     }
@@ -77,7 +82,7 @@ pub trait AppRuleExt {
 
     # Examples
 
-    Ser/de only [`Transform::translation`]:
+    Ser/de only specific field:
 
     ```
     use bevy::prelude::*;
@@ -261,7 +266,7 @@ pub trait AppRuleExt {
 
     impl MapEntities for MappedComponent {
         fn map_entities<T: EntityMapper>(&mut self, mapper: &mut T) {
-            self.entity = mapper.map_entity(self.entity);
+            self.entity = mapper.get_mapped(self.entity);
         }
     }
     ```
@@ -317,7 +322,7 @@ pub trait AppRuleExt {
     */
     fn replicate_with<C>(&mut self, rule_fns: RuleFns<C>) -> &mut Self
     where
-        C: Component;
+        C: Component<Mutability = Mutable>;
 
     /**
     Creates a replication rule for a group of components.
@@ -327,8 +332,8 @@ pub trait AppRuleExt {
     If a group contains a single component, it will work the same as [`Self::replicate`].
 
     If an entity matches multiple groups, functions from a group with higher priority
-    will take precedence for overlapping components. For example, a rule with [`Transform`]
-    and a `Player` marker will take precedence over a single [`Transform`] rule.
+    will take precedence for overlapping components. For example, a rule with `Health`
+    and a `Player` marker will take precedence over a single `Health` rule.
 
     If you remove a single component from a group, only a single removal will be sent to clients.
     Other group components will continue to be present on both server and clients.
@@ -343,7 +348,7 @@ pub trait AppRuleExt {
 
     # Examples
 
-    Replicate [`Transform`] and user's `Player` marker only if both of them are present on an entity:
+    Replicate `Health` and `Player` components only if both of them are present on an entity:
 
     ```
     use bevy::prelude::*;
@@ -352,10 +357,13 @@ pub trait AppRuleExt {
 
     # let mut app = App::new();
     # app.add_plugins(RepliconPlugins);
-    app.replicate_group::<(Transform, Player)>();
+    app.replicate_group::<(Player, Health)>();
 
     #[derive(Component, Deserialize, Serialize)]
     struct Player;
+
+    #[derive(Component, Deserialize, Serialize)]
+    struct Health(u32);
     ```
     **/
     fn replicate_group<C: GroupReplication>(&mut self) -> &mut Self;
@@ -364,7 +372,7 @@ pub trait AppRuleExt {
 impl AppRuleExt for App {
     fn replicate_with<C>(&mut self, rule_fns: RuleFns<C>) -> &mut Self
     where
-        C: Component,
+        C: Component<Mutability = Mutable>,
     {
         let rule =
             self.world_mut()
@@ -529,7 +537,7 @@ pub trait GroupReplication {
 
 macro_rules! impl_registrations {
     ($($type:ident),*) => {
-        impl<$($type: Component + Serialize + DeserializeOwned),*> GroupReplication for ($($type,)*) {
+        impl<$($type: Component<Mutability = Mutable> + Serialize + DeserializeOwned),*> GroupReplication for ($($type,)*) {
             fn register(world: &mut World, registry: &mut ReplicationRegistry) -> ReplicationRule {
                 // TODO: initialize with capacity after stabilization: https://github.com/rust-lang/rust/pull/122808
                 let mut components = Vec::new();
@@ -544,7 +552,7 @@ macro_rules! impl_registrations {
     }
 }
 
-bevy::utils::all_tuples!(impl_registrations, 1, 15, B);
+all_tuples!(impl_registrations, 1, 15, B);
 
 #[cfg(test)]
 mod tests {
