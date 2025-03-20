@@ -29,7 +29,6 @@ members = ["bevy_replicon_example_backend"]
 
 [dependencies]
 bevy = { version = "0.16.0-rc.1", default-features = false, features = [
-  "serialize",
   "bevy_log",
 ] }
 variadics_please = "1.0"
@@ -43,11 +42,9 @@ postcard = { version = "1.1", default-features = false, features = [
 
 [dev-dependencies]
 bevy = { version = "0.16.0-rc.1", default-features = false, features = [
+  "bevy_sprite",
   "std",
   "serialize",
-  "bevy_asset",
-  "bevy_scene",
-  "bevy_sprite",
 ] }
 criterion = { version = "0.5", default-features = false, features = [
   "cargo_bench_support",
