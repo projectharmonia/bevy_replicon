@@ -12,9 +12,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// See also [`ServerUpdateTick`](crate::client::ServerUpdateTick) and
 /// [`ServerTick`](crate::server::server_tick::ServerTick).
-#[derive(
-    Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Ord, Serialize, MaxSize,
-)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize, MaxSize)]
 pub struct RepliconTick(u32);
 
 impl RepliconTick {
@@ -33,13 +31,19 @@ impl RepliconTick {
 
 impl PartialOrd for RepliconTick {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for RepliconTick {
+    fn cmp(&self, other: &Self) -> Ordering {
         let difference = self.0.wrapping_sub(other.0);
         if difference == 0 {
-            Some(Ordering::Equal)
+            Ordering::Equal
         } else if difference > u32::MAX / 2 {
-            Some(Ordering::Less)
+            Ordering::Less
         } else {
-            Some(Ordering::Greater)
+            Ordering::Greater
         }
     }
 }
