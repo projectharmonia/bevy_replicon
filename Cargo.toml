@@ -28,7 +28,10 @@ all-features = true
 members = ["bevy_replicon_example_backend"]
 
 [dependencies]
-bevy = { git = "https://github.com/bevyengine/bevy", default-features = false, features = ["serialize", "bevy_log"] }
+bevy = { version = "0.16.0-rc.1", default-features = false, features = [
+  "serialize",
+  "bevy_log",
+] }
 variadics_please = "1.0"
 typeid = "1.0"
 bytes = "1.10"
@@ -40,7 +43,7 @@ postcard = { version = "1.1", default-features = false, features = [
 ] }
 
 [dev-dependencies]
-bevy = { git = "https://github.com/bevyengine/bevy", default-features = false, features = [
+bevy = { version = "0.16.0-rc.1", default-features = false, features = [
   "std",
   "serialize",
   "bevy_asset",
