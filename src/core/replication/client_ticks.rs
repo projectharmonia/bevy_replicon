@@ -125,7 +125,7 @@ impl ClientTicks {
     pub(crate) fn remove_entity(&mut self, entity: Entity) {
         self.mutation_ticks.remove(&entity);
         // We don't clean up `self.mutations` for efficiency reasons.
-        // `Self::acknowledge()` will properly ignore despawned entities.
+        // `Self::acknowledge` will properly ignore despawned entities.
     }
 
     /// Removes all mutate messages older then `min_timestamp`.

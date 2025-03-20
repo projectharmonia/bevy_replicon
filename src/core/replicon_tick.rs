@@ -31,13 +31,19 @@ impl RepliconTick {
 
 impl PartialOrd for RepliconTick {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for RepliconTick {
+    fn cmp(&self, other: &Self) -> Ordering {
         let difference = self.0.wrapping_sub(other.0);
         if difference == 0 {
-            Some(Ordering::Equal)
+            Ordering::Equal
         } else if difference > u32::MAX / 2 {
-            Some(Ordering::Less)
+            Ordering::Less
         } else {
-            Some(Ordering::Greater)
+            Ordering::Greater
         }
     }
 }

@@ -1,4 +1,6 @@
-use std::{any, marker::PhantomData, mem};
+mod client_event_queue;
+
+use std::{any, mem};
 
 use bevy::{
     ecs::{
@@ -9,7 +11,6 @@ use bevy::{
     ptr::{Ptr, PtrMut},
 };
 use bytes::Bytes;
-use ordered_multimap::ListOrderedMultimap;
 use postcard::experimental::{max_size::MaxSize, serialized_size};
 use serde::{Serialize, de::DeserializeOwned};
 
@@ -27,6 +28,7 @@ use crate::core::{
     replicon_server::RepliconServer,
     replicon_tick::RepliconTick,
 };
+use client_event_queue::ClientEventQueue;
 
 /// An extension trait for [`App`] for creating client events.
 pub trait ServerEventAppExt {
@@ -240,11 +242,11 @@ impl ServerEvent {
 
         app.add_event::<E>()
             .add_event::<ToClients<E>>()
-            .init_resource::<ServerEventQueue<E>>();
+            .init_resource::<ClientEventQueue<E>>();
 
         let events_id = app.world().resource_id::<Events<E>>().unwrap();
         let server_events_id = app.world().resource_id::<Events<ToClients<E>>>().unwrap();
-        let queue_id = app.world().resource_id::<ServerEventQueue<E>>().unwrap();
+        let queue_id = app.world().resource_id::<ClientEventQueue<E>>().unwrap();
 
         Self {
             independent: false,
@@ -439,21 +441,23 @@ impl ServerEvent {
         update_tick: RepliconTick,
     ) {
         let events: &mut Events<E> = unsafe { events.deref_mut() };
-        let queue: &mut ServerEventQueue<E> = unsafe { queue.deref_mut() };
+        let queue: &mut ClientEventQueue<E> = unsafe { queue.deref_mut() };
 
-        while let Some((tick, mut message)) = queue.pop_if_le(update_tick) {
-            match unsafe { self.deserialize::<E, I>(ctx, &mut message) } {
-                Ok(event) => {
-                    debug!(
-                        "applying event `{}` from queue with `{tick:?}`",
+        while let Some((tick, messages)) = queue.pop_if_le(update_tick) {
+            for mut message in messages {
+                match unsafe { self.deserialize::<E, I>(ctx, &mut message) } {
+                    Ok(event) => {
+                        debug!(
+                            "applying event `{}` from queue with `{tick:?}`",
+                            any::type_name::<E>()
+                        );
+                        events.send(event);
+                    }
+                    Err(e) => error!(
+                        "ignoring event `{}` from queue with `{tick:?}` that failed to deserialize: {e}",
                         any::type_name::<E>()
-                    );
-                    events.send(event);
+                    ),
                 }
-                Err(e) => error!(
-                    "ignoring event `{}` from queue with `{tick:?}` that failed to deserialize: {e}",
-                    any::type_name::<E>()
-                ),
             }
         }
 
@@ -550,11 +554,11 @@ impl ServerEvent {
     ///
     /// The caller must ensure that `queue` is [`Events<E>`].
     unsafe fn reset_typed<E: Event>(queue: PtrMut) {
-        let queue: &mut ServerEventQueue<E> = unsafe { queue.deref_mut() };
+        let queue: &mut ClientEventQueue<E> = unsafe { queue.deref_mut() };
         if !queue.is_empty() {
             warn!(
                 "discarding {} queued events due to a disconnect",
-                queue.values_len()
+                queue.len()
             );
         }
         queue.clear();
@@ -860,39 +864,6 @@ pub enum SendMode {
     BroadcastExcept(Entity),
     /// Send only to the specified client.
     Direct(Entity),
-}
-
-/// Stores all received events from server that arrived earlier then replication message with their tick.
-///
-/// Stores data sorted by ticks and maintains order of arrival.
-/// Needed to ensure that when an event is triggered, all the data that it affects or references already exists.
-#[derive(Resource, Deref, DerefMut)]
-struct ServerEventQueue<E> {
-    #[deref]
-    list: ListOrderedMultimap<RepliconTick, Bytes>,
-    marker: PhantomData<E>,
-}
-
-impl<E> ServerEventQueue<E> {
-    /// Pops the next event that is at least as old as the specified replicon tick.
-    fn pop_if_le(&mut self, update_tick: RepliconTick) -> Option<(RepliconTick, Bytes)> {
-        let (tick, _) = self.list.front()?;
-        if *tick > update_tick {
-            return None;
-        }
-        self.list
-            .pop_front()
-            .map(|(tick, message)| (tick.into_owned(), message))
-    }
-}
-
-impl<E> Default for ServerEventQueue<E> {
-    fn default() -> Self {
-        Self {
-            list: Default::default(),
-            marker: PhantomData,
-        }
-    }
 }
 
 /// Default event serialization function.
