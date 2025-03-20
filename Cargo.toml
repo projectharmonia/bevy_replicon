@@ -34,7 +34,6 @@ bevy = { version = "0.15.3", default-features = false, features = [
 typeid = "1.0"
 bytes = "1.10"
 serde = "1.0"
-ordered-multimap = "0.7"
 bitflags = { version = "2.6", features = ["serde"] }
 postcard = { version = "1.1", default-features = false, features = [
   "experimental-derive",
