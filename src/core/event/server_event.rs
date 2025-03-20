@@ -1,11 +1,11 @@
 mod client_event_queue;
 
-use std::{any, mem};
+use core::{any, mem};
 
 use bevy::{
     ecs::{
         component::ComponentId,
-        entity::{hash_set::EntityHashSet, MapEntities},
+        entity::{MapEntities, hash_set::EntityHashSet},
     },
     prelude::*,
     ptr::{Ptr, PtrMut},

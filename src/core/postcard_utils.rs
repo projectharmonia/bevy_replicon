@@ -1,6 +1,6 @@
 //! Extensions for postcard to make streaming serialization and deserialiation more ergonomic.
 
-use std::slice;
+use alloc::slice;
 
 use bytes::Buf;
 use postcard::{Deserializer, de_flavors::Flavor as DeFlavor, ser_flavors::Flavor as SerFlavor};

@@ -1,4 +1,4 @@
-use std::ops::Range;
+use core::ops::Range;
 
 use bevy::prelude::*;
 use postcard::experimental::serialized_size;

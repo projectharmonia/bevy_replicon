@@ -1,4 +1,4 @@
-use std::any;
+use core::any;
 
 use bevy::{ecs::entity::MapEntities, prelude::*, ptr::PtrMut};
 use bytes::Bytes;

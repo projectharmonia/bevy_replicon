@@ -1,4 +1,4 @@
-use std::{ops::Range, time::Duration};
+use core::{ops::Range, time::Duration};
 
 use bevy::{ecs::component::Tick, prelude::*};
 use postcard::experimental::{max_size::MaxSize, serialized_size};

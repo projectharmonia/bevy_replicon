@@ -1,4 +1,4 @@
-use std::{mem, time::Duration};
+use core::{mem, time::Duration};
 
 use bevy::{
     ecs::{component::Tick, entity::hash_map::EntityHashMap},

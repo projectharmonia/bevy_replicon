@@ -34,8 +34,8 @@ bevy = { version = "0.16.0-rc.1", default-features = false, features = [
 ] }
 variadics_please = "1.0"
 typeid = "1.0"
-bytes = "1.10"
-serde = "1.0"
+bytes = { version = "1.10", default-features = false }
+serde = { version = "1.0", default-features = false }
 bitflags = { version = "2.6", features = ["serde"] }
 postcard = { version = "1.1", default-features = false, features = [
   "experimental-derive",
@@ -131,3 +131,6 @@ required-features = ["client", "server"]
 [lints.clippy]
 type_complexity = "allow"
 too_many_arguments = "allow"
+alloc_instead_of_core = "warn"
+std_instead_of_alloc = "warn"
+std_instead_of_core = "warn"

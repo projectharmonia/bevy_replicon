@@ -1,4 +1,4 @@
-use std::any;
+use core::any;
 
 use bevy::{
     ecs::{component::ComponentId, entity::MapEntities, event::EventCursor},

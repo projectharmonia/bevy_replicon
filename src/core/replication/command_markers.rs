@@ -1,4 +1,4 @@
-use std::cmp::Reverse;
+use core::cmp::Reverse;
 
 use bevy::{
     ecs::component::{ComponentId, Mutable},

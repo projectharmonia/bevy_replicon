@@ -16,6 +16,7 @@ If you are new to networking, see [glossary](https://gist.github.com/maniwani/f9
 - Remote events and triggers.
 - Control over client visibility of entities and events.
 - Abstracts game logic to support singleplayer, client, dedicated server, and listen server configurations simultaneously.
+- Works with `no_std`.
 - No builtin I/O, can be used with any messaging library. See [messaging backends](#messaging-backends) for already available integrations.
 - Replication into scene to save server state.
 - Customizable serialization and deserialization even for types that don't implement `serde` traits (like `Box<dyn Reflect>`).

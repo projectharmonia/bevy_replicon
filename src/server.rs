@@ -7,7 +7,7 @@ pub(super) mod replication_messages;
 pub mod server_tick;
 mod server_world;
 
-use std::{ops::Range, time::Duration};
+use core::{ops::Range, time::Duration};
 
 use bevy::{
     ecs::{component::StorageType, system::SystemChangeTick},
