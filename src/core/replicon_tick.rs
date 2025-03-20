@@ -12,7 +12,9 @@ use serde::{Deserialize, Serialize};
 ///
 /// See also [`ServerUpdateTick`](crate::client::ServerUpdateTick) and
 /// [`ServerTick`](crate::server::server_tick::ServerTick).
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize, MaxSize)]
+#[derive(
+    Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Ord, Serialize, MaxSize,
+)]
 pub struct RepliconTick(u32);
 
 impl RepliconTick {
