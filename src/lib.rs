@@ -102,7 +102,7 @@ resource.
 Components will be replicated only on entities marked for replication.
 By default no components are replicated.
 
-Use [`AppRuleExt::replicate()`] to enable replication for a component:
+Use [`AppRuleExt::replicate`] to enable replication for a component:
 
 ```
 # use bevy::prelude::*;
@@ -120,17 +120,17 @@ If your component contains an entity, it cannot be deserialized as is
 because entities inside components also need to be mapped. Therefore,
 to replicate such components properly, they need to implement
 the [`MapEntities`](bevy::ecs::entity::MapEntities) trait and be registered
-using [`AppRuleExt::replicate_mapped()`].
+using [`AppRuleExt::replicate_mapped`].
 
 By default all components are serialized with [`postcard`].
 In order to serialize Bevy components you need to enable the `serialize` feature on Bevy.
 
 If your component doesn't implement serde traits or you want to customize the serialization
 (for example, quantize, skip some fields or apply compression), you can use
-[`AppRuleExt::replicate_with()`].
+[`AppRuleExt::replicate_with`].
 
 If you want a group of components to be replicated only if all of them are present on an entity,
-you can use [`AppRuleExt::replicate_group()`].
+you can use [`AppRuleExt::replicate_group`].
 
 #### Required components
 
@@ -175,7 +175,7 @@ struct NotReplicatedComponent;
 ```
 
 This pairs nicely with server state serialization and keeps saves clean.
-You can use [`scene::replicate_into()`] to fill [`DynamicScene`] with replicated entities and their components.
+You can use [`scene::replicate_into`] to fill [`DynamicScene`] with replicated entities and their components.
 On deserialization all missing required components will be inserted, and initialization
 systems will restore the correct game state.
 
@@ -206,7 +206,7 @@ server.
 ### From client to server
 
 To send specific events from client to server, you need to register the event
-with [`ClientEventAppExt::add_client_event()`] instead of [`App::add_event()`].
+with [`ClientEventAppExt::add_client_event`] instead of [`App::add_event`].
 
 Events include [`ChannelKind`] to configure delivery guarantees (reliability and
 ordering). You can alternatively pass in [`RepliconChannel`] with more advanced configuration.
@@ -248,15 +248,15 @@ struct DummyEvent;
 
 Just like for components, if an event contains an entities, implement
 [`MapEntities`](bevy::ecs::entity::MapEntities) for it and use use
-[`ClientEventAppExt::add_mapped_client_event()`] instead.
+[`ClientEventAppExt::add_mapped_client_event`] instead.
 
-There is also [`ClientEventAppExt::add_client_event_with()`] to register an event with special serialization and
+There is also [`ClientEventAppExt::add_client_event_with`] to register an event with special serialization and
 deserialization functions. This could be used for sending events that contain [`Box<dyn PartialReflect>`], which
 require access to the [`AppTypeRegistry`] resource. Don't forget to validate the contents of every
 [`Box<dyn PartialReflect>`] from a client, it could be anything!
 
 Alternatively, you can use triggers with a similar API. First, you need to register the event
-using [`ClientTriggerAppExt::add_client_trigger()`], and then use [`ClientTriggerExt::client_trigger()`].
+using [`ClientTriggerAppExt::add_client_trigger`], and then use [`ClientTriggerExt::client_trigger`].
 
 ```
 # use bevy::prelude::*;
@@ -279,16 +279,16 @@ fn receive_events(trigger: Trigger<FromClient<DummyEvent>>) {
 # struct DummyEvent;
 ```
 
-Trigger targets are also supported via [`ClientTriggerExt::client_trigger_targets()`], no change
+Trigger targets are also supported via [`ClientTriggerExt::client_trigger_targets`], no change
 in registration needed. Target entities will be automatically mapped to server entities before sending.
 
-For event triggers with entities inside use [`ClientTriggerAppExt::add_mapped_client_trigger()`].
-Similar to events, serialization can also be customized with [`ClientTriggerAppExt::add_client_trigger_with()`].
+For event triggers with entities inside use [`ClientTriggerAppExt::add_mapped_client_trigger`].
+Similar to events, serialization can also be customized with [`ClientTriggerAppExt::add_client_trigger_with`].
 
 ### From server to client
 
 A similar technique is used to send events from server to clients. To do this,
-register the event with [`ServerEventAppExt::add_server_event()`]
+register the event with [`ServerEventAppExt::add_server_event`]
 and send it from server using [`ToClients`]. This wrapper contains send parameters
 and the event itself.
 
@@ -327,11 +327,11 @@ fn receive_events(mut dummy_events: EventReader<DummyEvent>) {
 struct DummyEvent;
 ```
 
-Just like for client events, we provide [`ServerEventAppExt::add_mapped_server_event()`]
-and [`ServerEventAppExt::add_server_event_with()`].
+Just like for client events, we provide [`ServerEventAppExt::add_mapped_server_event`]
+and [`ServerEventAppExt::add_server_event_with`].
 
 Trigger-based API available for server events as well. First, you need to register the event
-with [`ServerTriggerAppExt::add_server_trigger()`] and then use [`ServerTriggerExt::server_trigger()`]:
+with [`ServerTriggerAppExt::add_server_trigger`] and then use [`ServerTriggerExt::server_trigger`]:
 
 ```
 # use bevy::prelude::*;
@@ -357,12 +357,12 @@ fn receive_events(trigger: Trigger<DummyEvent>) {
 # struct DummyEvent;
 ```
 
-And just like for client trigger, we provide [`ServerTriggerAppExt::add_mapped_server_trigger()`]
-and [`ServerTriggerAppExt::add_server_trigger_with()`].
+And just like for client trigger, we provide [`ServerTriggerAppExt::add_mapped_server_trigger`]
+and [`ServerTriggerAppExt::add_server_trigger_with`].
 
 We guarantee that clients will never receive events that point to an entity or require specific
 component to be presentt which client haven't received yet. For more details see the documentation on
-[`ServerEventAppExt::make_independent()`].
+[`ServerEventAppExt::make_independent`].
 
 ## Abstracting over configurations
 
@@ -402,9 +402,9 @@ without actually running them:
 
 To achieve this, just use provided [run conditions](core::common_conditions):
 
-- Use [`server_or_singleplayer()`] for systems that require server authority. For example, systems that
+- Use [`server_or_singleplayer`] for systems that require server authority. For example, systems that
   apply damage or send server events.
-- Use client or server conditions like [`client_connecting()`], [`client_connected()`], [`server_running()`], etc.
+- Use client or server conditions like [`client_connecting`], [`client_connected`], [`server_running`], etc.
   **only** for miscellaneous things, like display a connection message or a menu to kick connected players
   (things that actually require server or client running)
 - For everything else don't use Replicon's conditions.
@@ -416,12 +416,12 @@ Everything else is done automatically by the crate. All provided
 [examples](https://github.com/projectharmonia/bevy_replicon/tree/master/bevy_replicon_example_backend/examples)
 use this approach.
 
-Internally we run replication sending system only if [`server_running()`] and replication receiving
-only if [`client_connected()`]. This way for singleplayer replication systems won't run at all and
+Internally we run replication sending system only if [`server_running`] and replication receiving
+only if [`client_connected`]. This way for singleplayer replication systems won't run at all and
 for listen server replication will only be sending (server world is already in the correct state).
 
 For events it's a bit trickier. For all client events we internally drain events as `E` and re-emit
-them as [`FromClient<E>`] locally with a special [`SERVER`] entity if [`server_or_singleplayer()`].
+them as [`FromClient<E>`] locally with a special [`SERVER`] entity if [`server_or_singleplayer`].
 For server events we drain [`ToClients<E>`] and, if the [`SERVER`] entity is the recipient of the event,
 re-emit it as `E` locally.
 
@@ -503,10 +503,10 @@ To apply interpolation or store value history for client-side prediction, you ne
 written. However, the server knows nothing about archetypes on the client, and while some entities need to be predicted,
 others might need to be interpolated.
 
-This is why writing functions are marker-based. First, you register a marker using [`AppMarkerExt::register_marker<M>()`].
-Then you can override how specific component is written and removed using [`AppMarkerExt::set_marker_fns<M, C>()`].
+This is why writing functions are marker-based. First, you register a marker using [`AppMarkerExt::register_marker<M>`].
+Then you can override how specific component is written and removed using [`AppMarkerExt::set_marker_fns<M, C>`].
 
-You can control marker priority or enable processing of old values using [`AppMarkerExt::register_marker_with<M>()`].
+You can control marker priority or enable processing of old values using [`AppMarkerExt::register_marker_with<M>`].
 
 ### Ticks information
 

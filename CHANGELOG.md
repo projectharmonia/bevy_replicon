@@ -46,7 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replicated entities now represented by connected clients with `ReplicatedClient` component.
 - To access visibility, use `ClientVisibility` component on replicated entities.
 - `ServerEntityMap` resource now a component on replicated entities. It now accepts entity to entity mappings directly instead of `ClientId` to `ClientMapping`.
-- Replace statistic methods on `RepliconClient` with `RepliconClient::stats()` method that returns `ClientStats` struct.
+- Replace statistic methods on `RepliconClient` with `RepliconClient::stats` method that returns `ClientStats` struct.
 - Move `VisibilityPolicy` to `server` module.
 - Move `ClientId` to `connected_client` module and remove from `prelude`.
 - Use `TestClientEntity` instead of `ClientId` resource on clients in `ServerTestAppExt` to identify client entity.
@@ -412,7 +412,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `ClientCache::visibility_policy()` returns the configured policy.
+- `ClientCache::visibility_policy` returns the configured policy.
 
 ## [0.21.0] - 2024-01-22
 
@@ -435,7 +435,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Speedup serialization for multiple clients by reusing already serialized components and entities.
 - Hide extra functionality from `ServerEventQueue`.
 - Move server event reset system to new set `ClientSet::ResetEvents` in `PreUpdate`.
-- Make `NetworkChannels` channel-creation methods public (`create_client_channel()` and `create_server_channel()`).
+- Make `NetworkChannels` channel-creation methods public (`create_client_channel` and `create_server_channel`).
 - Implement `Eq` and `PartialEq` on `EventType`.
 
 ### Removed
@@ -452,7 +452,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `renet_serde` feature which reexports `serde` feature from `bevy_renet`.
 - `ClientSet::Reset` which can be disabled by external users.
-- `ServerEntityMap::remove_by_client()` for manual client cleanup.
+- `ServerEntityMap::remove_by_client` for manual client cleanup.
 - `BufferedUpdates`, `ServerEntityTicks` to public API.
 
 ### Changed
@@ -640,7 +640,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Move `has_authority()` to `server` module.
+- Move `has_authority` to `server` module.
 
 ## [0.8.0] - 2023-07-28
 
@@ -664,8 +664,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- `ClientState` and `ServerState`, use conditions from `bevy_renet` and `resource_added()` / `resource_exists()` / `resource_removed()`.
-- `ServerSet::Authority`, use `has_authority()` instead.
+- `ClientState` and `ServerState`, use conditions from `bevy_renet` and `resource_added` / `resource_exists` / `resource_removed`.
+- `ServerSet::Authority`, use `has_authority` instead.
 
 ## [0.6.1] - 2023-07-09
 
