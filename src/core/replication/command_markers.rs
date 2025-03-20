@@ -89,9 +89,9 @@ pub trait AppMarkerExt {
         if let Some(mut history) = entity.get_mut::<History<C>>() {
             history.insert(ctx.message_tick, component);
         } else {
-            let mut map = HashMap::default();
-            map.insert(ctx.message_tick, component);
-            ctx.commands.entity(entity.id()).insert(History(map));
+            ctx.commands
+                .entity(entity.id())
+                .insert(History([(ctx.message_tick, component)].into_iter().collect()));
         }
 
         Ok(())
