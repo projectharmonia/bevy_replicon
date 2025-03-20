@@ -89,7 +89,7 @@ fn server_event() {
             }),
             RepliconExampleBackendPlugins,
         ))
-        .add_server_event::<DummyEvent>(ChannelKind::Ordered)
+        .add_server_event::<DummyEvent>(Channel::Ordered)
         .finish();
     }
 
@@ -120,7 +120,7 @@ fn client_event() {
             }),
             RepliconExampleBackendPlugins,
         ))
-        .add_client_event::<DummyEvent>(ChannelKind::Ordered)
+        .add_client_event::<DummyEvent>(Channel::Ordered)
         .finish();
     }
 

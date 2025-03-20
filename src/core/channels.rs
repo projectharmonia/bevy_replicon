@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use bevy::prelude::*;
 
 /// ID of a server replication channel.
@@ -25,13 +23,15 @@ use bevy::prelude::*;
 /// a single update message for each tick to ensure atomic updates.
 ///
 /// For mutations, we use an unreliable channel. This data can be outdated, so we always send the latest values
-/// since the last acknowledgement. Messages also include a minimum required tick and are buffered until an
-/// update message for the required tick is received. Mutations are split into packet-size messages to allow
-/// applying them partially without waiting for all parts of the message.
+/// since the last acknowledgment. We also include a minimum required tick - the tick on which the last update
+/// message was sent. Messages will be buffered until an update message for this tick is received. Mutations
+/// are split into packet-size messages to allow applying them partially without waiting for all parts of the message.
 ///
-/// See also [`RepliconChannels`] and [corresponding section](../index.html#eventual-consistency)
+/// Server events also have minimum required tick. For details, see the documentation on
+/// [`ServerEventAppExt::make_independent`](super::event::server_event::ServerEventAppExt::make_independent).
+///
+/// See also [`RepliconChannels`], [`Channel`] and [corresponding section](../index.html#eventual-consistency)
 /// from the quick start guide.
-#[repr(u8)]
 pub enum ReplicationChannel {
     /// For sending messages with entity mappings, inserts, removals and despawns.
     ///
@@ -43,35 +43,40 @@ pub enum ReplicationChannel {
     Mutations,
 }
 
-impl From<ReplicationChannel> for RepliconChannel {
+impl From<ReplicationChannel> for Channel {
     fn from(value: ReplicationChannel) -> Self {
         match value {
-            ReplicationChannel::Updates => ChannelKind::Ordered.into(),
-            ReplicationChannel::Mutations => ChannelKind::Unreliable.into(),
+            ReplicationChannel::Updates => Channel::Ordered,
+            ReplicationChannel::Mutations => Channel::Unreliable,
         }
     }
 }
 
-impl From<ReplicationChannel> for u8 {
+impl From<ReplicationChannel> for usize {
     fn from(value: ReplicationChannel) -> Self {
-        value as u8
+        value as usize
     }
 }
 
-/// A resource with channels used by Replicon.
+/// A resource with all channels used by Replicon.
+///
+/// Channel IDs are represented by [`usize`], but backends may limit the number of channels.
+///
+/// The first two channels are used for replication. For more details, see [`ReplicationChannel`].
+///
+/// Other channels are used for events, with one channel per event. For more details, see
+/// [`RemoteEventRegistry`](super::event::remote_event_registry::RemoteEventRegistry).
+///
+/// The backend needs to provide an API for creating its own channels. This can be done
+/// by writing an extension trait for this struct. Created channels should have the defined
+/// delivery guarantee or stronger.
 #[derive(Clone, Resource)]
 pub struct RepliconChannels {
     /// Stores settings for each server channel.
-    server: Vec<RepliconChannel>,
+    server: Vec<Channel>,
 
     /// Same as [`Self::server`], but for client.
-    client: Vec<RepliconChannel>,
-
-    /// Stores the default max memory usage bytes for all channels.
-    ///
-    /// This value will be used instead of [`None`].
-    /// By default set to `5 * 1024 * 1024`.
-    pub default_max_bytes: usize,
+    client: Vec<Channel>,
 }
 
 /// Only stores the replication channel by default.
@@ -86,116 +91,47 @@ impl Default for RepliconChannels {
                 ReplicationChannel::Updates.into(),
                 ReplicationChannel::Mutations.into(),
             ],
-            default_max_bytes: 5 * 1024 * 1024,
         }
     }
 }
 
 impl RepliconChannels {
-    /// Sets the maximum usage bytes that will be used by default for all channels if not set.
-    pub fn set_default_max_bytes(&mut self, max_bytes: usize) {
-        self.default_max_bytes = max_bytes;
-    }
-
     /// Creates a new server channel and returns its ID.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the number of events exceeds [`u8::MAX`].
-    pub fn create_server_channel(&mut self, channel: impl Into<RepliconChannel>) -> u8 {
-        if self.server.len() == u8::MAX as usize {
-            panic!("number of server channels shouldn't exceed `u8::MAX`");
-        }
-
-        self.server.push(channel.into());
-        let id = self.server.len() as u8 - 1;
+    pub(super) fn create_server_channel(&mut self, channel: Channel) -> usize {
+        let id = self.server.len();
         debug!("creating a server channel with ID {id}");
+        self.server.push(channel);
 
         id
     }
 
     /// Creates a new client channel and returns its ID.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the number of events exceeds [`u8::MAX`].
-    pub fn create_client_channel(&mut self, channel: impl Into<RepliconChannel>) -> u8 {
-        if self.client.len() == u8::MAX as usize {
-            panic!("number of client channels shouldn't exceed `u8::MAX`");
-        }
-
-        self.client.push(channel.into());
-        let id = self.client.len() as u8 - 1;
+    pub(super) fn create_client_channel(&mut self, channel: Channel) -> usize {
+        let id = self.client.len();
         debug!("creating a client channel with ID {id}");
+        self.client.push(channel);
 
         id
     }
 
-    /// Returns a mutable reference to a server channel.
-    ///
-    /// # Panics
-    ///
-    /// Panics if there if there is no such channel.
-    pub fn server_channel_mut<I: Into<u8>>(&mut self, channel_id: I) -> &mut RepliconChannel {
-        &mut self.server[channel_id.into() as usize]
-    }
-
-    /// Returns a mutable reference to a client channel.
-    ///
-    /// # Panics
-    ///
-    /// Panics if there if there is no such channel.
-    pub fn client_channel_mut<I: Into<u8>>(&mut self, channel_id: I) -> &mut RepliconChannel {
-        &mut self.client[channel_id.into() as usize]
-    }
-
     /// Returns registered server channels.
-    pub fn server_channels(&self) -> &[RepliconChannel] {
+    pub fn server_channels(&self) -> &[Channel] {
         &self.server
     }
 
     /// Returns registered client channels.
-    pub fn client_channels(&self) -> &[RepliconChannel] {
+    pub fn client_channels(&self) -> &[Channel] {
         &self.client
     }
 }
 
-/// Channel configuration.
-#[derive(Clone)]
-pub struct RepliconChannel {
-    /// Delivery guarantee.
-    pub kind: ChannelKind,
-
-    /// Timer after which the message will be sent again if it has not been confirmed.
-    ///
-    /// Ignored for [`ChannelKind::Unreliable`].
-    pub resend_time: Duration,
-
-    /// Maximum usage bytes for the channel.
-    ///
-    /// If unset, the default value from [`RepliconChannels`] will be used.
-    pub max_bytes: Option<usize>,
-}
-
 /// Channel delivery guarantee.
-///
-/// Can be automatically converted into [`RepliconChannel`] with zero resend time and default max bytes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ChannelKind {
+pub enum Channel {
     /// Unreliable and unordered.
     Unreliable,
     /// Reliable and unordered.
     Unordered,
     /// Reliable and ordered.
     Ordered,
-}
-
-impl From<ChannelKind> for RepliconChannel {
-    fn from(value: ChannelKind) -> Self {
-        Self {
-            kind: value,
-            resend_time: Duration::ZERO,
-            max_bytes: None,
-        }
-    }
 }

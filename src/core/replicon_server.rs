@@ -25,7 +25,7 @@ pub struct RepliconServer {
     received_messages: Vec<Vec<(Entity, Bytes)>>,
 
     /// List of sent messages for each channel since the last tick.
-    sent_messages: Vec<(Entity, u8, Bytes)>,
+    sent_messages: Vec<(Entity, usize, Bytes)>,
 }
 
 impl RepliconServer {
@@ -52,7 +52,7 @@ impl RepliconServer {
     /// Should only be called from the messaging backend.
     ///
     /// </div>
-    pub fn receive<I: Into<u8>>(
+    pub fn receive<I: Into<usize>>(
         &mut self,
         channel_id: I,
     ) -> impl Iterator<Item = (Entity, Bytes)> + '_ {
@@ -64,7 +64,7 @@ impl RepliconServer {
         let channel_id = channel_id.into();
         let channel_messages = self
             .received_messages
-            .get_mut(channel_id as usize)
+            .get_mut(channel_id)
             .unwrap_or_else(|| panic!("server should have a receive channel with id {channel_id}"));
 
         trace!(
@@ -86,7 +86,7 @@ impl RepliconServer {
     /// Should only be called from the messaging backend.
     ///
     /// </div>
-    pub fn send<I: Into<u8>, B: Into<Bytes>>(
+    pub fn send<I: Into<usize>, B: Into<Bytes>>(
         &mut self,
         client_entity: Entity,
         channel_id: I,
@@ -97,7 +97,7 @@ impl RepliconServer {
             return;
         }
 
-        let channel_id: u8 = channel_id.into();
+        let channel_id = channel_id.into();
         let message: Bytes = message.into();
 
         trace!("sending {} bytes over channel {channel_id}", message.len());
@@ -137,7 +137,7 @@ impl RepliconServer {
     /// Used for testing.
     pub(crate) fn retain_sent<F>(&mut self, f: F)
     where
-        F: FnMut(&(Entity, u8, Bytes)) -> bool,
+        F: FnMut(&(Entity, usize, Bytes)) -> bool,
     {
         self.sent_messages.retain(f)
     }
@@ -149,7 +149,7 @@ impl RepliconServer {
     /// Should only be called from the messaging backend.
     ///
     /// </div>
-    pub fn drain_sent(&mut self) -> impl Iterator<Item = (Entity, u8, Bytes)> + '_ {
+    pub fn drain_sent(&mut self) -> impl Iterator<Item = (Entity, usize, Bytes)> + '_ {
         self.sent_messages.drain(..)
     }
 
@@ -160,7 +160,7 @@ impl RepliconServer {
     /// Should only be called from the messaging backend.
     ///
     /// </div>
-    pub fn insert_received<I: Into<u8>, B: Into<Bytes>>(
+    pub fn insert_received<I: Into<usize>, B: Into<Bytes>>(
         &mut self,
         client_entity: Entity,
         channel_id: I,
@@ -174,7 +174,7 @@ impl RepliconServer {
         let channel_id = channel_id.into();
         let receive_channel = self
             .received_messages
-            .get_mut(channel_id as usize)
+            .get_mut(channel_id)
             .unwrap_or_else(|| panic!("server should have a receive channel with id {channel_id}"));
 
         receive_channel.push((client_entity, message.into()));

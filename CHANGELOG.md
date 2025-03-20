@@ -9,11 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `RemoteEventRegistry` to get channels for remote triggers and events.
 - `ConditionerConfig` for `bevy_replicon_example_backend` to simulate various network conditions.
 
 ### Changed
 
+- Rename `ChannelKind` into just `Channel`.
+- All methods with `Into<Channel>` now just accept `Channel`.
+- Use `usize` for channel ID. Backends now decide how many channels user can create.
 - Don't insert `ClientVisibility` at all if `ServerPlugin::visibility_policy` is set to `VisibilityPolicy::All`. Previously all calls were just no-op.
+
+### Removed
+
+- `RepliconChannel` and all methods from `RepliconChannels`, except channel getters. Now all channel configuration needs to be done on the backend side.
 
 ## [0.31.1] - 2025-03-15
 

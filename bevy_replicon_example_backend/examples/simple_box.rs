@@ -39,7 +39,7 @@ impl Plugin for SimpleBoxPlugin {
     fn build(&self, app: &mut App) {
         app.replicate::<BoxPosition>()
             .replicate::<PlayerBox>()
-            .add_client_trigger::<MoveBox>(ChannelKind::Ordered)
+            .add_client_trigger::<MoveBox>(Channel::Ordered)
             .add_observer(spawn_clients)
             .add_observer(despawn_clients)
             .add_observer(apply_movement)

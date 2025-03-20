@@ -14,7 +14,7 @@ use bevy::prelude::*;
 
 use channels::RepliconChannels;
 use connected_client::{ConnectedClient, NetworkIdMap, NetworkStats};
-use event::event_registry::EventRegistry;
+use event::remote_event_registry::RemoteEventRegistry;
 use replication::{
     Replicated, command_markers::CommandMarkers, replication_registry::ReplicationRegistry,
     replication_rules::ReplicationRules, track_mutate_messages::TrackMutateMessages,
@@ -35,7 +35,7 @@ impl Plugin for RepliconCorePlugin {
             .init_resource::<ReplicationRegistry>()
             .init_resource::<ReplicationRules>()
             .init_resource::<CommandMarkers>()
-            .init_resource::<EventRegistry>();
+            .init_resource::<RemoteEventRegistry>();
     }
 }
 
