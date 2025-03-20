@@ -3,7 +3,7 @@
 use std::slice;
 
 use bytes::Buf;
-use postcard::{de_flavors::Flavor as DeFlavor, ser_flavors::Flavor as SerFlavor, Deserializer};
+use postcard::{Deserializer, de_flavors::Flavor as DeFlavor, ser_flavors::Flavor as SerFlavor};
 use serde::{Deserialize, Serialize};
 
 // TODO: replace with https://github.com/jamesmunns/postcard/pull/210 after release.

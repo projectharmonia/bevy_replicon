@@ -3,7 +3,7 @@ use bevy::{
     prelude::*,
 };
 
-use super::{server_tick::ServerTick, ServerSet};
+use super::{ServerSet, server_tick::ServerTick};
 use crate::core::{
     common_conditions::*,
     connected_client::ConnectedClient,
@@ -149,7 +149,7 @@ fn send_or_buffer(
 fn send_buffered(
     mut server: ResMut<RepliconServer>,
     mut buffered_events: ResMut<BufferedServerEvents>,
-    clients: Query<(Entity, &ClientTicks)>,
+    clients: Query<(Entity, Option<&ClientTicks>)>,
 ) {
     buffered_events
         .send_all(&mut server, &clients)

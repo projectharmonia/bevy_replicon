@@ -23,6 +23,7 @@ include = ["/src", "../LICENSE*"]
 [dependencies]
 bevy = { git = "https://github.com/bevyengine/bevy", default-features = false }
 bevy_replicon = { path = "..", version = "0.31", default-features = false }
+fastrand = "2.3"
 
 [dev-dependencies]
 bevy = { git = "https://github.com/bevyengine/bevy", default-features = false, features = [

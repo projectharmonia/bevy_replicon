@@ -14,7 +14,7 @@ use bevy::{
 use super::ServerSet;
 use crate::core::{
     common_conditions::server_running,
-    replication::{replication_registry::FnsId, replication_rules::ReplicationRules, Replicated},
+    replication::{Replicated, replication_registry::FnsId, replication_rules::ReplicationRules},
 };
 
 /// Buffers all replicated component removals in [`RemovalBuffer`] resource.
@@ -203,7 +203,7 @@ mod tests {
     use super::*;
     use crate::core::{
         replication::{
-            replication_registry::ReplicationRegistry, replication_rules::AppRuleExt, Replicated,
+            Replicated, replication_registry::ReplicationRegistry, replication_rules::AppRuleExt,
         },
         replicon_server::RepliconServer,
     };

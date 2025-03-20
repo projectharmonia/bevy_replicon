@@ -89,7 +89,7 @@ impl ComponentFns {
         ptr: Ptr,
         message: &mut Vec<u8>,
     ) -> postcard::Result<()> {
-        (self.serialize)(ctx, rule_fns, ptr, message)
+        unsafe { (self.serialize)(ctx, rule_fns, ptr, message) }
     }
 
     /// Calls the assigned writing function based on entity markers.
@@ -113,11 +113,11 @@ impl ComponentFns {
             .markers
             .iter()
             .zip(entity_markers.markers())
-            .filter(|(_, &contains)| contains)
+            .filter(|&(_, contains)| *contains)
             .find_map(|(&fns, _)| fns)
             .unwrap_or(self.commands);
 
-        (self.write)(ctx, &command_fns, rule_fns, entity, message)
+        unsafe { (self.write)(ctx, &command_fns, rule_fns, entity, message) }
     }
 
     /// Calls the assigned writing or consuming function based on entity markers.
@@ -142,13 +142,13 @@ impl ComponentFns {
             .iter()
             .zip(entity_markers.markers())
             .zip(command_markers.iter_require_history())
-            .filter(|((_, &contains), _)| contains)
+            .filter(|&((_, contains), _)| *contains)
             .find_map(|((&fns, _), need_history)| fns.map(|fns| (fns, need_history)))
             .and_then(|(fns, need_history)| need_history.then_some(fns))
         {
-            (self.write)(ctx, &command_fns, rule_fns, entity, message)
+            unsafe { (self.write)(ctx, &command_fns, rule_fns, entity, message) }
         } else {
-            (self.consume)(ctx, rule_fns, message)
+            unsafe { (self.consume)(ctx, rule_fns, message) }
         }
     }
 
@@ -163,7 +163,7 @@ impl ComponentFns {
             .markers
             .iter()
             .zip(entity_markers.markers())
-            .filter(|(_, &contains)| contains)
+            .filter(|&(_, contains)| *contains)
             .find_map(|(&fns, _)| fns)
             .unwrap_or(self.commands);
 
@@ -199,8 +199,10 @@ unsafe fn untyped_serialize<C: Component>(
     ptr: Ptr,
     message: &mut Vec<u8>,
 ) -> postcard::Result<()> {
-    let rule_fns = rule_fns.typed::<C>();
-    rule_fns.serialize(ctx, ptr.deref::<C>(), message)
+    unsafe {
+        let rule_fns = rule_fns.typed::<C>();
+        rule_fns.serialize(ctx, ptr.deref::<C>(), message)
+    }
 }
 
 /// Resolves `rule_fns` to `C` and calls [`UntypedCommandFns::write`] for `C`.
@@ -215,7 +217,7 @@ unsafe fn untyped_write<C: Component>(
     entity: &mut DeferredEntity,
     message: &mut Bytes,
 ) -> postcard::Result<()> {
-    command_fns.write::<C>(ctx, &rule_fns.typed::<C>(), entity, message)
+    unsafe { command_fns.write::<C>(ctx, &rule_fns.typed::<C>(), entity, message) }
 }
 
 /// Resolves `rule_fns` to `C` and calls [`RuleFns::consume`](super::rule_fns::RuleFns) for `C`.
@@ -228,5 +230,5 @@ unsafe fn untyped_consume<C: Component>(
     rule_fns: &UntypedRuleFns,
     message: &mut Bytes,
 ) -> postcard::Result<()> {
-    rule_fns.typed::<C>().consume(ctx, message)
+    unsafe { rule_fns.typed::<C>().consume(ctx, message) }
 }

@@ -6,8 +6,8 @@ use bevy::{
 };
 
 use super::replication_registry::{
-    command_fns::{RemoveFn, WriteFn},
     ReplicationRegistry,
+    command_fns::{RemoveFn, WriteFn},
 };
 
 /// Marker-based functions for [`App`].

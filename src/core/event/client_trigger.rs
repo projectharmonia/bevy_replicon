@@ -2,7 +2,7 @@ use std::any;
 
 use bevy::{ecs::entity::MapEntities, prelude::*, ptr::PtrMut};
 use bytes::Bytes;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 use super::{
     client_event::{self, ClientEvent, FromClient},
@@ -116,7 +116,8 @@ impl ClientTrigger {
     /// The caller must ensure that `client_events` is [`Events<FromClient<RemoteTrigger<E>>>`]
     /// and this instance was created for `E`.
     unsafe fn trigger_typed<E: Event>(commands: &mut Commands, client_events: PtrMut) {
-        let client_events: &mut Events<FromClient<RemoteTrigger<E>>> = client_events.deref_mut();
+        let client_events: &mut Events<FromClient<RemoteTrigger<E>>> =
+            unsafe { client_events.deref_mut() };
         for FromClient {
             client_entity,
             event,

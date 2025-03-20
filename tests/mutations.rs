@@ -3,8 +3,8 @@ use std::time::Duration;
 use bevy::{ecs::entity::MapEntities, prelude::*};
 use bevy_replicon::{
     client::{
-        confirm_history::{ConfirmHistory, EntityReplicated},
         ServerUpdateTick,
+        confirm_history::{ConfirmHistory, EntityReplicated},
     },
     core::{
         replication::{

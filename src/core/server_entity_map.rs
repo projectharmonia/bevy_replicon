@@ -25,7 +25,9 @@ impl ServerEntityMap {
     pub fn insert(&mut self, server_entity: Entity, client_entity: Entity) {
         if let Some(existing_entity) = self.server_to_client.insert(server_entity, client_entity) {
             if client_entity != existing_entity {
-                panic!("mapping {server_entity:?} to {client_entity:?}, but it's already mapped to {existing_entity:?}");
+                panic!(
+                    "mapping {server_entity:?} to {client_entity:?}, but it's already mapped to {existing_entity:?}"
+                );
             } else {
                 warn!("received duplicate mapping from {server_entity:?} to {client_entity:?}");
             }

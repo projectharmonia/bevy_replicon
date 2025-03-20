@@ -9,10 +9,10 @@ use bevy::{
     platform_support::collections::HashSet,
     prelude::*,
 };
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use variadics_please::all_tuples;
 
-use super::replication_registry::{rule_fns::RuleFns, FnsId, ReplicationRegistry};
+use super::replication_registry::{FnsId, ReplicationRegistry, rule_fns::RuleFns};
 
 /// Replication functions for [`App`].
 pub trait AppRuleExt {

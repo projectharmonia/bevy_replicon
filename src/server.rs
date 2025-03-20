@@ -27,8 +27,8 @@ use crate::core::{
     replication::{
         client_ticks::{ClientTicks, EntityBuffer},
         replication_registry::{
-            component_fns::ComponentFns, ctx::SerializeCtx, rule_fns::UntypedRuleFns,
-            ReplicationRegistry,
+            ReplicationRegistry, component_fns::ComponentFns, ctx::SerializeCtx,
+            rule_fns::UntypedRuleFns,
         },
         track_mutate_messages::TrackMutateMessages,
     },
@@ -62,10 +62,10 @@ pub struct ServerPlugin {
     /// If enabled, replication will be started automatically after connection.
     ///
     /// If disabled, replication should be started manually by inserting [`ReplicatedClient`] on the client entity.
-    /// Until replication has started, the client and server can still exchange network events.
     ///
-    /// All events from server will be buffered on client until replication starts, except the ones marked as independent.
-    /// See also [`ServerEventAppExt::make_independent`](crate::core::event::server_event::ServerEventAppExt::make_independent).
+    /// Until replication has started, the client and server can still exchange network events that are marked as
+    /// independent via [`ServerEventAppExt::make_independent`](crate::core::event::server_event::ServerEventAppExt::make_independent).
+    /// **All other events will be ignored**.
     pub replicate_after_connect: bool,
 }
 
@@ -145,12 +145,19 @@ impl Plugin for ServerPlugin {
             TickPolicy::Manual => (),
         }
 
-        let visibility = match self.visibility_policy {
-            VisibilityPolicy::All => ClientVisibility::all,
-            VisibilityPolicy::Blacklist => ClientVisibility::blacklist,
-            VisibilityPolicy::Whitelist => ClientVisibility::whitelist,
-        };
-        app.register_required_components_with::<ReplicatedClient, _>(visibility);
+        match self.visibility_policy {
+            VisibilityPolicy::All => {}
+            VisibilityPolicy::Blacklist => {
+                app.register_required_components_with::<ReplicatedClient, _>(
+                    ClientVisibility::blacklist,
+                );
+            }
+            VisibilityPolicy::Whitelist => {
+                app.register_required_components_with::<ReplicatedClient, _>(
+                    ClientVisibility::whitelist,
+                );
+            }
+        }
 
         if self.replicate_after_connect {
             app.register_required_components::<ConnectedClient, ReplicatedClient>();
@@ -237,7 +244,7 @@ pub(super) fn send_replication(
         &mut ConnectedClient,
         &mut ClientEntityMap,
         &mut ClientTicks,
-        &mut ClientVisibility,
+        Option<&mut ClientVisibility>,
     )>,
     mut removal_buffer: ResMut<RemovalBuffer>,
     mut entity_buffer: ResMut<EntityBuffer>,
@@ -305,7 +312,7 @@ fn send_messages(
         &mut ConnectedClient,
         &mut ClientEntityMap,
         &mut ClientTicks,
-        &mut ClientVisibility,
+        Option<&mut ClientVisibility>,
     )>,
     server: &mut RepliconServer,
     server_tick: RepliconTick,
@@ -316,15 +323,8 @@ fn send_messages(
     time: &Time,
 ) -> postcard::Result<()> {
     let mut server_tick_range = None;
-    for (
-        client_entity,
-        update_message,
-        mut mutate_message,
-        client,
-        ..,
-        mut ticks,
-        mut visibility,
-    ) in clients
+    for (client_entity, update_message, mut mutate_message, client, .., mut ticks, visibility) in
+        clients
     {
         if !update_message.is_empty() {
             ticks.set_update_tick(server_tick);
@@ -356,7 +356,9 @@ fn send_messages(
             trace!("no mutations to send for client `{client_entity}`");
         }
 
-        visibility.update();
+        if let Some(mut visibility) = visibility {
+            visibility.update();
+        }
     }
 
     Ok(())
@@ -372,7 +374,7 @@ fn collect_mappings(
         &mut ConnectedClient,
         &mut ClientEntityMap,
         &mut ClientTicks,
-        &mut ClientVisibility,
+        Option<&mut ClientVisibility>,
     )>,
 ) -> postcard::Result<()> {
     for (_, mut message, _, _, mut entity_map, ..) in clients {
@@ -394,26 +396,32 @@ fn collect_despawns(
         &mut ConnectedClient,
         &mut ClientEntityMap,
         &mut ClientTicks,
-        &mut ClientVisibility,
+        Option<&mut ClientVisibility>,
     )>,
     despawn_buffer: &mut DespawnBuffer,
 ) -> postcard::Result<()> {
     for entity in despawn_buffer.drain(..) {
         let entity_range = serialized.write_entity(entity)?;
-        for (_, mut message, .., mut ticks, mut visibility) in &mut *clients {
-            if visibility.is_visible(entity) {
+        for (_, mut message, .., mut ticks, visibility) in &mut *clients {
+            if let Some(mut visibility) = visibility {
+                if visibility.is_visible(entity) {
+                    message.add_despawn(entity_range.clone());
+                }
+                visibility.remove_despawned(entity);
+            } else {
                 message.add_despawn(entity_range.clone());
             }
-            visibility.remove_despawned(entity);
             ticks.remove_entity(entity);
         }
     }
 
-    for (_, mut message, .., mut ticks, mut visibility) in clients {
-        for entity in visibility.drain_lost() {
-            let entity_range = serialized.write_entity(entity)?;
-            message.add_despawn(entity_range);
-            ticks.remove_entity(entity);
+    for (_, mut message, .., mut ticks, visibility) in clients {
+        if let Some(mut visibility) = visibility {
+            for entity in visibility.drain_lost() {
+                let entity_range = serialized.write_entity(entity)?;
+                message.add_despawn(entity_range);
+                ticks.remove_entity(entity);
+            }
         }
     }
 
@@ -430,7 +438,7 @@ fn collect_removals(
         &mut ConnectedClient,
         &mut ClientEntityMap,
         &mut ClientTicks,
-        &mut ClientVisibility,
+        Option<&mut ClientVisibility>,
     )>,
     removal_buffer: &RemovalBuffer,
 ) -> postcard::Result<()> {
@@ -439,7 +447,7 @@ fn collect_removals(
         let ids_len = remove_ids.len();
         let fn_ids = serialized.write_fn_ids(remove_ids.iter().map(|&(_, fns_id)| fns_id))?;
         for (_, mut message, .., visibility) in &mut *clients {
-            if visibility.is_visible(entity) {
+            if visibility.is_none_or(|v| v.is_visible(entity)) {
                 message.add_removals(entity_range.clone(), ids_len, fn_ids.clone());
             }
         }
@@ -458,7 +466,7 @@ fn collect_changes(
         &mut ConnectedClient,
         &mut ClientEntityMap,
         &mut ClientTicks,
-        &mut ClientVisibility,
+        Option<&mut ClientVisibility>,
     )>,
     registry: &ReplicationRegistry,
     type_registry: &TypeRegistry,
@@ -471,7 +479,9 @@ fn collect_changes(
         for entity in archetype.entities() {
             let mut entity_range = None;
             for (_, mut update_message, mut mutate_message, .., visibility) in &mut *clients {
-                let visibility = visibility.state(entity.id());
+                let visibility = visibility
+                    .map(|v| v.state(entity.id()))
+                    .unwrap_or(Visibility::Visible);
                 update_message.start_entity_changes(visibility);
                 mutate_message.start_entity_mutations();
             }

@@ -14,6 +14,8 @@ use bevy::{
 ///
 /// `Entity` is used an identifier to refer to a client.
 ///
+/// Needs to be inserted with [`NetworkId`] if the backend provides support for it.
+///
 /// <div class="warning">
 ///
 /// Entities with this components should be spawned and despawned only from the messaging backend.
@@ -22,10 +24,8 @@ use bevy::{
 ///
 /// See also [`ReplicatedClient`](crate::server::ReplicatedClient).
 #[derive(Component, Reflect)]
-#[component(on_add = on_client_add, on_remove = on_client_remove)]
 #[require(Name(|| Name::new("Connected client")), NetworkStats)]
 pub struct ConnectedClient {
-    id: ClientId,
     /// Maximum size of a message that can be transferred over unreliable channel without
     /// splitting into multiple packets.
     ///
@@ -40,49 +40,32 @@ pub struct ConnectedClient {
     pub max_size: usize,
 }
 
-impl ConnectedClient {
-    /// Creates a new instance with a backend-provided ID and maximum message size for unreliable channel.
-    pub fn new(id: ClientId, max_size: usize) -> Self {
-        Self { id, max_size }
-    }
-
-    /// Returns client ID provided by backend.
-    ///
-    /// Can be used to identify which client belongs to which connection.
-    ///
-    /// See also [`ClientIdMap`].
-    pub fn id(&self) -> ClientId {
-        self.id
-    }
-}
-
-fn on_client_add(mut world: DeferredWorld, ctx: HookContext) {
-    let connected_client = world.get::<ConnectedClient>(ctx.entity).unwrap();
-    let client_id = connected_client.id;
-    let mut client_map = world.resource_mut::<ClientIdMap>();
-    if let Some(old_entity) = client_map.0.insert(client_id, ctx.entity) {
-        error!("backend-provided `{client_id:?}` that was already mapped to client `{old_entity}`");
-    }
-}
-
-fn on_client_remove(mut world: DeferredWorld, ctx: HookContext) {
-    let connected_client = world.get::<ConnectedClient>(ctx.entity).unwrap();
-    let client_id = connected_client.id;
-    let mut client_map = world.resource_mut::<ClientIdMap>();
-    client_map.0.remove(&client_id);
-}
-
-/// Maps [`ConnectedClient::id`] to associated entity.
+/// Maps [`NetworkId`] to its associated entity.
 ///
-/// Automatically updated on clients spawns and despawns.
-#[derive(Resource, Default, Deref)]
-pub struct ClientIdMap(HashMap<ClientId, Entity>);
+/// Automatically updated on client entity spawns and despawns.
+#[derive(Resource, Reflect, Default, Deref)]
+pub struct NetworkIdMap(HashMap<NetworkId, Entity>);
 
-/// Unique client ID provided by a messaging backend.
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Ord, PartialOrd, Reflect)]
-pub struct ClientId(u64);
+/// A unique and persistent client ID provided by a messaging backend.
+///
+/// Used to identify the same client across reconnects if the backend supports
+/// persistent identifiers.
+///
+/// This component needs to be optionally inserted alongside [`ConnectedClient`].
+///
+/// See also [`NetworkIdMap`].
+///
+/// <div class="warning">
+///
+/// This component should only be inserted by the messaging backend
+/// and never removed until the entity is despawned.
+///
+/// </div>
+#[derive(Component, Debug, Clone, Copy, Hash, PartialEq, Eq, Ord, PartialOrd, Reflect)]
+#[component(on_add = on_id_add, on_remove = on_id_remove)]
+pub struct NetworkId(u64);
 
-impl ClientId {
+impl NetworkId {
     /// Creates a new ID wrapping the given value.
     pub const fn new(value: u64) -> Self {
         Self(value)
@@ -92,6 +75,22 @@ impl ClientId {
     pub fn get(&self) -> u64 {
         self.0
     }
+}
+
+fn on_id_add(mut world: DeferredWorld, ctx: HookContext) {
+    let network_id = *world.get::<NetworkId>(ctx.entity).unwrap();
+    let mut network_map = world.resource_mut::<NetworkIdMap>();
+    if let Some(old_entity) = network_map.0.insert(network_id, ctx.entity) {
+        error!(
+            "backend-provided `{network_id:?}` that was already mapped to client `{old_entity}`"
+        );
+    }
+}
+
+fn on_id_remove(mut world: DeferredWorld, ctx: HookContext) {
+    let network_id = *world.get::<NetworkId>(ctx.entity).unwrap();
+    let mut network_map = world.resource_mut::<NetworkIdMap>();
+    network_map.0.remove(&network_id);
 }
 
 /// Statistic associated with [`RepliconClient`](super::replicon_client::RepliconClient) or

@@ -1,12 +1,16 @@
 use std::{
     io,
     net::{Ipv4Addr, SocketAddr, TcpStream},
+    time::Instant,
 };
 
 use bevy::prelude::*;
 use bevy_replicon::prelude::*;
 
-use super::tcp;
+use super::{
+    link_conditioner::{ConditionerConfig, LinkConditioner},
+    tcp,
+};
 
 /// Adds a client messaging backend made for examples to `bevy_replicon`.
 pub struct RepliconExampleClientPlugin;
@@ -44,25 +48,33 @@ fn receive_packets(
     mut commands: Commands,
     mut client: ResMut<ExampleClient>,
     mut replicon_client: ResMut<RepliconClient>,
+    config: Option<Res<ConditionerConfig>>,
 ) {
+    let now = Instant::now();
+    let config = config.as_deref();
     loop {
-        match tcp::read_message(&mut client.0) {
-            Ok((channel_id, message)) => replicon_client.insert_received(channel_id, message),
-            Err(e) => {
-                match e.kind() {
-                    io::ErrorKind::WouldBlock => (),
-                    io::ErrorKind::UnexpectedEof => {
-                        debug!("server closed the connection");
-                        commands.remove_resource::<ExampleClient>();
-                    }
-                    _ => {
-                        error!("disconnecting due to message read error: {e}");
-                        commands.remove_resource::<ExampleClient>();
-                    }
-                }
-                return;
+        match tcp::read_message(&mut client.stream) {
+            Ok((channel_id, message)) => {
+                client.conditioner.insert(config, now, channel_id, message)
             }
+            Err(e) => match e.kind() {
+                io::ErrorKind::WouldBlock => break,
+                io::ErrorKind::UnexpectedEof => {
+                    debug!("server closed the connection");
+                    commands.remove_resource::<ExampleClient>();
+                    return;
+                }
+                _ => {
+                    error!("disconnecting due to message read error: {e}");
+                    commands.remove_resource::<ExampleClient>();
+                    return;
+                }
+            },
         }
+    }
+
+    while let Some((channel_id, message)) = client.conditioner.pop(now) {
+        replicon_client.insert_received(channel_id, message);
     }
 }
 
@@ -72,7 +84,7 @@ fn send_packets(
     mut replicon_client: ResMut<RepliconClient>,
 ) {
     for (channel_id, message) in replicon_client.drain_sent() {
-        if let Err(e) = tcp::send_message(&mut client.0, channel_id, &message) {
+        if let Err(e) = tcp::send_message(&mut client.stream, channel_id, &message) {
             error!("disconnecting due message write error: {e}");
             commands.remove_resource::<ExampleClient>();
             return;
@@ -82,7 +94,10 @@ fn send_packets(
 
 /// The socket used by the client.
 #[derive(Resource)]
-pub struct ExampleClient(TcpStream);
+pub struct ExampleClient {
+    stream: TcpStream,
+    conditioner: LinkConditioner,
+}
 
 impl ExampleClient {
     /// Opens an example client socket connected to a server on the specified port.
@@ -90,12 +105,15 @@ impl ExampleClient {
         let stream = TcpStream::connect((Ipv4Addr::LOCALHOST, port))?;
         stream.set_nonblocking(true)?;
         stream.set_nodelay(true)?;
-        Ok(Self(stream))
+        Ok(Self {
+            stream,
+            conditioner: Default::default(),
+        })
     }
 
     /// Returns local address if connected.
     pub fn local_addr(&self) -> io::Result<SocketAddr> {
-        self.0.local_addr()
+        self.stream.local_addr()
     }
 
     /// Returns true if the client is connected.

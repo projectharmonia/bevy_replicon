@@ -499,13 +499,17 @@ fn before_started_replication() {
 
     server_app.connect_client(&mut client_app);
 
-    // Spawn entity to trigger world change.
-    server_app.world_mut().spawn(Replicated);
-
-    server_app.world_mut().send_event(ToClients {
-        mode: SendMode::Broadcast,
-        event: DummyEvent,
-    });
+    let test_client_entity = **client_app.world().resource::<TestClientEntity>();
+    for mode in [
+        SendMode::Broadcast,
+        SendMode::BroadcastExcept(SERVER),
+        SendMode::Direct(test_client_entity),
+    ] {
+        server_app.world_mut().send_event(ToClients {
+            mode,
+            event: DummyEvent,
+        });
+    }
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
