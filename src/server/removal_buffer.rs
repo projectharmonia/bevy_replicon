@@ -2,7 +2,7 @@ use bevy::{
     ecs::{
         archetype::{Archetype, Archetypes},
         component::ComponentId,
-        entity::{hash_map::EntityHashMap, Entities},
+        entity::{Entities, hash_map::EntityHashMap},
         event::EventCursor,
         removal_detection::{RemovedComponentEntity, RemovedComponentEvents},
         system::SystemParam,
