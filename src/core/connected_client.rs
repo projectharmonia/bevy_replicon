@@ -3,6 +3,7 @@ use bevy::{
     prelude::*,
     utils::HashMap,
 };
+use serde::{Deserialize, Serialize};
 
 /// Marker for a connected client.
 ///
@@ -61,7 +62,20 @@ pub struct NetworkIdMap(HashMap<NetworkId, Entity>);
 /// and never removed until the entity is despawned.
 ///
 /// </div>
-#[derive(Component, Debug, Clone, Copy, Hash, PartialEq, Eq, Ord, PartialOrd, Reflect)]
+#[derive(
+    Component,
+    Debug,
+    Clone,
+    Copy,
+    Hash,
+    PartialEq,
+    Eq,
+    Ord,
+    PartialOrd,
+    Reflect,
+    Serialize,
+    Deserialize,
+)]
 #[component(on_add = on_id_add, on_remove = on_id_remove)]
 pub struct NetworkId(u64);
 
