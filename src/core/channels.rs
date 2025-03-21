@@ -4,6 +4,8 @@ use bevy::prelude::*;
 
 /// ID of a server replication channel.
 ///
+/// To synchronize the state, we send only changes using Bevy's change detection.
+///
 /// We can't use only a reliable channel because of how reliability is implement. Messages are split into packets
 /// based on the MTU and are considered received only if all their packets are received. If any packet is dropped,
 /// it gets resent with the same data. However, on the client, we care only about the latest data. For example:

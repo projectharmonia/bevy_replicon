@@ -67,7 +67,8 @@ to save traffic.
 On server current tick stored in [`RepliconTick`](core::replicon_tick::RepliconTick) resource.
 Replication runs when this resource changes.
 
-You can change the defaults with [`TickPolicy`] in the [`ServerPlugin`]:
+You can use [`TickPolicy::Manual`] and then add the [`increment_tick`](server::increment_tick)
+system to [`FixedUpdate`]:
 
 ```
 # use bevy::prelude::*;
@@ -78,10 +79,11 @@ app.add_plugins(
         .build()
         .disable::<ClientPlugin>()
         .set(ServerPlugin {
-            tick_policy: TickPolicy::MaxTickRate(60),
+            tick_policy: TickPolicy::Manual,
             ..Default::default()
         }),
-);
+)
+.add_systems(FixedPreUpdate, bevy_replicon::server::increment_tick);
 ```
 
 ### Entities
