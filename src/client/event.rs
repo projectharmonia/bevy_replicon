@@ -3,7 +3,7 @@ use crate::core::{
     common_conditions::*,
     event::{
         ctx::{ClientReceiveCtx, ClientSendCtx},
-        event_registry::EventRegistry,
+        remote_event_registry::RemoteEventRegistry,
     },
     replicon_client::RepliconClient,
     server_entity_map::ServerEntityMap,
@@ -27,7 +27,7 @@ impl Plugin for ClientEventPlugin {
         // because we need to access resources by registered IDs.
         let event_registry = app
             .world_mut()
-            .remove_resource::<EventRegistry>()
+            .remove_resource::<RemoteEventRegistry>()
             .expect("event registry should be initialized on app build");
 
         let send = (
@@ -146,7 +146,7 @@ fn send(
     mut client: ResMut<RepliconClient>,
     type_registry: Res<AppTypeRegistry>,
     entity_map: Res<ServerEntityMap>,
-    event_registry: Res<EventRegistry>,
+    event_registry: Res<RemoteEventRegistry>,
 ) {
     let mut ctx = ClientSendCtx {
         entity_map: &entity_map,
@@ -175,7 +175,7 @@ fn receive(
     mut client: ResMut<RepliconClient>,
     type_registry: Res<AppTypeRegistry>,
     entity_map: Res<ServerEntityMap>,
-    event_registry: Res<EventRegistry>,
+    event_registry: Res<RemoteEventRegistry>,
     update_tick: Res<ServerUpdateTick>,
 ) {
     let mut ctx = ClientReceiveCtx {
@@ -208,7 +208,7 @@ fn receive(
 fn trigger(
     mut events: FilteredResourcesMut,
     mut commands: Commands,
-    event_registry: Res<EventRegistry>,
+    event_registry: Res<RemoteEventRegistry>,
 ) {
     for trigger in event_registry.iter_server_triggers() {
         let events = events
@@ -221,7 +221,7 @@ fn trigger(
 fn resend_locally(
     mut client_events: FilteredResourcesMut,
     mut events: FilteredResourcesMut,
-    event_registry: Res<EventRegistry>,
+    event_registry: Res<RemoteEventRegistry>,
 ) {
     for event in event_registry.iter_client_events() {
         let client_events = client_events
@@ -239,7 +239,7 @@ fn resend_locally(
 fn reset(
     mut events: FilteredResourcesMut,
     mut queues: FilteredResourcesMut,
-    event_registry: Res<EventRegistry>,
+    event_registry: Res<RemoteEventRegistry>,
 ) {
     for event in event_registry.iter_client_events() {
         let events = events

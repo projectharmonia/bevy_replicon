@@ -9,7 +9,7 @@ use crate::core::{
     connected_client::ConnectedClient,
     event::{
         ctx::{ServerReceiveCtx, ServerSendCtx},
-        event_registry::EventRegistry,
+        remote_event_registry::RemoteEventRegistry,
         server_event::BufferedServerEvents,
     },
     replication::client_ticks::ClientTicks,
@@ -30,7 +30,7 @@ impl Plugin for ServerEventPlugin {
         // because we need to access resources by registered IDs.
         let event_registry = app
             .world_mut()
-            .remove_resource::<EventRegistry>()
+            .remove_resource::<RemoteEventRegistry>()
             .expect("event registry should be initialized on app build");
 
         let send_or_buffer = (
@@ -120,7 +120,7 @@ fn send_or_buffer(
     mut server: ResMut<RepliconServer>,
     mut buffered_events: ResMut<BufferedServerEvents>,
     type_registry: Res<AppTypeRegistry>,
-    event_registry: Res<EventRegistry>,
+    event_registry: Res<RemoteEventRegistry>,
     clients: Query<Entity, With<ConnectedClient>>,
 ) {
     buffered_events.start_tick();
@@ -160,7 +160,7 @@ fn receive(
     mut client_events: FilteredResourcesMut,
     mut server: ResMut<RepliconServer>,
     type_registry: Res<AppTypeRegistry>,
-    event_registry: Res<EventRegistry>,
+    event_registry: Res<RemoteEventRegistry>,
 ) {
     let mut ctx = ServerReceiveCtx {
         type_registry: &type_registry.read(),
@@ -179,7 +179,7 @@ fn receive(
 fn trigger(
     mut client_events: FilteredResourcesMut,
     mut commands: Commands,
-    event_registry: Res<EventRegistry>,
+    event_registry: Res<RemoteEventRegistry>,
 ) {
     for trigger in event_registry.iter_client_triggers() {
         let client_events = client_events
@@ -192,7 +192,7 @@ fn trigger(
 fn resend_locally(
     mut server_events: FilteredResourcesMut,
     mut events: FilteredResourcesMut,
-    event_registry: Res<EventRegistry>,
+    event_registry: Res<RemoteEventRegistry>,
 ) {
     for event in event_registry.iter_server_events() {
         let server_events = server_events

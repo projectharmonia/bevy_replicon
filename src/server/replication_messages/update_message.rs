@@ -8,8 +8,8 @@ use super::{
     serialized_data::SerializedData,
 };
 use crate::core::{
-    channels::ReplicationChannel, postcard_utils,
-    replication::update_message_flags::UpdateMessageFlags, replicon_server::RepliconServer,
+    postcard_utils, replication::update_message_flags::UpdateMessageFlags,
+    replicon_channels::ReplicationChannel, replicon_server::RepliconServer,
 };
 use crate::server::client_visibility::Visibility;
 

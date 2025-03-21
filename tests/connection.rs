@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 use bevy_replicon::{
     core::{
-        channels::ReplicationChannel,
         connected_client::{ConnectedClient, NetworkId, NetworkIdMap},
+        replicon_channels::ReplicationChannel,
     },
     prelude::*,
     server::server_tick::ServerTick,

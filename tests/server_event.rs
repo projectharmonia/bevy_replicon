@@ -5,12 +5,31 @@ use bevy::{
 };
 use bevy_replicon::{
     client::ServerUpdateTick,
-    core::server_entity_map::ServerEntityMap,
+    core::{event::remote_event_registry::RemoteEventRegistry, server_entity_map::ServerEntityMap},
     prelude::*,
     server::server_tick::ServerTick,
     test_app::{ServerTestAppExt, TestClientEntity},
 };
 use serde::{Deserialize, Serialize};
+
+#[test]
+fn channels() {
+    let mut app = App::new();
+    app.add_plugins((
+        MinimalPlugins,
+        RepliconPlugins.set(ServerPlugin {
+            tick_policy: TickPolicy::EveryFrame,
+            ..Default::default()
+        }),
+    ))
+    .add_event::<NonRemoteEvent>()
+    .add_server_event::<DummyEvent>(Channel::Ordered)
+    .finish();
+
+    let event_registry = app.world().resource::<RemoteEventRegistry>();
+    assert_eq!(event_registry.server_channel::<NonRemoteEvent>(), None);
+    assert_eq!(event_registry.server_channel::<DummyEvent>(), Some(2));
+}
 
 #[test]
 fn sending_receiving() {
@@ -24,7 +43,7 @@ fn sending_receiving() {
                 ..Default::default()
             }),
         ))
-        .add_server_event::<DummyEvent>(ChannelKind::Ordered)
+        .add_server_event::<DummyEvent>(Channel::Ordered)
         .finish();
     }
 
@@ -69,7 +88,7 @@ fn sending_receiving_and_mapping() {
                 ..Default::default()
             }),
         ))
-        .add_mapped_server_event::<EntityEvent>(ChannelKind::Ordered)
+        .add_mapped_server_event::<EntityEvent>(Channel::Ordered)
         .finish();
     }
 
@@ -116,7 +135,7 @@ fn sending_receiving_without_plugins() {
                 .disable::<ClientPlugin>()
                 .disable::<ClientEventPlugin>(),
         ))
-        .add_server_event::<DummyEvent>(ChannelKind::Ordered)
+        .add_server_event::<DummyEvent>(Channel::Ordered)
         .finish();
     client_app
         .add_plugins((
@@ -126,7 +145,7 @@ fn sending_receiving_without_plugins() {
                 .disable::<ServerPlugin>()
                 .disable::<ServerEventPlugin>(),
         ))
-        .add_server_event::<DummyEvent>(ChannelKind::Ordered)
+        .add_server_event::<DummyEvent>(Channel::Ordered)
         .finish();
 
     server_app.connect_client(&mut client_app);
@@ -168,7 +187,7 @@ fn local_resending() {
             ..Default::default()
         }),
     ))
-    .add_server_event::<DummyEvent>(ChannelKind::Ordered)
+    .add_server_event::<DummyEvent>(Channel::Ordered)
     .finish();
 
     const DUMMY_CLIENT_ID: Entity = Entity::from_raw(1);
@@ -210,7 +229,7 @@ fn event_buffering() {
                 ..Default::default()
             }),
         ))
-        .add_server_event::<DummyEvent>(ChannelKind::Ordered)
+        .add_server_event::<DummyEvent>(Channel::Ordered)
         .finish();
     }
 
@@ -256,7 +275,7 @@ fn event_queue() {
                 ..Default::default()
             }),
         ))
-        .add_server_event::<DummyEvent>(ChannelKind::Ordered)
+        .add_server_event::<DummyEvent>(Channel::Ordered)
         .finish();
     }
 
@@ -306,7 +325,7 @@ fn event_queue_and_mapping() {
                 ..Default::default()
             }),
         ))
-        .add_mapped_server_event::<EntityEvent>(ChannelKind::Ordered)
+        .add_mapped_server_event::<EntityEvent>(Channel::Ordered)
         .finish();
     }
 
@@ -369,8 +388,8 @@ fn multiple_event_queues() {
                 ..Default::default()
             }),
         ))
-        .add_server_event::<DummyEvent>(ChannelKind::Ordered)
-        .add_server_event::<EntityEvent>(ChannelKind::Ordered) // Use as a regular event with a different serialization size.
+        .add_server_event::<DummyEvent>(Channel::Ordered)
+        .add_server_event::<EntityEvent>(Channel::Ordered) // Use as a regular event with a different serialization size.
         .finish();
     }
 
@@ -431,7 +450,7 @@ fn independent() {
                 ..Default::default()
             }),
         ))
-        .add_server_event::<DummyEvent>(ChannelKind::Ordered)
+        .add_server_event::<DummyEvent>(Channel::Ordered)
         .make_independent::<DummyEvent>()
         .finish();
     }
@@ -493,7 +512,7 @@ fn before_started_replication() {
                 ..Default::default()
             }),
         ))
-        .add_server_event::<DummyEvent>(ChannelKind::Ordered)
+        .add_server_event::<DummyEvent>(Channel::Ordered)
         .finish();
     }
 
@@ -533,7 +552,7 @@ fn independent_before_started_replication() {
                 ..Default::default()
             }),
         ))
-        .add_server_event::<DummyEvent>(ChannelKind::Ordered)
+        .add_server_event::<DummyEvent>(Channel::Ordered)
         .make_independent::<DummyEvent>()
         .finish();
     }
@@ -569,7 +588,7 @@ fn different_ticks() {
                 ..Default::default()
             }),
         ))
-        .add_server_event::<DummyEvent>(ChannelKind::Ordered)
+        .add_server_event::<DummyEvent>(Channel::Ordered)
         .finish();
     }
 
@@ -611,6 +630,9 @@ fn different_ticks() {
         1
     );
 }
+
+#[derive(Event)]
+struct NonRemoteEvent;
 
 #[derive(Deserialize, Event, Serialize)]
 struct DummyEvent;

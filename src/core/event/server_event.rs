@@ -1,6 +1,9 @@
 mod client_event_queue;
 
-use std::{any, mem};
+use std::{
+    any::{self, TypeId},
+    mem,
+};
 
 use bevy::{
     ecs::{
@@ -17,13 +20,12 @@ use serde::{Serialize, de::DeserializeOwned};
 use super::{
     ctx::{ClientReceiveCtx, ServerSendCtx},
     event_fns::{EventDeserializeFn, EventFns, EventSerializeFn, UntypedEventFns},
-    event_registry::EventRegistry,
+    remote_event_registry::RemoteEventRegistry,
 };
 use crate::core::{
-    ConnectedClient, SERVER,
-    channels::{RepliconChannel, RepliconChannels},
-    postcard_utils,
+    ConnectedClient, SERVER, postcard_utils,
     replication::client_ticks::ClientTicks,
+    replicon_channels::{Channel, RepliconChannels},
     replicon_client::RepliconClient,
     replicon_server::RepliconServer,
     replicon_tick::RepliconTick,
@@ -43,12 +45,15 @@ pub trait ServerEventAppExt {
     /// Calling [`App::add_event`] is not necessary. Can used for regular events that were
     /// previously registered.
     ///
+    /// Unlike client events, server events are tied to replication. See [`Self::make_independent`]
+    /// for more details.
+    ///
     /// See also [`ServerTriggerAppExt::add_server_trigger`](super::server_trigger::ServerTriggerAppExt::add_server_trigger),
     /// [`Self::add_server_event_with`] and the [corresponding section](../index.html#from-server-to-client)
     /// from the quick start guide.
     fn add_server_event<E: Event + Serialize + DeserializeOwned>(
         &mut self,
-        channel: impl Into<RepliconChannel>,
+        channel: Channel,
     ) -> &mut Self {
         self.add_server_event_with(channel, default_serialize::<E>, default_deserialize::<E>)
     }
@@ -59,7 +64,7 @@ pub trait ServerEventAppExt {
     /// See also [`Self::add_server_event`].
     fn add_mapped_server_event<E: Event + Serialize + DeserializeOwned + MapEntities>(
         &mut self,
-        channel: impl Into<RepliconChannel>,
+        channel: Channel,
     ) -> &mut Self {
         self.add_server_event_with(
             channel,
@@ -96,7 +101,7 @@ pub trait ServerEventAppExt {
 
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, RepliconPlugins));
-    app.add_server_event_with(ChannelKind::Ordered, serialize_reflect, deserialize_reflect);
+    app.add_server_event_with(Channel::Ordered, serialize_reflect, deserialize_reflect);
 
     fn serialize_reflect(
         ctx: &mut ServerSendCtx,
@@ -122,7 +127,7 @@ pub trait ServerEventAppExt {
     */
     fn add_server_event_with<E: Event>(
         &mut self,
-        channel: impl Into<RepliconChannel>,
+        channel: Channel,
         serialize: EventSerializeFn<ServerSendCtx, E>,
         deserialize: EventDeserializeFn<ClientReceiveCtx, E>,
     ) -> &mut Self;
@@ -137,7 +142,7 @@ pub trait ServerEventAppExt {
     /// has not yet received.
     ///
     /// For more details about replication see the documentation on
-    /// [`ReplicationChannel`](crate::core::channels::ReplicationChannel).
+    /// [`ReplicationChannel`](crate::core::replicon_channels::ReplicationChannel).
     ///
     /// However, if you know your event doesn't rely on that, you can mark it
     /// as independent to always emit it immediately. For example, a chat
@@ -156,7 +161,7 @@ pub trait ServerEventAppExt {
 impl ServerEventAppExt for App {
     fn add_server_event_with<E: Event>(
         &mut self,
-        channel: impl Into<RepliconChannel>,
+        channel: Channel,
         serialize: EventSerializeFn<ServerSendCtx, E>,
         deserialize: EventDeserializeFn<ClientReceiveCtx, E>,
     ) -> &mut Self {
@@ -164,7 +169,7 @@ impl ServerEventAppExt for App {
 
         let event_fns = EventFns::new(serialize, deserialize);
         let event = ServerEvent::new(self, channel, event_fns);
-        let mut event_registry = self.world_mut().resource_mut::<EventRegistry>();
+        let mut event_registry = self.world_mut().resource_mut::<RemoteEventRegistry>();
         event_registry.register_server_event(event);
 
         self
@@ -182,7 +187,7 @@ impl ServerEventAppExt for App {
                 )
             });
 
-        let mut event_registry = self.world_mut().resource_mut::<EventRegistry>();
+        let mut event_registry = self.world_mut().resource_mut::<RemoteEventRegistry>();
         let event = event_registry
             .iter_server_events_mut()
             .find(|event| event.events_id() == events_id)
@@ -220,7 +225,10 @@ pub(crate) struct ServerEvent {
     queue_id: ComponentId,
 
     /// Used channel.
-    channel_id: u8,
+    channel_id: usize,
+
+    /// ID of `E`.
+    type_id: TypeId,
 
     send_or_buffer: SendOrBufferFn,
     receive: ReceiveFn,
@@ -232,7 +240,7 @@ pub(crate) struct ServerEvent {
 impl ServerEvent {
     pub(super) fn new<E: Event, I: 'static>(
         app: &mut App,
-        channel: impl Into<RepliconChannel>,
+        channel: Channel,
         event_fns: EventFns<ServerSendCtx, ClientReceiveCtx, E, I>,
     ) -> Self {
         let channel_id = app
@@ -254,6 +262,7 @@ impl ServerEvent {
             server_events_id,
             queue_id,
             channel_id,
+            type_id: TypeId::of::<E>(),
             send_or_buffer: Self::send_or_buffer_typed::<E, I>,
             receive: Self::receive_typed::<E, I>,
             resend_locally: Self::resend_locally_typed::<E>,
@@ -276,6 +285,14 @@ impl ServerEvent {
 
     pub(super) fn is_independent(&self) -> bool {
         self.independent
+    }
+
+    pub(super) fn channel_id(&self) -> usize {
+        self.channel_id
+    }
+
+    pub(super) fn type_id(&self) -> TypeId {
+        self.type_id
     }
 
     /// Sends an event to client(s).
@@ -702,7 +719,7 @@ impl SerializedMessage {
 
 struct BufferedServerEvent {
     mode: SendMode,
-    channel: u8,
+    channel_id: usize,
     message: SerializedMessage,
 }
 
@@ -714,7 +731,7 @@ impl BufferedServerEvent {
         client: &ClientTicks,
     ) -> postcard::Result<()> {
         let message = self.message.get_bytes(client.update_tick())?;
-        server.send(client_entity, self.channel, message);
+        server.send(client_entity, self.channel_id, message);
         Ok(())
     }
 }
@@ -757,14 +774,14 @@ impl BufferedServerEvents {
         self.buffer.last_mut()
     }
 
-    fn insert(&mut self, mode: SendMode, channel: u8, message: SerializedMessage) {
+    fn insert(&mut self, mode: SendMode, channel_id: usize, message: SerializedMessage) {
         let buffer = self
             .active_tick()
             .expect("`BufferedServerEvents::start_tick` should be called before buffering");
 
         buffer.events.push(BufferedServerEvent {
             mode,
-            channel,
+            channel_id,
             message,
         });
     }
@@ -793,7 +810,7 @@ impl BufferedServerEvents {
                             } else {
                                 debug!(
                                     "ignoring broadcast for channel {} for non-replicated client `{client_entity}`",
-                                    event.channel
+                                    event.channel_id
                                 );
                             }
                         }
@@ -810,7 +827,7 @@ impl BufferedServerEvents {
                             } else {
                                 debug!(
                                     "ignoring broadcast except `{entity}` for channel {} for non-replicated client `{client_entity}`",
-                                    event.channel
+                                    event.channel_id
                                 );
                             }
                         }

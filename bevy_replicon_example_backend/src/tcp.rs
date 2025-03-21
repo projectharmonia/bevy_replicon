@@ -28,11 +28,11 @@ pub(super) fn read_message(stream: &mut TcpStream) -> io::Result<(u8, Bytes)> {
 
 pub(super) fn send_message(
     stream: &mut TcpStream,
-    channel_id: u8,
+    channel_id: usize,
     message: &[u8],
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     let message_size: u16 = message.len().try_into()?;
-    let channel_id = &[channel_id];
+    let channel_id: &[u8] = &[channel_id.try_into()?];
     let message_size = &message_size.to_le_bytes();
     let packet = [
         IoSlice::new(channel_id),
