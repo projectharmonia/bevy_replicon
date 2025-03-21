@@ -57,7 +57,7 @@ It can be disabled by setting [`ServerPlugin::replicate_after_connect`] to `fals
 some components on connected clients are only present after replication starts.
 See the required components for [`ReplicatedClient`].
 
-For implementation details see [`ReplicationChannel`](core::channels::ReplicationChannel).
+For implementation details see [`ReplicationChannel`](core::replicon_channels::ReplicationChannel).
 
 ### Tick rate
 
@@ -511,7 +511,7 @@ You can control marker priority or enable processing of old values using [`AppMa
 ### Ticks information
 
 This requires an understanding of how replication works. See the documentation on
-[`ReplicationChannel`](core::channels::ReplicationChannel) and [this section](#eventual-consistency) for more details.
+[`ReplicationChannel`](core::replicon_channels::ReplicationChannel) and [this section](#eventual-consistency) for more details.
 
 To get information about confirmed ticks for individual entities, we provide
 [`ConfirmHistory`](client::confirm_history::ConfirmHistory) along with the [`EntityReplicated`](client::confirm_history::ConfirmHistory)
@@ -598,7 +598,6 @@ pub mod prelude {
         RepliconPlugins,
         core::{
             RepliconCorePlugin, SERVER,
-            channels::{Channel, RepliconChannels},
             common_conditions::*,
             connected_client::{ConnectedClient, NetworkStats},
             event::{
@@ -610,6 +609,7 @@ pub mod prelude {
             replication::{
                 Replicated, command_markers::AppMarkerExt, replication_rules::AppRuleExt,
             },
+            replicon_channels::{Channel, RepliconChannels},
             replicon_client::{RepliconClient, RepliconClientStatus},
             replicon_server::RepliconServer,
         },

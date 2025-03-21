@@ -14,9 +14,8 @@ use super::{
     remote_event_registry::RemoteEventRegistry,
 };
 use crate::core::{
-    SERVER,
-    channels::{Channel, RepliconChannels},
-    postcard_utils,
+    SERVER, postcard_utils,
+    replicon_channels::{Channel, RepliconChannels},
     replicon_client::RepliconClient,
     replicon_server::RepliconServer,
 };

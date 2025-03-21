@@ -23,10 +23,9 @@ use super::{
     remote_event_registry::RemoteEventRegistry,
 };
 use crate::core::{
-    ConnectedClient, SERVER,
-    channels::{Channel, RepliconChannels},
-    postcard_utils,
+    ConnectedClient, SERVER, postcard_utils,
     replication::client_ticks::ClientTicks,
+    replicon_channels::{Channel, RepliconChannels},
     replicon_client::RepliconClient,
     replicon_server::RepliconServer,
     replicon_tick::RepliconTick,
@@ -143,7 +142,7 @@ pub trait ServerEventAppExt {
     /// has not yet received.
     ///
     /// For more details about replication see the documentation on
-    /// [`ReplicationChannel`](crate::core::channels::ReplicationChannel).
+    /// [`ReplicationChannel`](crate::core::replicon_channels::ReplicationChannel).
     ///
     /// However, if you know your event doesn't rely on that, you can mark it
     /// as independent to always emit it immediately. For example, a chat
