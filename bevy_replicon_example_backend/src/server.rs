@@ -102,7 +102,9 @@ fn receive_packets(
                         }
                         _ => {
                             commands.entity(client_entity).despawn();
-                            error!("disconnecting due to message read error from client `{client_entity}`: {e}");
+                            error!(
+                                "disconnecting due to message read error from client `{client_entity}`: {e}"
+                            );
                         }
                     }
                     break;

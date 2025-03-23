@@ -132,7 +132,7 @@ fn despawn_clients(
 ) {
     let (entity, _) = boxes
         .iter()
-        .find(|(_, &owner)| *owner == trigger.entity())
+        .find(|&(_, owner)| **owner == trigger.entity())
         .expect("all clients should have entities");
     commands.entity(entity).despawn();
 }
@@ -175,7 +175,7 @@ fn apply_movement(
     // but we didn't implement it for the sake of simplicity.
     let (_, mut position) = boxes
         .iter_mut()
-        .find(|(&owner, _)| *owner == trigger.client_entity)
+        .find(|&(owner, _)| **owner == trigger.client_entity)
         .unwrap_or_else(|| panic!("`{}` should be connected", trigger.client_entity));
 
     **position += *trigger.event * time.delta_secs() * MOVE_SPEED;
