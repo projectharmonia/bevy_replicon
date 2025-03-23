@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.32.0] - 2025-03-24
+
 ### Added
 
 - `RemoteEventRegistry` to get channels for remote triggers and events.
@@ -759,7 +761,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release after separation from [Project Harmonia](https://github.com/projectharmonia/project_harmonia).
 
-[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.31.1...HEAD
+[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.32.0...HEAD
+[0.32.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.31.1...v0.32.0
 [0.31.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.31.0...v0.31.1
 [0.31.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.30.1...v0.31.0
 [0.30.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.30.0...v0.30.1
