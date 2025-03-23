@@ -1,5 +1,5 @@
 use super::{ClientSet, ServerUpdateTick};
-use crate::core::{
+use crate::shared::{
     backend::replicon_client::RepliconClient,
     common_conditions::*,
     event::{

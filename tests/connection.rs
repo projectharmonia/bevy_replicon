@@ -1,11 +1,11 @@
 use bevy::prelude::*;
 use bevy_replicon::{
-    core::backend::{
+    prelude::*,
+    server::server_tick::ServerTick,
+    shared::backend::{
         connected_client::{ConnectedClient, NetworkId, NetworkIdMap},
         replicon_channels::ReplicationChannel,
     },
-    prelude::*,
-    server::server_tick::ServerTick,
     test_app::ServerTestAppExt,
 };
 

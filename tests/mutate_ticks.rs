@@ -1,9 +1,9 @@
 use bevy::prelude::*;
 use bevy_replicon::{
     client::server_mutate_ticks::{MutateTickReceived, ServerMutateTicks},
-    core::replication::track_mutate_messages::TrackAppExt,
     prelude::*,
     server::server_tick::ServerTick,
+    shared::replication::track_mutate_messages::TrackAppExt,
     test_app::ServerTestAppExt,
 };
 use serde::{Deserialize, Serialize};

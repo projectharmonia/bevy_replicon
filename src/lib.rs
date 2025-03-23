@@ -5,7 +5,7 @@ Server-authoritative networking crate for the [Bevy game engine](https://bevyeng
 
 The library doesn't provide any I/O, so you need to add a
 [messaging backend](https://github.com/projectharmonia/bevy_replicon#messaging-backends).
-If you want to write an integration yourself, see [`core::backend`] module.
+If you want to write an integration yourself, see [`shared::backend`] module.
 
 ## Prelude
 
@@ -56,14 +56,14 @@ It can be disabled by setting [`ServerPlugin::replicate_after_connect`] to `fals
 some components on connected clients are only present after replication starts.
 See the required components for [`ReplicatedClient`].
 
-For implementation details see [`ReplicationChannel`](core::backend::replicon_channels::ReplicationChannel).
+For implementation details see [`ReplicationChannel`](shared::backend::replicon_channels::ReplicationChannel).
 
 ### Tick rate
 
 Typically updates are not sent every frame. Instead, they are sent at a certain interval
 to save traffic.
 
-On server current tick stored in [`RepliconTick`](core::replicon_tick::RepliconTick) resource.
+On server current tick stored in [`RepliconTick`](shared::replicon_tick::RepliconTick) resource.
 Replication runs when this resource changes.
 
 You can use [`TickPolicy::Manual`] and then add the [`increment_tick`](server::increment_tick)
@@ -95,7 +95,7 @@ On clients [`Replicated`] will be automatically inserted to newly-replicated ent
 If you remove the [`Replicated`] component from an entity on the server, it will be despawned on all clients.
 
 Entity IDs differ between clients and server. As a result, clients maps server entities to local entities
-on receive. These mappings are stored in the [`ServerEntityMap`](core::server_entity_map::ServerEntityMap)
+on receive. These mappings are stored in the [`ServerEntityMap`](shared::server_entity_map::ServerEntityMap)
 resource.
 
 ### Components
@@ -401,7 +401,7 @@ without actually running them:
 - Listen server configuration runs only the server and both logics.
 - Singleplayer configuration doesn't run the client or server but runs both logics.
 
-To achieve this, just use provided [run conditions](core::common_conditions):
+To achieve this, just use provided [run conditions](shared::common_conditions):
 
 - Use [`server_or_singleplayer`] for systems that require server authority. For example, systems that
   apply damage or send server events.
@@ -512,7 +512,7 @@ You can control marker priority or enable processing of old values using [`AppMa
 ### Ticks information
 
 This requires an understanding of how replication works. See the documentation on
-[`ReplicationChannel`](core::backend::replicon_channels::ReplicationChannel) and [this section](#eventual-consistency) for more details.
+[`ReplicationChannel`](shared::backend::replicon_channels::ReplicationChannel) and [this section](#eventual-consistency) for more details.
 
 To get information about confirmed ticks for individual entities, we provide
 [`ConfirmHistory`](client::confirm_history::ConfirmHistory) along with the [`EntityReplicated`](client::confirm_history::ConfirmHistory)
@@ -568,21 +568,21 @@ But on server we use `debug` for it to avoid flooding server logs with errors ca
 
 #[cfg(feature = "client")]
 pub mod client;
-pub mod core;
 #[cfg(feature = "parent_sync")]
 pub mod parent_sync;
 #[cfg(feature = "scene")]
 pub mod scene;
 #[cfg(feature = "server")]
 pub mod server;
+pub mod shared;
 #[cfg(all(feature = "server", feature = "client"))]
 pub mod test_app;
 
 pub mod prelude {
     pub use super::{
         RepliconPlugins,
-        core::{
-            RepliconCorePlugin, SERVER,
+        shared::{
+            RepliconSharedPlugin, SERVER,
             backend::{
                 connected_client::{ConnectedClient, NetworkStats},
                 replicon_channels::{Channel, RepliconChannels},
@@ -629,7 +629,7 @@ use prelude::*;
 /// Plugin group for all replicon plugins.
 ///
 /// Contains the following:
-/// * [`RepliconCorePlugin`].
+/// * [`RepliconSharedPlugin`].
 /// * [`ServerPlugin`] - with feature `server`.
 /// * [`ServerEventPlugin`] - with feature `server`.
 /// * [`ClientPlugin`] - with feature `client`.
@@ -641,7 +641,7 @@ pub struct RepliconPlugins;
 impl PluginGroup for RepliconPlugins {
     fn build(self) -> PluginGroupBuilder {
         let mut group = PluginGroupBuilder::start::<Self>();
-        group = group.add(RepliconCorePlugin);
+        group = group.add(RepliconSharedPlugin);
 
         #[cfg(feature = "server")]
         {

@@ -7,12 +7,12 @@ use super::{
     component_changes::ComponentChanges, mutate_message::MutateMessage,
     serialized_data::SerializedData,
 };
-use crate::core::{
+use crate::server::client_visibility::Visibility;
+use crate::shared::{
     backend::{replicon_channels::ReplicationChannel, replicon_server::RepliconServer},
     postcard_utils,
     replication::update_message_flags::UpdateMessageFlags,
 };
-use crate::server::client_visibility::Visibility;
 
 /// A message with replicated data.
 ///
@@ -64,7 +64,7 @@ pub(crate) struct UpdateMessage {
     /// Component removals that happened in this tick.
     ///
     /// Serialized as a list of pairs of entity chunk and a list of
-    /// [`FnsId`](crate::core::replication::replication_registry::FnsId)
+    /// [`FnsId`](crate::shared::replication::replication_registry::FnsId)
     /// serialized as a single chunk.
     removals: Vec<ComponentRemovals>,
 

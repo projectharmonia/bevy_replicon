@@ -5,9 +5,11 @@ use bevy::{
 };
 use bevy_replicon::{
     client::ServerUpdateTick,
-    core::{event::remote_event_registry::RemoteEventRegistry, server_entity_map::ServerEntityMap},
     prelude::*,
     server::server_tick::ServerTick,
+    shared::{
+        event::remote_event_registry::RemoteEventRegistry, server_entity_map::ServerEntityMap,
+    },
     test_app::{ServerTestAppExt, TestClientEntity},
 };
 use serde::{Deserialize, Serialize};

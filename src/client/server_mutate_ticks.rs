@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use bevy::prelude::*;
 
-use crate::core::replicon_tick::RepliconTick;
+use crate::shared::replicon_tick::RepliconTick;
 
 /// Received ticks for mutate message from server.
 ///
@@ -11,7 +11,7 @@ use crate::core::replicon_tick::RepliconTick;
 /// recent 64 ticks were received.
 ///
 /// Inserted to the world in [`ClientPlugin::finish`](super::ClientPlugin::finish) if
-/// [`TrackAppExt::track_mutate_messages`](crate::core::replication::track_mutate_messages::TrackAppExt::track_mutate_messages)
+/// [`TrackAppExt::track_mutate_messages`](crate::shared::replication::track_mutate_messages::TrackAppExt::track_mutate_messages)
 /// were called.
 ///
 /// See also [`MutateTickReceived`] and [`ServerUpdateTick`](super::ServerUpdateTick).

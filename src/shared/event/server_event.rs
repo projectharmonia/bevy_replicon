@@ -22,7 +22,7 @@ use super::{
     event_fns::{EventDeserializeFn, EventFns, EventSerializeFn, UntypedEventFns},
     remote_event_registry::RemoteEventRegistry,
 };
-use crate::core::{
+use crate::shared::{
     ConnectedClient, SERVER,
     backend::{
         replicon_channels::{Channel, RepliconChannels},
@@ -93,7 +93,7 @@ pub trait ServerEventAppExt {
     };
     use bevy_replicon::{
         bytes::Bytes,
-        core::{
+        shared::{
             event::ctx::{ClientReceiveCtx, ServerSendCtx},
             postcard_utils::{BufFlavor, ExtendMutFlavor},
         },
@@ -145,7 +145,7 @@ pub trait ServerEventAppExt {
     /// has not yet received.
     ///
     /// For more details about replication see the documentation on
-    /// [`ReplicationChannel`](crate::core::backend::replicon_channels::ReplicationChannel).
+    /// [`ReplicationChannel`](crate::shared::backend::replicon_channels::ReplicationChannel).
     ///
     /// However, if you know your event doesn't rely on that, you can mark it
     /// as independent to always emit it immediately. For example, a chat

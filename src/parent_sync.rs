@@ -9,12 +9,12 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "client")]
 use crate::client::ClientSet;
-use crate::core::{
+#[cfg(feature = "server")]
+use crate::server::ServerSet;
+use crate::shared::{
     backend::replicon_client::RepliconClient, common_conditions::*,
     replication::replication_rules::AppRuleExt,
 };
-#[cfg(feature = "server")]
-use crate::server::ServerSet;
 
 pub struct ParentSyncPlugin;
 
@@ -141,12 +141,12 @@ mod tests {
     use bevy::scene::ScenePlugin;
 
     use super::*;
-    use crate::core::RepliconCorePlugin;
+    use crate::shared::RepliconSharedPlugin;
 
     #[test]
     fn spawn() {
         let mut app = App::new();
-        app.add_plugins((RepliconCorePlugin, ParentSyncPlugin));
+        app.add_plugins((RepliconSharedPlugin, ParentSyncPlugin));
 
         let parent_entity = app.world_mut().spawn_empty().id();
         let child_entity = app
@@ -166,7 +166,7 @@ mod tests {
     #[test]
     fn insertion() {
         let mut app = App::new();
-        app.add_plugins((RepliconCorePlugin, ParentSyncPlugin));
+        app.add_plugins((RepliconSharedPlugin, ParentSyncPlugin));
 
         let parent_entity = app.world_mut().spawn_empty().id();
         let child_entity = app
@@ -187,7 +187,7 @@ mod tests {
     #[test]
     fn removal() {
         let mut app = App::new();
-        app.add_plugins((RepliconCorePlugin, ParentSyncPlugin));
+        app.add_plugins((RepliconSharedPlugin, ParentSyncPlugin));
 
         let parent_entity = app.world_mut().spawn_empty().id();
         let child_entity = app
@@ -209,7 +209,7 @@ mod tests {
     #[test]
     fn change() {
         let mut app = App::new();
-        app.add_plugins((RepliconCorePlugin, ParentSyncPlugin));
+        app.add_plugins((RepliconSharedPlugin, ParentSyncPlugin));
 
         let parent_entity = app.world_mut().spawn_empty().id();
         let child_entity = app
@@ -236,7 +236,7 @@ mod tests {
     #[test]
     fn change_sync() {
         let mut app = App::new();
-        app.add_plugins((RepliconCorePlugin, ParentSyncPlugin));
+        app.add_plugins((RepliconSharedPlugin, ParentSyncPlugin));
 
         let parent_entity = app.world_mut().spawn_empty().id();
         let mut child_entity = app.world_mut().spawn(ParentSync::default());
@@ -259,7 +259,7 @@ mod tests {
     #[test]
     fn removal_sync() {
         let mut app = App::new();
-        app.add_plugins((RepliconCorePlugin, ParentSyncPlugin));
+        app.add_plugins((RepliconSharedPlugin, ParentSyncPlugin));
 
         let parent_entity = app.world_mut().spawn_empty().id();
         let mut child_entity = app.world_mut().spawn_empty();
@@ -290,7 +290,7 @@ mod tests {
         app.add_plugins((
             AssetPlugin::default(),
             ScenePlugin,
-            RepliconCorePlugin,
+            RepliconSharedPlugin,
             ParentSyncPlugin,
         ));
 

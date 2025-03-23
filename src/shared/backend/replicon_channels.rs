@@ -7,7 +7,7 @@ use bevy::prelude::*;
 /// The first two channels are used for replication. For more details, see [`ReplicationChannel`].
 ///
 /// Other channels are used for events, with one channel per event. For more details, see
-/// [`RemoteEventRegistry`](crate::core::event::remote_event_registry::RemoteEventRegistry).
+/// [`RemoteEventRegistry`](crate::shared::event::remote_event_registry::RemoteEventRegistry).
 ///
 /// The backend needs to provide an API for creating its own channels. This can be done
 /// by writing an extension trait for this struct. Created channels should have the defined
@@ -97,7 +97,7 @@ impl RepliconChannels {
 /// are split into packet-size messages to allow applying them partially without waiting for all parts of the message.
 ///
 /// Server events also have minimum required tick. For details, see the documentation on
-/// [`ServerEventAppExt::make_independent`](crate::core::event::server_event::ServerEventAppExt::make_independent).
+/// [`ServerEventAppExt::make_independent`](crate::shared::event::server_event::ServerEventAppExt::make_independent).
 ///
 /// See also [`RepliconChannels`], [`Channel`] and [corresponding section](../index.html#eventual-consistency)
 /// from the quick start guide.

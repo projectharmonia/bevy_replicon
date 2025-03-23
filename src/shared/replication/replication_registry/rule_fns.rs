@@ -8,7 +8,7 @@ use bytes::Bytes;
 use serde::{Serialize, de::DeserializeOwned};
 
 use super::ctx::{SerializeCtx, WriteCtx};
-use crate::core::postcard_utils;
+use crate::shared::postcard_utils;
 
 /// Type-erased version of [`RuleFns`].
 ///
@@ -71,8 +71,8 @@ impl<C: Component> From<RuleFns<C>> for UntypedRuleFns {
 
 /// Serialization and deserialization functions for a component.
 ///
-/// See also [`AppRuleExt`](crate::core::replication::replication_rules::AppRuleExt)
-/// and [`ReplicationRule`](crate::core::replication::replication_rules::ReplicationRule).
+/// See also [`AppRuleExt`](crate::shared::replication::replication_rules::AppRuleExt)
+/// and [`ReplicationRule`](crate::shared::replication::replication_rules::ReplicationRule).
 pub struct RuleFns<C> {
     serialize: SerializeFn<C>,
     deserialize: DeserializeFn<C>,
@@ -113,7 +113,7 @@ impl<C: Component> RuleFns<C> {
     /// If you want to ignore a component, just use its expected size to advance the cursor
     /// without deserializing (but be careful if the component is dynamically sized).
     ///
-    /// See [`MarkerConfig::need_history`](crate::core::replication::command_markers::MarkerConfig::need_history)
+    /// See [`MarkerConfig::need_history`](crate::shared::replication::command_markers::MarkerConfig::need_history)
     /// for details.
     pub fn with_consume(mut self, consume: ConsumeFn<C>) -> Self {
         self.consume = consume;

@@ -10,7 +10,7 @@ use super::{
     ctx::{RemoveCtx, WriteCtx},
     rule_fns::RuleFns,
 };
-use crate::core::replication::deferred_entity::DeferredEntity;
+use crate::shared::replication::deferred_entity::DeferredEntity;
 
 /// Writing and removal functions for a component, like [`Commands`].
 #[derive(Clone, Copy)]

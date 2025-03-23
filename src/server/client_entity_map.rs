@@ -3,7 +3,7 @@ use bevy::prelude::*;
 /**
 A resource that exists on the server for mapping server entities to
 entities that clients have already spawned. The mappings are sent to clients as part of replication
-and injected into the client's [`ServerEntityMap`](crate::core::server_entity_map::ServerEntityMap).
+and injected into the client's [`ServerEntityMap`](crate::shared::server_entity_map::ServerEntityMap).
 
 Sometimes you don't want to wait for the server to spawn something before it appears on the
 client – when a client performs an action, they can immediately simulate it on the client,
@@ -14,9 +14,9 @@ In this situation, the client can send the server its pre-spawned entity id, the
 and inject the mapping into its [`ClientEntityMap`].
 
 Replication packets will send a list of such mappings to clients, which will
-be inserted into the client's [`ServerEntityMap`](crate::core::server_entity_map::ServerEntityMap). Using replication
+be inserted into the client's [`ServerEntityMap`](crate::shared::server_entity_map::ServerEntityMap). Using replication
 to propagate the mappings ensures any replication messages related to the pre-mapped
-server entities will synchronize with updating the client's [`ServerEntityMap`](crate::core::server_entity_map::ServerEntityMap).
+server entities will synchronize with updating the client's [`ServerEntityMap`](crate::shared::server_entity_map::ServerEntityMap).
 
 It's a required component for [`ReplicatedClient`](super::ReplicatedClient). So if you want to map entities before enabling
 replication, you need to insert this component, already filled with entities.
@@ -71,7 +71,7 @@ impl ClientEntityMap {
     /// Registers a mapping from server to client entity.
     ///
     /// This will be sent as part of replication data and added to the client's
-    /// [`ServerEntityMap`](crate::core::server_entity_map::ServerEntityMap).
+    /// [`ServerEntityMap`](crate::shared::server_entity_map::ServerEntityMap).
     pub fn insert(&mut self, server_entity: Entity, client_entity: Entity) {
         debug!("mapping server's `{server_entity}` to client's `{client_entity}`");
         self.0.push((server_entity, client_entity));

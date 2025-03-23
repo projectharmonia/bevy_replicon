@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use super::ServerSet;
-use crate::core::{common_conditions::server_running, replication::Replicated};
+use crate::shared::{common_conditions::server_running, replication::Replicated};
 
 /// Treats removals of [`Replicated`] component as despawns and stores them into [`DespawnBuffer`] resource.
 ///
@@ -38,7 +38,7 @@ pub(crate) struct DespawnBuffer(Vec<Entity>);
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::backend::replicon_server::RepliconServer;
+    use crate::shared::backend::replicon_server::RepliconServer;
 
     #[test]
     fn despawns() {

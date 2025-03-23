@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, marker::PhantomData};
 use bevy::prelude::*;
 use bytes::Bytes;
 
-use crate::core::replicon_tick::RepliconTick;
+use crate::shared::replicon_tick::RepliconTick;
 
 /// Stores all received events from server that arrived earlier then replication message with their tick.
 ///

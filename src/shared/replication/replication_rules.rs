@@ -73,7 +73,7 @@ pub trait AppRuleExt {
     You can also override how the component will be written,
     see [`AppMarkerExt`](super::command_markers::AppMarkerExt).
 
-    See also [`postcard_utils`](crate::core::postcard_utils).
+    See also [`postcard_utils`](crate::shared::postcard_utils).
 
     # Examples
 
@@ -83,7 +83,7 @@ pub trait AppRuleExt {
     use bevy::prelude::*;
     use bevy_replicon::{
         bytes::Bytes,
-        core::{
+        shared::{
             postcard_utils,
             replication::replication_registry::{
                 ctx::{SerializeCtx, WriteCtx},
@@ -142,7 +142,7 @@ pub trait AppRuleExt {
     use bevy::prelude::*;
     use bevy_replicon::{
         bytes::Bytes,
-        core::{
+        shared::{
             postcard_utils,
             replication::replication_registry::{
                 ctx::{SerializeCtx, WriteCtx},
@@ -211,7 +211,7 @@ pub trait AppRuleExt {
     use bevy::{ecs::entity::MapEntities, prelude::*};
     use bevy_replicon::{
         bytes::Bytes,
-        core::{
+        shared::{
             postcard_utils,
             replication::replication_registry::{
                 ctx::{SerializeCtx, WriteCtx},
@@ -275,7 +275,7 @@ pub trait AppRuleExt {
     };
     use bevy_replicon::{
         bytes::Bytes,
-        core::{
+        shared::{
             postcard_utils::{BufFlavor, ExtendMutFlavor},
             replication::replication_registry::{
                 ctx::{SerializeCtx, WriteCtx},
@@ -474,7 +474,7 @@ Can be implemented on any struct to create a custom replication group.
 # use bevy::prelude::*;
 # use bevy_replicon::{
 #     bytes::Bytes,
-#     core::replication::{
+#     shared::replication::{
 #         replication_registry::{
 #             ctx::{SerializeCtx, WriteCtx},
 #             rule_fns::RuleFns,
