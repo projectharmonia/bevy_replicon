@@ -8,7 +8,7 @@ use bevy::{ecs::world::CommandQueue, prelude::*, reflect::TypeRegistry};
 use bytes::{Buf, Bytes};
 use postcard::experimental::max_size::MaxSize;
 
-use crate::core::{
+use crate::shared::{
     backend::{
         replicon_channels::{ReplicationChannel, RepliconChannels},
         replicon_client::RepliconClient,

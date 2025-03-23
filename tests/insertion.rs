@@ -1,15 +1,15 @@
 use bevy::{ecs::entity::MapEntities, prelude::*};
 use bevy_replicon::{
     client::confirm_history::{ConfirmHistory, EntityReplicated},
-    core::{
+    prelude::*,
+    server::server_tick::ServerTick,
+    shared::{
         replication::{
             deferred_entity::DeferredEntity,
             replication_registry::{command_fns, ctx::WriteCtx, rule_fns::RuleFns},
         },
         server_entity_map::ServerEntityMap,
     },
-    prelude::*,
-    server::server_tick::ServerTick,
     test_app::{ServerTestAppExt, TestClientEntity},
 };
 use bytes::Bytes;

@@ -5,7 +5,7 @@ use std::{
 };
 
 use bevy::prelude::*;
-use bevy_replicon::{core::backend::connected_client::NetworkId, prelude::*};
+use bevy_replicon::{prelude::*, shared::backend::connected_client::NetworkId};
 
 use super::{
     link_conditioner::{ConditionerConfig, LinkConditioner},

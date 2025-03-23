@@ -20,9 +20,9 @@ use replication::{
 };
 
 /// Initializes types and resources needed for both client and server.
-pub struct RepliconCorePlugin;
+pub struct RepliconSharedPlugin;
 
-impl Plugin for RepliconCorePlugin {
+impl Plugin for RepliconSharedPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<Replicated>()
             .register_type::<ConnectedClient>()

@@ -4,8 +4,10 @@ use bevy::{
     time::TimePlugin,
 };
 use bevy_replicon::{
-    core::{event::remote_event_registry::RemoteEventRegistry, server_entity_map::ServerEntityMap},
     prelude::*,
+    shared::{
+        event::remote_event_registry::RemoteEventRegistry, server_entity_map::ServerEntityMap,
+    },
     test_app::ServerTestAppExt,
 };
 use serde::{Deserialize, Serialize};

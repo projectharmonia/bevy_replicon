@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Rename `ChannelKind` into just `Channel`.
 - Rename `channels` module into `replicon_channels`.
+- Rename `core` module into `shared` and `RepliconCorePlugin` into `RepliconSharedPlugin`. To avoid ambiguity with Rust's `core`, which will be used for `no_std` support in the next release.
 - Move `replicon_server`, `replicon_client`, `connected_client` and `replicon_channels` under `backend` module to group all backend-related API.
 - All methods with `Into<Channel>` now just accept `Channel`.
 - Use `usize` for channel ID. Backends now decide how many channels user can create.

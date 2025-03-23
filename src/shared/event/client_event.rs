@@ -13,7 +13,7 @@ use super::{
     event_fns::{EventDeserializeFn, EventFns, EventSerializeFn, UntypedEventFns},
     remote_event_registry::RemoteEventRegistry,
 };
-use crate::core::{
+use crate::shared::{
     SERVER,
     backend::{
         replicon_channels::{Channel, RepliconChannels},
@@ -102,7 +102,7 @@ pub trait ClientEventAppExt {
     };
     use bevy_replicon::{
         bytes::Bytes,
-        core::{
+        shared::{
             event::ctx::{ClientSendCtx, ServerReceiveCtx},
             postcard_utils::{BufFlavor, ExtendMutFlavor},
         },
@@ -470,7 +470,7 @@ impl<E: Event> FromWorld for ClientEventReader<E> {
 pub struct FromClient<T> {
     /// Entity that represents a connected client.
     ///
-    /// See also [`ConnectedClient`](crate::core::ConnectedClient).
+    /// See also [`ConnectedClient`](crate::shared::ConnectedClient).
     pub client_entity: Entity,
     /// Transmitted event.
     #[deref]

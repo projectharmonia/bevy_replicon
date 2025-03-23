@@ -38,7 +38,7 @@ impl ServerEntityMap {
     ///
     /// ```
     /// # use bevy::prelude::*;
-    /// # use bevy_replicon::{core::server_entity_map::ServerEntityMap, prelude::*};
+    /// # use bevy_replicon::{shared::server_entity_map::ServerEntityMap, prelude::*};
     /// # let mut entity_map = ServerEntityMap::default();
     /// # let mut world = World::default();
     /// # let mut commands = world.commands();

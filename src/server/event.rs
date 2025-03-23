@@ -4,7 +4,7 @@ use bevy::{
 };
 
 use super::{ServerSet, server_tick::ServerTick};
-use crate::core::{
+use crate::shared::{
     backend::{connected_client::ConnectedClient, replicon_server::RepliconServer},
     common_conditions::*,
     event::{

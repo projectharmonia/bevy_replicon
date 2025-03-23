@@ -4,7 +4,7 @@ use bevy::{ecs::component::Tick, prelude::*};
 use postcard::experimental::{max_size::MaxSize, serialized_size};
 
 use super::{component_changes::ComponentChanges, serialized_data::SerializedData};
-use crate::core::{
+use crate::shared::{
     backend::{replicon_channels::ReplicationChannel, replicon_server::RepliconServer},
     postcard_utils,
     replication::{

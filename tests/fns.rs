@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use bevy_replicon::{
-    core::{
+    prelude::*,
+    shared::{
         replication::{
             command_markers::MarkerConfig,
             deferred_entity::DeferredEntity,
@@ -13,7 +14,6 @@ use bevy_replicon::{
         },
         replicon_tick::RepliconTick,
     },
-    prelude::*,
 };
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
