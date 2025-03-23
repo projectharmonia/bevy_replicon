@@ -57,7 +57,7 @@ It can be disabled by setting [`ServerPlugin::replicate_after_connect`] to `fals
 some components on connected clients are only present after replication starts.
 See the required components for [`ReplicatedClient`].
 
-For implementation details see [`ReplicationChannel`](core::channels::ReplicationChannel).
+For implementation details see [`ReplicationChannel`](core::replicon_channels::ReplicationChannel).
 
 ### Tick rate
 
@@ -208,8 +208,8 @@ server.
 To send specific events from client to server, you need to register the event
 with [`ClientEventAppExt::add_client_event`] instead of [`App::add_event`].
 
-Events include [`ChannelKind`] to configure delivery guarantees (reliability and
-ordering). You can alternatively pass in [`RepliconChannel`] with more advanced configuration.
+Events include [`Channel`] to configure delivery guarantees (reliability and
+ordering).
 
 These events will appear on server as [`FromClient`] wrapper event that
 contains sender ID and the sent event.
@@ -220,7 +220,7 @@ contains sender ID and the sent event.
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
-app.add_client_event::<DummyEvent>(ChannelKind::Ordered)
+app.add_client_event::<DummyEvent>(Channel::Ordered)
     .add_systems(
         PreUpdate,
         receive_events
@@ -264,7 +264,7 @@ using [`ClientTriggerAppExt::add_client_trigger`], and then use [`ClientTriggerE
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
-app.add_client_trigger::<DummyEvent>(ChannelKind::Ordered)
+app.add_client_trigger::<DummyEvent>(Channel::Ordered)
     .add_observer(receive_events)
     .add_systems(Update, send_events.run_if(client_connected));
 
@@ -298,7 +298,7 @@ and the event itself.
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
-app.add_server_event::<DummyEvent>(ChannelKind::Ordered)
+app.add_server_event::<DummyEvent>(Channel::Ordered)
     .add_systems(
         PreUpdate,
         receive_events
@@ -339,7 +339,7 @@ with [`ServerTriggerAppExt::add_server_trigger`] and then use [`ServerTriggerExt
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
-app.add_server_trigger::<DummyEvent>(ChannelKind::Ordered)
+app.add_server_trigger::<DummyEvent>(Channel::Ordered)
     .add_observer(receive_events)
     .add_systems(Update, send_events.run_if(server_running));
 
@@ -511,7 +511,7 @@ You can control marker priority or enable processing of old values using [`AppMa
 ### Ticks information
 
 This requires an understanding of how replication works. See the documentation on
-[`ReplicationChannel`](core::channels::ReplicationChannel) and [this section](#eventual-consistency) for more details.
+[`ReplicationChannel`](core::replicon_channels::ReplicationChannel) and [this section](#eventual-consistency) for more details.
 
 To get information about confirmed ticks for individual entities, we provide
 [`ConfirmHistory`](client::confirm_history::ConfirmHistory) along with the [`EntityReplicated`](client::confirm_history::ConfirmHistory)
@@ -532,8 +532,8 @@ A tick for an entity is confirmed if one of the following is true:
 
 ### Writing integration for a messaging crate
 
-We don't provide any traits to avoid Rust's "orphan rule". Instead, we provide [`RepliconServer`] and
-[`RepliconClient`] resources, along with the [`ConnectedClient`] component, which backends need to manage.
+We don't provide any traits to avoid Rust's "orphan rule". Instead, backends need to create channels defined in the [`RepliconChannels`]
+resource and then manage the [`RepliconServer`] and [`RepliconClient`] resources, along with the [`ConnectedClient`] component.
 This way, integrations can be provided as separate crates without requiring us or crate authors to
 maintain them under a feature. See the documentation on liked types for details.
 
@@ -598,7 +598,6 @@ pub mod prelude {
         RepliconPlugins,
         core::{
             RepliconCorePlugin, SERVER,
-            channels::{ChannelKind, RepliconChannel, RepliconChannels},
             common_conditions::*,
             connected_client::{ConnectedClient, NetworkStats},
             event::{
@@ -610,6 +609,7 @@ pub mod prelude {
             replication::{
                 Replicated, command_markers::AppMarkerExt, replication_rules::AppRuleExt,
             },
+            replicon_channels::{Channel, RepliconChannels},
             replicon_client::{RepliconClient, RepliconClientStatus},
             replicon_server::RepliconServer,
         },

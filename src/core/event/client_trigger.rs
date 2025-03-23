@@ -8,10 +8,10 @@ use super::{
     client_event::{self, ClientEvent, FromClient},
     ctx::{ClientSendCtx, ServerReceiveCtx},
     event_fns::{EventDeserializeFn, EventFns, EventSerializeFn},
-    event_registry::EventRegistry,
+    remote_event_registry::RemoteEventRegistry,
     trigger::{RemoteTargets, RemoteTrigger},
 };
-use crate::core::{channels::RepliconChannel, entity_serde, postcard_utils};
+use crate::core::{entity_serde, postcard_utils, replicon_channels::Channel};
 
 /// An extension trait for [`App`] for creating client triggers.
 ///
@@ -31,7 +31,7 @@ pub trait ClientTriggerAppExt {
     /// from the quick start guide.
     fn add_client_trigger<E: Event + Serialize + DeserializeOwned>(
         &mut self,
-        channel: impl Into<RepliconChannel>,
+        channel: Channel,
     ) -> &mut Self {
         self.add_client_trigger_with(
             channel,
@@ -45,7 +45,7 @@ pub trait ClientTriggerAppExt {
     /// Always use it for events that contain entities.
     fn add_mapped_client_trigger<E: Event + Serialize + DeserializeOwned + MapEntities + Clone>(
         &mut self,
-        channel: impl Into<RepliconChannel>,
+        channel: Channel,
     ) -> &mut Self {
         self.add_client_trigger_with(
             channel,
@@ -59,7 +59,7 @@ pub trait ClientTriggerAppExt {
     /// See also [`ClientEventAppExt::add_client_event_with`](super::client_event::ClientEventAppExt::add_client_event_with).
     fn add_client_trigger_with<E: Event>(
         &mut self,
-        channel: impl Into<RepliconChannel>,
+        channel: Channel,
         serialize: EventSerializeFn<ClientSendCtx, E>,
         deserialize: EventDeserializeFn<ServerReceiveCtx, E>,
     ) -> &mut Self;
@@ -68,7 +68,7 @@ pub trait ClientTriggerAppExt {
 impl ClientTriggerAppExt for App {
     fn add_client_trigger_with<E: Event>(
         &mut self,
-        channel: impl Into<RepliconChannel>,
+        channel: Channel,
         serialize: EventSerializeFn<ClientSendCtx, E>,
         deserialize: EventDeserializeFn<ServerReceiveCtx, E>,
     ) -> &mut Self {
@@ -78,7 +78,7 @@ impl ClientTriggerAppExt for App {
             .with_outer(trigger_serialize, trigger_deserialize);
 
         let trigger = ClientTrigger::new(self, channel, event_fns);
-        let mut event_registry = self.world_mut().resource_mut::<EventRegistry>();
+        let mut event_registry = self.world_mut().resource_mut::<RemoteEventRegistry>();
         event_registry.register_client_trigger(trigger);
 
         self
@@ -94,7 +94,7 @@ pub(crate) struct ClientTrigger {
 impl ClientTrigger {
     fn new<E: Event>(
         app: &mut App,
-        channel: impl Into<RepliconChannel>,
+        channel: Channel,
         event_fns: EventFns<ClientSendCtx, ServerReceiveCtx, RemoteTrigger<E>, E>,
     ) -> Self {
         Self {

@@ -1,3 +1,5 @@
+use std::any::TypeId;
+
 use bevy::prelude::*;
 
 use super::{
@@ -6,18 +8,17 @@ use super::{
 };
 
 /// Registered server and client events.
-///
-/// We use store triggers separately for quick iteration over them,
-/// but they are events under the hood.
 #[derive(Resource, Default)]
-pub(crate) struct EventRegistry {
+pub struct RemoteEventRegistry {
+    // We use store triggers separately for quick iteration over them,
+    // but they are events under the hood.
     server_events: Vec<ServerEvent>,
     client_events: Vec<ClientEvent>,
     server_triggers: Vec<ServerTrigger>,
     client_triggers: Vec<ClientTrigger>,
 }
 
-impl EventRegistry {
+impl RemoteEventRegistry {
     pub(super) fn register_server_event(&mut self, event: ServerEvent) {
         self.server_events.push(event);
     }
@@ -60,5 +61,25 @@ impl EventRegistry {
 
     pub(crate) fn iter_client_triggers(&self) -> impl Iterator<Item = &ClientTrigger> {
         self.client_triggers.iter()
+    }
+
+    /// Returns registered channel ID for server event or trigger `E`.
+    ///
+    /// See also [`ServerEventAppExt::add_server_event`](super::server_event::ServerEventAppExt::add_server_event)
+    /// and [`ServerTriggerAppExt::add_server_trigger`](super::server_trigger::ServerTriggerAppExt::add_server_trigger).
+    pub fn server_channel<E: Event>(&self) -> Option<usize> {
+        self.iter_server_events()
+            .find(|event| event.type_id() == TypeId::of::<E>())
+            .map(|event| event.channel_id())
+    }
+
+    /// Returns registered channel ID for client event or trigger `E`.
+    ///
+    /// See also [`ClientEventAppExt::add_client_event`](super::client_event::ClientEventAppExt::add_client_event)
+    /// and [`ClientTriggerAppExt::add_client_trigger`](super::client_trigger::ClientTriggerAppExt::add_client_trigger).
+    pub fn client_channel<E: Event>(&self) -> Option<usize> {
+        self.iter_client_events()
+            .find(|event| event.type_id() == TypeId::of::<E>())
+            .map(|event| event.channel_id())
     }
 }

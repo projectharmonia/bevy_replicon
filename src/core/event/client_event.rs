@@ -1,4 +1,4 @@
-use std::any;
+use std::any::{self, TypeId};
 
 use bevy::{
     ecs::{component::ComponentId, entity::MapEntities, event::EventCursor},
@@ -11,12 +11,11 @@ use serde::{Serialize, de::DeserializeOwned};
 use super::{
     ctx::{ClientSendCtx, ServerReceiveCtx},
     event_fns::{EventDeserializeFn, EventFns, EventSerializeFn, UntypedEventFns},
-    event_registry::EventRegistry,
+    remote_event_registry::RemoteEventRegistry,
 };
 use crate::core::{
-    SERVER,
-    channels::{RepliconChannel, RepliconChannels},
-    postcard_utils,
+    SERVER, postcard_utils,
+    replicon_channels::{Channel, RepliconChannels},
     replicon_client::RepliconClient,
     replicon_server::RepliconServer,
 };
@@ -41,7 +40,7 @@ pub trait ClientEventAppExt {
     /// from the quick start guide.
     fn add_client_event<E: Event + Serialize + DeserializeOwned>(
         &mut self,
-        channel: impl Into<RepliconChannel>,
+        channel: Channel,
     ) -> &mut Self {
         self.add_client_event_with(channel, default_serialize::<E>, default_deserialize::<E>)
     }
@@ -61,7 +60,7 @@ pub trait ClientEventAppExt {
     /// # use serde::{Deserialize, Serialize};
     /// # let mut app = App::new();
     /// # app.add_plugins(RepliconPlugins);
-    /// app.add_mapped_client_event::<MappedEvent>(ChannelKind::Ordered);
+    /// app.add_mapped_client_event::<MappedEvent>(Channel::Ordered);
     ///
     /// #[derive(Debug, Deserialize, Event, Serialize, Clone)]
     /// struct MappedEvent(Entity);
@@ -74,7 +73,7 @@ pub trait ClientEventAppExt {
     /// ```
     fn add_mapped_client_event<E: Event + Serialize + DeserializeOwned + MapEntities + Clone>(
         &mut self,
-        channel: impl Into<RepliconChannel>,
+        channel: Channel,
     ) -> &mut Self {
         self.add_client_event_with(
             channel,
@@ -111,7 +110,7 @@ pub trait ClientEventAppExt {
 
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, RepliconPlugins));
-    app.add_client_event_with(ChannelKind::Ordered, serialize_reflect, deserialize_reflect);
+    app.add_client_event_with(Channel::Ordered, serialize_reflect, deserialize_reflect);
 
     fn serialize_reflect(
         ctx: &mut ClientSendCtx,
@@ -137,7 +136,7 @@ pub trait ClientEventAppExt {
     */
     fn add_client_event_with<E: Event>(
         &mut self,
-        channel: impl Into<RepliconChannel>,
+        channel: Channel,
         serialize: EventSerializeFn<ClientSendCtx, E>,
         deserialize: EventDeserializeFn<ServerReceiveCtx, E>,
     ) -> &mut Self;
@@ -146,7 +145,7 @@ pub trait ClientEventAppExt {
 impl ClientEventAppExt for App {
     fn add_client_event_with<E: Event>(
         &mut self,
-        channel: impl Into<RepliconChannel>,
+        channel: Channel,
         serialize: EventSerializeFn<ClientSendCtx, E>,
         deserialize: EventDeserializeFn<ServerReceiveCtx, E>,
     ) -> &mut Self {
@@ -154,7 +153,7 @@ impl ClientEventAppExt for App {
 
         let event_fns = EventFns::new(serialize, deserialize);
         let event = ClientEvent::new(self, channel, event_fns);
-        let mut event_registry = self.world_mut().resource_mut::<EventRegistry>();
+        let mut event_registry = self.world_mut().resource_mut::<RemoteEventRegistry>();
         event_registry.register_client_event(event);
 
         self
@@ -175,7 +174,10 @@ pub(crate) struct ClientEvent {
     client_events_id: ComponentId,
 
     /// Used channel.
-    channel_id: u8,
+    channel_id: usize,
+
+    /// ID of `E`.
+    type_id: TypeId,
 
     send: SendFn,
     receive: ReceiveFn,
@@ -187,7 +189,7 @@ pub(crate) struct ClientEvent {
 impl ClientEvent {
     pub(super) fn new<E: Event, I: 'static>(
         app: &mut App,
-        channel: impl Into<RepliconChannel>,
+        channel: Channel,
         event_fns: EventFns<ClientSendCtx, ServerReceiveCtx, E, I>,
     ) -> Self {
         let channel_id = app
@@ -208,6 +210,7 @@ impl ClientEvent {
             reader_id,
             client_events_id,
             channel_id,
+            type_id: TypeId::of::<E>(),
             send: Self::send_typed::<E, I>,
             receive: Self::receive_typed::<E, I>,
             resend_locally: Self::resend_locally_typed::<E>,
@@ -226,6 +229,14 @@ impl ClientEvent {
 
     pub(crate) fn client_events_id(&self) -> ComponentId {
         self.client_events_id
+    }
+
+    pub(super) fn channel_id(&self) -> usize {
+        self.channel_id
+    }
+
+    pub(super) fn type_id(&self) -> TypeId {
+        self.type_id
     }
 
     /// Sends an event to the server.

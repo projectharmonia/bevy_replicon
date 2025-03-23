@@ -9,7 +9,6 @@ use bytes::{Buf, Bytes};
 use postcard::experimental::max_size::MaxSize;
 
 use crate::core::{
-    channels::{ReplicationChannel, RepliconChannels},
     common_conditions::{client_connected, client_just_connected, client_just_disconnected},
     entity_serde, postcard_utils,
     replication::{
@@ -24,6 +23,7 @@ use crate::core::{
         track_mutate_messages::TrackMutateMessages,
         update_message_flags::UpdateMessageFlags,
     },
+    replicon_channels::{ReplicationChannel, RepliconChannels},
     replicon_client::RepliconClient,
     replicon_tick::RepliconTick,
     server_entity_map::ServerEntityMap,
