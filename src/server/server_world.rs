@@ -11,7 +11,7 @@ use bevy::{
     ptr::Ptr,
 };
 
-use crate::core::replication::{
+use crate::shared::replication::{
     Replicated, replication_registry::FnsId, replication_rules::ReplicationRules,
 };
 
@@ -236,7 +236,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::core::replication::{
+    use crate::shared::replication::{
         replication_registry::ReplicationRegistry, replication_rules::AppRuleExt,
     };
 

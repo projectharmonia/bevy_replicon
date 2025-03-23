@@ -1,6 +1,6 @@
 use bevy::{prelude::*, reflect::TypeRegistry};
 
-use crate::core::server_entity_map::ServerEntityMap;
+use crate::shared::server_entity_map::ServerEntityMap;
 
 /// Event sending context for client.
 #[non_exhaustive]

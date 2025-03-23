@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bytes::Bytes;
 
-use super::NetworkStats;
+use super::connected_client::NetworkStats;
 
 /// Stores information about a client independent from the messaging backend.
 ///
@@ -29,7 +29,7 @@ pub struct RepliconClient {
     received_messages: Vec<Vec<Bytes>>,
 
     /// List of sent messages and their channels since the last tick.
-    sent_messages: Vec<(u8, Bytes)>,
+    sent_messages: Vec<(usize, Bytes)>,
 
     stats: NetworkStats,
 }
@@ -43,11 +43,11 @@ impl RepliconClient {
     /// Returns number of received messages for a channel.
     ///
     /// See also [`Self::receive`].
-    pub(crate) fn received_count<I: Into<u8>>(&self, channel_id: I) -> usize {
+    pub(crate) fn received_count<I: Into<usize>>(&self, channel_id: I) -> usize {
         let channel_id = channel_id.into();
         let channel_messages = self
             .received_messages
-            .get(channel_id as usize)
+            .get(channel_id)
             .unwrap_or_else(|| panic!("client should have a receive channel with id {channel_id}"));
 
         channel_messages.len()
@@ -62,7 +62,7 @@ impl RepliconClient {
     /// Should only be called from the messaging backend.
     ///
     /// </div>
-    pub fn receive<I: Into<u8>>(&mut self, channel_id: I) -> impl Iterator<Item = Bytes> + '_ {
+    pub fn receive<I: Into<usize>>(&mut self, channel_id: I) -> impl Iterator<Item = Bytes> + '_ {
         if !self.is_connected() {
             // We can't return here because we need to return an empty iterator.
             warn!("trying to receive a message when the client is not connected");
@@ -71,7 +71,7 @@ impl RepliconClient {
         let channel_id = channel_id.into();
         let channel_messages = self
             .received_messages
-            .get_mut(channel_id as usize)
+            .get_mut(channel_id)
             .unwrap_or_else(|| panic!("client should have a receive channel with id {channel_id}"));
 
         trace!(
@@ -93,13 +93,13 @@ impl RepliconClient {
     /// Should only be called from the messaging backend.
     ///
     /// </div>
-    pub fn send<I: Into<u8>, B: Into<Bytes>>(&mut self, channel_id: I, message: B) {
+    pub fn send<I: Into<usize>, B: Into<Bytes>>(&mut self, channel_id: I, message: B) {
         if !self.is_connected() {
             warn!("trying to send a message when the client is not connected");
             return;
         }
 
-        let channel_id: u8 = channel_id.into();
+        let channel_id = channel_id.into();
         let message: Bytes = message.into();
 
         trace!("sending {} bytes over channel {channel_id}", message.len());
@@ -171,7 +171,7 @@ impl RepliconClient {
     /// Should only be called from the messaging backend.
     ///
     /// </div>
-    pub fn drain_sent(&mut self) -> impl Iterator<Item = (u8, Bytes)> + '_ {
+    pub fn drain_sent(&mut self) -> impl Iterator<Item = (usize, Bytes)> + '_ {
         self.sent_messages.drain(..)
     }
 
@@ -182,7 +182,7 @@ impl RepliconClient {
     /// Should only be called from the messaging backend.
     ///
     /// </div>
-    pub fn insert_received<I: Into<u8>, B: Into<Bytes>>(&mut self, channel_id: I, message: B) {
+    pub fn insert_received<I: Into<usize>, B: Into<Bytes>>(&mut self, channel_id: I, message: B) {
         if !self.is_connected() {
             warn!("trying to insert a received message when the client is not connected");
             return;
@@ -191,7 +191,7 @@ impl RepliconClient {
         let channel_id = channel_id.into();
         let channel_messages = self
             .received_messages
-            .get_mut(channel_id as usize)
+            .get_mut(channel_id)
             .unwrap_or_else(|| panic!("client should have a channel with id {channel_id}"));
 
         channel_messages.push(message.into());

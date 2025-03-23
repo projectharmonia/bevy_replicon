@@ -1,11 +1,11 @@
 [package]
 name = "bevy_replicon_example_backend"
-version = "0.31.0"
+version = "0.32.0"
 authors = [
   "Hennadii Chernyshchyk <genaloner@gmail.com>",
   "koe <ukoe@protonmail.com>",
 ]
-edition = "2021"
+edition = "2024"
 description = "A simple transport intended only for examples"
 readme = "README.md"
 repository = "https://github.com/projectharmonia/bevy_replicon"
@@ -22,7 +22,7 @@ include = ["/src", "../LICENSE*"]
 
 [dependencies]
 bevy = { version = "0.16.0-rc.1", default-features = false }
-bevy_replicon = { path = "..", version = "0.31", default-features = false }
+bevy_replicon = { path = "..", version = "0.32", default-features = false }
 fastrand = "2.3"
 
 [dev-dependencies]

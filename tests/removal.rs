@@ -1,12 +1,12 @@
 use bevy::prelude::*;
 use bevy_replicon::{
     client::confirm_history::{ConfirmHistory, EntityReplicated},
-    core::replication::{
+    prelude::*,
+    server::server_tick::ServerTick,
+    shared::replication::{
         deferred_entity::DeferredEntity,
         replication_registry::{command_fns, ctx::WriteCtx, rule_fns::RuleFns},
     },
-    prelude::*,
-    server::server_tick::ServerTick,
     test_app::{ServerTestAppExt, TestClientEntity},
 };
 use bytes::Bytes;

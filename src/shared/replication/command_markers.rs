@@ -55,7 +55,7 @@ pub trait AppMarkerExt {
     use bevy::{ecs::system::EntityCommands, ecs::component::Mutable, prelude::*, platform_support::collections::HashMap};
     use bevy_replicon::{
         bytes::Bytes,
-        core::{
+        shared::{
             replication::{
                 command_markers::MarkerConfig,
                 deferred_entity::DeferredEntity,
@@ -252,7 +252,7 @@ pub struct MarkerConfig {
 
     /// Represents whether a marker needs to process old mutations.
     ///
-    /// Since mutations use [`ChannelKind::Unreliable`](crate::core::channels::ChannelKind),
+    /// Since mutations use [`Channel::Unreliable`](crate::shared::backend::replicon_channels::Channel),
     /// a client may receive an older mutation for an entity component. By default these mutations are discarded,
     /// but some markers may need them. If this field is set to `true`, old component mutations will
     /// be passed to the writing function for this marker.
@@ -320,7 +320,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::core::replication::replication_registry::command_fns;
+    use crate::shared::replication::replication_registry::command_fns;
 
     #[test]
     #[should_panic]

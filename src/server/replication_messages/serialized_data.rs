@@ -2,7 +2,7 @@ use core::ops::Range;
 
 use bevy::{prelude::*, ptr::Ptr};
 
-use crate::core::{
+use crate::shared::{
     entity_serde, postcard_utils,
     replication::replication_registry::{
         FnsId, component_fns::ComponentFns, ctx::SerializeCtx, rule_fns::UntypedRuleFns,

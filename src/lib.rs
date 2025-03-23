@@ -5,8 +5,7 @@ Server-authoritative networking crate for the [Bevy game engine](https://bevyeng
 
 The library doesn't provide any I/O, so you need to add a
 [messaging backend](https://github.com/projectharmonia/bevy_replicon#messaging-backends).
-If you want to write an integration yourself, see
-[this section](#writing-integration-for-a-messaging-crate).
+If you want to write an integration yourself, see [`shared::backend`] module.
 
 ## Prelude
 
@@ -57,17 +56,18 @@ It can be disabled by setting [`ServerPlugin::replicate_after_connect`] to `fals
 some components on connected clients are only present after replication starts.
 See the required components for [`ReplicatedClient`].
 
-For implementation details see [`ReplicationChannel`](core::channels::ReplicationChannel).
+For implementation details see [`ReplicationChannel`](shared::backend::replicon_channels::ReplicationChannel).
 
 ### Tick rate
 
 Typically updates are not sent every frame. Instead, they are sent at a certain interval
 to save traffic.
 
-On server current tick stored in [`RepliconTick`](core::replicon_tick::RepliconTick) resource.
+On server current tick stored in [`RepliconTick`](shared::replicon_tick::RepliconTick) resource.
 Replication runs when this resource changes.
 
-You can change the defaults with [`TickPolicy`] in the [`ServerPlugin`]:
+You can use [`TickPolicy::Manual`] and then add the [`increment_tick`](server::increment_tick)
+system to [`FixedUpdate`]:
 
 ```
 # use bevy::prelude::*;
@@ -78,10 +78,11 @@ app.add_plugins(
         .build()
         .disable::<ClientPlugin>()
         .set(ServerPlugin {
-            tick_policy: TickPolicy::MaxTickRate(60),
+            tick_policy: TickPolicy::Manual,
             ..Default::default()
         }),
-);
+)
+.add_systems(FixedPreUpdate, bevy_replicon::server::increment_tick);
 ```
 
 ### Entities
@@ -94,7 +95,7 @@ On clients [`Replicated`] will be automatically inserted to newly-replicated ent
 If you remove the [`Replicated`] component from an entity on the server, it will be despawned on all clients.
 
 Entity IDs differ between clients and server. As a result, clients maps server entities to local entities
-on receive. These mappings are stored in the [`ServerEntityMap`](core::server_entity_map::ServerEntityMap)
+on receive. These mappings are stored in the [`ServerEntityMap`](shared::server_entity_map::ServerEntityMap)
 resource.
 
 ### Components
@@ -201,8 +202,8 @@ server.
 To send specific events from client to server, you need to register the event
 with [`ClientEventAppExt::add_client_event`] instead of [`App::add_event`].
 
-Events include [`ChannelKind`] to configure delivery guarantees (reliability and
-ordering). You can alternatively pass in [`RepliconChannel`] with more advanced configuration.
+Events include [`Channel`] to configure delivery guarantees (reliability and
+ordering).
 
 These events will appear on server as [`FromClient`] wrapper event that
 contains sender ID and the sent event.
@@ -213,7 +214,7 @@ contains sender ID and the sent event.
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
-app.add_client_event::<DummyEvent>(ChannelKind::Ordered)
+app.add_client_event::<DummyEvent>(Channel::Ordered)
     .add_systems(
         PreUpdate,
         receive_events
@@ -257,7 +258,7 @@ using [`ClientTriggerAppExt::add_client_trigger`], and then use [`ClientTriggerE
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
-app.add_client_trigger::<DummyEvent>(ChannelKind::Ordered)
+app.add_client_trigger::<DummyEvent>(Channel::Ordered)
     .add_observer(receive_events)
     .add_systems(Update, send_events.run_if(client_connected));
 
@@ -291,7 +292,7 @@ and the event itself.
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
-app.add_server_event::<DummyEvent>(ChannelKind::Ordered)
+app.add_server_event::<DummyEvent>(Channel::Ordered)
     .add_systems(
         PreUpdate,
         receive_events
@@ -332,7 +333,7 @@ with [`ServerTriggerAppExt::add_server_trigger`] and then use [`ServerTriggerExt
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
-app.add_server_trigger::<DummyEvent>(ChannelKind::Ordered)
+app.add_server_trigger::<DummyEvent>(Channel::Ordered)
     .add_observer(receive_events)
     .add_systems(Update, send_events.run_if(server_running));
 
@@ -393,7 +394,7 @@ without actually running them:
 - Listen server configuration runs only the server and both logics.
 - Singleplayer configuration doesn't run the client or server but runs both logics.
 
-To achieve this, just use provided [run conditions](core::common_conditions):
+To achieve this, just use provided [run conditions](shared::common_conditions):
 
 - Use [`server_or_singleplayer`] for systems that require server authority. For example, systems that
   apply damage or send server events.
@@ -504,7 +505,7 @@ You can control marker priority or enable processing of old values using [`AppMa
 ### Ticks information
 
 This requires an understanding of how replication works. See the documentation on
-[`ReplicationChannel`](core::channels::ReplicationChannel) and [this section](#eventual-consistency) for more details.
+[`ReplicationChannel`](shared::backend::replicon_channels::ReplicationChannel) and [this section](#eventual-consistency) for more details.
 
 To get information about confirmed ticks for individual entities, we provide
 [`ConfirmHistory`](client::confirm_history::ConfirmHistory) along with the [`EntityReplicated`](client::confirm_history::ConfirmHistory)
@@ -522,22 +523,6 @@ A tick for an entity is confirmed if one of the following is true:
 - [`ConfirmHistory`](client::confirm_history::ConfirmHistory) is greater than the tick.
 - [`ServerMutateTicks`](client::server_mutate_ticks::ServerMutateTicks) reports that for at least one of the next ticks, all update
   messages have been received.
-
-### Writing integration for a messaging crate
-
-We don't provide any traits to avoid Rust's "orphan rule". Instead, we provide [`RepliconServer`] and
-[`RepliconClient`] resources, along with the [`ConnectedClient`] component, which backends need to manage.
-This way, integrations can be provided as separate crates without requiring us or crate authors to
-maintain them under a feature. See the documentation on liked types for details.
-
-It's also recommended to split the crate into client and server plugins, along with `server` and `client` features.
-This way, plugins can be conveniently disabled at compile time, which is useful for dedicated server or client
-configurations.
-
-You can also use
-[bevy_replicon_example_backend](https://github.com/projectharmonia/bevy_replicon/tree/master/bevy_replicon_example_backend)
-as a reference. For a real backend integration, see [bevy_replicon_renet](https://github.com/projectharmonia/bevy_replicon_renet),
-which we maintain.
 
 # Eventual consistency
 
@@ -579,22 +564,26 @@ extern crate alloc;
 
 #[cfg(feature = "client")]
 pub mod client;
-pub mod core;
 #[cfg(feature = "scene")]
 pub mod scene;
 #[cfg(feature = "server")]
 pub mod server;
+pub mod shared;
 #[cfg(all(feature = "server", feature = "client"))]
 pub mod test_app;
 
 pub mod prelude {
     pub use super::{
         RepliconPlugins,
-        core::{
-            RepliconCorePlugin, SERVER,
-            channels::{ChannelKind, RepliconChannel, RepliconChannels},
+        shared::{
+            RepliconSharedPlugin, SERVER,
+            backend::{
+                connected_client::{ConnectedClient, NetworkStats},
+                replicon_channels::{Channel, RepliconChannels},
+                replicon_client::{RepliconClient, RepliconClientStatus},
+                replicon_server::RepliconServer,
+            },
             common_conditions::*,
-            connected_client::{ConnectedClient, NetworkStats},
             event::{
                 client_event::{ClientEventAppExt, FromClient},
                 client_trigger::{ClientTriggerAppExt, ClientTriggerExt},
@@ -604,8 +593,6 @@ pub mod prelude {
             replication::{
                 Replicated, command_markers::AppMarkerExt, replication_rules::AppRuleExt,
             },
-            replicon_client::{RepliconClient, RepliconClientStatus},
-            replicon_server::RepliconServer,
         },
     };
 
@@ -634,7 +621,7 @@ use prelude::*;
 /// Plugin group for all replicon plugins.
 ///
 /// Contains the following:
-/// * [`RepliconCorePlugin`].
+/// * [`RepliconSharedPlugin`].
 /// * [`ServerPlugin`] - with feature `server`.
 /// * [`ServerEventPlugin`] - with feature `server`.
 /// * [`ClientPlugin`] - with feature `client`.
@@ -645,7 +632,7 @@ pub struct RepliconPlugins;
 impl PluginGroup for RepliconPlugins {
     fn build(self) -> PluginGroupBuilder {
         let mut group = PluginGroupBuilder::start::<Self>();
-        group = group.add(RepliconCorePlugin);
+        group = group.add(RepliconSharedPlugin);
 
         #[cfg(feature = "server")]
         {

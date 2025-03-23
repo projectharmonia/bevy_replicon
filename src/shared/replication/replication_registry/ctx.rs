@@ -1,6 +1,6 @@
 use bevy::{ecs::component::ComponentId, prelude::*, reflect::TypeRegistry};
 
-use crate::core::{
+use crate::shared::{
     replication::Replicated, replicon_tick::RepliconTick, server_entity_map::ServerEntityMap,
 };
 

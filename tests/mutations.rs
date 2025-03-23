@@ -6,7 +6,9 @@ use bevy_replicon::{
         ServerUpdateTick,
         confirm_history::{ConfirmHistory, EntityReplicated},
     },
-    core::{
+    prelude::*,
+    server::server_tick::ServerTick,
+    shared::{
         replication::{
             command_markers::MarkerConfig,
             deferred_entity::DeferredEntity,
@@ -14,8 +16,6 @@ use bevy_replicon::{
         },
         server_entity_map::ServerEntityMap,
     },
-    prelude::*,
-    server::server_tick::ServerTick,
     test_app::{ServerTestAppExt, TestClientEntity},
 };
 use bytes::Bytes;

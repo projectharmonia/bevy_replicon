@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use super::{replicon_client::RepliconClient, replicon_server::RepliconServer};
+use super::backend::{replicon_client::RepliconClient, replicon_server::RepliconServer};
 
 /// Returns `true` if the server is running.
 pub fn server_running(server: Option<Res<RepliconServer>>) -> bool {

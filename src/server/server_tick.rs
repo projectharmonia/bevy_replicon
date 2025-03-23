@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::core::replicon_tick::RepliconTick;
+use crate::shared::replicon_tick::RepliconTick;
 
 /// Stores current [`RepliconTick`].
 ///

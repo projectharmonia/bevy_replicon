@@ -5,7 +5,7 @@ use std::{
 };
 
 use bevy::prelude::*;
-use bevy_replicon::{core::connected_client::NetworkId, prelude::*};
+use bevy_replicon::{prelude::*, shared::backend::connected_client::NetworkId};
 
 use super::{
     link_conditioner::{ConditionerConfig, LinkConditioner},
@@ -102,7 +102,9 @@ fn receive_packets(
                         }
                         _ => {
                             commands.entity(client_entity).despawn();
-                            error!("disconnecting due to message read error from client `{client_entity}`: {e}");
+                            error!(
+                                "disconnecting due to message read error from client `{client_entity}`: {e}"
+                            );
                         }
                     }
                     break;

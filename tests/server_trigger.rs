@@ -1,6 +1,6 @@
 use bevy::{ecs::entity::MapEntities, prelude::*, time::TimePlugin};
 use bevy_replicon::{
-    core::server_entity_map::ServerEntityMap, prelude::*, test_app::ServerTestAppExt,
+    prelude::*, shared::server_entity_map::ServerEntityMap, test_app::ServerTestAppExt,
 };
 use serde::{Deserialize, Serialize};
 
@@ -16,7 +16,7 @@ fn sending_receiving() {
                 ..Default::default()
             }),
         ))
-        .add_server_trigger::<DummyEvent>(ChannelKind::Ordered)
+        .add_server_trigger::<DummyEvent>(Channel::Ordered)
         .finish();
     }
     client_app.init_resource::<TriggerReader<DummyEvent>>();
@@ -48,7 +48,7 @@ fn sending_receiving_with_target() {
                 ..Default::default()
             }),
         ))
-        .add_server_trigger::<DummyEvent>(ChannelKind::Ordered)
+        .add_server_trigger::<DummyEvent>(Channel::Ordered)
         .finish();
     }
     client_app.init_resource::<TriggerReader<DummyEvent>>();
@@ -90,7 +90,7 @@ fn sending_receiving_and_mapping() {
                 ..Default::default()
             }),
         ))
-        .add_mapped_server_trigger::<EntityEvent>(ChannelKind::Ordered)
+        .add_mapped_server_trigger::<EntityEvent>(Channel::Ordered)
         .finish();
     }
     client_app.init_resource::<TriggerReader<EntityEvent>>();
@@ -134,7 +134,7 @@ fn sending_receiving_without_plugins() {
                 .disable::<ClientPlugin>()
                 .disable::<ClientEventPlugin>(),
         ))
-        .add_server_trigger::<DummyEvent>(ChannelKind::Ordered)
+        .add_server_trigger::<DummyEvent>(Channel::Ordered)
         .finish();
     client_app
         .add_plugins((
@@ -144,7 +144,7 @@ fn sending_receiving_without_plugins() {
                 .disable::<ServerPlugin>()
                 .disable::<ServerEventPlugin>(),
         ))
-        .add_server_trigger::<DummyEvent>(ChannelKind::Ordered)
+        .add_server_trigger::<DummyEvent>(Channel::Ordered)
         .finish();
     client_app.init_resource::<TriggerReader<DummyEvent>>();
 
@@ -173,7 +173,7 @@ fn local_resending() {
             ..Default::default()
         }),
     ))
-    .add_server_trigger::<DummyEvent>(ChannelKind::Ordered)
+    .add_server_trigger::<DummyEvent>(Channel::Ordered)
     .finish();
     app.init_resource::<TriggerReader<DummyEvent>>();
 

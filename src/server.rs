@@ -18,10 +18,13 @@ use bevy::{
 };
 use bytes::Buf;
 
-use crate::core::{
-    channels::{ReplicationChannel, RepliconChannels},
+use crate::shared::{
+    backend::{
+        connected_client::ConnectedClient,
+        replicon_channels::{ReplicationChannel, RepliconChannels},
+        replicon_server::RepliconServer,
+    },
     common_conditions::*,
-    connected_client::ConnectedClient,
     event::server_event::BufferedServerEvents,
     postcard_utils,
     replication::{
@@ -32,7 +35,6 @@ use crate::core::{
         },
         track_mutate_messages::TrackMutateMessages,
     },
-    replicon_server::RepliconServer,
     replicon_tick::RepliconTick,
 };
 use client_entity_map::ClientEntityMap;
@@ -64,7 +66,7 @@ pub struct ServerPlugin {
     /// If disabled, replication should be started manually by inserting [`ReplicatedClient`] on the client entity.
     ///
     /// Until replication has started, the client and server can still exchange network events that are marked as
-    /// independent via [`ServerEventAppExt::make_independent`](crate::core::event::server_event::ServerEventAppExt::make_independent).
+    /// independent via [`ServerEventAppExt::make_independent`](crate::shared::event::server_event::ServerEventAppExt::make_independent).
     /// **All other events will be ignored**.
     pub replicate_after_connect: bool,
 }

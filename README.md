@@ -67,7 +67,7 @@ So we are trying to provide an extensible core and encourage users to build thei
 
 | bevy   | bevy_replicon |
 | ------ | ------------- |
-| 0.15.0 | 0.29-0.31     |
+| 0.15.0 | 0.29-0.32     |
 | 0.14.0 | 0.27-0.28     |
 | 0.13.0 | 0.23-0.26     |
 | 0.12.1 | 0.18-0.22     |

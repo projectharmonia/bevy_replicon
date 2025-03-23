@@ -6,7 +6,7 @@ use super::{
     ctx::{RemoveCtx, SerializeCtx, WriteCtx},
     rule_fns::UntypedRuleFns,
 };
-use crate::core::replication::{
+use crate::shared::replication::{
     command_markers::{CommandMarkerIndex, CommandMarkers, EntityMarkers},
     deferred_entity::DeferredEntity,
 };

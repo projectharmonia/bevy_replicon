@@ -7,11 +7,11 @@ use serde::{Serialize, de::DeserializeOwned};
 use super::{
     ctx::{ClientReceiveCtx, ServerSendCtx},
     event_fns::{EventDeserializeFn, EventFns, EventSerializeFn},
-    event_registry::EventRegistry,
+    remote_event_registry::RemoteEventRegistry,
     server_event::{self, ServerEvent, ToClients},
     trigger::{RemoteTargets, RemoteTrigger},
 };
-use crate::core::{channels::RepliconChannel, entity_serde, postcard_utils};
+use crate::shared::{backend::replicon_channels::Channel, entity_serde, postcard_utils};
 
 /// An extension trait for [`App`] for creating server triggers.
 ///
@@ -22,14 +22,14 @@ pub trait ServerTriggerAppExt {
     /// After triggering [`ToClients<E>`] event on the server, `E` event will be triggered on clients.
     ///
     /// If [`ClientEventPlugin`](crate::client::event::ClientEventPlugin) is enabled and
-    /// [`SERVER`](crate::core::SERVER) is a recipient of the event (not to be confused with trigger target),
+    /// [`SERVER`](crate::shared::SERVER) is a recipient of the event (not to be confused with trigger target),
     /// then `E` event will be emitted on the server as well.
     ///
     /// See also [`Self::add_server_trigger_with`] and the [corresponding section](../index.html#from-server-to-client)
     /// from the quick start guide.
     fn add_server_trigger<E: Event + Serialize + DeserializeOwned>(
         &mut self,
-        channel: impl Into<RepliconChannel>,
+        channel: Channel,
     ) -> &mut Self {
         self.add_server_trigger_with(
             channel,
@@ -43,7 +43,7 @@ pub trait ServerTriggerAppExt {
     /// Always use it for events that contain entities.
     fn add_mapped_server_trigger<E: Event + Serialize + DeserializeOwned + MapEntities>(
         &mut self,
-        channel: impl Into<RepliconChannel>,
+        channel: Channel,
     ) -> &mut Self {
         self.add_server_trigger_with(
             channel,
@@ -57,7 +57,7 @@ pub trait ServerTriggerAppExt {
     /// See also [`ServerEventAppExt::add_server_event_with`](super::server_event::ServerEventAppExt::add_server_event_with).
     fn add_server_trigger_with<E: Event>(
         &mut self,
-        channel: impl Into<RepliconChannel>,
+        channel: Channel,
         serialize: EventSerializeFn<ServerSendCtx, E>,
         deserialize: EventDeserializeFn<ClientReceiveCtx, E>,
     ) -> &mut Self;
@@ -66,7 +66,7 @@ pub trait ServerTriggerAppExt {
 impl ServerTriggerAppExt for App {
     fn add_server_trigger_with<E: Event>(
         &mut self,
-        channel: impl Into<RepliconChannel>,
+        channel: Channel,
         serialize: EventSerializeFn<ServerSendCtx, E>,
         deserialize: EventDeserializeFn<ClientReceiveCtx, E>,
     ) -> &mut Self {
@@ -75,7 +75,7 @@ impl ServerTriggerAppExt for App {
         let event_fns = EventFns::new(serialize, deserialize)
             .with_outer(trigger_serialize, trigger_deserialize);
         let trigger = ServerTrigger::new(self, channel, event_fns);
-        let mut event_registry = self.world_mut().resource_mut::<EventRegistry>();
+        let mut event_registry = self.world_mut().resource_mut::<RemoteEventRegistry>();
         event_registry.register_server_trigger(trigger);
 
         self
@@ -91,7 +91,7 @@ pub(crate) struct ServerTrigger {
 impl ServerTrigger {
     fn new<E: Event>(
         app: &mut App,
-        channel: impl Into<RepliconChannel>,
+        channel: Channel,
         event_fns: EventFns<ServerSendCtx, ClientReceiveCtx, RemoteTrigger<E>, E>,
     ) -> Self {
         let event = ServerEvent::new(app, channel, event_fns);
@@ -177,7 +177,7 @@ fn trigger_deserialize<'a, E>(
 /// See also [`ServerTriggerAppExt`].
 pub trait ServerTriggerExt {
     /// Like [`Commands::trigger`], but triggers `E` on server and locally
-    /// if [`SERVER`](crate::core::SERVER) is a recipient of the event).
+    /// if [`SERVER`](crate::shared::SERVER) is a recipient of the event).
     fn server_trigger(&mut self, event: ToClients<impl Event>);
 
     /// Like [`Self::server_trigger`], but allows you to specify target entities, similar to

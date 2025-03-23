@@ -7,19 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.32.0] - 2025-03-24
+
 ### Added
 
+- `RemoteEventRegistry` to get channels for remote triggers and events.
 - `ConditionerConfig` for `bevy_replicon_example_backend` to simulate various network conditions.
 
 ### Changed
 
+- Rename `ChannelKind` into just `Channel`.
+- Rename `channels` module into `replicon_channels`.
+- Rename `core` module into `shared` and `RepliconCorePlugin` into `RepliconSharedPlugin`. To avoid ambiguity with Rust's `core`, which will be used for `no_std` support in the next release.
+- Move `replicon_server`, `replicon_client`, `connected_client` and `replicon_channels` under `backend` module to group all backend-related API.
+- All methods with `Into<Channel>` now just accept `Channel`.
+- Use `usize` for channel ID. Backends now decide how many channels user can create.
 - Don't insert `ClientVisibility` at all if `ServerPlugin::visibility_policy` is set to `VisibilityPolicy::All`. Previously all calls were just no-op.
+
+### Removed
+
+- `RepliconChannel` and all methods from `RepliconChannels`, except channel getters. Now all channel configuration needs to be done on the backend side.
 
 ## [0.31.1] - 2025-03-15
 
 ### Changed
 
-- Rename `ClientId` into `NetworkId`.
+- Rename `ClientId` into `NetworkId` and derive serde traits.
 - Move `ConnectedClient::id` into a separate optional component for backends that doesn't provide persistent identifiers.
 
 ### Fixed
@@ -748,7 +761,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release after separation from [Project Harmonia](https://github.com/projectharmonia/project_harmonia).
 
-[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.31.1...HEAD
+[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.32.0...HEAD
+[0.32.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.31.1...v0.32.0
 [0.31.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.31.0...v0.31.1
 [0.31.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.30.1...v0.31.0
 [0.30.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.30.0...v0.30.1

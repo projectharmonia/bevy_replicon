@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 use bevy_replicon::{
     client::confirm_history::ConfirmHistory,
-    core::server_entity_map::ServerEntityMap,
     prelude::*,
+    shared::server_entity_map::ServerEntityMap,
     test_app::{ServerTestAppExt, TestClientEntity},
 };
 use serde::{Deserialize, Serialize};

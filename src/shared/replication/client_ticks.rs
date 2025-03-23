@@ -7,7 +7,7 @@ use bevy::{
 };
 
 use super::mutate_index::MutateIndex;
-use crate::core::replicon_tick::RepliconTick;
+use crate::shared::replicon_tick::RepliconTick;
 
 /// Tracks replication ticks for a client.
 #[derive(Component, Default)]

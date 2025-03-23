@@ -12,7 +12,7 @@ use bevy::{
 };
 
 use super::ServerSet;
-use crate::core::{
+use crate::shared::{
     common_conditions::server_running,
     replication::{Replicated, replication_registry::FnsId, replication_rules::ReplicationRules},
 };
@@ -201,11 +201,11 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::core::{
+    use crate::shared::{
+        backend::replicon_server::RepliconServer,
         replication::{
             Replicated, replication_registry::ReplicationRegistry, replication_rules::AppRuleExt,
         },
-        replicon_server::RepliconServer,
     };
 
     #[test]
