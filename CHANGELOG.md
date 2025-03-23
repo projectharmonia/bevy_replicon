@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Rename `ClientId` into `NetworkId`.
+- Rename `ClientId` into `NetworkId` and derive serde traits.
 - Move `ConnectedClient::id` into a separate optional component for backends that doesn't provide persistent identifiers.
 
 ### Fixed
