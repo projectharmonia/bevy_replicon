@@ -202,10 +202,10 @@ mod tests {
 
     use super::*;
     use crate::core::{
+        backend::replicon_server::RepliconServer,
         replication::{
             Replicated, replication_registry::ReplicationRegistry, replication_rules::AppRuleExt,
         },
-        replicon_server::RepliconServer,
     };
 
     #[test]

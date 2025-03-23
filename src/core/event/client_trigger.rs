@@ -11,7 +11,7 @@ use super::{
     remote_event_registry::RemoteEventRegistry,
     trigger::{RemoteTargets, RemoteTrigger},
 };
-use crate::core::{entity_serde, postcard_utils, replicon_channels::Channel};
+use crate::core::{backend::replicon_channels::Channel, entity_serde, postcard_utils};
 
 /// An extension trait for [`App`] for creating client triggers.
 ///
@@ -22,7 +22,7 @@ pub trait ClientTriggerAppExt {
     /// After triggering `E` event on the client, [`FromClient<E>`] event will be triggered on the server.
     ///
     /// If [`ServerEventPlugin`](crate::server::event::ServerEventPlugin) is enabled and
-    /// [`RepliconClient`](crate::core::replicon_client::RepliconClient) is inactive, the event
+    /// [`RepliconClient`](crate::core::backend::replicon_client::RepliconClient) is inactive, the event
     /// will also be triggered locally as [`FromClient<E>`] event with [`FromClient::client_entity`]
     /// equal to [`SERVER`](crate::core::SERVER).
     ///
@@ -190,7 +190,7 @@ fn trigger_deserialize<'a, E>(
 /// See also [`ClientTriggerAppExt`].
 pub trait ClientTriggerExt {
     /// Like [`Commands::trigger`], but triggers [`FromClient`] on server and locally
-    /// if [`RepliconClient`](crate::core::replicon_client::RepliconClient) is inactive.
+    /// if [`RepliconClient`](crate::core::backend::replicon_client::RepliconClient) is inactive.
     fn client_trigger(&mut self, event: impl Event);
 
     /// Like [`Self::client_trigger`], but allows you to specify target entities, similar to

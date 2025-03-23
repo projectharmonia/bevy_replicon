@@ -5,15 +5,14 @@ use bevy::{
 
 use super::{ServerSet, server_tick::ServerTick};
 use crate::core::{
+    backend::{connected_client::ConnectedClient, replicon_server::RepliconServer},
     common_conditions::*,
-    connected_client::ConnectedClient,
     event::{
         ctx::{ServerReceiveCtx, ServerSendCtx},
         remote_event_registry::RemoteEventRegistry,
         server_event::BufferedServerEvents,
     },
     replication::client_ticks::ClientTicks,
-    replicon_server::RepliconServer,
 };
 
 /// Sending events from the server to clients.

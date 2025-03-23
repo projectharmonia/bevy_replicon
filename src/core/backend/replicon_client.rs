@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bytes::Bytes;
 
-use super::NetworkStats;
+use super::connected_client::NetworkStats;
 
 /// Stores information about a client independent from the messaging backend.
 ///

@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::core::{
+use crate::core::backend::{
     connected_client::ConnectedClient,
     replicon_client::{RepliconClient, RepliconClientStatus},
     replicon_server::RepliconServer,

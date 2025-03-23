@@ -1,11 +1,11 @@
 use super::{ClientSet, ServerUpdateTick};
 use crate::core::{
+    backend::replicon_client::RepliconClient,
     common_conditions::*,
     event::{
         ctx::{ClientReceiveCtx, ClientSendCtx},
         remote_event_registry::RemoteEventRegistry,
     },
-    replicon_client::RepliconClient,
     server_entity_map::ServerEntityMap,
 };
 use bevy::{

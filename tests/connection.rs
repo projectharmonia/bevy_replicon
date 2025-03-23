@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy_replicon::{
-    core::{
+    core::backend::{
         connected_client::{ConnectedClient, NetworkId, NetworkIdMap},
         replicon_channels::ReplicationChannel,
     },

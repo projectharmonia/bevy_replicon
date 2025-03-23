@@ -11,7 +11,7 @@ use super::{
     server_event::{self, ServerEvent, ToClients},
     trigger::{RemoteTargets, RemoteTrigger},
 };
-use crate::core::{entity_serde, postcard_utils, replicon_channels::Channel};
+use crate::core::{backend::replicon_channels::Channel, entity_serde, postcard_utils};
 
 /// An extension trait for [`App`] for creating server triggers.
 ///
