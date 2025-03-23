@@ -7,7 +7,7 @@ use bevy::prelude::*;
 /// The first two channels are used for replication. For more details, see [`ReplicationChannel`].
 ///
 /// Other channels are used for events, with one channel per event. For more details, see
-/// [`RemoteEventRegistry`](super::event::remote_event_registry::RemoteEventRegistry).
+/// [`RemoteEventRegistry`](crate::core::event::remote_event_registry::RemoteEventRegistry).
 ///
 /// The backend needs to provide an API for creating its own channels. This can be done
 /// by writing an extension trait for this struct. Created channels should have the defined
@@ -39,7 +39,7 @@ impl Default for RepliconChannels {
 
 impl RepliconChannels {
     /// Creates a new server channel and returns its ID.
-    pub(super) fn create_server_channel(&mut self, channel: Channel) -> usize {
+    pub(crate) fn create_server_channel(&mut self, channel: Channel) -> usize {
         let id = self.server.len();
         debug!("creating a server channel with ID {id}");
         self.server.push(channel);
@@ -48,7 +48,7 @@ impl RepliconChannels {
     }
 
     /// Creates a new client channel and returns its ID.
-    pub(super) fn create_client_channel(&mut self, channel: Channel) -> usize {
+    pub(crate) fn create_client_channel(&mut self, channel: Channel) -> usize {
         let id = self.client.len();
         debug!("creating a client channel with ID {id}");
         self.client.push(channel);
@@ -97,7 +97,7 @@ impl RepliconChannels {
 /// are split into packet-size messages to allow applying them partially without waiting for all parts of the message.
 ///
 /// Server events also have minimum required tick. For details, see the documentation on
-/// [`ServerEventAppExt::make_independent`](super::event::server_event::ServerEventAppExt::make_independent).
+/// [`ServerEventAppExt::make_independent`](crate::core::event::server_event::ServerEventAppExt::make_independent).
 ///
 /// See also [`RepliconChannels`], [`Channel`] and [corresponding section](../index.html#eventual-consistency)
 /// from the quick start guide.

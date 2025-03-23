@@ -5,8 +5,7 @@ Server-authoritative networking crate for the [Bevy game engine](https://bevyeng
 
 The library doesn't provide any I/O, so you need to add a
 [messaging backend](https://github.com/projectharmonia/bevy_replicon#messaging-backends).
-If you want to write an integration yourself, see
-[this section](#writing-integration-for-a-messaging-crate).
+If you want to write an integration yourself, see [`core::backend`] module.
 
 ## Prelude
 
@@ -57,7 +56,7 @@ It can be disabled by setting [`ServerPlugin::replicate_after_connect`] to `fals
 some components on connected clients are only present after replication starts.
 See the required components for [`ReplicatedClient`].
 
-For implementation details see [`ReplicationChannel`](core::replicon_channels::ReplicationChannel).
+For implementation details see [`ReplicationChannel`](core::backend::replicon_channels::ReplicationChannel).
 
 ### Tick rate
 
@@ -513,7 +512,7 @@ You can control marker priority or enable processing of old values using [`AppMa
 ### Ticks information
 
 This requires an understanding of how replication works. See the documentation on
-[`ReplicationChannel`](core::replicon_channels::ReplicationChannel) and [this section](#eventual-consistency) for more details.
+[`ReplicationChannel`](core::backend::replicon_channels::ReplicationChannel) and [this section](#eventual-consistency) for more details.
 
 To get information about confirmed ticks for individual entities, we provide
 [`ConfirmHistory`](client::confirm_history::ConfirmHistory) along with the [`EntityReplicated`](client::confirm_history::ConfirmHistory)
@@ -531,22 +530,6 @@ A tick for an entity is confirmed if one of the following is true:
 - [`ConfirmHistory`](client::confirm_history::ConfirmHistory) is greater than the tick.
 - [`ServerMutateTicks`](client::server_mutate_ticks::ServerMutateTicks) reports that for at least one of the next ticks, all update
   messages have been received.
-
-### Writing integration for a messaging crate
-
-We don't provide any traits to avoid Rust's "orphan rule". Instead, backends need to create channels defined in the [`RepliconChannels`]
-resource and then manage the [`RepliconServer`] and [`RepliconClient`] resources, along with the [`ConnectedClient`] component.
-This way, integrations can be provided as separate crates without requiring us or crate authors to
-maintain them under a feature. See the documentation on liked types for details.
-
-It's also recommended to split the crate into client and server plugins, along with `server` and `client` features.
-This way, plugins can be conveniently disabled at compile time, which is useful for dedicated server or client
-configurations.
-
-You can also use
-[bevy_replicon_example_backend](https://github.com/projectharmonia/bevy_replicon/tree/master/bevy_replicon_example_backend)
-as a reference. For a real backend integration, see [bevy_replicon_renet](https://github.com/projectharmonia/bevy_replicon_renet),
-which we maintain.
 
 # Eventual consistency
 
@@ -600,8 +583,13 @@ pub mod prelude {
         RepliconPlugins,
         core::{
             RepliconCorePlugin, SERVER,
+            backend::{
+                connected_client::{ConnectedClient, NetworkStats},
+                replicon_channels::{Channel, RepliconChannels},
+                replicon_client::{RepliconClient, RepliconClientStatus},
+                replicon_server::RepliconServer,
+            },
             common_conditions::*,
-            connected_client::{ConnectedClient, NetworkStats},
             event::{
                 client_event::{ClientEventAppExt, FromClient},
                 client_trigger::{ClientTriggerAppExt, ClientTriggerExt},
@@ -611,9 +599,6 @@ pub mod prelude {
             replication::{
                 Replicated, command_markers::AppMarkerExt, replication_rules::AppRuleExt,
             },
-            replicon_channels::{Channel, RepliconChannels},
-            replicon_client::{RepliconClient, RepliconClientStatus},
-            replicon_server::RepliconServer,
         },
     };
 

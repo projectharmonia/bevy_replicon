@@ -14,10 +14,13 @@ use super::{
     remote_event_registry::RemoteEventRegistry,
 };
 use crate::core::{
-    SERVER, postcard_utils,
-    replicon_channels::{Channel, RepliconChannels},
-    replicon_client::RepliconClient,
-    replicon_server::RepliconServer,
+    SERVER,
+    backend::{
+        replicon_channels::{Channel, RepliconChannels},
+        replicon_client::RepliconClient,
+        replicon_server::RepliconServer,
+    },
+    postcard_utils,
 };
 
 /// An extension trait for [`App`] for creating client events.

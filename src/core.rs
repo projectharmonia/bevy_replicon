@@ -1,24 +1,23 @@
+pub mod backend;
 pub mod common_conditions;
-pub mod connected_client;
 pub mod entity_serde;
 pub mod event;
 pub mod postcard_utils;
 pub mod replication;
-pub mod replicon_channels;
-pub mod replicon_client;
-pub mod replicon_server;
 pub mod replicon_tick;
 pub mod server_entity_map;
 
 use bevy::prelude::*;
 
-use connected_client::{ConnectedClient, NetworkIdMap, NetworkStats};
+use backend::{
+    connected_client::{ConnectedClient, NetworkIdMap, NetworkStats},
+    replicon_channels::RepliconChannels,
+};
 use event::remote_event_registry::RemoteEventRegistry;
 use replication::{
     Replicated, command_markers::CommandMarkers, replication_registry::ReplicationRegistry,
     replication_rules::ReplicationRules, track_mutate_messages::TrackMutateMessages,
 };
-use replicon_channels::RepliconChannels;
 
 /// Initializes types and resources needed for both client and server.
 pub struct RepliconCorePlugin;

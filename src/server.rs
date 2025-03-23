@@ -19,8 +19,12 @@ use bevy::{
 use bytes::Buf;
 
 use crate::core::{
+    backend::{
+        connected_client::ConnectedClient,
+        replicon_channels::{ReplicationChannel, RepliconChannels},
+        replicon_server::RepliconServer,
+    },
     common_conditions::*,
-    connected_client::ConnectedClient,
     event::server_event::BufferedServerEvents,
     postcard_utils,
     replication::{
@@ -31,8 +35,6 @@ use crate::core::{
         },
         track_mutate_messages::TrackMutateMessages,
     },
-    replicon_channels::{ReplicationChannel, RepliconChannels},
-    replicon_server::RepliconServer,
     replicon_tick::RepliconTick,
 };
 use client_entity_map::ClientEntityMap;

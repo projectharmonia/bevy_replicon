@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "client")]
 use crate::client::ClientSet;
 use crate::core::{
-    common_conditions::*, replication::replication_rules::AppRuleExt,
-    replicon_client::RepliconClient,
+    backend::replicon_client::RepliconClient, common_conditions::*,
+    replication::replication_rules::AppRuleExt,
 };
 #[cfg(feature = "server")]
 use crate::server::ServerSet;
