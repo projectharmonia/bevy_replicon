@@ -552,7 +552,7 @@ RUST_LOG=bevy_replicon=debug cargo run
 
 The exact method depends on the OS shell.
 
-Alternatively you can configure [`LogPlugin`](bevy::log::LogPlugin) to make it permanent.
+Alternatively you can configure `LogPlugin` from Bevy to make it permanent.
 
 For deserialization errors on client we use `error` level which should be visible by default.
 But on server we use `debug` for it to avoid flooding server logs with errors caused by clients.
