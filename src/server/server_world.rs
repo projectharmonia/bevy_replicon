@@ -10,6 +10,7 @@ use bevy::{
     prelude::*,
     ptr::Ptr,
 };
+use log::{debug, trace};
 
 use crate::shared::replication::{
     Replicated, replication_registry::FnsId, replication_rules::ReplicationRules,

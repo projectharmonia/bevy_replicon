@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bytes::Bytes;
+use log::{debug, trace, warn};
 
 use super::connected_client::NetworkStats;
 

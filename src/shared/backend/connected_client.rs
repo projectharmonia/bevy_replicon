@@ -3,6 +3,7 @@ use bevy::{
     platform_support::collections::HashMap,
     prelude::*,
 };
+use log::error;
 use serde::{Deserialize, Serialize};
 
 /// Marker for a connected client.

@@ -2,6 +2,7 @@ use bevy::{
     ecs::entity::hash_map::EntityHashMap, platform_support::collections::hash_map::Entry,
     prelude::*,
 };
+use log::warn;
 
 /// Maps server entities to client entities and vice versa.
 ///

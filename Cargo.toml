@@ -1,6 +1,6 @@
 [package]
 name = "bevy_replicon"
-version = "0.32.0"
+version = "0.32.0-rc.1"
 authors = [
   "Hennadii Chernyshchyk <genaloner@gmail.com>",
   "koe <ukoe@protonmail.com>",
@@ -28,9 +28,8 @@ all-features = true
 members = ["bevy_replicon_example_backend"]
 
 [dependencies]
-bevy = { version = "0.16.0-rc.1", default-features = false, features = [
-  "bevy_log",
-] }
+bevy = { version = "0.16.0-rc.1", default-features = false }
+log = "0.4"  # Directly depend on `log` like other `no_std` Bevy crates, since `bevy_log` currently requires `std`.
 variadics_please = "1.0"
 typeid = "1.0"
 bytes = { version = "1.10", default-features = false }
@@ -64,6 +63,8 @@ client_diagnostics = ["client"]
 
 # Replication into a scene.
 scene = ["bevy/bevy_scene"]
+
+critical-section = ["bytes/extra-platforms"]
 
 [[bench]]
 name = "replication"

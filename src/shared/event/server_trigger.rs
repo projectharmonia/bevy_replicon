@@ -2,6 +2,7 @@ use core::any;
 
 use bevy::{ecs::entity::MapEntities, prelude::*, ptr::PtrMut};
 use bytes::Bytes;
+use log::debug;
 use serde::{Serialize, de::DeserializeOwned};
 
 use super::{

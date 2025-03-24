@@ -1,4 +1,5 @@
 use bevy::{ecs::entity::hash_map::EntityHashMap, prelude::*, scene::DynamicEntity};
+use log::debug;
 
 use crate::{Replicated, shared::replication::replication_rules::ReplicationRules};
 

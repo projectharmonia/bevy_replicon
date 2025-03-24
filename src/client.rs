@@ -6,6 +6,7 @@ pub mod server_mutate_ticks;
 
 use bevy::{ecs::world::CommandQueue, prelude::*, reflect::TypeRegistry};
 use bytes::{Buf, Bytes};
+use log::{debug, trace};
 use postcard::experimental::max_size::MaxSize;
 
 use crate::shared::{

@@ -5,6 +5,7 @@ use bevy::{
     platform_support::collections::HashMap,
     prelude::*,
 };
+use log::{debug, trace};
 
 use super::mutate_index::MutateIndex;
 use crate::shared::replicon_tick::RepliconTick;

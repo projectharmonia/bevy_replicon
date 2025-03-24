@@ -17,6 +17,7 @@ use bevy::{
     time::common_conditions::on_timer,
 };
 use bytes::Buf;
+use log::{debug, trace};
 
 use crate::shared::{
     backend::{
