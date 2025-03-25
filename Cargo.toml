@@ -64,7 +64,8 @@ client_diagnostics = ["client"]
 # Replication into a scene.
 scene = ["bevy/bevy_scene"]
 
-critical-section = ["bytes/extra-platforms"]
+# Re-export from `bytes` to avoid requiring users to include it directly for platforms without atomic CAS.
+extra-platforms = ["bytes/extra-platforms"]
 
 [[bench]]
 name = "replication"
