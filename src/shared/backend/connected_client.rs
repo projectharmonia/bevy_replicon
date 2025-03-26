@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// See also [`ReplicatedClient`](crate::server::ReplicatedClient).
 #[derive(Component, Reflect)]
-#[require(Name(|| Name::new("Connected client")), NetworkStats)]
+#[require(Name::new("Connected client"), NetworkStats)]
 pub struct ConnectedClient {
     /// Maximum size of a message that can be transferred over unreliable channel without
     /// splitting into multiple packets.

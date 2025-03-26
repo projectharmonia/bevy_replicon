@@ -603,13 +603,13 @@ struct BottomText;
 #[require(
     Button,
     Replicated,
-    BackgroundColor(|| BackgroundColor(BACKGROUND_COLOR)),
-    Node(|| Node {
+    BackgroundColor(BACKGROUND_COLOR),
+    Node = Node {
         width: Val::Px(BUTTON_SIZE),
         height: Val::Px(BUTTON_SIZE),
         margin: UiRect::all(Val::Px(BUTTON_MARGIN)),
         ..Default::default()
-    })
+    }
 )]
 struct Cell {
     index: usize,
