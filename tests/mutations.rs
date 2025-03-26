@@ -1,6 +1,6 @@
 use core::time::Duration;
 
-use bevy::{ecs::entity::MapEntities, prelude::*};
+use bevy::prelude::*;
 use bevy_replicon::{
     client::{
         ServerUpdateTick,
@@ -377,7 +377,7 @@ fn marker_with_history_consume() {
             command_fns::default_remove::<BoolComponent>,
         )
         .replicate::<BoolComponent>()
-        .replicate_mapped::<MappedComponent>();
+        .replicate::<MappedComponent>();
     }
 
     server_app.connect_client(&mut client_app);
@@ -777,7 +777,7 @@ fn old_ignored() {
                 ..Default::default()
             }),
         ))
-        .replicate_mapped::<MappedComponent>();
+        .replicate::<MappedComponent>();
     }
 
     server_app.connect_client(&mut client_app);
@@ -1030,13 +1030,7 @@ struct BoolComponent(bool);
 struct VecComponent(Vec<u8>);
 
 #[derive(Component, Deserialize, Serialize)]
-struct MappedComponent(Entity);
-
-impl MapEntities for MappedComponent {
-    fn map_entities<M: EntityMapper>(&mut self, entity_mapper: &mut M) {
-        self.0 = entity_mapper.get_mapped(self.0);
-    }
-}
+struct MappedComponent(#[entities] Entity);
 
 #[derive(Component)]
 struct ReplaceMarker;

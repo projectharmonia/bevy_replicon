@@ -119,9 +119,8 @@ struct DummyComponent;
 
 If your component contains an entity, it cannot be deserialized as is
 because entities inside components also need to be mapped. Therefore,
-to replicate such components properly, they need to implement
-the [`MapEntities`](bevy::ecs::entity::MapEntities) trait and be registered
-using [`AppRuleExt::replicate_mapped`].
+to properly replicate such components, mark fields containing entities with
+`#[entities]`. See [`Component::map_entities`] for details.
 
 By default all components are serialized with [`postcard`].
 In order to serialize Bevy components you need to enable the `serialize` feature on Bevy.
@@ -240,7 +239,7 @@ fn receive_events(mut dummy_events: EventReader<FromClient<DummyEvent>>) {
 struct DummyEvent;
 ```
 
-Just like for components, if an event contains an entities, implement
+If an event contains an entity, implement
 [`MapEntities`](bevy::ecs::entity::MapEntities) for it and use use
 [`ClientEventAppExt::add_mapped_client_event`] instead.
 
@@ -305,7 +304,7 @@ app.add_server_event::<DummyEvent>(Channel::Ordered)
     );
 
 fn send_events(mut dummy_events: EventWriter<ToClients<DummyEvent>>) {
-    dummy_events.send(ToClients {
+    dummy_events.write(ToClients {
         mode: SendMode::Broadcast,
         event: DummyEvent,
     });

@@ -154,11 +154,5 @@ struct NonRemoteEvent;
 #[derive(Deserialize, Event, Serialize)]
 struct DummyEvent;
 
-#[derive(Deserialize, Event, Serialize, Clone)]
-struct EntityEvent(Entity);
-
-impl MapEntities for EntityEvent {
-    fn map_entities<M: EntityMapper>(&mut self, entity_mapper: &mut M) {
-        self.0 = entity_mapper.get_mapped(self.0);
-    }
-}
+#[derive(Deserialize, Event, Serialize, Clone, MapEntities)]
+struct EntityEvent(#[entities] Entity);

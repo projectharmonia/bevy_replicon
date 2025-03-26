@@ -180,8 +180,6 @@ pub fn despawn_recursive(_ctx: &DespawnCtx, entity: EntityWorldMut) {
 
 #[cfg(test)]
 mod tests {
-    use bevy::ecs::entity::MapEntities;
-
     use super::*;
 
     #[test]
@@ -224,8 +222,4 @@ mod tests {
 
     #[derive(Component, Deserialize, Serialize)]
     struct ComponentB;
-
-    impl MapEntities for ComponentB {
-        fn map_entities<M: EntityMapper>(&mut self, _entity_mapper: &mut M) {}
-    }
 }

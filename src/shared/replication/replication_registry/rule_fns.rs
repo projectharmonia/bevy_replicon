@@ -156,12 +156,8 @@ impl<C: Component> RuleFns<C> {
 }
 
 impl<C: Component + Serialize + DeserializeOwned + MapEntities> RuleFns<C> {
-    /// Like [`Self::default`], but uses a special deserialization function to map server
-    /// entities inside the component into client entities.
-    ///
-    /// Always use it for components that contain entities.
-    ///
-    /// See also [`default_serialize`], [`default_deserialize_mapped`] and [`in_place_as_deserialize`].
+    #[deprecated(note = "no longer needed, use `default` instead")]
+    #[allow(deprecated)]
     pub fn default_mapped() -> Self {
         Self::new(default_serialize::<C>, default_deserialize_mapped::<C>)
     }
@@ -169,8 +165,6 @@ impl<C: Component + Serialize + DeserializeOwned + MapEntities> RuleFns<C> {
 
 impl<C: Component + Serialize + DeserializeOwned> Default for RuleFns<C> {
     /// Creates a new instance with default functions for a component.
-    ///
-    /// If your component contains any [`Entity`] inside, use [`Self::default_mapped`].
     ///
     /// See also [`default_serialize`], [`default_deserialize`] and [`in_place_as_deserialize`].
     fn default() -> Self {
@@ -202,13 +196,15 @@ pub fn default_serialize<C: Component + Serialize>(
 
 /// Default component deserialization function.
 pub fn default_deserialize<C: Component + DeserializeOwned>(
-    _ctx: &mut WriteCtx,
+    ctx: &mut WriteCtx,
     message: &mut Bytes,
 ) -> postcard::Result<C> {
-    postcard_utils::from_buf(message)
+    let mut component: C = postcard_utils::from_buf(message)?;
+    C::map_entities(&mut component, ctx);
+    Ok(component)
 }
 
-/// Like [`default_deserialize`], but also maps entities before insertion.
+#[deprecated(note = "no longer needed, use `default_serialize` instead")]
 pub fn default_deserialize_mapped<C: Component + DeserializeOwned + MapEntities>(
     ctx: &mut WriteCtx,
     message: &mut Bytes,

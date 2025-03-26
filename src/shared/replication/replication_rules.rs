@@ -24,8 +24,6 @@ pub trait AppRuleExt {
     /// Component will be serialized and deserialized as-is using postcard.
     /// To customize it, use [`Self::replicate_group`].
     ///
-    /// If your component contains any [`Entity`] inside, use [`Self::replicate_mapped`].
-    ///
     /// See also [`Self::replicate_with`] and the section on [`components`](../../index.html#components)
     /// from the quick start guide.
     fn replicate<C>(&mut self) -> &mut Self
@@ -35,38 +33,12 @@ pub trait AppRuleExt {
         self.replicate_with::<C>(RuleFns::default())
     }
 
-    /**
-    Same as [`Self::replicate`], but additionally maps server entities to client inside the component after receiving.
-
-    Always use it for components that contain entities.
-
-    See also [`Self::replicate`].
-
-    # Examples
-
-    ```
-    # use bevy::{prelude::*, ecs::entity::{EntityMapper, MapEntities}};
-    # use bevy_replicon::prelude::*;
-    # use serde::{Deserialize, Serialize};
-    # let mut app = App::new();
-    # app.add_plugins(RepliconPlugins);
-    app.replicate_mapped::<MappedComponent>();
-
-    #[derive(Component, Deserialize, Serialize)]
-    struct MappedComponent(Entity);
-
-    impl MapEntities for MappedComponent {
-        fn map_entities<T: EntityMapper>(&mut self, mapper: &mut T) {
-            self.0 = mapper.get_mapped(self.0);
-        }
-    }
-    ```
-    **/
+    #[deprecated(note = "no longer needed, just use `replicate` instead")]
     fn replicate_mapped<C>(&mut self) -> &mut Self
     where
         C: Component<Mutability = Mutable> + Serialize + DeserializeOwned + MapEntities,
     {
-        self.replicate_with::<C>(RuleFns::default_mapped())
+        self.replicate::<C>()
     }
 
     /**
@@ -77,6 +49,13 @@ pub trait AppRuleExt {
 
     You can also override how the component will be written,
     see [`AppMarkerExt`](super::command_markers::AppMarkerExt).
+
+    <div class="warning">
+
+    If your component contains an [`Entity`] inside, don't forget to call [`Component::map_entities`]
+    in your deserialization function.
+
+    </div>
 
     See also [`postcard_utils`](crate::shared::postcard_utils).
 
@@ -213,7 +192,7 @@ pub trait AppRuleExt {
     Custom ser/de with entity mapping:
 
     ```
-    use bevy::{ecs::entity::MapEntities, prelude::*};
+    use bevy::prelude::*;
     use bevy_replicon::{
         bytes::Bytes,
         shared::{
@@ -254,20 +233,15 @@ pub trait AppRuleExt {
             entity,
             unused_field: Default::default(),
         };
-        component.map_entities(ctx);
+        MappedComponent::map_entities(&mut component, ctx); // Important to call!
         Ok(component)
     }
 
     #[derive(Component, Deserialize, Serialize)]
     struct MappedComponent {
+        #[entities]
         entity: Entity,
         unused_field: Vec<bool>,
-    }
-
-    impl MapEntities for MappedComponent {
-        fn map_entities<T: EntityMapper>(&mut self, mapper: &mut T) {
-            self.entity = mapper.get_mapped(self.entity);
-        }
     }
     ```
 

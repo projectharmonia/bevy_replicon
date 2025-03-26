@@ -66,14 +66,8 @@ pub trait ClientEventAppExt {
     /// # app.add_plugins(RepliconPlugins);
     /// app.add_mapped_client_event::<MappedEvent>(Channel::Ordered);
     ///
-    /// #[derive(Debug, Deserialize, Event, Serialize, Clone)]
-    /// struct MappedEvent(Entity);
-    ///
-    /// impl MapEntities for MappedEvent {
-    ///     fn map_entities<T: EntityMapper>(&mut self, entity_mapper: &mut T) {
-    ///         self.0 = entity_mapper.get_mapped(self.0);
-    ///     }
-    /// }
+    /// #[derive(Debug, Deserialize, Event, Serialize, Clone, MapEntities)]
+    /// struct MappedEvent(#[entities] Entity);
     /// ```
     fn add_mapped_client_event<E: Event + Serialize + DeserializeOwned + MapEntities + Clone>(
         &mut self,

@@ -1,4 +1,4 @@
-use bevy::{ecs::entity::MapEntities, prelude::*};
+use bevy::prelude::*;
 use bevy_replicon::{
     client::confirm_history::{ConfirmHistory, EntityReplicated},
     prelude::*,
@@ -101,7 +101,7 @@ fn mapped_existing_entity() {
                 ..Default::default()
             }),
         ))
-        .replicate_mapped::<MappedComponent>();
+        .replicate::<MappedComponent>();
     }
 
     server_app.connect_client(&mut client_app);
@@ -150,7 +150,7 @@ fn mapped_new_entity() {
                 ..Default::default()
             }),
         ))
-        .replicate_mapped::<MappedComponent>();
+        .replicate::<MappedComponent>();
     }
 
     server_app.connect_client(&mut client_app);
@@ -539,13 +539,7 @@ fn confirm_history() {
 }
 
 #[derive(Component, Deserialize, Serialize)]
-struct MappedComponent(Entity);
-
-impl MapEntities for MappedComponent {
-    fn map_entities<M: EntityMapper>(&mut self, entity_mapper: &mut M) {
-        self.0 = entity_mapper.get_mapped(self.0);
-    }
-}
+struct MappedComponent(#[entities] Entity);
 
 #[derive(Component, Deserialize, Serialize)]
 struct DummyComponent;
