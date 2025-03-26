@@ -39,6 +39,9 @@ postcard = { version = "1.1", default-features = false, features = [
   "experimental-derive",
 ] }
 
+[target.'cfg(not(all(target_has_atomic = "8", target_has_atomic = "16", target_has_atomic = "32", target_has_atomic = "64", target_has_atomic = "ptr")))'.dependencies]
+bytes = { version = "1.10", default-features = false, features = ["extra-platforms"] }
+
 [dev-dependencies]
 bevy = { version = "0.16.0-rc.1", default-features = false, features = [
   "bevy_sprite",
@@ -63,9 +66,6 @@ client_diagnostics = ["client"]
 
 # Replication into a scene.
 scene = ["bevy/bevy_scene"]
-
-# Re-export from `bytes` to avoid requiring users to include it directly for platforms without atomic CAS.
-extra-platforms = ["bytes/extra-platforms"]
 
 [[bench]]
 name = "replication"
