@@ -42,6 +42,9 @@ On server connected clients represented as entities with [`ConnectedClient`] com
 Their data represented as components, such as [`NetworkStats`]. Users can also attach their
 own metadata to them or even replicate these entiteis back to clients.
 
+You can use [`Trigger<OnAdd, ConnectedClient>`] to react to new connections,
+or use backend-provided events if you need the disconnect reason.
+
 ## Replication
 
 It's a process of exchanging data in order to keep the world in sync. Replicon
