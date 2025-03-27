@@ -4,8 +4,8 @@
 //! [`RepliconChannels`](replicon_channels::RepliconChannels) resource and then manage the
 //! [`RepliconServer`](replicon_server::RepliconServer) and [`RepliconClient`](replicon_client::RepliconClient) resources,
 //! along with the [`ConnectedClient`](connected_client::ConnectedClient) component. This way, integrations can be provided
-//! as separate crates without requiring us or crate authors to maintain them under a feature. See the documentation on liked
-//! types for details.
+//! as separate crates without requiring us or crate authors to maintain them under a feature. See the documentation on
+//! types in this module for details.
 //!
 //! It's also recommended to split the crate into client and server plugins, along with `server` and `client` features.
 //! This way, plugins can be conveniently disabled at compile time, which is useful for dedicated server or client

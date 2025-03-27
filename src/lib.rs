@@ -381,7 +381,7 @@ Theere are 2 ways to support multiple configurations at the same time.
 Just split client and server logic. Then for listen server and singleplayer run both the server and client,
 just don't accept outside connections for singleplayer.
 
-However, **running the client and server in a single app is not supported**. We rely on change detection to
+However, **running the client and server connected to each other won't work**. We rely on change detection to
 decide on which data to send, and since the world is shared, applying replication will trigger changes.
 To avoid this, you can use one of the following workarounds:
 
