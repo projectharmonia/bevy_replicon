@@ -1,3 +1,5 @@
+//! System conditions for [`RepliconClient`] and [`RepliconServer`] resources.
+
 use bevy::prelude::*;
 
 use super::backend::{replicon_client::RepliconClient, replicon_server::RepliconServer};
