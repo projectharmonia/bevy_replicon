@@ -6,7 +6,7 @@ use std::{
     io,
 };
 
-use bevy::{prelude::*, utils::hashbrown::HashMap};
+use bevy::{platform_support::collections::HashMap, prelude::*};
 use bevy_replicon::prelude::*;
 use bevy_replicon_example_backend::{ExampleClient, ExampleServer, RepliconExampleBackendPlugins};
 use clap::{Parser, ValueEnum};
@@ -239,7 +239,7 @@ fn pick_cell(
     }
 
     let cell = cells
-        .get(trigger.entity())
+        .get(trigger.target())
         .expect("cells should have assigned indices");
     // We don't check if a cell can't be picked on client on purpose
     // just to demonstrate how server can receive invalid requests from a client.
@@ -289,13 +289,13 @@ fn init_symbols(
     symbol_font: Res<SymbolFont>,
     mut cells: Query<(&mut BackgroundColor, &Symbol), With<Button>>,
 ) {
-    let Ok((mut background, symbol)) = cells.get_mut(trigger.entity()) else {
+    let Ok((mut background, symbol)) = cells.get_mut(trigger.target()) else {
         return;
     };
     *background = BACKGROUND_COLOR.into();
 
     commands
-        .entity(trigger.entity())
+        .entity(trigger.target())
         .remove::<Interaction>()
         .with_children(|parent| {
             parent.spawn((
@@ -318,7 +318,7 @@ fn init_symbols(
 ///
 /// Used only for client.
 fn client_start(mut commands: Commands, cells: Query<(Entity, &Cell)>) {
-    let mut entities = HashMap::new();
+    let mut entities = bevy::platform_support::collections::HashMap::default();
     for (entity, cell) in &cells {
         entities.insert(cell.index, entity);
     }
@@ -371,7 +371,7 @@ fn init_client(
 }
 
 fn make_local(trigger: Trigger<MakeLocal>, mut commands: Commands) {
-    commands.entity(trigger.entity()).insert(LocalPlayer);
+    commands.entity(trigger.target()).insert(LocalPlayer);
 }
 
 /// Sets the game in disconnected state if client closes the connection.
@@ -603,13 +603,13 @@ struct BottomText;
 #[require(
     Button,
     Replicated,
-    BackgroundColor(|| BackgroundColor(BACKGROUND_COLOR)),
-    Node(|| Node {
+    BackgroundColor(BACKGROUND_COLOR),
+    Node = Node {
         width: Val::Px(BUTTON_SIZE),
         height: Val::Px(BUTTON_SIZE),
         margin: UiRect::all(Val::Px(BUTTON_MARGIN)),
         ..Default::default()
-    })
+    }
 )]
 struct Cell {
     index: usize,

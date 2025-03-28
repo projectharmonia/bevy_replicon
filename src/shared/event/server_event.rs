@@ -1,6 +1,6 @@
 mod client_event_queue;
 
-use std::{
+use core::{
     any::{self, TypeId},
     mem,
 };
@@ -8,12 +8,13 @@ use std::{
 use bevy::{
     ecs::{
         component::ComponentId,
-        entity::{EntityHashSet, MapEntities},
+        entity::{MapEntities, hash_set::EntityHashSet},
     },
     prelude::*,
     ptr::{Ptr, PtrMut},
 };
 use bytes::Bytes;
+use log::{debug, error, warn};
 use postcard::experimental::{max_size::MaxSize, serialized_size};
 use serde::{Serialize, de::DeserializeOwned};
 

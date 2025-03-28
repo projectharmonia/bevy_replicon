@@ -1,7 +1,8 @@
-use std::any;
+use core::any;
 
 use bevy::{ecs::entity::MapEntities, prelude::*, ptr::PtrMut};
 use bytes::Bytes;
+use log::debug;
 use serde::{Serialize, de::DeserializeOwned};
 
 use super::{
@@ -164,7 +165,7 @@ fn trigger_deserialize<'a, E>(
     let mut targets = Vec::with_capacity(len);
     for _ in 0..len {
         let entity = entity_serde::deserialize_entity(message)?;
-        targets.push(ctx.map_entity(entity));
+        targets.push(ctx.get_mapped(entity));
     }
 
     let event = (deserialize)(ctx, message)?;

@@ -1,4 +1,4 @@
-use std::any::{self, TypeId};
+use core::any::{self, TypeId};
 
 use bevy::{
     ecs::{component::ComponentId, entity::MapEntities, event::EventCursor},
@@ -6,6 +6,7 @@ use bevy::{
     ptr::{Ptr, PtrMut},
 };
 use bytes::Bytes;
+use log::{debug, error, warn};
 use serde::{Serialize, de::DeserializeOwned};
 
 use super::{
@@ -65,14 +66,8 @@ pub trait ClientEventAppExt {
     /// # app.add_plugins(RepliconPlugins);
     /// app.add_mapped_client_event::<MappedEvent>(Channel::Ordered);
     ///
-    /// #[derive(Debug, Deserialize, Event, Serialize, Clone)]
-    /// struct MappedEvent(Entity);
-    ///
-    /// impl MapEntities for MappedEvent {
-    ///     fn map_entities<T: EntityMapper>(&mut self, entity_mapper: &mut T) {
-    ///         self.0 = entity_mapper.map_entity(self.0);
-    ///     }
-    /// }
+    /// #[derive(Debug, Deserialize, Event, Serialize, Clone, MapEntities)]
+    /// struct MappedEvent(#[entities] Entity);
     /// ```
     fn add_mapped_client_event<E: Event + Serialize + DeserializeOwned + MapEntities + Clone>(
         &mut self,

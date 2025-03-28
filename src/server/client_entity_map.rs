@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use log::debug;
 
 /**
 A resource that exists on the server for mapping server entities to

@@ -85,7 +85,7 @@ fn connect_disconnect() {
     let mut clients = server_app
         .world_mut()
         .query_filtered::<Entity, With<ConnectedClient>>();
-    let client_entity = clients.single(server_app.world_mut());
+    let client_entity = clients.single(server_app.world_mut()).unwrap();
 
     // Assign a dummy network ID to test network map.
     server_app
