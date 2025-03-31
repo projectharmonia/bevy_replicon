@@ -162,9 +162,6 @@ impl<'a, T: Buf> DeFlavor<'a> for BufFlavor<'a, T> {
     type Source = &'a [u8];
 
     fn pop(&mut self) -> postcard::Result<u8> {
-        if self.buf.remaining() == 0 {
-            panic!("asdf");
-        }
         self.buf
             .try_get_u8()
             .map_err(|_| postcard::Error::DeserializeUnexpectedEnd)
