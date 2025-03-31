@@ -8,7 +8,7 @@ use super::postcard_utils;
 /// Deserializes `entity` from compressed index and generation.
 ///
 /// For details see [`serialize_entity`].
-pub fn deserialize_entity(message: &mut Bytes) -> postcard::Result<Entity> {
+pub fn deserialize_entity(message: &mut Bytes) -> Result<Entity> {
     let flagged_index: u64 = postcard_utils::from_buf(message)?;
     let has_generation = (flagged_index & 1) > 0;
     let generation = if has_generation {
@@ -30,7 +30,7 @@ pub fn deserialize_entity(message: &mut Bytes) -> postcard::Result<Entity> {
 /// generation.
 ///
 /// See also [`deserialize_entity`].
-pub fn serialize_entity(message: &mut Vec<u8>, entity: Entity) -> postcard::Result<()> {
+pub fn serialize_entity(message: &mut Vec<u8>, entity: Entity) -> Result<()> {
     let mut flagged_index = (entity.index() as u64) << 1;
     let flag = entity.generation() > 1;
     flagged_index |= flag as u64;

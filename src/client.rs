@@ -106,7 +106,7 @@ pub(super) fn receive_replication(
     world: &mut World,
     mut queue: Local<CommandQueue>,
     mut entity_markers: Local<EntityMarkers>,
-) -> postcard::Result<()> {
+) -> Result<()> {
     world.resource_scope(|world, mut client: Mut<RepliconClient>| {
         world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
             world.resource_scope(|world, mut buffered_mutations: Mut<BufferedMutations>| {
@@ -178,7 +178,7 @@ fn apply_replication(
     params: &mut ReceiveParams,
     client: &mut RepliconClient,
     buffered_mutations: &mut BufferedMutations,
-) -> postcard::Result<()> {
+) -> Result<()> {
     for mut message in client.receive(ReplicationChannel::Updates) {
         apply_update_message(world, params, &mut message)?;
     }
@@ -210,7 +210,7 @@ fn apply_update_message(
     world: &mut World,
     params: &mut ReceiveParams,
     message: &mut Bytes,
-) -> postcard::Result<()> {
+) -> Result<()> {
     if let Some(stats) = &mut params.stats {
         stats.messages += 1;
         stats.bytes += message.len();
@@ -281,7 +281,7 @@ fn buffer_mutate_message(
     params: &mut ReceiveParams,
     buffered_mutations: &mut BufferedMutations,
     mut message: Bytes,
-) -> postcard::Result<MutateIndex> {
+) -> Result<MutateIndex> {
     if let Some(stats) = &mut params.stats {
         stats.messages += 1;
         stats.bytes += message.len();
@@ -315,7 +315,7 @@ fn apply_mutate_messages(
     params: &mut ReceiveParams,
     buffered_mutations: &mut BufferedMutations,
     update_tick: ServerUpdateTick,
-) -> postcard::Result<()> {
+) -> Result<()> {
     let mut result = Ok(());
     buffered_mutations.0.retain_mut(|mutate| {
         if mutate.update_tick > *update_tick {
@@ -355,7 +355,7 @@ fn apply_entity_mapping(
     world: &mut World,
     params: &mut ReceiveParams,
     message: &mut Bytes,
-) -> postcard::Result<()> {
+) -> Result<()> {
     let server_entity = entity_serde::deserialize_entity(message)?;
     let client_entity = entity_serde::deserialize_entity(message)?;
 
@@ -379,7 +379,7 @@ fn apply_despawn(
     params: &mut ReceiveParams,
     message: &mut Bytes,
     message_tick: RepliconTick,
-) -> postcard::Result<()> {
+) -> Result<()> {
     // The entity might have already been despawned because of hierarchy or
     // with the last replication message, but the server might not yet have received confirmation
     // from the client and could include the deletion in the this message.
@@ -402,7 +402,7 @@ fn apply_removals(
     params: &mut ReceiveParams,
     message: &mut Bytes,
     message_tick: RepliconTick,
-) -> postcard::Result<()> {
+) -> Result<()> {
     let server_entity = entity_serde::deserialize_entity(message)?;
 
     let client_entity = params
@@ -450,7 +450,7 @@ fn apply_changes(
     params: &mut ReceiveParams,
     message: &mut Bytes,
     message_tick: RepliconTick,
-) -> postcard::Result<()> {
+) -> Result<()> {
     let server_entity = entity_serde::deserialize_entity(message)?;
 
     let client_entity = params
@@ -508,8 +508,8 @@ fn apply_changes(
 fn apply_array(
     kind: ArrayKind,
     message: &mut Bytes,
-    mut f: impl FnMut(&mut Bytes) -> postcard::Result<()>,
-) -> postcard::Result<usize> {
+    mut f: impl FnMut(&mut Bytes) -> Result<()>,
+) -> Result<usize> {
     match kind {
         ArrayKind::Sized => {
             let len = postcard_utils::from_buf(message)?;
@@ -567,7 +567,7 @@ fn apply_mutations(
     params: &mut ReceiveParams,
     message: &mut Bytes,
     message_tick: RepliconTick,
-) -> postcard::Result<()> {
+) -> Result<()> {
     let server_entity = entity_serde::deserialize_entity(message)?;
     let data_size: usize = postcard_utils::from_buf(message)?;
 

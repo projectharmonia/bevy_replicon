@@ -202,7 +202,7 @@ impl UpdateMessage {
         client_entity: Entity,
         serialized: &SerializedData,
         server_tick: Range<usize>,
-    ) -> postcard::Result<()> {
+    ) -> Result<()> {
         let flags = self.flags();
         let last_flag = flags.last();
 
@@ -230,7 +230,7 @@ impl UpdateMessage {
                         .removals
                         .iter()
                         .map(ComponentRemovals::size)
-                        .sum::<postcard::Result<usize>>()?;
+                        .sum::<Result<usize>>()?;
                 }
                 UpdateMessageFlags::CHANGES => {
                     debug_assert_eq!(flag, last_flag);
@@ -238,7 +238,7 @@ impl UpdateMessage {
                         .changes
                         .iter()
                         .map(ComponentChanges::size)
-                        .sum::<postcard::Result<usize>>()?;
+                        .sum::<Result<usize>>()?;
                 }
                 _ => unreachable!("iteration should yield only named flags"),
             }
@@ -337,7 +337,7 @@ struct ComponentRemovals {
 }
 
 impl ComponentRemovals {
-    fn size(&self) -> postcard::Result<usize> {
+    fn size(&self) -> Result<usize> {
         let len_size = serialized_size(&self.ids_len)?;
         Ok(self.entity.len() + len_size + self.fn_ids.len())
     }

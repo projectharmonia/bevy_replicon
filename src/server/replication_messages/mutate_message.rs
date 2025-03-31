@@ -132,7 +132,7 @@ impl MutateMessage {
         tick: Tick,
         timestamp: Duration,
         max_size: usize,
-    ) -> postcard::Result<usize> {
+    ) -> Result<usize> {
         debug_assert_eq!(self.entities.len(), self.mutations.len());
 
         const MAX_COUNT_SIZE: usize = usize::POSTCARD_MAX_SIZE;

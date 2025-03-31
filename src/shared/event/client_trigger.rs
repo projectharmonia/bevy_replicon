@@ -155,7 +155,7 @@ fn trigger_serialize<'a, E>(
     trigger: &RemoteTrigger<E>,
     message: &mut Vec<u8>,
     serialize: EventSerializeFn<ClientSendCtx<'a>, E>,
-) -> postcard::Result<()> {
+) -> Result<()> {
     postcard_utils::to_extend_mut(&trigger.targets.len(), message)?;
     for &entity in &trigger.targets {
         let entity = ctx.get_mapped(entity);
@@ -173,7 +173,7 @@ fn trigger_deserialize<'a, E>(
     ctx: &mut ServerReceiveCtx<'a>,
     message: &mut Bytes,
     deserialize: EventDeserializeFn<ServerReceiveCtx<'a>, E>,
-) -> postcard::Result<RemoteTrigger<E>> {
+) -> Result<RemoteTrigger<E>> {
     let len = postcard_utils::from_buf(message)?;
     let mut targets = Vec::with_capacity(len);
     for _ in 0..len {

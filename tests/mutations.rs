@@ -1053,7 +1053,7 @@ fn replace(
     rule_fns: &RuleFns<OriginalComponent>,
     entity: &mut DeferredEntity,
     message: &mut Bytes,
-) -> postcard::Result<()> {
+) -> Result<()> {
     let component = rule_fns.deserialize(ctx, message)?;
     ctx.commands
         .entity(entity.id())
@@ -1068,7 +1068,7 @@ fn write_history(
     rule_fns: &RuleFns<BoolComponent>,
     entity: &mut DeferredEntity,
     message: &mut Bytes,
-) -> postcard::Result<()> {
+) -> Result<()> {
     let component = rule_fns.deserialize(ctx, message)?;
     if let Some(mut history) = entity.get_mut::<BoolHistory>() {
         history.push(component.0);

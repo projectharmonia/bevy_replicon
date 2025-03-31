@@ -90,7 +90,7 @@ pub trait AppRuleExt {
         _ctx: &SerializeCtx,
         transform: &Transform,
         message: &mut Vec<u8>,
-    ) -> postcard::Result<()> {
+    ) -> Result<()> {
         postcard_utils::to_extend_mut(&transform.translation, message)
     }
 
@@ -100,7 +100,7 @@ pub trait AppRuleExt {
     fn deserialize_translation(
         _ctx: &mut WriteCtx,
         message: &mut Bytes,
-    ) -> postcard::Result<Transform> {
+    ) -> Result<Transform> {
         let translation: Vec3 = postcard_utils::from_buf(message)?;
         Ok(Transform::from_translation(translation))
     }
@@ -113,7 +113,7 @@ pub trait AppRuleExt {
         ctx: &mut WriteCtx,
         component: &mut Transform,
         message: &mut Bytes,
-    ) -> postcard::Result<()> {
+    ) -> Result<()> {
         let transform = (deserialize)(ctx, message)?;
         component.translation = transform.translation;
         Ok(())
@@ -150,7 +150,7 @@ pub trait AppRuleExt {
         _ctx: &SerializeCtx,
         component: &BigComponent,
         message: &mut Vec<u8>,
-    ) -> postcard::Result<()> {
+    ) -> Result<()> {
         // Serialize as usual, but track size.
         let start = message.len();
         postcard_utils::to_extend_mut(component, message)?;
@@ -171,7 +171,7 @@ pub trait AppRuleExt {
     fn deserialize_big_component(
         _ctx: &mut WriteCtx,
         message: &mut Bytes,
-    ) -> postcard::Result<BigComponent> {
+    ) -> Result<BigComponent> {
         // Read size first to know how much data is encoded.
         let size = postcard_utils::from_buf(message)?;
 
@@ -219,7 +219,7 @@ pub trait AppRuleExt {
         _ctx: &SerializeCtx,
         component: &MappedComponent,
         message: &mut Vec<u8>,
-    ) -> postcard::Result<()> {
+    ) -> Result<()> {
         postcard_utils::to_extend_mut(&component.entity, message)
     }
 
@@ -227,7 +227,7 @@ pub trait AppRuleExt {
     fn deserialize_mapped_component(
         ctx: &mut WriteCtx,
         message: &mut Bytes,
-    ) -> postcard::Result<MappedComponent> {
+    ) -> Result<MappedComponent> {
         let entity = postcard_utils::from_buf(message)?;
         let mut component = MappedComponent {
             entity,
@@ -274,7 +274,7 @@ pub trait AppRuleExt {
         ctx: &SerializeCtx,
         component: &ReflectedComponent,
         message: &mut Vec<u8>,
-    ) -> postcard::Result<()> {
+    ) -> Result<()> {
         let mut serializer = Serializer {
             output: ExtendMutFlavor::new(message),
         };
@@ -284,7 +284,7 @@ pub trait AppRuleExt {
     fn deserialize_reflect(
         ctx: &mut WriteCtx,
         message: &mut Bytes,
-    ) -> postcard::Result<ReflectedComponent> {
+    ) -> Result<ReflectedComponent> {
         let mut deserializer = Deserializer::from_flavor(BufFlavor::new(message));
         let reflect = ReflectDeserializer::new(ctx.type_registry).deserialize(&mut deserializer)?;
         Ok(ReflectedComponent(reflect))
@@ -500,8 +500,8 @@ impl GroupReplication for PlayerBundle {
     }
 }
 
-# fn serialize_translation(_: &SerializeCtx, _: &Transform, _: &mut Vec<u8>) -> postcard::Result<()> { unimplemented!() }
-# fn deserialize_translation(_: &mut WriteCtx, _: &mut Bytes) -> postcard::Result<Transform> { unimplemented!() }
+# fn serialize_translation(_: &SerializeCtx, _: &Transform, _: &mut Vec<u8>) -> Result<()> { unimplemented!() }
+# fn deserialize_translation(_: &mut WriteCtx, _: &mut Bytes) -> Result<Transform> { unimplemented!() }
 ```
 **/
 pub trait GroupReplication {

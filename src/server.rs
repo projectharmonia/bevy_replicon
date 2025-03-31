@@ -258,7 +258,7 @@ pub(super) fn send_replication(
     type_registry: Res<AppTypeRegistry>,
     server_tick: Res<ServerTick>,
     time: Res<Time>,
-) -> postcard::Result<()> {
+) -> Result<()> {
     for (_, mut mutate_message, mut update_message, ..) in &mut clients {
         update_message.clear();
         mutate_message.clear();
@@ -324,7 +324,7 @@ fn send_messages(
     entity_buffer: &mut EntityBuffer,
     change_tick: SystemChangeTick,
     time: &Time,
-) -> postcard::Result<()> {
+) -> Result<()> {
     let mut server_tick_range = None;
     for (client_entity, update_message, mut mutate_message, client, .., mut ticks, visibility) in
         clients
@@ -379,7 +379,7 @@ fn collect_mappings(
         &mut ClientTicks,
         Option<&mut ClientVisibility>,
     )>,
-) -> postcard::Result<()> {
+) -> Result<()> {
     for (_, mut message, _, _, mut entity_map, ..) in clients {
         let len = entity_map.len();
         let mappings = serialized.write_mappings(entity_map.0.drain(..))?;
@@ -402,7 +402,7 @@ fn collect_despawns(
         Option<&mut ClientVisibility>,
     )>,
     despawn_buffer: &mut DespawnBuffer,
-) -> postcard::Result<()> {
+) -> Result<()> {
     for entity in despawn_buffer.drain(..) {
         let entity_range = serialized.write_entity(entity)?;
         for (_, mut message, .., mut ticks, visibility) in &mut *clients {
@@ -444,7 +444,7 @@ fn collect_removals(
         Option<&mut ClientVisibility>,
     )>,
     removal_buffer: &RemovalBuffer,
-) -> postcard::Result<()> {
+) -> Result<()> {
     for (&entity, remove_ids) in removal_buffer.iter() {
         let entity_range = serialized.write_entity(entity)?;
         let ids_len = remove_ids.len();
@@ -477,7 +477,7 @@ fn collect_changes(
     world: &ServerWorld,
     change_tick: &SystemChangeTick,
     server_tick: RepliconTick,
-) -> postcard::Result<()> {
+) -> Result<()> {
     for (archetype, replicated_archetype) in world.iter_archetypes() {
         for entity in archetype.entities() {
             let mut entity_range = None;
@@ -612,7 +612,7 @@ fn write_entity_cached(
     entity_range: &mut Option<Range<usize>>,
     serialized: &mut SerializedData,
     entity: Entity,
-) -> postcard::Result<Range<usize>> {
+) -> Result<Range<usize>> {
     if let Some(range) = entity_range.clone() {
         return Ok(range);
     }
@@ -632,7 +632,7 @@ fn write_component_cached(
     ctx: &SerializeCtx,
     replicated_component: &ReplicatedComponent,
     component: Ptr<'_>,
-) -> postcard::Result<Range<usize>> {
+) -> Result<Range<usize>> {
     if let Some(component_range) = component_range.clone() {
         return Ok(component_range);
     }
@@ -654,7 +654,7 @@ fn write_tick_cached(
     tick_range: &mut Option<Range<usize>>,
     serialized: &mut SerializedData,
     tick: RepliconTick,
-) -> postcard::Result<Range<usize>> {
+) -> Result<Range<usize>> {
     if let Some(range) = tick_range.clone() {
         return Ok(range);
     }

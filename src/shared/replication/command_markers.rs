@@ -84,7 +84,7 @@ pub trait AppMarkerExt {
         rule_fns: &RuleFns<C>,
         entity: &mut DeferredEntity,
         message: &mut Bytes,
-    ) -> postcard::Result<()> {
+    ) -> Result<()> {
         let component: C = rule_fns.deserialize(ctx, message)?;
         if let Some(mut history) = entity.get_mut::<History<C>>() {
             history.insert(ctx.message_tick, component);

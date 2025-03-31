@@ -50,7 +50,7 @@ impl UntypedCommandFns {
         rule_fns: &RuleFns<C>,
         entity: &mut DeferredEntity,
         message: &mut Bytes,
-    ) -> postcard::Result<()> {
+    ) -> Result<()> {
         debug_assert_eq!(
             self.type_id,
             TypeId::of::<C>(),
@@ -70,8 +70,7 @@ impl UntypedCommandFns {
 }
 
 /// Signature of component writing function.
-pub type WriteFn<C> =
-    fn(&mut WriteCtx, &RuleFns<C>, &mut DeferredEntity, &mut Bytes) -> postcard::Result<()>;
+pub type WriteFn<C> = fn(&mut WriteCtx, &RuleFns<C>, &mut DeferredEntity, &mut Bytes) -> Result<()>;
 
 /// Signature of component removal functions.
 pub type RemoveFn = fn(&mut RemoveCtx, &mut DeferredEntity);
@@ -85,7 +84,7 @@ pub fn default_write<C: Component<Mutability = Mutable>>(
     rule_fns: &RuleFns<C>,
     entity: &mut DeferredEntity,
     message: &mut Bytes,
-) -> postcard::Result<()> {
+) -> Result<()> {
     if let Some(mut component) = entity.get_mut::<C>() {
         rule_fns.deserialize_in_place(ctx, &mut *component, message)?;
     } else {
