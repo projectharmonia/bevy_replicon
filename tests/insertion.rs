@@ -1,4 +1,4 @@
-use bevy::{ecs::entity::MapEntities, prelude::*};
+use bevy::prelude::*;
 use bevy_replicon::{
     client::confirm_history::{ConfirmHistory, EntityReplicated},
     prelude::*,
@@ -101,7 +101,7 @@ fn mapped_existing_entity() {
                 ..Default::default()
             }),
         ))
-        .replicate_mapped::<MappedComponent>();
+        .replicate::<MappedComponent>();
     }
 
     server_app.connect_client(&mut client_app);
@@ -133,7 +133,8 @@ fn mapped_existing_entity() {
     let mapped_component = client_app
         .world_mut()
         .query::<&MappedComponent>()
-        .single(client_app.world());
+        .single(client_app.world())
+        .unwrap();
     assert_eq!(mapped_component.0, client_map_entity);
 }
 
@@ -149,7 +150,7 @@ fn mapped_new_entity() {
                 ..Default::default()
             }),
         ))
-        .replicate_mapped::<MappedComponent>();
+        .replicate::<MappedComponent>();
     }
 
     server_app.connect_client(&mut client_app);
@@ -174,7 +175,8 @@ fn mapped_new_entity() {
     let mapped_component = client_app
         .world_mut()
         .query::<&MappedComponent>()
-        .single(client_app.world());
+        .single(client_app.world())
+        .unwrap();
     assert!(client_app.world().get_entity(mapped_component.0).is_ok());
 
     let mut replicated = client_app.world_mut().query::<&Replicated>();
@@ -520,7 +522,8 @@ fn confirm_history() {
     let (client_entity, confirm_history) = client_app
         .world_mut()
         .query::<(Entity, &ConfirmHistory)>()
-        .single(client_app.world());
+        .single(client_app.world())
+        .unwrap();
     assert!(confirm_history.contains(tick));
 
     let mut replicated_events = client_app
@@ -536,13 +539,7 @@ fn confirm_history() {
 }
 
 #[derive(Component, Deserialize, Serialize)]
-struct MappedComponent(Entity);
-
-impl MapEntities for MappedComponent {
-    fn map_entities<M: EntityMapper>(&mut self, entity_mapper: &mut M) {
-        self.0 = entity_mapper.map_entity(self.0);
-    }
-}
+struct MappedComponent(#[entities] Entity);
 
 #[derive(Component, Deserialize, Serialize)]
 struct DummyComponent;
@@ -572,7 +569,7 @@ fn replace(
     rule_fns: &RuleFns<OriginalComponent>,
     entity: &mut DeferredEntity,
     message: &mut Bytes,
-) -> postcard::Result<()> {
+) -> Result<()> {
     rule_fns.deserialize(ctx, message)?;
     ctx.commands.entity(entity.id()).insert(ReplacedComponent);
 

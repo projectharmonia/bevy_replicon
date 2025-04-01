@@ -22,7 +22,7 @@ impl Plugin for RepliconExampleServerPlugin {
             (
                 set_stopped.run_if(resource_removed::<ExampleServer>),
                 set_running.run_if(resource_added::<ExampleServer>),
-                receive_packets.never_param_warn(),
+                receive_packets.run_if(resource_exists::<ExampleServer>),
             )
                 .chain()
                 .in_set(ServerSet::ReceivePackets),
@@ -30,8 +30,8 @@ impl Plugin for RepliconExampleServerPlugin {
         .add_systems(
             PostUpdate,
             send_packets
-                .never_param_warn()
-                .in_set(ServerSet::SendPackets),
+                .in_set(ServerSet::SendPackets)
+                .run_if(resource_exists::<ExampleServer>),
         );
     }
 }

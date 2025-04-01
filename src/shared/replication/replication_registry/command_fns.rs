@@ -1,9 +1,9 @@
-use std::{
+use core::{
     any::{self, TypeId},
     mem,
 };
 
-use bevy::prelude::*;
+use bevy::{ecs::component::Mutable, prelude::*};
 use bytes::Bytes;
 
 use super::{
@@ -24,7 +24,7 @@ pub(super) struct UntypedCommandFns {
 
 impl UntypedCommandFns {
     /// Creates a new instance with default command functions for `C`.
-    pub(super) fn default_fns<C: Component>() -> Self {
+    pub(super) fn default_fns<C: Component<Mutability = Mutable>>() -> Self {
         Self::new(default_write::<C>, default_remove::<C>)
     }
 
@@ -50,7 +50,7 @@ impl UntypedCommandFns {
         rule_fns: &RuleFns<C>,
         entity: &mut DeferredEntity,
         message: &mut Bytes,
-    ) -> postcard::Result<()> {
+    ) -> Result<()> {
         debug_assert_eq!(
             self.type_id,
             TypeId::of::<C>(),
@@ -70,8 +70,7 @@ impl UntypedCommandFns {
 }
 
 /// Signature of component writing function.
-pub type WriteFn<C> =
-    fn(&mut WriteCtx, &RuleFns<C>, &mut DeferredEntity, &mut Bytes) -> postcard::Result<()>;
+pub type WriteFn<C> = fn(&mut WriteCtx, &RuleFns<C>, &mut DeferredEntity, &mut Bytes) -> Result<()>;
 
 /// Signature of component removal functions.
 pub type RemoveFn = fn(&mut RemoveCtx, &mut DeferredEntity);
@@ -80,12 +79,12 @@ pub type RemoveFn = fn(&mut RemoveCtx, &mut DeferredEntity);
 ///
 /// If the component does not exist on the entity, it will be deserialized with [`RuleFns::deserialize`] and inserted via [`Commands`].
 /// If the component exists on the entity, [`RuleFns::deserialize_in_place`] will be used directly on the entity's component.
-pub fn default_write<C: Component>(
+pub fn default_write<C: Component<Mutability = Mutable>>(
     ctx: &mut WriteCtx,
     rule_fns: &RuleFns<C>,
     entity: &mut DeferredEntity,
     message: &mut Bytes,
-) -> postcard::Result<()> {
+) -> Result<()> {
     if let Some(mut component) = entity.get_mut::<C>() {
         rule_fns.deserialize_in_place(ctx, &mut *component, message)?;
     } else {

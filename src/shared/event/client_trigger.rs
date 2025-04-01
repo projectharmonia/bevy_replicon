@@ -1,7 +1,8 @@
-use std::any;
+use core::any;
 
 use bevy::{ecs::entity::MapEntities, prelude::*, ptr::PtrMut};
 use bytes::Bytes;
+use log::debug;
 use serde::{Serialize, de::DeserializeOwned};
 
 use super::{
@@ -154,10 +155,10 @@ fn trigger_serialize<'a, E>(
     trigger: &RemoteTrigger<E>,
     message: &mut Vec<u8>,
     serialize: EventSerializeFn<ClientSendCtx<'a>, E>,
-) -> postcard::Result<()> {
+) -> Result<()> {
     postcard_utils::to_extend_mut(&trigger.targets.len(), message)?;
     for &entity in &trigger.targets {
-        let entity = ctx.map_entity(entity);
+        let entity = ctx.get_mapped(entity);
         entity_serde::serialize_entity(message, entity)?;
     }
 
@@ -172,7 +173,7 @@ fn trigger_deserialize<'a, E>(
     ctx: &mut ServerReceiveCtx<'a>,
     message: &mut Bytes,
     deserialize: EventDeserializeFn<ServerReceiveCtx<'a>, E>,
-) -> postcard::Result<RemoteTrigger<E>> {
+) -> Result<RemoteTrigger<E>> {
     let len = postcard_utils::from_buf(message)?;
     let mut targets = Vec::with_capacity(len);
     for _ in 0..len {

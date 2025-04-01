@@ -1,4 +1,4 @@
-use std::{ops::Range, time::Duration};
+use core::{ops::Range, time::Duration};
 
 use bevy::{ecs::component::Tick, prelude::*};
 use postcard::experimental::{max_size::MaxSize, serialized_size};
@@ -132,7 +132,7 @@ impl MutateMessage {
         tick: Tick,
         timestamp: Duration,
         max_size: usize,
-    ) -> postcard::Result<usize> {
+    ) -> Result<usize> {
         debug_assert_eq!(self.entities.len(), self.mutations.len());
 
         const MAX_COUNT_SIZE: usize = usize::POSTCARD_MAX_SIZE;

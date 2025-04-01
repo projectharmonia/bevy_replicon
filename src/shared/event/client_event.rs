@@ -1,4 +1,4 @@
-use std::any::{self, TypeId};
+use core::any::{self, TypeId};
 
 use bevy::{
     ecs::{component::ComponentId, entity::MapEntities, event::EventCursor},
@@ -6,6 +6,7 @@ use bevy::{
     ptr::{Ptr, PtrMut},
 };
 use bytes::Bytes;
+use log::{debug, error, warn};
 use serde::{Serialize, de::DeserializeOwned};
 
 use super::{
@@ -65,14 +66,8 @@ pub trait ClientEventAppExt {
     /// # app.add_plugins(RepliconPlugins);
     /// app.add_mapped_client_event::<MappedEvent>(Channel::Ordered);
     ///
-    /// #[derive(Debug, Deserialize, Event, Serialize, Clone)]
-    /// struct MappedEvent(Entity);
-    ///
-    /// impl MapEntities for MappedEvent {
-    ///     fn map_entities<T: EntityMapper>(&mut self, entity_mapper: &mut T) {
-    ///         self.0 = entity_mapper.map_entity(self.0);
-    ///     }
-    /// }
+    /// #[derive(Debug, Deserialize, Event, Serialize, Clone, MapEntities)]
+    /// struct MappedEvent(#[entities] Entity);
     /// ```
     fn add_mapped_client_event<E: Event + Serialize + DeserializeOwned + MapEntities + Clone>(
         &mut self,
@@ -119,15 +114,16 @@ pub trait ClientEventAppExt {
         ctx: &mut ClientSendCtx,
         event: &ReflectEvent,
         message: &mut Vec<u8>,
-    ) -> postcard::Result<()> {
+    ) -> Result<()> {
         let mut serializer = Serializer { output: ExtendMutFlavor::new(message) };
-        ReflectSerializer::new(&*event.0, ctx.type_registry).serialize(&mut serializer)
+        ReflectSerializer::new(&*event.0, ctx.type_registry).serialize(&mut serializer)?;
+        Ok(())
     }
 
     fn deserialize_reflect(
         ctx: &mut ServerReceiveCtx,
         message: &mut Bytes,
-    ) -> postcard::Result<ReflectEvent> {
+    ) -> Result<ReflectEvent> {
         let mut deserializer = Deserializer::from_flavor(BufFlavor::new(message));
         let reflect = ReflectDeserializer::new(ctx.type_registry).deserialize(&mut deserializer)?;
         Ok(ReflectEvent(reflect))
@@ -400,7 +396,7 @@ impl ClientEvent {
         ctx: &mut ClientSendCtx,
         event: &E,
         message: &mut Vec<u8>,
-    ) -> postcard::Result<()> {
+    ) -> Result<()> {
         unsafe {
             self.event_fns
                 .typed::<ClientSendCtx, ServerReceiveCtx, E, I>()
@@ -410,13 +406,13 @@ impl ClientEvent {
         if ctx.invalid_entities.is_empty() {
             Ok(())
         } else {
-            error!(
+            let msg = format!(
                 "unable to map entities `{:?}` for the server, \
                 make sure that the event references entities visible to the server",
                 ctx.invalid_entities,
             );
             ctx.invalid_entities.clear();
-            Err(postcard::Error::SerdeDeCustom)
+            Err(msg.into())
         }
     }
 
@@ -429,7 +425,7 @@ impl ClientEvent {
         &self,
         ctx: &mut ServerReceiveCtx,
         message: &mut Bytes,
-    ) -> postcard::Result<E> {
+    ) -> Result<E> {
         unsafe {
             self.event_fns
                 .typed::<ClientSendCtx, ServerReceiveCtx, E, I>()
@@ -482,8 +478,9 @@ pub fn default_serialize<E: Event + Serialize>(
     _ctx: &mut ClientSendCtx,
     event: &E,
     message: &mut Vec<u8>,
-) -> postcard::Result<()> {
-    postcard_utils::to_extend_mut(event, message)
+) -> Result<()> {
+    postcard_utils::to_extend_mut(event, message)?;
+    Ok(())
 }
 
 /// Like [`default_serialize`], but also maps entities.
@@ -491,16 +488,18 @@ pub fn default_serialize_mapped<E: Event + MapEntities + Clone + Serialize>(
     ctx: &mut ClientSendCtx,
     event: &E,
     message: &mut Vec<u8>,
-) -> postcard::Result<()> {
+) -> Result<()> {
     let mut event = event.clone();
     event.map_entities(ctx);
-    postcard_utils::to_extend_mut(&event, message)
+    postcard_utils::to_extend_mut(&event, message)?;
+    Ok(())
 }
 
 /// Default event deserialization function.
 pub fn default_deserialize<E: Event + DeserializeOwned>(
     _ctx: &mut ServerReceiveCtx,
     message: &mut Bytes,
-) -> postcard::Result<E> {
-    postcard_utils::from_buf(message)
+) -> Result<E> {
+    let event = postcard_utils::from_buf(message)?;
+    Ok(event)
 }
