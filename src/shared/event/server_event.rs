@@ -113,7 +113,8 @@ pub trait ServerEventAppExt {
         message: &mut Vec<u8>,
     ) -> Result<()> {
         let mut serializer = Serializer { output: ExtendMutFlavor::new(message) };
-        ReflectSerializer::new(&*event.0, ctx.type_registry).serialize(&mut serializer)
+        ReflectSerializer::new(&*event.0, ctx.type_registry).serialize(&mut serializer)?;
+        Ok(())
     }
 
     fn deserialize_reflect(

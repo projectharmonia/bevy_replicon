@@ -91,7 +91,8 @@ pub trait AppRuleExt {
         transform: &Transform,
         message: &mut Vec<u8>,
     ) -> Result<()> {
-        postcard_utils::to_extend_mut(&transform.translation, message)
+        postcard_utils::to_extend_mut(&transform.translation, message)?;
+        Ok(())
     }
 
     /// Deserializes `translation` and creates [`Transform`] from it.
@@ -220,7 +221,8 @@ pub trait AppRuleExt {
         component: &MappedComponent,
         message: &mut Vec<u8>,
     ) -> Result<()> {
-        postcard_utils::to_extend_mut(&component.entity, message)
+        postcard_utils::to_extend_mut(&component.entity, message)?;
+        Ok(())
     }
 
     /// Deserializes an entity and creates [`MappedComponent`] from it.
@@ -278,7 +280,8 @@ pub trait AppRuleExt {
         let mut serializer = Serializer {
             output: ExtendMutFlavor::new(message),
         };
-        ReflectSerializer::new(&*component.0, ctx.type_registry).serialize(&mut serializer)
+        ReflectSerializer::new(&*component.0, ctx.type_registry).serialize(&mut serializer)?;
+        Ok(())
     }
 
     fn deserialize_reflect(
