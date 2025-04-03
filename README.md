@@ -5,7 +5,7 @@
 [![license](https://img.shields.io/crates/l/bevy_replicon)](#license)
 [![codecov](https://codecov.io/gh/projectharmonia/bevy_replicon/graph/badge.svg?token=N1G28NQB1L)](https://codecov.io/gh/projectharmonia/bevy_replicon)
 
-Server-authoritative networking crate for the [Bevy game engine](https://bevyengine.org).
+A replication crate for the [Bevy game engine](https://bevyengine.org).
 
 If you are new to networking, see [glossary](https://gist.github.com/maniwani/f92cc5d827b00163f5846ea7dcb90d44) and
 [What kind of networking should X game use?](https://github.com/bevyengine/bevy/discussions/8675).
@@ -15,11 +15,12 @@ If you are new to networking, see [glossary](https://gist.github.com/maniwani/f9
 - Automatic world replication.
 - Remote events and triggers.
 - Control over client visibility of entities and events.
-- Abstracts game logic to support singleplayer, client, dedicated server, and listen server configurations simultaneously.
-- No builtin I/O, can be used with any messaging library. See [messaging backends](#messaging-backends) for already available integrations.
 - Replication into scene to save server state.
 - Customizable serialization and deserialization even for types that don't implement `serde` traits (like `Box<dyn Reflect>`).
-- Extensible architecture. See [ecosystem](#ecosystem).
+- Abstracts game logic to support singleplayer, client, dedicated server, and listen server configurations simultaneously.
+- No builtin I/O, can be used with any messaging library. See [messaging backends](#messaging-backends) for already available integrations.
+- Heavily optimized.
+- Hackable. See [ecosystem](#ecosystem).
 
 ## Getting Started
 
@@ -35,9 +36,7 @@ Have any questions? Feel free to ask in the dedicated [`bevy_replicon` channel](
 
 ## Ecosystem
 
-We have a growing ecosystem of crates that can be integrated with Replicon or built on top of it.
-Networking is quite complex, and maintaining everything in a single crate would be a nightmare.
-So we are trying to provide an extensible core and encourage users to build their own abstractions as separate crates.
+Depending on your game, you may need additional features. We provide an API that allows external crates to integrate with Replicon or to be built on top of it.
 
 > [!WARNING]
 > Ensure that your `bevy_replicon` version is compatible with the used crate according to semantic versioning.
