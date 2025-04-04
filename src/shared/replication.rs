@@ -1,4 +1,4 @@
-pub(crate) mod client_ticks;
+pub mod client_ticks;
 pub mod command_markers;
 pub mod deferred_entity;
 pub(crate) mod mutate_index;
