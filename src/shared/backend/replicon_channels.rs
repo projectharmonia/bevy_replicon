@@ -39,7 +39,7 @@ impl Default for RepliconChannels {
 
 impl RepliconChannels {
     /// Creates a new server channel and returns its ID.
-    pub(crate) fn create_server_channel(&mut self, channel: Channel) -> usize {
+    pub fn create_server_channel(&mut self, channel: Channel) -> usize {
         let id = self.server.len();
         debug!("creating a server channel with ID {id}");
         self.server.push(channel);
@@ -48,7 +48,7 @@ impl RepliconChannels {
     }
 
     /// Creates a new client channel and returns its ID.
-    pub(crate) fn create_client_channel(&mut self, channel: Channel) -> usize {
+    pub fn create_client_channel(&mut self, channel: Channel) -> usize {
         let id = self.client.len();
         debug!("creating a client channel with ID {id}");
         self.client.push(channel);
