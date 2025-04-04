@@ -11,7 +11,7 @@ use crate::shared::replicon_tick::RepliconTick;
 
 /// Tracks replication ticks for a client.
 #[derive(Component, Default)]
-pub(crate) struct ClientTicks {
+pub struct ClientTicks {
     /// Lowest tick for use in change detection for each entity.
     mutation_ticks: EntityHashMap<Tick>,
 
@@ -39,7 +39,7 @@ impl ClientTicks {
 
     /// Returns the last tick in which a replicated entity had an insertion, removal, or gained/lost a component from the
     /// perspective of the client.
-    pub(crate) fn update_tick(&self) -> RepliconTick {
+    pub fn update_tick(&self) -> RepliconTick {
         self.update_tick
     }
 
