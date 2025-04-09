@@ -604,7 +604,7 @@ struct BottomText;
     Button,
     Replicated,
     BackgroundColor(BACKGROUND_COLOR),
-    Node = Node {
+    Node {
         width: Val::Px(BUTTON_SIZE),
         height: Val::Px(BUTTON_SIZE),
         margin: UiRect::all(Val::Px(BUTTON_MARGIN)),
