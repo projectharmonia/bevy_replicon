@@ -5,7 +5,7 @@
 [![license](https://img.shields.io/crates/l/bevy_replicon)](#license)
 [![codecov](https://codecov.io/gh/projectharmonia/bevy_replicon/graph/badge.svg?token=N1G28NQB1L)](https://codecov.io/gh/projectharmonia/bevy_replicon)
 
-A replication crate for the [Bevy game engine](https://bevyengine.org).
+A server-authoritative replication crate for [Bevy](https://bevyengine.org).
 
 If you are new to networking, see [glossary](https://gist.github.com/maniwani/f92cc5d827b00163f5846ea7dcb90d44) and
 [What kind of networking should X game use?](https://github.com/bevyengine/bevy/discussions/8675).
