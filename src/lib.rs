@@ -1,5 +1,5 @@
 /*!
-A replication crate for the [Bevy game engine](https://bevyengine.org).
+A server-authoritative replication crate for [Bevy](https://bevyengine.org).
 
 # Quick start
 
