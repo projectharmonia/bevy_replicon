@@ -1,5 +1,5 @@
 /*!
-Server-authoritative networking crate for the [Bevy game engine](https://bevyengine.org).
+A server-authoritative replication crate for [Bevy](https://bevyengine.org).
 
 # Quick start
 
@@ -48,7 +48,7 @@ or use backend-provided events if you need the disconnect reason.
 ## Replication
 
 It's a process of exchanging data in order to keep the world in sync. Replicon
-provides a high-level API to automate this process.
+provides a high-level API to automate server-authoritative replication.
 
 Replication happens only from server to clients. It's necessary to prevent cheating.
 If you need to send information from clients to the server, use
