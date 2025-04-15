@@ -41,13 +41,13 @@ fn buffer_removals(
     mut removal_buffer: ResMut<RemovalBuffer>,
     rules: Res<ReplicationRules>,
 ) {
-    for (&entity, components) in removal_reader.read() {
+    for (&entity, removed_components) in removal_reader.read() {
         let location = entities
             .get(entity)
             .expect("removals count only existing entities");
         let archetype = archetypes.get(location.archetype_id).unwrap();
 
-        removal_buffer.update(&rules, archetype, entity, components);
+        removal_buffer.update(&rules, archetype, entity, removed_components);
     }
 }
 
@@ -157,12 +157,12 @@ impl RemovalBuffer {
         rules: &ReplicationRules,
         archetype: &Archetype,
         entity: Entity,
-        components: &HashSet<ComponentId>,
+        removed_components: &HashSet<ComponentId>,
     ) {
         let mut removed_ids = self.ids_buffer.pop().unwrap_or_default();
         for rule in rules
             .iter()
-            .filter(|rule| rule.matches_removals(archetype, components))
+            .filter(|rule| rule.matches_removals(archetype, removed_components))
         {
             for &(component_id, fns_id) in &rule.components {
                 // Since rules are sorted by priority,
@@ -170,7 +170,7 @@ impl RemovalBuffer {
                 if removed_ids
                     .iter()
                     .all(|&(removed_id, _)| removed_id != component_id)
-                    && !archetype.contains(component_id)
+                    && removed_components.contains(&component_id)
                 {
                     removed_ids.push((component_id, fns_id));
                 }
@@ -258,8 +258,8 @@ mod tests {
         let removal_buffer = app.world().resource::<RemovalBuffer>();
         assert_eq!(removal_buffer.removals.len(), 1);
 
-        let removals_id = removal_buffer.removals.get(&entity).unwrap();
-        assert_eq!(removals_id.len(), 1);
+        let removal_ids = removal_buffer.removals.get(&entity).unwrap();
+        assert_eq!(removal_ids.len(), 1);
     }
 
     #[test]
@@ -288,8 +288,8 @@ mod tests {
         let removal_buffer = app.world().resource::<RemovalBuffer>();
         assert_eq!(removal_buffer.removals.len(), 1);
 
-        let removals_id = removal_buffer.removals.get(&entity).unwrap();
-        assert_eq!(removals_id.len(), 2);
+        let removal_ids = removal_buffer.removals.get(&entity).unwrap();
+        assert_eq!(removal_ids.len(), 2);
     }
 
     #[test]
@@ -318,8 +318,8 @@ mod tests {
         let removal_buffer = app.world().resource::<RemovalBuffer>();
         assert_eq!(removal_buffer.removals.len(), 1);
 
-        let removals_id = removal_buffer.removals.get(&entity).unwrap();
-        assert_eq!(removals_id.len(), 1);
+        let removal_ids = removal_buffer.removals.get(&entity).unwrap();
+        assert_eq!(removal_ids.len(), 1);
     }
 
     #[test]
@@ -349,8 +349,8 @@ mod tests {
         let removal_buffer = app.world().resource::<RemovalBuffer>();
         assert_eq!(removal_buffer.removals.len(), 1);
 
-        let removals_id = removal_buffer.removals.get(&entity).unwrap();
-        assert_eq!(removals_id.len(), 2);
+        let removal_ids = removal_buffer.removals.get(&entity).unwrap();
+        assert_eq!(removal_ids.len(), 2);
     }
 
     #[test]
@@ -380,8 +380,8 @@ mod tests {
         let removal_buffer = app.world().resource::<RemovalBuffer>();
         assert_eq!(removal_buffer.removals.len(), 1);
 
-        let removals_id = removal_buffer.removals.get(&entity).unwrap();
-        assert_eq!(removals_id.len(), 1);
+        let removal_ids = removal_buffer.removals.get(&entity).unwrap();
+        assert_eq!(removal_ids.len(), 1);
     }
 
     #[test]
