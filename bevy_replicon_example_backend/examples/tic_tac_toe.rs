@@ -6,7 +6,11 @@ use std::{
     io,
 };
 
-use bevy::{platform::collections::HashMap, prelude::*};
+use bevy::{
+    ecs::{relationship::RelatedSpawner, spawn::SpawnWith},
+    platform::collections::HashMap,
+    prelude::*,
+};
 use bevy_replicon::prelude::*;
 use bevy_replicon_example_backend::{ExampleClient, ExampleServer, RepliconExampleBackendPlugins};
 use clap::{Parser, ValueEnum};
@@ -159,64 +163,62 @@ fn setup_ui(mut commands: Commands, symbol_font: Res<SymbolFont>) {
     const TEXT_COLOR: Color = Color::srgb(0.5, 0.5, 1.0);
     const FONT_SIZE: f32 = 32.0;
 
-    commands
-        .spawn(Node {
+    commands.spawn((
+        Node {
             width: Val::Percent(100.0),
             height: Val::Percent(100.0),
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
             ..Default::default()
-        })
-        .with_children(|parent| {
-            parent
-                .spawn(Node {
-                    flex_direction: FlexDirection::Column,
-                    width: Val::Px(BOARD_SIZE - LINE_THICKNESS),
-                    height: Val::Px(BOARD_SIZE - LINE_THICKNESS),
-                    ..Default::default()
-                })
-                .with_children(|parent| {
-                    parent
-                        .spawn(Node {
-                            display: Display::Grid,
-                            grid_template_columns: vec![GridTrack::auto(); GRID_SIZE],
+        },
+        children![(
+            Node {
+                flex_direction: FlexDirection::Column,
+                width: Val::Px(BOARD_SIZE - LINE_THICKNESS),
+                height: Val::Px(BOARD_SIZE - LINE_THICKNESS),
+                ..Default::default()
+            },
+            children![
+                (
+                    Node {
+                        display: Display::Grid,
+                        grid_template_columns: vec![GridTrack::auto(); GRID_SIZE],
+                        ..Default::default()
+                    },
+                    Children::spawn(SpawnWith(|parent: &mut RelatedSpawner<_>| {
+                        for index in 0..GRID_SIZE * GRID_SIZE {
+                            parent.spawn(Cell { index }).observe(pick_cell);
+                        }
+                    }))
+                ),
+                (
+                    Node {
+                        margin: UiRect::top(Val::Px(20.0)),
+                        justify_content: JustifyContent::Center,
+                        ..Default::default()
+                    },
+                    children![(
+                        Text::default(),
+                        TextFont {
+                            font_size: FONT_SIZE,
                             ..Default::default()
-                        })
-                        .with_children(|parent| {
-                            for index in 0..GRID_SIZE * GRID_SIZE {
-                                parent.spawn(Cell { index }).observe(pick_cell);
-                            }
-                        });
-
-                    parent
-                        .spawn(Node {
-                            margin: UiRect::top(Val::Px(20.0)),
-                            justify_content: JustifyContent::Center,
-                            ..Default::default()
-                        })
-                        .with_children(|parent| {
-                            parent
-                                .spawn((
-                                    Text::default(),
-                                    TextFont {
-                                        font_size: FONT_SIZE,
-                                        ..Default::default()
-                                    },
-                                    TextColor(TEXT_COLOR),
-                                    BottomText,
-                                ))
-                                .with_child((
-                                    TextSpan::default(),
-                                    TextFont {
-                                        font: symbol_font.0.clone(),
-                                        font_size: FONT_SIZE,
-                                        ..Default::default()
-                                    },
-                                    TextColor(TEXT_COLOR),
-                                ));
-                        });
-                });
-        });
+                        },
+                        TextColor(TEXT_COLOR),
+                        BottomText,
+                        children![(
+                            TextSpan::default(),
+                            TextFont {
+                                font: symbol_font.0.clone(),
+                                font_size: FONT_SIZE,
+                                ..Default::default()
+                            },
+                            TextColor(TEXT_COLOR),
+                        )]
+                    )]
+                )
+            ]
+        )],
+    ));
 }
 
 /// Converts point clicks into cell picking events.
@@ -297,17 +299,15 @@ fn init_symbols(
     commands
         .entity(trigger.target())
         .remove::<Interaction>()
-        .with_children(|parent| {
-            parent.spawn((
-                Text::new(symbol.glyph()),
-                TextFont {
-                    font: symbol_font.0.clone(),
-                    font_size: 65.0,
-                    ..Default::default()
-                },
-                TextColor(symbol.color()),
-            ));
-        });
+        .with_child((
+            Text::new(symbol.glyph()),
+            TextFont {
+                font: symbol_font.0.clone(),
+                font_size: 65.0,
+                ..Default::default()
+            },
+            TextColor(symbol.color()),
+        ));
 }
 
 /// Sends cell and local player entities and starts the game.
