@@ -1,6 +1,6 @@
 use bevy::{
     ecs::entity::{hash_map::EntityHashMap, hash_set::EntityHashSet},
-    platform_support::collections::hash_map::Entry,
+    platform::collections::hash_map::Entry,
     prelude::*,
 };
 

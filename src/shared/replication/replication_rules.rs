@@ -6,7 +6,7 @@ use bevy::{
         component::{ComponentId, Mutable},
         entity::MapEntities,
     },
-    platform_support::collections::HashSet,
+    platform::collections::HashSet,
     prelude::*,
 };
 use serde::{Serialize, de::DeserializeOwned};

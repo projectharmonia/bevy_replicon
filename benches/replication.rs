@@ -1,6 +1,6 @@
 use core::{any, time::Duration};
 
-use bevy::{ecs::component::Mutable, platform_support::time::Instant, prelude::*};
+use bevy::{ecs::component::Mutable, platform::time::Instant, prelude::*};
 use bevy_replicon::{prelude::*, test_app::ServerTestAppExt};
 use criterion::{Criterion, criterion_group, criterion_main};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};

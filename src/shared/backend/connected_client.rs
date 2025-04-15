@@ -1,6 +1,6 @@
 use bevy::{
     ecs::{component::HookContext, world::DeferredWorld},
-    platform_support::collections::HashMap,
+    platform::collections::HashMap,
     prelude::*,
 };
 use log::error;

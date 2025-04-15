@@ -7,7 +7,7 @@ use bevy::{
         removal_detection::{RemovedComponentEntity, RemovedComponentEvents},
         system::SystemParam,
     },
-    platform_support::collections::{HashMap, HashSet},
+    platform::collections::{HashMap, HashSet},
     prelude::*,
 };
 

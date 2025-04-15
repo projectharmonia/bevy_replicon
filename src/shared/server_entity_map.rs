@@ -1,6 +1,5 @@
 use bevy::{
-    ecs::entity::hash_map::EntityHashMap, platform_support::collections::hash_map::Entry,
-    prelude::*,
+    ecs::entity::hash_map::EntityHashMap, platform::collections::hash_map::Entry, prelude::*,
 };
 use log::warn;
 

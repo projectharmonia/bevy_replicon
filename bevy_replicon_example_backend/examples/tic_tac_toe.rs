@@ -6,7 +6,7 @@ use std::{
     io,
 };
 
-use bevy::{platform_support::collections::HashMap, prelude::*};
+use bevy::{platform::collections::HashMap, prelude::*};
 use bevy_replicon::prelude::*;
 use bevy_replicon_example_backend::{ExampleClient, ExampleServer, RepliconExampleBackendPlugins};
 use clap::{Parser, ValueEnum};
@@ -318,7 +318,7 @@ fn init_symbols(
 ///
 /// Used only for client.
 fn client_start(mut commands: Commands, cells: Query<(Entity, &Cell)>) {
-    let mut entities = bevy::platform_support::collections::HashMap::default();
+    let mut entities = HashMap::default();
     for (entity, cell) in &cells {
         entities.insert(cell.index, entity);
     }

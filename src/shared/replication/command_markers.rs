@@ -52,7 +52,7 @@ pub trait AppMarkerExt {
     Then `Health` updates after that will be inserted to the history.
 
     ```
-    use bevy::{ecs::system::EntityCommands, ecs::component::Mutable, prelude::*, platform_support::collections::HashMap};
+    use bevy::{ecs::system::EntityCommands, ecs::component::Mutable, prelude::*, platform::collections::HashMap};
     use bevy_replicon::{
         bytes::Bytes,
         shared::{
