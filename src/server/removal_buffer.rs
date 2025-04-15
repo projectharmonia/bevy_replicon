@@ -41,13 +41,13 @@ fn buffer_removals(
     mut removal_buffer: ResMut<RemovalBuffer>,
     rules: Res<ReplicationRules>,
 ) {
-    for (&entity, components) in removal_reader.read() {
+    for (&entity, removed_components) in removal_reader.read() {
         let location = entities
             .get(entity)
             .expect("removals count only existing entities");
         let archetype = archetypes.get(location.archetype_id).unwrap();
 
-        removal_buffer.update(&rules, archetype, entity, components);
+        removal_buffer.update(&rules, archetype, entity, removed_components);
     }
 }
 
@@ -157,12 +157,12 @@ impl RemovalBuffer {
         rules: &ReplicationRules,
         archetype: &Archetype,
         entity: Entity,
-        components: &HashSet<ComponentId>,
+        removed_components: &HashSet<ComponentId>,
     ) {
         let mut removed_ids = self.ids_buffer.pop().unwrap_or_default();
         for rule in rules
             .iter()
-            .filter(|rule| rule.matches_removals(archetype, components))
+            .filter(|rule| rule.matches_removals(archetype, removed_components))
         {
             for &(component_id, fns_id) in &rule.components {
                 // Since rules are sorted by priority,
