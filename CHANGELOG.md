@@ -36,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- All serde methods now use `bevy::ecs::error::Result` instead of `bincode::Result` for more informative errors.
+- All serde methods now use `postcard::Result` instead of `bincode::Result` for more informative errors.
 - Rename `ChannelKind` into just `Channel`.
 - Rename `channels` module into `replicon_channels`.
 - Rename `core` module into `shared` and `RepliconCorePlugin` into `RepliconSharedPlugin`. To avoid ambiguity with Rust's `core`, which will be used for `no_std` support in the next release.
