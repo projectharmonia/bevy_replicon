@@ -10,7 +10,6 @@ use bevy::{
     prelude::*,
 };
 use serde::{Serialize, de::DeserializeOwned};
-use variadics_please::all_tuples;
 
 use super::replication_registry::{FnsId, ReplicationRegistry, rule_fns::RuleFns};
 
@@ -529,7 +528,7 @@ macro_rules! impl_registrations {
     }
 }
 
-all_tuples!(impl_registrations, 1, 15, B);
+variadics_please::all_tuples!(impl_registrations, 1, 15, B);
 
 #[cfg(test)]
 mod tests {
