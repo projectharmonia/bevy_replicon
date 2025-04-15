@@ -170,7 +170,7 @@ impl RemovalBuffer {
                 if removed_ids
                     .iter()
                     .all(|&(removed_id, _)| removed_id != component_id)
-                    && !archetype.contains(component_id)
+                    && removed_components.contains(&component_id)
                 {
                     removed_ids.push((component_id, fns_id));
                 }
