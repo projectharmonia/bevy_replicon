@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{ecs::system::SystemState, prelude::*};
 use bevy_replicon::{
     client::confirm_history::{ConfirmHistory, EntityReplicated},
     prelude::*,
@@ -390,6 +390,15 @@ fn after_removal() {
 
     let mut components = client_app.world_mut().query::<&DummyComponent>();
     assert_eq!(components.iter(client_app.world()).count(), 1);
+
+    let mut system_state: SystemState<RemovedComponents<DummyComponent>> =
+        SystemState::new(client_app.world_mut());
+    let removals = system_state.get(client_app.world());
+    assert_eq!(
+        removals.len(),
+        1,
+        "removal for the old value should also be triggered"
+    );
 }
 
 #[test]
