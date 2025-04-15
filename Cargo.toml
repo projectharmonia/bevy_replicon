@@ -48,7 +48,6 @@ bytes = { version = "1.10", default-features = false, features = [
 bevy = { version = "0.16.0-rc.5", default-features = false, features = [
   "bevy_log",
   "bevy_sprite",
-  "std",
   "serialize",
 ] }
 criterion = { version = "0.5", default-features = false, features = [
