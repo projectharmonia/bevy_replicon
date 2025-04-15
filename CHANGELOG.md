@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Support for `no_std`.
+
+### Changed
+
+- Update to Bevy 0.16.
+- All serde methods now use `bevy::ecs::error::Result` instead of `postcard::Result` for more informative errors.
+- `AppRuleExt::replicate_mapped`, `RuleFns::default_mapped` and `default_deserialize_mapped` now deprecated. Entities inside components now mapped automatically, use methods without `_mapped` prefixes.
+
+### Removed
+
+- `parent_sync` module and corresponding feature. Just replicate `ChildOf` directly.
+
 ## [0.32.1] - 2025-04-05
 
 ### Changed
