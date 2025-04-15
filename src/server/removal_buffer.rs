@@ -258,8 +258,8 @@ mod tests {
         let removal_buffer = app.world().resource::<RemovalBuffer>();
         assert_eq!(removal_buffer.removals.len(), 1);
 
-        let removals_id = removal_buffer.removals.get(&entity).unwrap();
-        assert_eq!(removals_id.len(), 1);
+        let removal_ids = removal_buffer.removals.get(&entity).unwrap();
+        assert_eq!(removal_ids.len(), 1);
     }
 
     #[test]
@@ -288,8 +288,8 @@ mod tests {
         let removal_buffer = app.world().resource::<RemovalBuffer>();
         assert_eq!(removal_buffer.removals.len(), 1);
 
-        let removals_id = removal_buffer.removals.get(&entity).unwrap();
-        assert_eq!(removals_id.len(), 2);
+        let removal_ids = removal_buffer.removals.get(&entity).unwrap();
+        assert_eq!(removal_ids.len(), 2);
     }
 
     #[test]
@@ -318,8 +318,8 @@ mod tests {
         let removal_buffer = app.world().resource::<RemovalBuffer>();
         assert_eq!(removal_buffer.removals.len(), 1);
 
-        let removals_id = removal_buffer.removals.get(&entity).unwrap();
-        assert_eq!(removals_id.len(), 1);
+        let removal_ids = removal_buffer.removals.get(&entity).unwrap();
+        assert_eq!(removal_ids.len(), 1);
     }
 
     #[test]
@@ -349,8 +349,8 @@ mod tests {
         let removal_buffer = app.world().resource::<RemovalBuffer>();
         assert_eq!(removal_buffer.removals.len(), 1);
 
-        let removals_id = removal_buffer.removals.get(&entity).unwrap();
-        assert_eq!(removals_id.len(), 2);
+        let removal_ids = removal_buffer.removals.get(&entity).unwrap();
+        assert_eq!(removal_ids.len(), 2);
     }
 
     #[test]
@@ -380,8 +380,8 @@ mod tests {
         let removal_buffer = app.world().resource::<RemovalBuffer>();
         assert_eq!(removal_buffer.removals.len(), 1);
 
-        let removals_id = removal_buffer.removals.get(&entity).unwrap();
-        assert_eq!(removals_id.len(), 1);
+        let removal_ids = removal_buffer.removals.get(&entity).unwrap();
+        assert_eq!(removal_ids.len(), 1);
     }
 
     #[test]
