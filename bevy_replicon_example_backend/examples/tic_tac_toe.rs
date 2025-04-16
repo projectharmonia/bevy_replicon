@@ -1,10 +1,7 @@
 //! A game to showcase single-player and multiplier game.
 //! Run it with `cargo run --example tic_tac_toe -- hotseat` to play locally or with `-- client` / `-- server`
 
-use std::{
-    fmt::{self, Formatter},
-    io,
-};
+use std::fmt::{self, Formatter};
 
 use bevy::{platform::collections::HashMap, prelude::*};
 use bevy_replicon::prelude::*;
@@ -93,7 +90,7 @@ const LINE_THICKNESS: f32 = 10.0;
 const BUTTON_SIZE: f32 = CELL_SIZE / 1.2;
 const BUTTON_MARGIN: f32 = (CELL_SIZE + LINE_THICKNESS - BUTTON_SIZE) / 2.0;
 
-fn read_cli(mut commands: Commands, cli: Res<Cli>) -> io::Result<()> {
+fn read_cli(mut commands: Commands, cli: Res<Cli>) -> Result<()> {
     match *cli {
         Cli::Hotseat => {
             info!("starting hotseat");

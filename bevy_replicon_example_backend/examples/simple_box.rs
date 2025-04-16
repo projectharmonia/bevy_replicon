@@ -1,10 +1,7 @@
 //! A simple demo to showcase how player could send inputs to move a box and server replicates position back.
 //! Also demonstrates the single-player and how sever also could be a player.
 
-use std::{
-    hash::{DefaultHasher, Hash, Hasher},
-    io,
-};
+use std::hash::{DefaultHasher, Hash, Hasher};
 
 use bevy::{
     color::palettes::css::GREEN,
@@ -48,7 +45,7 @@ impl Plugin for SimpleBoxPlugin {
     }
 }
 
-fn read_cli(mut commands: Commands, cli: Res<Cli>) -> io::Result<()> {
+fn read_cli(mut commands: Commands, cli: Res<Cli>) -> Result<()> {
     match *cli {
         Cli::SinglePlayer => {
             info!("starting single-player game");
