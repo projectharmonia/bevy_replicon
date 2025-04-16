@@ -538,6 +538,12 @@ A tick for an entity is confirmed if one of the following is true:
 
 All events, inserts, removals and despawns will be applied to clients in the same order as on the server.
 
+However, if you insert/mutate a component and immediately remove it, the client will only receive the removal because the component value
+won't exist in the [`World`] during the replication process. But removal followed by insertion will work as expected since we buffer removals.
+Additionally, if you insert a component into an entity that already has it, the client will receive it as a mutation.
+This happens because Bevy’s change detection, which we use to track changes, does not distinguish between modifications and re-insertions.
+As a result, triggers may behave differently on the client and server. If your game logic relies on this behavior, remove components before re-inserting them.
+
 Entity component mutations are grouped by entity, and component groupings may be applied to clients in a different order than on the server.
 For example, if two entities are spawned in tick 1 on the server and their components are mutated in tick 2,
 then the client is guaranteed to see the spawns at the same time, but the component mutations may appear in different client ticks.
