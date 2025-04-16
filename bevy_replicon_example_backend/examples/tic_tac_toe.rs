@@ -30,53 +30,45 @@ fn main() {
                 ..Default::default()
             }),
             RepliconExampleBackendPlugins,
-            TicTacToePlugin,
         ))
-        .run();
-}
-
-struct TicTacToePlugin;
-
-impl Plugin for TicTacToePlugin {
-    fn build(&self, app: &mut App) {
-        app.init_state::<GameState>()
-            .init_resource::<SymbolFont>()
-            .init_resource::<TurnSymbol>()
-            .replicate::<Symbol>()
-            .add_client_trigger::<CellPick>(Channel::Ordered)
-            .add_client_trigger::<MapCells>(Channel::Ordered)
-            .add_server_trigger::<MakeLocal>(Channel::Ordered)
-            .insert_resource(ClearColor(BACKGROUND_COLOR))
-            .add_observer(disconnect_by_client)
-            .add_observer(init_client)
-            .add_observer(make_local)
-            .add_observer(apply_pick)
-            .add_observer(init_symbols)
-            .add_observer(advance_turn)
-            .add_systems(Startup, (setup_ui, read_cli.map(Result::unwrap)))
-            .add_systems(
-                OnEnter(GameState::InGame),
-                (show_turn_text, show_turn_symbol),
-            )
-            .add_systems(OnEnter(GameState::Disconnected), show_disconnected_text)
-            .add_systems(OnEnter(GameState::Winner), show_winner_text)
-            .add_systems(OnEnter(GameState::Tie), show_tie_text)
-            .add_systems(OnEnter(GameState::Disconnected), stop_networking)
-            .add_systems(
-                Update,
+        .init_state::<GameState>()
+        .init_resource::<SymbolFont>()
+        .init_resource::<TurnSymbol>()
+        .replicate::<Symbol>()
+        .add_client_trigger::<CellPick>(Channel::Ordered)
+        .add_client_trigger::<MapCells>(Channel::Ordered)
+        .add_server_trigger::<MakeLocal>(Channel::Ordered)
+        .insert_resource(ClearColor(BACKGROUND_COLOR))
+        .add_observer(disconnect_by_client)
+        .add_observer(init_client)
+        .add_observer(make_local)
+        .add_observer(apply_pick)
+        .add_observer(init_symbols)
+        .add_observer(advance_turn)
+        .add_systems(Startup, (setup_ui, read_cli.map(Result::unwrap)))
+        .add_systems(
+            OnEnter(GameState::InGame),
+            (show_turn_text, show_turn_symbol),
+        )
+        .add_systems(OnEnter(GameState::Disconnected), show_disconnected_text)
+        .add_systems(OnEnter(GameState::Winner), show_winner_text)
+        .add_systems(OnEnter(GameState::Tie), show_tie_text)
+        .add_systems(OnEnter(GameState::Disconnected), stop_networking)
+        .add_systems(
+            Update,
+            (
+                show_connecting_text.run_if(resource_added::<ExampleClient>),
+                show_waiting_client_text.run_if(resource_added::<ExampleServer>),
+                client_start.run_if(client_just_connected),
                 (
-                    show_connecting_text.run_if(resource_added::<ExampleClient>),
-                    show_waiting_client_text.run_if(resource_added::<ExampleServer>),
-                    client_start.run_if(client_just_connected),
-                    (
-                        disconnect_by_server.run_if(client_just_disconnected),
-                        update_buttons_background.run_if(local_player_turn),
-                        show_turn_symbol.run_if(resource_changed::<TurnSymbol>),
-                    )
-                        .run_if(in_state(GameState::InGame)),
-                ),
-            );
-    }
+                    disconnect_by_server.run_if(client_just_disconnected),
+                    update_buttons_background.run_if(local_player_turn),
+                    show_turn_symbol.run_if(resource_changed::<TurnSymbol>),
+                )
+                    .run_if(in_state(GameState::InGame)),
+            ),
+        )
+        .run();
 }
 
 const GRID_SIZE: usize = 3;

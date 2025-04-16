@@ -28,24 +28,16 @@ fn main() {
             DefaultPlugins,
             RepliconPlugins,
             RepliconExampleBackendPlugins,
-            SimpleBoxPlugin,
         ))
+        .replicate::<BoxPosition>()
+        .replicate::<PlayerBox>()
+        .add_client_trigger::<MoveBox>(Channel::Ordered)
+        .add_observer(spawn_clients)
+        .add_observer(despawn_clients)
+        .add_observer(apply_movement)
+        .add_systems(Startup, (read_cli.map(Result::unwrap), spawn_camera))
+        .add_systems(Update, (read_input, draw_boxes))
         .run();
-}
-
-struct SimpleBoxPlugin;
-
-impl Plugin for SimpleBoxPlugin {
-    fn build(&self, app: &mut App) {
-        app.replicate::<BoxPosition>()
-            .replicate::<PlayerBox>()
-            .add_client_trigger::<MoveBox>(Channel::Ordered)
-            .add_observer(spawn_clients)
-            .add_observer(despawn_clients)
-            .add_observer(apply_movement)
-            .add_systems(Startup, (read_cli.map(Result::unwrap), spawn_camera))
-            .add_systems(Update, (read_input, draw_boxes));
-    }
 }
 
 fn read_cli(mut commands: Commands, cli: Res<Cli>) -> io::Result<()> {
