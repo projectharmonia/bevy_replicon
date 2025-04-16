@@ -122,9 +122,8 @@ struct DummyComponent;
 
 If your component contains an entity, it cannot be deserialized as is
 because entities inside components also need to be mapped. Therefore,
-to replicate such components properly, they need to implement
-the [`MapEntities`](bevy::ecs::entity::MapEntities) trait and be registered
-using [`AppRuleExt::replicate_mapped`].
+to properly replicate such components, mark fields containing entities with
+`#[entities]`. See [`Component::map_entities`] for details.
 
 By default all components are serialized with [`postcard`].
 In order to serialize Bevy components you need to enable the `serialize` feature on Bevy.
@@ -158,7 +157,7 @@ fn init_player_mesh(
     mut meshes: ResMut<Assets<Mesh>>,
     mut players: Query<&mut Mesh2d>,
 ) {
-    let mut mesh = players.get_mut(trigger.entity()).unwrap();
+    let mut mesh = players.get_mut(trigger.target()).unwrap();
     **mesh = meshes.add(Capsule2d::default());
 }
 
@@ -191,15 +190,8 @@ and initialize it later in a hook or observer. This way you avoid archetype move
 
 #### Component relations
 
-Some components depend on each other. For example, [`Parent`] and [`Children`]. However, enabling
-replication for [`Parent`] won't work because [`Children`] won't be automatically updated. In this
-case, you need to create a third component that correctly updates the other two when it changes,
-and only replicate that one. This crate provides the [`ParentSync`] component, which replicates the
-Bevy hierarchy. For your custom components with relations, you need to write your own using a similar
-pattern.
-
-This won't be necessary after Bevy 0.16, as you will be able to replicate [`Parent`] directly
-thanks to 1:many relations support.
+Some components depend on each other. For example, [`ChildOf`] and [`Children`]. You can enable
+replication only for [`ChildOf`] and [`Children`] will be updated automatically on insertion.
 
 ## Network events and triggers
 
@@ -250,7 +242,7 @@ fn receive_events(mut dummy_events: EventReader<FromClient<DummyEvent>>) {
 struct DummyEvent;
 ```
 
-Just like for components, if an event contains an entities, implement
+If an event contains an entity, implement
 [`MapEntities`](bevy::ecs::entity::MapEntities) for it and use use
 [`ClientEventAppExt::add_mapped_client_event`] instead.
 
@@ -315,7 +307,7 @@ app.add_server_event::<DummyEvent>(Channel::Ordered)
     );
 
 fn send_events(mut dummy_events: EventWriter<ToClients<DummyEvent>>) {
-    dummy_events.send(ToClients {
+    dummy_events.write(ToClients {
         mode: SendMode::Broadcast,
         event: DummyEvent,
     });
@@ -568,17 +560,18 @@ RUST_LOG=bevy_replicon=debug cargo run
 
 The exact method depends on the OS shell.
 
-Alternatively you can configure [`LogPlugin`](bevy::log::LogPlugin) to make it permanent.
+Alternatively you can configure `LogPlugin` from Bevy to make it permanent.
 
 For deserialization errors on client we use `error` level which should be visible by default.
 But on server we use `debug` for it to avoid flooding server logs with errors caused by clients.
 */
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![no_std]
+
+extern crate alloc;
 
 #[cfg(feature = "client")]
 pub mod client;
-#[cfg(feature = "parent_sync")]
-pub mod parent_sync;
 #[cfg(feature = "scene")]
 pub mod scene;
 #[cfg(feature = "server")]
@@ -625,8 +618,6 @@ pub mod prelude {
 
     #[cfg(feature = "client_diagnostics")]
     pub use super::client::diagnostics::ClientDiagnosticsPlugin;
-    #[cfg(feature = "parent_sync")]
-    pub use super::parent_sync::{ParentSync, ParentSyncPlugin};
 }
 
 pub use bytes;
@@ -643,7 +634,6 @@ use prelude::*;
 /// * [`ServerEventPlugin`] - with feature `server`.
 /// * [`ClientPlugin`] - with feature `client`.
 /// * [`ClientEventPlugin`] - with feature `client`.
-/// * [`ParentSyncPlugin`] - with feature `parent_sync`.
 /// * [`ClientDiagnosticsPlugin`] - with feature `client_diagnostics`.
 pub struct RepliconPlugins;
 
@@ -660,11 +650,6 @@ impl PluginGroup for RepliconPlugins {
         #[cfg(feature = "client")]
         {
             group = group.add(ClientPlugin).add(ClientEventPlugin);
-        }
-
-        #[cfg(feature = "parent_sync")]
-        {
-            group = group.add(ParentSyncPlugin);
         }
 
         #[cfg(feature = "client_diagnostics")]

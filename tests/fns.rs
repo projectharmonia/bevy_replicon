@@ -365,7 +365,7 @@ fn replace(
     rule_fns: &RuleFns<OriginalComponent>,
     entity: &mut DeferredEntity,
     message: &mut Bytes,
-) -> postcard::Result<()> {
+) -> Result<()> {
     rule_fns.deserialize(ctx, message)?;
     ctx.commands.entity(entity.id()).insert(ReplacedComponent);
 

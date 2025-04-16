@@ -194,14 +194,8 @@ fn local_resending() {
 #[derive(Event, Serialize, Deserialize, Clone)]
 struct DummyEvent;
 
-#[derive(Event, Deserialize, Serialize, Clone)]
-struct EntityEvent(Entity);
-
-impl MapEntities for EntityEvent {
-    fn map_entities<T: EntityMapper>(&mut self, entity_mapper: &mut T) {
-        self.0 = entity_mapper.map_entity(self.0);
-    }
-}
+#[derive(Event, Deserialize, Serialize, Clone, MapEntities)]
+struct EntityEvent(#[entities] Entity);
 
 #[derive(Resource)]
 struct TriggerReader<E: Event> {
@@ -213,7 +207,7 @@ impl<E: Event + Clone> FromWorld for TriggerReader<E> {
     fn from_world(world: &mut World) -> Self {
         world.add_observer(|trigger: Trigger<E>, mut counter: ResMut<Self>| {
             counter.events.push(trigger.event().clone());
-            counter.entities.push(trigger.entity());
+            counter.entities.push(trigger.target());
         });
 
         Self {

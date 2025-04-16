@@ -1,4 +1,5 @@
-use std::{collections::BTreeMap, marker::PhantomData};
+use alloc::collections::BTreeMap;
+use core::marker::PhantomData;
 
 use bevy::prelude::*;
 use bytes::Bytes;

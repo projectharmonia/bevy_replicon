@@ -1,6 +1,6 @@
 [package]
 name = "bevy_replicon"
-version = "0.32.2"
+version = "0.33.0-rc.5"
 authors = [
   "Hennadii Chernyshchyk <genaloner@gmail.com>",
   "koe <ukoe@protonmail.com>",
@@ -28,30 +28,34 @@ all-features = true
 members = ["bevy_replicon_example_backend"]
 
 [dependencies]
-bevy = { version = "0.15.3", default-features = false, features = [
-  "serialize",
-] }
+bevy = { version = "0.16.0-rc.5", default-features = false }
+log = "0.4" # Directly depend on `log` like other `no_std` Bevy crates, since `bevy_log` currently requires `std`.
+variadics_please = "1.0"
 typeid = "1.0"
-bytes = "1.10"
-serde = "1.0"
+bytes = { version = "1.10", default-features = false }
+serde = { version = "1.0", default-features = false }
 bitflags = { version = "2.6", features = ["serde"] }
 postcard = { version = "1.1", default-features = false, features = [
   "experimental-derive",
 ] }
 
+[target.'cfg(not(all(target_has_atomic = "8", target_has_atomic = "16", target_has_atomic = "32", target_has_atomic = "64", target_has_atomic = "ptr")))'.dependencies]
+bytes = { version = "1.10", default-features = false, features = [
+  "extra-platforms",
+] }
+
 [dev-dependencies]
-bevy = { version = "0.15.3", default-features = false, features = [
-  "serialize",
-  "bevy_asset",
-  "bevy_scene",
+bevy = { version = "0.16.0-rc.5", default-features = false, features = [
+  "bevy_log",
   "bevy_sprite",
+  "serialize",
 ] }
 criterion = { version = "0.5", default-features = false, features = [
   "cargo_bench_support",
 ] }
 
 [features]
-default = ["scene", "parent_sync", "client", "server"]
+default = ["scene", "client", "server"]
 
 # Client-related logic.
 client = []
@@ -64,9 +68,6 @@ client_diagnostics = ["client"]
 
 # Replication into a scene.
 scene = ["bevy/bevy_scene"]
-
-# Hierarchy synchronization.
-parent_sync = []
 
 [[bench]]
 name = "replication"
@@ -131,3 +132,6 @@ required-features = ["client", "server"]
 [lints.clippy]
 type_complexity = "allow"
 too_many_arguments = "allow"
+alloc_instead_of_core = "warn"
+std_instead_of_alloc = "warn"
+std_instead_of_core = "warn"

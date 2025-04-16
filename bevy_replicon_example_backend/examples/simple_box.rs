@@ -1,10 +1,7 @@
 //! A simple demo to showcase how player could send inputs to move a box and server replicates position back.
 //! Also demonstrates the single-player and how sever also could be a player.
 
-use std::{
-    hash::{DefaultHasher, Hash, Hasher},
-    io,
-};
+use std::hash::{DefaultHasher, Hash, Hasher};
 
 use bevy::{
     color::palettes::css::GREEN,
@@ -40,7 +37,7 @@ fn main() {
         .run();
 }
 
-fn read_cli(mut commands: Commands, cli: Res<Cli>) -> io::Result<()> {
+fn read_cli(mut commands: Commands, cli: Res<Cli>) -> Result<()> {
     match *cli {
         Cli::SinglePlayer => {
             info!("starting single-player game");
@@ -97,7 +94,7 @@ fn spawn_camera(mut commands: Commands) {
 fn spawn_clients(trigger: Trigger<OnAdd, ConnectedClient>, mut commands: Commands) {
     // Hash index to generate visually distinctive color.
     let mut hasher = DefaultHasher::new();
-    trigger.entity().index().hash(&mut hasher);
+    trigger.target().index().hash(&mut hasher);
     let hash = hasher.finish();
 
     // Use the lower 24 bits.
@@ -107,12 +104,12 @@ fn spawn_clients(trigger: Trigger<OnAdd, ConnectedClient>, mut commands: Command
     let b = (hash & 0xFF) as f32 / 255.0;
 
     // Generate pseudo random color from client entity.
-    info!("spawning box for `{}`", trigger.entity());
+    info!("spawning box for `{}`", trigger.target());
     commands.spawn((
         PlayerBox {
             color: Color::srgb(r, g, b),
         },
-        BoxOwner(trigger.entity()),
+        BoxOwner(trigger.target()),
     ));
 }
 
@@ -124,7 +121,7 @@ fn despawn_clients(
 ) {
     let (entity, _) = boxes
         .iter()
-        .find(|&(_, owner)| **owner == trigger.entity())
+        .find(|&(_, owner)| **owner == trigger.target())
         .expect("all clients should have entities");
     commands.entity(entity).despawn();
 }

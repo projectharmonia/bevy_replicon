@@ -1,4 +1,6 @@
-use bevy::{ecs::entity::MapEntities, prelude::*, utils::Duration};
+use core::time::Duration;
+
+use bevy::prelude::*;
 use bevy_replicon::{
     client::{
         ServerUpdateTick,
@@ -60,7 +62,8 @@ fn small_component() {
     let component = client_app
         .world_mut()
         .query::<&BoolComponent>()
-        .single(client_app.world());
+        .single(client_app.world())
+        .unwrap();
     assert!(component.0, "mutated value should be updated on client");
 }
 
@@ -111,7 +114,8 @@ fn package_size_component() {
     let component = client_app
         .world_mut()
         .query::<&VecComponent>()
-        .single(client_app.world());
+        .single(client_app.world())
+        .unwrap();
     assert_eq!(component.0, BIG_DATA);
 }
 
@@ -164,7 +168,8 @@ fn many_components() {
     let (bool_component, vec_component) = client_app
         .world_mut()
         .query::<(&BoolComponent, &VecComponent)>()
-        .single(client_app.world());
+        .single(client_app.world())
+        .unwrap();
     assert!(bool_component.0);
     assert_eq!(vec_component.0, VEC_VALUE);
 }
@@ -213,7 +218,7 @@ fn command_fns() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let component = components.single(client_app.world());
+    let component = components.single(client_app.world()).unwrap();
     assert!(component.0);
 }
 
@@ -372,7 +377,7 @@ fn marker_with_history_consume() {
             command_fns::default_remove::<BoolComponent>,
         )
         .replicate::<BoolComponent>()
-        .replicate_mapped::<MappedComponent>();
+        .replicate::<MappedComponent>();
     }
 
     server_app.connect_client(&mut client_app);
@@ -606,7 +611,8 @@ fn with_insertion() {
     let component = client_app
         .world_mut()
         .query_filtered::<&BoolComponent, With<DummyComponent>>()
-        .single(client_app.world());
+        .single(client_app.world())
+        .unwrap();
     assert!(component.0);
 }
 
@@ -649,7 +655,8 @@ fn with_removal() {
     let component = client_app
         .world_mut()
         .query_filtered::<&BoolComponent, Without<DummyComponent>>()
-        .single(client_app.world());
+        .single(client_app.world())
+        .unwrap();
     assert!(component.0);
 }
 
@@ -744,7 +751,7 @@ fn buffering() {
     server_app.exchange_with_client(&mut client_app);
 
     let mut components = client_app.world_mut().query::<&BoolComponent>();
-    let component = components.single(client_app.world());
+    let component = components.single(client_app.world()).unwrap();
     assert!(!component.0, "client should buffer the mutation");
 
     // Restore the update tick to let the buffered mutation apply
@@ -754,7 +761,7 @@ fn buffering() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let component = components.single(client_app.world());
+    let component = components.single(client_app.world()).unwrap();
     assert!(component.0, "buffered mutation should be applied");
 }
 
@@ -770,7 +777,7 @@ fn old_ignored() {
                 ..Default::default()
             }),
         ))
-        .replicate_mapped::<MappedComponent>();
+        .replicate::<MappedComponent>();
     }
 
     server_app.connect_client(&mut client_app);
@@ -862,7 +869,7 @@ fn acknowledgment() {
     client_app.update();
 
     let mut components = client_app.world_mut().query::<Ref<BoolComponent>>();
-    let component = components.single(client_app.world());
+    let component = components.single(client_app.world()).unwrap();
     let tick1 = component.last_changed();
 
     // Take and drop ack message.
@@ -874,7 +881,7 @@ fn acknowledgment() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    let component = components.single(client_app.world());
+    let component = components.single(client_app.world()).unwrap();
     let tick2 = component.last_changed();
 
     assert!(
@@ -889,7 +896,8 @@ fn acknowledgment() {
     let component = client_app
         .world_mut()
         .query::<Ref<BoolComponent>>()
-        .single(client_app.world());
+        .single(client_app.world())
+        .unwrap();
     let tick3 = component.last_changed();
 
     assert_eq!(
@@ -949,7 +957,8 @@ fn confirm_history() {
     let (client_entity, confirm_history) = client_app
         .world_mut()
         .query::<(Entity, &ConfirmHistory)>()
-        .single(client_app.world());
+        .single(client_app.world())
+        .unwrap();
     assert!(confirm_history.contains(tick));
 
     let mut replicated_events = client_app
@@ -1021,13 +1030,7 @@ struct BoolComponent(bool);
 struct VecComponent(Vec<u8>);
 
 #[derive(Component, Deserialize, Serialize)]
-struct MappedComponent(Entity);
-
-impl MapEntities for MappedComponent {
-    fn map_entities<M: EntityMapper>(&mut self, entity_mapper: &mut M) {
-        self.0 = entity_mapper.map_entity(self.0);
-    }
-}
+struct MappedComponent(#[entities] Entity);
 
 #[derive(Component)]
 struct ReplaceMarker;
@@ -1050,7 +1053,7 @@ fn replace(
     rule_fns: &RuleFns<OriginalComponent>,
     entity: &mut DeferredEntity,
     message: &mut Bytes,
-) -> postcard::Result<()> {
+) -> Result<()> {
     let component = rule_fns.deserialize(ctx, message)?;
     ctx.commands
         .entity(entity.id())
@@ -1065,7 +1068,7 @@ fn write_history(
     rule_fns: &RuleFns<BoolComponent>,
     entity: &mut DeferredEntity,
     message: &mut Bytes,
-) -> postcard::Result<()> {
+) -> Result<()> {
     let component = rule_fns.deserialize(ctx, message)?;
     if let Some(mut history) = entity.get_mut::<BoolHistory>() {
         history.push(component.0);

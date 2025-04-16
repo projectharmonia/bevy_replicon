@@ -1,10 +1,11 @@
-use std::mem;
+use core::{mem, time::Duration};
 
 use bevy::{
-    ecs::{component::Tick, entity::EntityHashMap},
+    ecs::{component::Tick, entity::hash_map::EntityHashMap},
+    platform::collections::HashMap,
     prelude::*,
-    utils::{Duration, HashMap},
 };
+use log::{debug, trace};
 
 use super::mutate_index::MutateIndex;
 use crate::shared::replicon_tick::RepliconTick;

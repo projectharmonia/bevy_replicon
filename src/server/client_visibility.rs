@@ -1,7 +1,7 @@
 use bevy::{
-    ecs::entity::{EntityHashMap, EntityHashSet},
+    ecs::entity::{hash_map::EntityHashMap, hash_set::EntityHashSet},
+    platform::collections::hash_map::Entry,
     prelude::*,
-    utils::hashbrown::hash_map::Entry,
 };
 
 /// Entity visibility settings for a client.

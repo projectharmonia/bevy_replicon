@@ -20,6 +20,7 @@ If you are new to networking, see [glossary](https://gist.github.com/maniwani/f9
 - Abstracts game logic to support singleplayer, client, dedicated server, and listen server configurations simultaneously.
 - No builtin I/O, can be used with any messaging library. See [messaging backends](#messaging-backends) for already available integrations.
 - Heavily optimized.
+- Works with `no_std`.
 - Hackable. See [ecosystem](#ecosystem).
 
 ## Getting Started
