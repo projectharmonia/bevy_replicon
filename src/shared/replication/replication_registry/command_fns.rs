@@ -3,7 +3,10 @@ use core::{
     mem,
 };
 
-use bevy::{ecs::component::Mutable, prelude::*};
+use bevy::{
+    ecs::component::{Immutable, Mutable},
+    prelude::*,
+};
 use bytes::Bytes;
 
 use super::{
@@ -24,8 +27,8 @@ pub(super) struct UntypedCommandFns {
 
 impl UntypedCommandFns {
     /// Creates a new instance with default command functions for `C`.
-    pub(super) fn default_fns<C: Component<Mutability = Mutable>>() -> Self {
-        Self::new(default_write::<C>, default_remove::<C>)
+    pub(super) fn default_fns<C: Component<Mutability: MutWrite<C>>>() -> Self {
+        Self::new(C::Mutability::default_write_fn(), default_remove::<C>)
     }
 
     /// Creates a new instance by erasing the function pointer for `write`.
@@ -69,16 +72,36 @@ impl UntypedCommandFns {
     }
 }
 
+/// Assotiates default writing function for a [`Component`] based on [`Component::Mutability`].
+pub trait MutWrite<C: Component> {
+    /// Returns [`default_write`] for [`Mutable`] and [`default_insert_write`] for [`Immutable`].
+    fn default_write_fn() -> WriteFn<C>;
+}
+
+impl<C: Component<Mutability = Self>> MutWrite<C> for Mutable {
+    fn default_write_fn() -> WriteFn<C> {
+        default_write::<C>
+    }
+}
+
+impl<C: Component<Mutability = Self>> MutWrite<C> for Immutable {
+    fn default_write_fn() -> WriteFn<C> {
+        default_insert_write::<C>
+    }
+}
+
 /// Signature of component writing function.
 pub type WriteFn<C> = fn(&mut WriteCtx, &RuleFns<C>, &mut DeferredEntity, &mut Bytes) -> Result<()>;
 
 /// Signature of component removal functions.
 pub type RemoveFn = fn(&mut RemoveCtx, &mut DeferredEntity);
 
-/// Default component writing function.
+/// Default component writing function for [`Mutable`] components.
 ///
 /// If the component does not exist on the entity, it will be deserialized with [`RuleFns::deserialize`] and inserted via [`Commands`].
 /// If the component exists on the entity, [`RuleFns::deserialize_in_place`] will be used directly on the entity's component.
+///
+/// See also [`default_insert_write`].
 pub fn default_write<C: Component<Mutability = Mutable>>(
     ctx: &mut WriteCtx,
     rule_fns: &RuleFns<C>,
@@ -92,6 +115,22 @@ pub fn default_write<C: Component<Mutability = Mutable>>(
         ctx.commands.entity(entity.id()).insert(component);
     }
 
+    Ok(())
+}
+
+/// Default component writing function for [`Immutable`] components.
+///
+/// The component will be deserialized with [`RuleFns::deserialize`] and inserted via [`Commands`].
+///
+/// Similar to [`default_write`], but always performs an insertion regardless of whether the component exists.
+pub fn default_insert_write<C: Component>(
+    ctx: &mut WriteCtx,
+    rule_fns: &RuleFns<C>,
+    entity: &mut DeferredEntity,
+    message: &mut Bytes,
+) -> Result<()> {
+    let component: C = rule_fns.deserialize(ctx, message)?;
+    ctx.commands.entity(entity.id()).insert(component);
     Ok(())
 }
 
