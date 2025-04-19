@@ -1,17 +1,15 @@
 use core::cmp::Reverse;
 
 use bevy::{
-    ecs::{
-        archetype::Archetype,
-        component::{ComponentId, Mutable},
-        entity::MapEntities,
-    },
+    ecs::{archetype::Archetype, component::ComponentId, entity::MapEntities},
     platform::collections::HashSet,
     prelude::*,
 };
 use serde::{Serialize, de::DeserializeOwned};
 
-use super::replication_registry::{FnsId, ReplicationRegistry, rule_fns::RuleFns};
+use super::replication_registry::{
+    FnsId, ReplicationRegistry, command_fns::MutWrite, rule_fns::RuleFns,
+};
 
 /// Replication functions for [`App`].
 pub trait AppRuleExt {
@@ -27,7 +25,7 @@ pub trait AppRuleExt {
     /// from the quick start guide.
     fn replicate<C>(&mut self) -> &mut Self
     where
-        C: Component<Mutability = Mutable> + Serialize + DeserializeOwned,
+        C: Component<Mutability: MutWrite<C>> + Serialize + DeserializeOwned,
     {
         self.replicate_with::<C>(RuleFns::default())
     }
@@ -35,7 +33,7 @@ pub trait AppRuleExt {
     #[deprecated(note = "no longer needed, just use `replicate` instead")]
     fn replicate_mapped<C>(&mut self) -> &mut Self
     where
-        C: Component<Mutability = Mutable> + Serialize + DeserializeOwned + MapEntities,
+        C: Component<Mutability: MutWrite<C>> + Serialize + DeserializeOwned + MapEntities,
     {
         self.replicate::<C>()
     }
@@ -298,7 +296,7 @@ pub trait AppRuleExt {
     */
     fn replicate_with<C>(&mut self, rule_fns: RuleFns<C>) -> &mut Self
     where
-        C: Component<Mutability = Mutable>;
+        C: Component<Mutability: MutWrite<C>>;
 
     /**
     Creates a replication rule for a group of components.
@@ -348,7 +346,7 @@ pub trait AppRuleExt {
 impl AppRuleExt for App {
     fn replicate_with<C>(&mut self, rule_fns: RuleFns<C>) -> &mut Self
     where
-        C: Component<Mutability = Mutable>,
+        C: Component<Mutability: MutWrite<C>>,
     {
         let rule =
             self.world_mut()
@@ -513,7 +511,7 @@ pub trait GroupReplication {
 
 macro_rules! impl_registrations {
     ($($type:ident),*) => {
-        impl<$($type: Component<Mutability = Mutable> + Serialize + DeserializeOwned),*> GroupReplication for ($($type,)*) {
+        impl<$($type: Component<Mutability: MutWrite<$type>> + Serialize + DeserializeOwned),*> GroupReplication for ($($type,)*) {
             fn register(world: &mut World, registry: &mut ReplicationRegistry) -> ReplicationRule {
                 // TODO: initialize with capacity after stabilization: https://github.com/rust-lang/rust/pull/122808
                 let mut components = Vec::new();

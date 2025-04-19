@@ -1,13 +1,10 @@
 use core::cmp::Reverse;
 
-use bevy::{
-    ecs::component::{ComponentId, Mutable},
-    prelude::*,
-};
+use bevy::{ecs::component::ComponentId, prelude::*};
 
 use super::replication_registry::{
     ReplicationRegistry,
-    command_fns::{RemoveFn, WriteFn},
+    command_fns::{MutWrite, RemoveFn, WriteFn},
 };
 
 /// Marker-based functions for [`App`].
@@ -27,20 +24,18 @@ pub trait AppMarkerExt {
     ///
     /// This function registers markers with default [`MarkerConfig`].
     /// See also [`Self::register_marker_with`].
-    fn register_marker<M: Component<Mutability = Mutable>>(&mut self) -> &mut Self;
+    fn register_marker<M: Component>(&mut self) -> &mut Self;
 
     /// Same as [`Self::register_marker`], but also accepts marker configuration.
-    fn register_marker_with<M: Component<Mutability = Mutable>>(
-        &mut self,
-        config: MarkerConfig,
-    ) -> &mut Self;
+    fn register_marker_with<M: Component>(&mut self, config: MarkerConfig) -> &mut Self;
 
     /**
     Associates command functions with a marker for a component.
 
     If this marker is present on an entity and its priority is the highest,
     then these functions will be called for this component during replication
-    instead of [`default_write`](super::replication_registry::command_fns::default_write) and
+    instead of [`default_write`](super::replication_registry::command_fns::default_write) /
+    [`default_insert_write`](super::replication_registry::command_fns::default_insert_write) and
     [`default_remove`](super::replication_registry::command_fns::default_remove).
     See also [`Self::set_command_fns`].
 
@@ -98,7 +93,7 @@ pub trait AppMarkerExt {
     }
 
     /// Removes component `C` and its history.
-    fn remove_history<C: Component<Mutability = Mutable>>(ctx: &mut RemoveCtx, entity: &mut DeferredEntity) {
+    fn remove_history<C: Component>(ctx: &mut RemoveCtx, entity: &mut DeferredEntity) {
         ctx.commands.entity(entity.id()).remove::<History<C>>().remove::<C>();
     }
 
@@ -118,7 +113,7 @@ pub trait AppMarkerExt {
     struct Health(u32);
     ```
     **/
-    fn set_marker_fns<M: Component<Mutability = Mutable>, C: Component<Mutability = Mutable>>(
+    fn set_marker_fns<M: Component, C: Component<Mutability: MutWrite<C>>>(
         &mut self,
         write: WriteFn<C>,
         remove: RemoveFn,
@@ -128,10 +123,11 @@ pub trait AppMarkerExt {
     ///
     /// If there are no markers present on an entity, then these functions will
     /// be called for this component during replication instead of
-    /// [`default_write`](super::replication_registry::command_fns::default_write) and
+    /// [`default_write`](super::replication_registry::command_fns::default_write) /
+    /// [`default_insert_write`](super::replication_registry::command_fns::default_insert_write) and
     /// [`default_remove`](super::replication_registry::command_fns::default_remove).
     /// See also [`Self::set_marker_fns`].
-    fn set_command_fns<C: Component<Mutability = Mutable>>(
+    fn set_command_fns<C: Component<Mutability: MutWrite<C>>>(
         &mut self,
         write: WriteFn<C>,
         remove: RemoveFn,
@@ -139,14 +135,11 @@ pub trait AppMarkerExt {
 }
 
 impl AppMarkerExt for App {
-    fn register_marker<M: Component<Mutability = Mutable>>(&mut self) -> &mut Self {
+    fn register_marker<M: Component>(&mut self) -> &mut Self {
         self.register_marker_with::<M>(MarkerConfig::default())
     }
 
-    fn register_marker_with<M: Component<Mutability = Mutable>>(
-        &mut self,
-        config: MarkerConfig,
-    ) -> &mut Self {
+    fn register_marker_with<M: Component>(&mut self, config: MarkerConfig) -> &mut Self {
         let component_id = self.world_mut().register_component::<M>();
         let mut command_markers = self.world_mut().resource_mut::<CommandMarkers>();
         let marker_id = command_markers.insert(CommandMarker {
@@ -160,7 +153,7 @@ impl AppMarkerExt for App {
         self
     }
 
-    fn set_marker_fns<M: Component<Mutability = Mutable>, C: Component<Mutability = Mutable>>(
+    fn set_marker_fns<M: Component, C: Component<Mutability: MutWrite<C>>>(
         &mut self,
         write: WriteFn<C>,
         remove: RemoveFn,
@@ -176,7 +169,7 @@ impl AppMarkerExt for App {
         self
     }
 
-    fn set_command_fns<C: Component<Mutability = Mutable>>(
+    fn set_command_fns<C: Component<Mutability: MutWrite<C>>>(
         &mut self,
         write: WriteFn<C>,
         remove: RemoveFn,

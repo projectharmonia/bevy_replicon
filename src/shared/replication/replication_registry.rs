@@ -4,14 +4,11 @@ pub mod ctx;
 pub mod rule_fns;
 pub mod test_fns;
 
-use bevy::{
-    ecs::component::{ComponentId, Mutable},
-    prelude::*,
-};
+use bevy::{ecs::component::ComponentId, prelude::*};
 use serde::{Deserialize, Serialize};
 
 use super::command_markers::CommandMarkerIndex;
-use command_fns::{RemoveFn, UntypedCommandFns, WriteFn};
+use command_fns::{MutWrite, RemoveFn, UntypedCommandFns, WriteFn};
 use component_fns::ComponentFns;
 use ctx::DespawnCtx;
 use rule_fns::{RuleFns, UntypedRuleFns};
@@ -64,7 +61,7 @@ impl ReplicationRegistry {
     /// # Panics
     ///
     /// Panics if the marker wasn't registered. Use [`Self::register_marker`] first.
-    pub(super) fn set_marker_fns<C: Component<Mutability = Mutable>>(
+    pub(super) fn set_marker_fns<C: Component<Mutability: MutWrite<C>>>(
         &mut self,
         world: &mut World,
         marker_id: CommandMarkerIndex,
@@ -84,7 +81,7 @@ impl ReplicationRegistry {
     /// Sets default functions for a component when there are no markers.
     ///
     /// See also [`Self::set_marker_fns`].
-    pub(super) fn set_command_fns<C: Component<Mutability = Mutable>>(
+    pub(super) fn set_command_fns<C: Component<Mutability: MutWrite<C>>>(
         &mut self,
         world: &mut World,
         write: WriteFn<C>,
@@ -104,7 +101,7 @@ impl ReplicationRegistry {
     ///
     /// Returned data can be assigned to a
     /// [`ReplicationRule`](super::replication_rules::ReplicationRule)
-    pub fn register_rule_fns<C: Component<Mutability = Mutable>>(
+    pub fn register_rule_fns<C: Component<Mutability: MutWrite<C>>>(
         &mut self,
         world: &mut World,
         rule_fns: RuleFns<C>,
@@ -119,7 +116,7 @@ impl ReplicationRegistry {
     ///
     /// If a [`ComponentFns`] has already been created for this component,
     /// then it returns its index instead of creating a new one.
-    fn init_component_fns<C: Component<Mutability = Mutable>>(
+    fn init_component_fns<C: Component<Mutability: MutWrite<C>>>(
         &mut self,
         world: &mut World,
     ) -> (usize, ComponentId) {
