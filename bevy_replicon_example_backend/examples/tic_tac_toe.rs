@@ -307,7 +307,7 @@ fn init_symbols(
 ///
 /// Used only for client.
 fn client_start(mut commands: Commands, cells: Query<(Entity, &Cell)>) {
-    let mut entities = HashMap::default();
+    let mut entities = HashMap::new();
     for (entity, cell) in &cells {
         entities.insert(cell.index, entity);
     }

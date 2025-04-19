@@ -91,7 +91,7 @@ pub trait AppMarkerExt {
         } else {
             ctx.commands
                 .entity(entity.id())
-                .insert(History([(ctx.message_tick, component)].into_iter().collect()));
+                .insert(History([(ctx.message_tick, component)].into()));
         }
 
         Ok(())
