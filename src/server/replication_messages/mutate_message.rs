@@ -3,7 +3,7 @@ use core::{ops::Range, time::Duration};
 use bevy::{ecs::component::Tick, prelude::*};
 use postcard::experimental::{max_size::MaxSize, serialized_size};
 
-use super::{component_changes::ComponentChanges, serialized_data::SerializedData};
+use super::{change_ranges::ChangeRanges, serialized_data::SerializedData};
 use crate::shared::{
     backend::{replicon_channels::ReplicationChannel, replicon_server::RepliconServer},
     postcard_utils,
@@ -50,7 +50,7 @@ pub(crate) struct MutateMessage {
     /// of chunk bytes instead of the number of components. This is because, during deserialization,
     /// some entities may be skipped if they have already been updated (as mutations are sent until
     /// the client acknowledges them).
-    mutations: Vec<ComponentChanges>,
+    mutations: Vec<ChangeRanges>,
 
     /// Indicates that an entity has been written since the
     /// last call of [`Self::start_entity_mutations`].
@@ -83,7 +83,7 @@ impl MutateMessage {
     /// Adds an entity chunk.
     pub(crate) fn add_mutated_entity(&mut self, entity: Entity, entity_range: Range<usize>) {
         let components = self.buffer.pop().unwrap_or_default();
-        self.mutations.push(ComponentChanges {
+        self.mutations.push(ChangeRanges {
             entity: entity_range,
             components_len: 0,
             components,
@@ -103,7 +103,7 @@ impl MutateMessage {
     }
 
     /// Returns written mutations for the last entity from [`Self::add_mutated_entity`].
-    pub(super) fn last_mutations(&mut self) -> Option<&ComponentChanges> {
+    pub(super) fn last_mutations(&mut self) -> Option<&ChangeRanges> {
         self.mutations.last()
     }
 

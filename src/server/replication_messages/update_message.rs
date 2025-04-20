@@ -4,8 +4,7 @@ use bevy::prelude::*;
 use postcard::experimental::serialized_size;
 
 use super::{
-    component_changes::ComponentChanges, mutate_message::MutateMessage,
-    serialized_data::SerializedData,
+    change_ranges::ChangeRanges, mutate_message::MutateMessage, serialized_data::SerializedData,
 };
 use crate::server::client_visibility::Visibility;
 use crate::shared::{
@@ -66,7 +65,7 @@ pub(crate) struct UpdateMessage {
     /// Serialized as a list of pairs of entity chunk and a list of
     /// [`FnsId`](crate::shared::replication::replication_registry::FnsId)
     /// serialized as a single chunk.
-    removals: Vec<ComponentRemovals>,
+    removals: Vec<RemovalRanges>,
 
     /// Component insertions or mutations that happened in this tick.
     ///
@@ -76,7 +75,7 @@ pub(crate) struct UpdateMessage {
     ///
     /// Usually mutations are stored in [`MutateMessage`], but if an entity has any insertions or removal,
     /// or the entity just became visible for a client, we serialize it as part of the update message to keep entity updates atomic.
-    changes: Vec<ComponentChanges>,
+    changes: Vec<ChangeRanges>,
 
     /// Visibility of the entity for which component changes are being written.
     ///
@@ -115,7 +114,7 @@ impl UpdateMessage {
         ids_len: usize,
         fn_ids: Range<usize>,
     ) {
-        self.removals.push(ComponentRemovals {
+        self.removals.push(RemovalRanges {
             entity,
             ids_len,
             fn_ids,
@@ -145,7 +144,7 @@ impl UpdateMessage {
     /// Adds an entity chunk.
     pub(crate) fn add_changed_entity(&mut self, entity: Range<usize>) {
         let components = self.buffer.pop().unwrap_or_default();
-        self.changes.push(ComponentChanges {
+        self.changes.push(ChangeRanges {
             entity,
             components_len: 0,
             components,
@@ -175,7 +174,7 @@ impl UpdateMessage {
 
         if !self.entity_written {
             let components = self.buffer.pop().unwrap_or_default();
-            let changes = ComponentChanges {
+            let changes = ChangeRanges {
                 entity: mutations.entity.clone(),
                 components_len: 0,
                 components,
@@ -229,7 +228,7 @@ impl UpdateMessage {
                     message_size += self
                         .removals
                         .iter()
-                        .map(ComponentRemovals::size)
+                        .map(RemovalRanges::size)
                         .sum::<Result<usize>>()?;
                 }
                 UpdateMessageFlags::CHANGES => {
@@ -237,7 +236,7 @@ impl UpdateMessage {
                     message_size += self
                         .changes
                         .iter()
-                        .map(ComponentChanges::size)
+                        .map(ChangeRanges::size)
                         .sum::<Result<usize>>()?;
                 }
                 _ => unreachable!("iteration should yield only named flags"),
@@ -330,13 +329,13 @@ impl UpdateMessage {
     }
 }
 
-struct ComponentRemovals {
+struct RemovalRanges {
     entity: Range<usize>,
     ids_len: usize,
     fn_ids: Range<usize>,
 }
 
-impl ComponentRemovals {
+impl RemovalRanges {
     fn size(&self) -> Result<usize> {
         let len_size = serialized_size(&self.ids_len)?;
         Ok(self.entity.len() + len_size + self.fn_ids.len())

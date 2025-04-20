@@ -9,13 +9,13 @@ use postcard::experimental::serialized_size;
 ///
 /// Used inside [`UpdateMessage`](super::update_message::UpdateMessage) and
 /// [`MutateMessage`](super::mutate_message::MutateMessage).
-pub(super) struct ComponentChanges {
+pub(super) struct ChangeRanges {
     pub(super) entity: Range<usize>,
     pub(super) components_len: usize,
     pub(super) components: Vec<Range<usize>>,
 }
 
-impl ComponentChanges {
+impl ChangeRanges {
     /// Returns serialized size.
     pub(super) fn size(&self) -> Result<usize> {
         let len_size = serialized_size(&self.components_len)?;
