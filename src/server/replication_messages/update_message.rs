@@ -33,8 +33,6 @@ use crate::shared::{
 ///
 /// Additionally, we don't serialize the size for the last array and
 /// on deserialization just consume all remaining bytes.
-///
-/// Stored inside [`ReplicationMessages`](super::ReplicationMessages).
 #[derive(Default, Component)]
 pub(crate) struct UpdateMessage {
     /// Mappings for client's pre-spawned entities.

@@ -30,8 +30,6 @@ use crate::shared::{
 ///
 /// Sent over the [`ReplicationChannel::Mutations`] channel. If the message gets lost, we try to resend it manually,
 /// using the last up-to-date mutations to avoid re-sending old values.
-///
-/// Stored inside [`ReplicationMessages`](super::ReplicationMessages).
 #[derive(Default, Component)]
 pub(crate) struct MutateMessage {
     /// List of entity values for [`Self::mutations`].
