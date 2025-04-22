@@ -116,14 +116,27 @@ fn immutable() {
     server_app
         .world_mut()
         .entity_mut(server_entity)
-        .insert(ImmutableComponent);
+        .insert(ImmutableComponent(false));
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let mut components = client_app.world_mut().query::<&ImmutableComponent>();
-    assert_eq!(components.iter(client_app.world()).count(), 1);
+    let component = components.single(client_app.world()).unwrap();
+    assert_eq!(component.0, false);
+
+    server_app
+        .world_mut()
+        .entity_mut(server_entity)
+        .insert(ImmutableComponent(true));
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    let component = components.single(client_app.world()).unwrap();
+    assert_eq!(component.0, true);
 }
 
 #[test]
@@ -592,7 +605,7 @@ struct DummyComponent;
 
 #[derive(Component, Deserialize, Serialize)]
 #[component(immutable)]
-struct ImmutableComponent;
+struct ImmutableComponent(bool);
 
 #[derive(Component, Deserialize, Serialize)]
 #[component(storage = "SparseSet")]
