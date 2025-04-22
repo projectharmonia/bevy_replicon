@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Support for `no_std`.
+- Seamless support for immutable components. For these components, replication is always applied via insertion.
 
 ### Changed
 

@@ -90,6 +90,56 @@ fn sparse_set_storage() {
 }
 
 #[test]
+fn immutable() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<ImmutableComponent>();
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    let server_entity = server_app.world_mut().spawn(Replicated).id();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    server_app
+        .world_mut()
+        .entity_mut(server_entity)
+        .insert(ImmutableComponent(false));
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    let mut components = client_app.world_mut().query::<&ImmutableComponent>();
+    let component = components.single(client_app.world()).unwrap();
+    assert!(!component.0);
+
+    server_app
+        .world_mut()
+        .entity_mut(server_entity)
+        .insert(ImmutableComponent(true));
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    let component = components.single(client_app.world()).unwrap();
+    assert!(component.0);
+}
+
+#[test]
 fn mapped_existing_entity() {
     let mut server_app = App::new();
     let mut client_app = App::new();
@@ -552,6 +602,10 @@ struct MappedComponent(#[entities] Entity);
 
 #[derive(Component, Deserialize, Serialize)]
 struct DummyComponent;
+
+#[derive(Component, Deserialize, Serialize)]
+#[component(immutable)]
+struct ImmutableComponent(bool);
 
 #[derive(Component, Deserialize, Serialize)]
 #[component(storage = "SparseSet")]
