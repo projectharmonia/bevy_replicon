@@ -72,7 +72,7 @@ impl UntypedCommandFns {
     }
 }
 
-/// Assotiates default writing function for a [`Component`] based on [`Component::Mutability`].
+/// Defines the default writing function for a [`Component`] based its [`Component::Mutability`].
 pub trait MutWrite<C: Component> {
     /// Returns [`default_write`] for [`Mutable`] and [`default_insert_write`] for [`Immutable`].
     fn default_write_fn() -> WriteFn<C>;
