@@ -124,7 +124,7 @@ fn immutable() {
 
     let mut components = client_app.world_mut().query::<&ImmutableComponent>();
     let component = components.single(client_app.world()).unwrap();
-    assert_eq!(component.0, false);
+    assert!(!component.0);
 
     server_app
         .world_mut()
@@ -136,7 +136,7 @@ fn immutable() {
     client_app.update();
 
     let component = components.single(client_app.world()).unwrap();
-    assert_eq!(component.0, true);
+    assert!(component.0);
 }
 
 #[test]
