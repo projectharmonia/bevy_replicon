@@ -43,7 +43,7 @@ use client_visibility::{ClientVisibility, Visibility};
 use despawn_buffer::{DespawnBuffer, DespawnBufferPlugin};
 use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
 use replication_messages::{
-    mutate_message::MutateMessage, serialized_data::SerializedData, update_message::UpdateMessage,
+    mutations::Mutations, serialized_data::SerializedData, updates::Updates,
 };
 use server_tick::ServerTick;
 use server_world::{ReplicatedComponent, ServerWorld};
@@ -242,8 +242,8 @@ pub(super) fn send_replication(
     world: ServerWorld,
     mut clients: Query<(
         Entity,
-        &mut UpdateMessage,
-        &mut MutateMessage,
+        &mut Updates,
+        &mut Mutations,
         &mut ConnectedClient,
         &mut ClientEntityMap,
         &mut ClientTicks,
@@ -259,9 +259,9 @@ pub(super) fn send_replication(
     server_tick: Res<ServerTick>,
     time: Res<Time>,
 ) -> Result<()> {
-    for (_, mut mutate_message, mut update_message, ..) in &mut clients {
-        update_message.clear();
-        mutate_message.clear();
+    for (_, mut mutations, mut updates, ..) in &mut clients {
+        updates.clear();
+        mutations.clear();
     }
 
     collect_mappings(&mut serialized, &mut clients)?;
@@ -310,8 +310,8 @@ fn reset(
 fn send_messages(
     clients: &mut Query<(
         Entity,
-        &mut UpdateMessage,
-        &mut MutateMessage,
+        &mut Updates,
+        &mut Mutations,
         &mut ConnectedClient,
         &mut ClientEntityMap,
         &mut ClientTicks,
@@ -326,23 +326,21 @@ fn send_messages(
     time: &Time,
 ) -> Result<()> {
     let mut server_tick_range = None;
-    for (client_entity, update_message, mut mutate_message, client, .., mut ticks, visibility) in
-        clients
-    {
-        if !update_message.is_empty() {
+    for (client_entity, updates, mut mutations, client, .., mut ticks, visibility) in clients {
+        if !updates.is_empty() {
             ticks.set_update_tick(server_tick);
             let server_tick = write_tick_cached(&mut server_tick_range, serialized, server_tick)?;
 
             trace!("sending update message to client `{client_entity}`");
-            update_message.send(server, client_entity, serialized, server_tick)?;
+            updates.send(server, client_entity, serialized, server_tick)?;
         } else {
             trace!("no updates to send for client `{client_entity}`");
         }
 
-        if !mutate_message.is_empty() || track_mutate_messages {
+        if !mutations.is_empty() || track_mutate_messages {
             let server_tick = write_tick_cached(&mut server_tick_range, serialized, server_tick)?;
 
-            let messages_count = mutate_message.send(
+            let messages_count = mutations.send(
                 server,
                 client_entity,
                 &mut ticks,
@@ -372,8 +370,8 @@ fn collect_mappings(
     serialized: &mut SerializedData,
     clients: &mut Query<(
         Entity,
-        &mut UpdateMessage,
-        &mut MutateMessage,
+        &mut Updates,
+        &mut Mutations,
         &mut ConnectedClient,
         &mut ClientEntityMap,
         &mut ClientTicks,
@@ -394,8 +392,8 @@ fn collect_despawns(
     serialized: &mut SerializedData,
     clients: &mut Query<(
         Entity,
-        &mut UpdateMessage,
-        &mut MutateMessage,
+        &mut Updates,
+        &mut Mutations,
         &mut ConnectedClient,
         &mut ClientEntityMap,
         &mut ClientTicks,
@@ -436,8 +434,8 @@ fn collect_removals(
     serialized: &mut SerializedData,
     clients: &mut Query<(
         Entity,
-        &mut UpdateMessage,
-        &mut MutateMessage,
+        &mut Updates,
+        &mut Mutations,
         &mut ConnectedClient,
         &mut ClientEntityMap,
         &mut ClientTicks,
@@ -464,8 +462,8 @@ fn collect_changes(
     serialized: &mut SerializedData,
     clients: &mut Query<(
         Entity,
-        &mut UpdateMessage,
-        &mut MutateMessage,
+        &mut Updates,
+        &mut Mutations,
         &mut ConnectedClient,
         &mut ClientEntityMap,
         &mut ClientTicks,
@@ -481,12 +479,12 @@ fn collect_changes(
     for (archetype, replicated_archetype) in world.iter_archetypes() {
         for entity in archetype.entities() {
             let mut entity_range = None;
-            for (_, mut update_message, mut mutate_message, .., visibility) in &mut *clients {
+            for (_, mut updates, mut mutations, .., visibility) in &mut *clients {
                 let visibility = visibility
                     .map(|v| v.state(entity.id()))
                     .unwrap_or(Visibility::Visible);
-                update_message.start_entity_changes(visibility);
-                mutate_message.start_entity_mutations();
+                updates.start_entity_changes(visibility);
+                mutations.start_entity();
             }
 
             // SAFETY: all replicated archetypes have marker component with table storage.
@@ -524,27 +522,25 @@ fn collect_changes(
                     type_registry,
                 };
                 let mut component_range = None;
-                for (_, mut update_message, mut mutate_message, .., client_ticks, _) in
-                    &mut *clients
-                {
-                    if update_message.entity_visibility() == Visibility::Hidden {
+                for (_, mut updates, mut mutations, .., client_ticks, _) in &mut *clients {
+                    if updates.entity_visibility() == Visibility::Hidden {
                         continue;
                     }
 
                     if let Some(tick) = client_ticks
                         .mutation_tick(entity.id())
                         .filter(|_| !marker_added)
-                        .filter(|_| update_message.entity_visibility() != Visibility::Gained)
+                        .filter(|_| updates.entity_visibility() != Visibility::Gained)
                         .filter(|_| !ticks.is_added(change_tick.last_run(), change_tick.this_run()))
                     {
                         if ticks.is_changed(tick, change_tick.this_run()) {
-                            if !mutate_message.mutations_written() {
+                            if !mutations.entity_added() {
                                 let entity_range = write_entity_cached(
                                     &mut entity_range,
                                     serialized,
                                     entity.id(),
                                 )?;
-                                mutate_message.add_mutated_entity(entity.id(), entity_range);
+                                mutations.add_entity(entity.id(), entity_range);
                             }
                             let component_range = write_component_cached(
                                 &mut component_range,
@@ -555,13 +551,13 @@ fn collect_changes(
                                 replicated_component,
                                 component,
                             )?;
-                            mutate_message.add_mutated_component(component_range);
+                            mutations.add_component(component_range);
                         }
                     } else {
-                        if !update_message.entity_written() {
+                        if !updates.changed_entity_added() {
                             let entity_range =
                                 write_entity_cached(&mut entity_range, serialized, entity.id())?;
-                            update_message.add_changed_entity(entity_range);
+                            updates.add_changed_entity(entity_range);
                         }
                         let component_range = write_component_cached(
                             &mut component_range,
@@ -572,33 +568,33 @@ fn collect_changes(
                             replicated_component,
                             component,
                         )?;
-                        update_message.add_inserted_component(component_range);
+                        updates.add_inserted_component(component_range);
                     }
                 }
             }
 
-            for (_, mut update_message, mut mutate_message, .., mut ticks, _) in &mut *clients {
-                let visibility = update_message.entity_visibility();
+            for (_, mut updates, mut mutations, .., mut ticks, _) in &mut *clients {
+                let visibility = updates.entity_visibility();
                 if visibility == Visibility::Hidden {
                     continue;
                 }
 
                 let new_entity = marker_added || visibility == Visibility::Gained;
                 if new_entity
-                    || update_message.entity_written()
+                    || updates.changed_entity_added()
                     || removal_buffer.contains_key(&entity.id())
                 {
                     // If there is any insertion, removal, or it's a new entity for a client, include all mutations
                     // into update message and bump the last acknowledged tick to keep entity updates atomic.
-                    update_message.take_mutations(&mut mutate_message);
+                    updates.take_added_entity(&mut mutations);
                     ticks.set_mutation_tick(entity.id(), change_tick.this_run());
                 }
 
-                if new_entity && !update_message.entity_written() {
+                if new_entity && !updates.changed_entity_added() {
                     // Force-write new entity even if it doesn't have any components.
                     let entity_range =
                         write_entity_cached(&mut entity_range, serialized, entity.id())?;
-                    update_message.add_changed_entity(entity_range);
+                    updates.add_changed_entity(entity_range);
                 }
             }
         }
@@ -719,7 +715,7 @@ pub enum TickPolicy {
 ///
 /// Pausing replication by temporarily removing this component is not supported.
 #[derive(Component, Default)]
-#[require(ClientTicks, ClientEntityMap, UpdateMessage, MutateMessage)]
+#[require(ClientTicks, ClientEntityMap, Updates, Mutations)]
 pub struct ReplicatedClient;
 
 /// Controls how visibility will be managed via [`ClientVisibility`].

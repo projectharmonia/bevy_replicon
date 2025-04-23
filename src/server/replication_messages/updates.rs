@@ -3,9 +3,7 @@ use core::ops::Range;
 use bevy::prelude::*;
 use postcard::experimental::serialized_size;
 
-use super::{
-    change_ranges::ChangeRanges, mutate_message::MutateMessage, serialized_data::SerializedData,
-};
+use super::{change_ranges::ChangeRanges, mutations::Mutations, serialized_data::SerializedData};
 use crate::server::client_visibility::Visibility;
 use crate::shared::{
     backend::{replicon_channels::ReplicationChannel, replicon_server::RepliconServer},
@@ -13,28 +11,14 @@ use crate::shared::{
     replication::update_message_flags::UpdateMessageFlags,
 };
 
-/// A message with replicated data.
-///
-/// Contains tick, mappings, insertions, removals, and despawns that
-/// happened in this tick.
+/// Entity updates for the current tick.
 ///
 /// The data is serialized manually and stored in the form of ranges
 /// from [`SerializedData`].
 ///
-/// Sent over [`ReplicationChannel::Updates`] channel.
-///
-/// Some data is optional, and their presence is encoded in the [`UpdateMessageFlags`] bitset.
-///
-/// To know how much data array takes, we serialize it's length. We use `usize`,
-/// but we use variable integer encoding, so they are correctly deserialized even
-/// on a client with a different pointer size. However, if the server sends a value
-/// larger than what a client can fit into `usize` (which is very unlikely), the client will panic.
-/// This is expected, as the client can't have an array of such a size anyway.
-///
-/// Additionally, we don't serialize the size for the last array and
-/// on deserialization just consume all remaining bytes.
+/// Can be packed into a message using [`Self::send`].
 #[derive(Default, Component)]
-pub(crate) struct UpdateMessage {
+pub(crate) struct Updates {
     /// Mappings for client's pre-spawned entities.
     ///
     /// Serialized as single continuous chunk of entity pairs.
@@ -82,13 +66,13 @@ pub(crate) struct UpdateMessage {
 
     /// Indicates that an entity has been written since the
     /// last call of [`Self::start_entity_changes`].
-    entity_written: bool,
+    changed_entity_added: bool,
 
     /// Intermediate buffer to reuse allocated memory from [`Self::changes`].
     buffer: Vec<Vec<Range<usize>>>,
 }
 
-impl UpdateMessage {
+impl Updates {
     pub(crate) fn set_mappings(&mut self, mappings: Range<usize>, len: usize) {
         self.mappings = mappings;
         self.mappings_len = len;
@@ -125,7 +109,7 @@ impl UpdateMessage {
     /// See [`Self::add_changed_entity`] and [`Self::add_changed_component`].
     pub(crate) fn start_entity_changes(&mut self, visibility: Visibility) {
         self.entity_visibility = visibility;
-        self.entity_written = false;
+        self.changed_entity_added = false;
     }
 
     /// Visibility from the last call of [`Self::start_entity_changes`].
@@ -135,8 +119,8 @@ impl UpdateMessage {
 
     /// Returns `true` if [`Self::add_changed_entity`] were called since the last
     /// call of [`Self::start_entity_changes`].
-    pub(crate) fn entity_written(&mut self) -> bool {
-        self.entity_written
+    pub(crate) fn changed_entity_added(&mut self) -> bool {
+        self.changed_entity_added
     }
 
     /// Adds an entity chunk.
@@ -147,7 +131,7 @@ impl UpdateMessage {
             components_len: 0,
             components,
         });
-        self.entity_written = true;
+        self.changed_entity_added = true;
     }
 
     /// Adds a component chunk to the last added entity from [`Self::add_changed_entity`].
@@ -161,29 +145,27 @@ impl UpdateMessage {
     }
 
     /// Takes last mutated entity with its component chunks from the mutate message.
-    pub(crate) fn take_mutations(&mut self, mutate_message: &mut MutateMessage) {
-        if !mutate_message.mutations_written() {
+    pub(crate) fn take_added_entity(&mut self, mutations: &mut Mutations) {
+        if !mutations.entity_added() {
             return;
         }
 
-        let mutations = mutate_message
-            .last_mutations()
-            .expect("entity should be written");
+        let last_changes = mutations.last().expect("entity should be written");
 
-        if !self.entity_written {
+        if !self.changed_entity_added {
             let components = self.buffer.pop().unwrap_or_default();
             let changes = ChangeRanges {
-                entity: mutations.entity.clone(),
+                entity: last_changes.entity.clone(),
                 components_len: 0,
                 components,
             };
             self.changes.push(changes);
         }
         let changes = self.changes.last_mut().unwrap();
-        debug_assert_eq!(mutations.entity, changes.entity);
-        changes.extend(mutations);
+        debug_assert_eq!(last_changes.entity, changes.entity);
+        changes.extend(last_changes);
 
-        mutate_message.pop_mutations();
+        mutations.pop();
     }
 
     pub(crate) fn is_empty(&self) -> bool {
@@ -193,6 +175,23 @@ impl UpdateMessage {
             && self.mappings.is_empty()
     }
 
+    /// Packs updates into a message.
+    ///
+    /// Contains tick, mappings, insertions, removals, and despawns that
+    /// happened in this tick.
+    ///
+    /// Sent over [`ReplicationChannel::Updates`] channel.
+    ///
+    /// Some data is optional, and their presence is encoded in the [`UpdateMessageFlags`] bitset.
+    ///
+    /// To know how much data array takes, we serialize it's length. We use `usize`,
+    /// but we use variable integer encoding, so they are correctly deserialized even
+    /// on a client with a different pointer size. However, if the server sends a value
+    /// larger than what a client can fit into `usize` (which is very unlikely), the client will panic.
+    /// This is expected, as the client can't have an array of such a size anyway.
+    ///
+    /// Additionally, we don't serialize the size for the last array and
+    /// on deserialization just consume all remaining bytes.
     pub(crate) fn send(
         &self,
         server: &mut RepliconServer,

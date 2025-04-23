@@ -7,8 +7,8 @@ use postcard::experimental::serialized_size;
 /// Component insertions or mutations for an entity in form of serialized ranges
 /// from [`SerializedData`](super::serialized_data::SerializedData).
 ///
-/// Used inside [`UpdateMessage`](super::update_message::UpdateMessage) and
-/// [`MutateMessage`](super::mutate_message::MutateMessage).
+/// Used inside [`Updates`](super::updates::Updates) and
+/// [`Mutations`](super::mutations::Mutations).
 pub(super) struct ChangeRanges {
     pub(super) entity: Range<usize>,
     pub(super) components_len: usize,

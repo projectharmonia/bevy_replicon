@@ -12,8 +12,8 @@ use crate::shared::{
 
 /// Single continuous buffer that stores serialized data for messages.
 ///
-/// See [`UpdateMessage`](super::update_message::UpdateMessage) and
-/// [`MutateMessage`](super::mutate_message::MutateMessage).
+/// See [`Updates`](super::updates::Updates) and
+/// [`MutateMessage`](super::mutations::MutateMessage).
 #[derive(Default, Deref, DerefMut)]
 pub(crate) struct SerializedData(Vec<u8>);
 
