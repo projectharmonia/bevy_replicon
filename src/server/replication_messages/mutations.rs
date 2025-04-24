@@ -129,7 +129,7 @@ impl Mutations {
         &mut self,
         server: &mut RepliconServer,
         client_entity: Entity,
-        client: &mut ClientTicks,
+        ticks: &mut ClientTicks,
         entity_buffer: &mut EntityBuffer,
         serialized: &SerializedData,
         track_mutate_messages: bool,
@@ -142,14 +142,14 @@ impl Mutations {
 
         const MAX_COUNT_SIZE: usize = usize::POSTCARD_MAX_SIZE;
         let mut tick_buffer = [0; RepliconTick::POSTCARD_MAX_SIZE];
-        let update_tick = postcard::to_slice(&client.update_tick(), &mut tick_buffer)?;
+        let update_tick = postcard::to_slice(&ticks.update_tick(), &mut tick_buffer)?;
         let mut metadata_size = update_tick.len() + server_tick.len();
         if track_mutate_messages {
             metadata_size += MAX_COUNT_SIZE;
         }
 
         let (mut mutate_index, mut entities) =
-            client.register_mutate_message(entity_buffer, tick, timestamp);
+            ticks.register_mutate_message(entity_buffer, tick, timestamp);
         let mut header_size = metadata_size + serialized_size(&mutate_index)?;
         let mut body_size = 0;
         let mut mutations_range = Range::<usize>::default();
@@ -169,7 +169,7 @@ impl Mutations {
 
                 mutations_range.start = mutations_range.end;
                 (mutate_index, entities) =
-                    client.register_mutate_message(entity_buffer, tick, timestamp);
+                    ticks.register_mutate_message(entity_buffer, tick, timestamp);
                 header_size = metadata_size + serialized_size(&mutate_index)?; // Recalculate since the mutate index changed.
                 body_size = 0;
             }
