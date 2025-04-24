@@ -112,6 +112,9 @@ impl Mutations {
 
     /// Packs mutations into messages.
     ///
+    /// Sent over the [`ReplicationChannel::Mutations`] channel. If the message gets lost, we try to resend it manually,
+    /// using the last up-to-date mutations to avoid re-sending old values.
+    ///
     /// Contains update tick, current tick, mutate index and component mutations since
     /// the last acknowledged tick for each entity.
     ///
@@ -121,8 +124,7 @@ impl Mutations {
     /// independently on the client.
     /// Message splits only happen per-entity to avoid weird behavior from partial entity mutations.
     ///
-    /// Sent over the [`ReplicationChannel::Mutations`] channel. If the message gets lost, we try to resend it manually,
-    /// using the last up-to-date mutations to avoid re-sending old values.
+    /// After sendining all data in the component will be cleared.
     pub(crate) fn send(
         &mut self,
         server: &mut RepliconServer,
@@ -213,13 +215,15 @@ impl Mutations {
             server.send(client_entity, ReplicationChannel::Mutations, message);
         }
 
+        self.clear();
+
         Ok(messages_count)
     }
 
     /// Clears all chunks.
     ///
     /// Keeps allocated memory for reuse.
-    pub(crate) fn clear(&mut self) {
+    fn clear(&mut self) {
         self.entities.clear();
         self.buffer
             .extend(self.mutations.drain(..).map(|mut changes| {

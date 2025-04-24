@@ -177,12 +177,11 @@ impl Updates {
 
     /// Packs updates into a message.
     ///
-    /// Contains tick, mappings, insertions, removals, and despawns that
-    /// happened in this tick.
-    ///
     /// Sent over [`ReplicationChannel::Updates`] channel.
     ///
-    /// Some data is optional, and their presence is encoded in the [`UpdateMessageFlags`] bitset.
+    /// Contains tick, mappings, insertions, removals, and despawns that
+    /// happened in this tick. Some data is optional, and their presence is
+    /// encoded in the [`UpdateMessageFlags`] bitset.
     ///
     /// To know how much data array takes, we serialize it's length. We use `usize`,
     /// but we use variable integer encoding, so they are correctly deserialized even
@@ -192,8 +191,10 @@ impl Updates {
     ///
     /// Additionally, we don't serialize the size for the last array and
     /// on deserialization just consume all remaining bytes.
+    ///
+    /// After sendining all data in the component will be cleared.
     pub(crate) fn send(
-        &self,
+        &mut self,
         server: &mut RepliconServer,
         client_entity: Entity,
         serialized: &SerializedData,
@@ -287,6 +288,8 @@ impl Updates {
 
         server.send(client_entity, ReplicationChannel::Updates, message);
 
+        self.clear();
+
         Ok(())
     }
 
@@ -312,7 +315,7 @@ impl Updates {
     /// Clears all chunks.
     ///
     /// Keeps allocated memory for reuse.
-    pub(crate) fn clear(&mut self) {
+    fn clear(&mut self) {
         self.mappings = Default::default();
         self.mappings_len = 0;
         self.despawns.clear();

@@ -259,11 +259,6 @@ pub(super) fn send_replication(
     server_tick: Res<ServerTick>,
     time: Res<Time>,
 ) -> Result<()> {
-    for (_, mut mutations, mut updates, ..) in &mut clients {
-        updates.clear();
-        mutations.clear();
-    }
-
     collect_mappings(&mut serialized, &mut clients)?;
     collect_despawns(&mut serialized, &mut clients, &mut despawn_buffer)?;
     collect_removals(&mut serialized, &mut clients, &removal_buffer)?;
@@ -326,7 +321,7 @@ fn send_messages(
     time: &Time,
 ) -> Result<()> {
     let mut server_tick_range = None;
-    for (client_entity, updates, mut mutations, client, .., mut ticks, visibility) in clients {
+    for (client_entity, mut updates, mut mutations, client, .., mut ticks, visibility) in clients {
         if !updates.is_empty() {
             ticks.set_update_tick(server_tick);
             let server_tick = write_tick_cached(&mut server_tick_range, serialized, server_tick)?;
