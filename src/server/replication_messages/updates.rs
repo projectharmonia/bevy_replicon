@@ -192,7 +192,7 @@ impl Updates {
     /// Additionally, we don't serialize the size for the last array and
     /// on deserialization just consume all remaining bytes.
     ///
-    /// After sendining all data in the component will be cleared.
+    /// After sending all data in the component will be cleared.
     pub(crate) fn send(
         &mut self,
         server: &mut RepliconServer,

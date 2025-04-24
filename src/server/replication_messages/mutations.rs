@@ -124,7 +124,7 @@ impl Mutations {
     /// independently on the client.
     /// Message splits only happen per-entity to avoid weird behavior from partial entity mutations.
     ///
-    /// After sendining all data in the component will be cleared.
+    /// After sending all data in the component will be cleared.
     pub(crate) fn send(
         &mut self,
         server: &mut RepliconServer,
