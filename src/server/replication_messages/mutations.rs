@@ -22,10 +22,10 @@ use crate::shared::{
 /// Can be packed into messages using [`Self::send`].
 #[derive(Default, Component)]
 pub(crate) struct Mutations {
-    /// Entities that are related to each other and should be replicated together.
+    /// Entities that are related to each other and should be replicated in sync.
     ///
     /// Like [`Self::standalone`], but grouped into arrays based on their relation graph indices.
-    /// These entities are guaranteed to replicate together.
+    /// These entities are guaranteed to be included in a single message.
     related: Vec<Vec<EntityMutations>>,
 
     /// Component mutations that happened in this tick.

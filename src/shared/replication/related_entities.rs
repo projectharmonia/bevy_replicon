@@ -20,8 +20,9 @@ pub trait SyncRelatedAppExt {
     /// Ensures that entities related by `C` are replicated in sync.
     ///
     /// By default, we split mutations across multiple messages to apply them independently.
-    /// We guarantee that all mutations for a single entity arrive together, but mutations for
-    /// separate entities may be received independently if they arrive in different messages.
+    /// We guarantee that all mutations for a single entity won't be split across messages,
+    /// but mutations for separate entities may be received independently if they arrive in
+    /// different messages.
     ///
     /// Calling this method guarantees that all mutations related by `C` are included in
     /// a single message.
@@ -36,7 +37,7 @@ pub trait SyncRelatedAppExt {
     /// app.sync_related_entities::<ChildOf>();
     ///
     /// // Changes to any replicated components on these
-    /// // entities will be replicated together.
+    /// // entities will be replicated in sync.
     /// app.world_mut().spawn((
     ///     Replicated,
     ///     Transform::default(),
@@ -65,7 +66,7 @@ impl SyncRelatedAppExt for App {
 /// Each graph represented by index.
 #[derive(Resource, Default)]
 pub(crate) struct RelatedEntities {
-    /// Global graph of of all relationship types marked for replication together.
+    /// Global graph of all relationship types marked for replication in sync.
     ///
     /// We use a stable graph to avoid indices invalidation since we map them to entities and
     /// can't use graphmap because it doesn't support parallel connections (needed when

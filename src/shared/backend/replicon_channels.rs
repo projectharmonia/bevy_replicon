@@ -96,8 +96,8 @@ impl RepliconChannels {
 /// since the last acknowledgment. We also include a minimum required tick - the tick on which the last update
 /// message was sent. Messages will be buffered until an update message for this tick is received. Mutations
 /// are split into packet-size messages to allow applying them partially without waiting for all parts of the message.
-/// We guarantee that all mutations for a single entity arrive together, even if they are larger than the packet size.
-/// You can also ensure that mutations for specific entities arrive together by using
+/// We guarantee that all mutations for a single entity arrive won't be split across messages, even if they are larger
+/// than the packet size. You can also ensure that mutations for specific entities arrive in sync by using
 /// [`SyncRelatedAppExt::sync_related_entities`](crate::shared::replication::related_entities::SyncRelatedAppExt::sync_related_entities).
 ///
 /// Server events also have minimum required tick. For details, see the documentation on
