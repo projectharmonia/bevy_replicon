@@ -185,7 +185,7 @@ impl RelatedEntities {
         });
     }
 
-    /// Returns graph index for an entity if it have a relationship.
+    /// Returns graph index for an entity if it has a relationship.
     ///
     /// Should be called only after [`Self::rebuild_graphs`]
     pub(crate) fn graph_index(&self, entity: Entity) -> Option<usize> {
