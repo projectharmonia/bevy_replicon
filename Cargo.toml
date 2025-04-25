@@ -30,7 +30,9 @@ members = ["bevy_replicon_example_backend"]
 [dependencies]
 bevy = { version = "0.16.0-rc.5", default-features = false }
 log = "0.4" # Directly depend on `log` like other `no_std` Bevy crates, since `bevy_log` currently requires `std`.
-petgraph = { version = "0.8", default-features = false, features = ["stable_graph"] }
+petgraph = { version = "0.8", default-features = false, features = [
+  "stable_graph",
+] }
 variadics_please = "1.0"
 typeid = "1.0"
 bytes = { version = "1.10", default-features = false }
