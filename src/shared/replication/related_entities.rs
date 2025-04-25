@@ -1,6 +1,10 @@
 use core::any::{self, TypeId};
 
-use bevy::{ecs::relationship::Relationship, platform::collections::HashMap, prelude::*};
+use bevy::{
+    ecs::{component::Immutable, relationship::Relationship},
+    platform::collections::HashMap,
+    prelude::*,
+};
 use log::{debug, trace};
 use petgraph::{
     Direction,
@@ -39,11 +43,16 @@ pub trait ReplicateTogetherAppExt {
     ///     children![(Replicated, Transform::default())],
     /// ));
     /// ```
-    fn replicate_together<C: Relationship>(&mut self) -> &mut Self;
+    fn replicate_together<C>(&mut self) -> &mut Self
+    where
+        C: Relationship + Component<Mutability = Immutable>;
 }
 
 impl ReplicateTogetherAppExt for App {
-    fn replicate_together<C: Relationship>(&mut self) -> &mut Self {
+    fn replicate_together<C>(&mut self) -> &mut Self
+    where
+        C: Relationship + Component<Mutability = Immutable>,
+    {
         self.add_observer(add_relation::<C>)
             .add_observer(remove_relation::<C>)
             .add_observer(start_replication::<C>)
