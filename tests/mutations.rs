@@ -175,6 +175,51 @@ fn many_components() {
 }
 
 #[test]
+fn related() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate_together::<ChildOf>()
+        .replicate::<BoolComponent>();
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    server_app.world_mut().spawn((
+        Replicated,
+        BoolComponent(false),
+        children![(Replicated, BoolComponent(false))],
+    ));
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    // Change values.
+    let mut components = server_app.world_mut().query::<&mut BoolComponent>();
+    for mut component in components.iter_mut(server_app.world_mut()) {
+        component.0 = true;
+    }
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    let mut components = client_app.world_mut().query::<&BoolComponent>();
+    let mut components = components.iter(client_app.world());
+    assert_eq!(components.len(), 2);
+    assert!(components.all(|c| c.0));
+}
+
+#[test]
 fn command_fns() {
     let mut server_app = App::new();
     let mut client_app = App::new();

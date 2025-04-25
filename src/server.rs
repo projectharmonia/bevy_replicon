@@ -30,6 +30,7 @@ use crate::shared::{
     postcard_utils,
     replication::{
         client_ticks::{ClientTicks, EntityBuffer},
+        related_entities::RelatedEntities,
         replication_registry::{
             ReplicationRegistry, component_fns::ComponentFns, ctx::SerializeCtx,
             rule_fns::UntypedRuleFns,
@@ -249,6 +250,7 @@ pub(super) fn send_replication(
         &mut ClientTicks,
         Option<&mut ClientVisibility>,
     )>,
+    mut related_entities: ResMut<RelatedEntities>,
     mut removal_buffer: ResMut<RemovalBuffer>,
     mut entity_buffer: ResMut<EntityBuffer>,
     mut despawn_buffer: ResMut<DespawnBuffer>,
@@ -259,9 +261,12 @@ pub(super) fn send_replication(
     server_tick: Res<ServerTick>,
     time: Res<Time>,
 ) -> Result<()> {
-    for (_, mut mutations, mut updates, ..) in &mut clients {
+    related_entities.rebuild_graphs();
+
+    for (_, mut updates, mut mutations, ..) in &mut clients {
         updates.clear();
         mutations.clear();
+        mutations.resize_related(related_entities.graphs_count());
     }
 
     collect_mappings(&mut serialized, &mut clients)?;
@@ -272,6 +277,7 @@ pub(super) fn send_replication(
         &mut clients,
         &registry,
         &type_registry.read(),
+        &related_entities,
         &removal_buffer,
         &world,
         &change_tick,
@@ -471,6 +477,7 @@ fn collect_changes(
     )>,
     registry: &ReplicationRegistry,
     type_registry: &TypeRegistry,
+    related_entities: &RelatedEntities,
     removal_buffer: &RemovalBuffer,
     world: &ServerWorld,
     change_tick: &SystemChangeTick,
@@ -535,12 +542,13 @@ fn collect_changes(
                     {
                         if ticks.is_changed(tick, change_tick.this_run()) {
                             if !mutations.entity_added() {
+                                let graph_index = related_entities.graph_index(entity.id());
                                 let entity_range = write_entity_cached(
                                     &mut entity_range,
                                     serialized,
                                     entity.id(),
                                 )?;
-                                mutations.add_entity(entity.id(), entity_range);
+                                mutations.add_entity(entity.id(), graph_index, entity_range);
                             }
                             let component_range = write_component_cached(
                                 &mut component_range,

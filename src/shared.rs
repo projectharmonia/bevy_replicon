@@ -15,8 +15,9 @@ use backend::{
 };
 use event::remote_event_registry::RemoteEventRegistry;
 use replication::{
-    Replicated, command_markers::CommandMarkers, replication_registry::ReplicationRegistry,
-    replication_rules::ReplicationRules, track_mutate_messages::TrackMutateMessages,
+    Replicated, command_markers::CommandMarkers, related_entities::RelatedEntities,
+    replication_registry::ReplicationRegistry, replication_rules::ReplicationRules,
+    track_mutate_messages::TrackMutateMessages,
 };
 
 /// Initializes types and resources needed for both client and server.
@@ -33,6 +34,7 @@ impl Plugin for RepliconSharedPlugin {
             .init_resource::<RepliconChannels>()
             .init_resource::<ReplicationRegistry>()
             .init_resource::<ReplicationRules>()
+            .init_resource::<RelatedEntities>()
             .init_resource::<CommandMarkers>()
             .init_resource::<RemoteEventRegistry>();
     }
