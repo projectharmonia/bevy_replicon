@@ -16,7 +16,7 @@ use petgraph::{
 
 use super::Replicated;
 
-pub trait ReplicateTogetherAppExt {
+pub trait SyncRelatedAppExt {
     /// Ensures that entities related by `C` are replicated in sync.
     ///
     /// By default, we split mutations across multiple messages to apply them independently.
@@ -33,7 +33,7 @@ pub trait ReplicateTogetherAppExt {
     ///
     /// # let mut app = App::new();
     /// # app.add_plugins(RepliconPlugins);
-    /// app.replicate_together::<ChildOf>();
+    /// app.sync_related_entities::<ChildOf>();
     ///
     /// // Changes to any replicated components on these
     /// // entities will be replicated together.
@@ -43,13 +43,13 @@ pub trait ReplicateTogetherAppExt {
     ///     children![(Replicated, Transform::default())],
     /// ));
     /// ```
-    fn replicate_together<C>(&mut self) -> &mut Self
+    fn sync_related_entities<C>(&mut self) -> &mut Self
     where
         C: Relationship + Component<Mutability = Immutable>;
 }
 
-impl ReplicateTogetherAppExt for App {
-    fn replicate_together<C>(&mut self) -> &mut Self
+impl SyncRelatedAppExt for App {
+    fn sync_related_entities<C>(&mut self) -> &mut Self
     where
         C: Relationship + Component<Mutability = Immutable>,
     {
@@ -258,7 +258,7 @@ mod tests {
     fn orphan() {
         let mut app = App::new();
         app.init_resource::<RelatedEntities>()
-            .replicate_together::<ChildOf>();
+            .sync_related_entities::<ChildOf>();
 
         let entity1 = app
             .world_mut()
@@ -280,7 +280,7 @@ mod tests {
     fn single() {
         let mut app = App::new();
         app.init_resource::<RelatedEntities>()
-            .replicate_together::<ChildOf>();
+            .sync_related_entities::<ChildOf>();
 
         let child1 = app.world_mut().spawn(Replicated).id();
         let child2 = app.world_mut().spawn(Replicated).id();
@@ -302,7 +302,7 @@ mod tests {
     fn disjoint() {
         let mut app = App::new();
         app.init_resource::<RelatedEntities>()
-            .replicate_together::<ChildOf>();
+            .sync_related_entities::<ChildOf>();
 
         let child1 = app.world_mut().spawn(Replicated).id();
         let root1 = app.world_mut().spawn(Replicated).add_child(child1).id();
@@ -322,7 +322,7 @@ mod tests {
     fn nested() {
         let mut app = App::new();
         app.init_resource::<RelatedEntities>()
-            .replicate_together::<ChildOf>();
+            .sync_related_entities::<ChildOf>();
 
         let grandchild = app.world_mut().spawn(Replicated).id();
         let child = app.world_mut().spawn(Replicated).add_child(grandchild).id();
@@ -340,7 +340,7 @@ mod tests {
     fn split() {
         let mut app = App::new();
         app.init_resource::<RelatedEntities>()
-            .replicate_together::<ChildOf>();
+            .sync_related_entities::<ChildOf>();
 
         let grandgrandchild = app.world_mut().spawn(Replicated).id();
         let grandchild = app
@@ -366,7 +366,7 @@ mod tests {
     fn join() {
         let mut app = App::new();
         app.init_resource::<RelatedEntities>()
-            .replicate_together::<ChildOf>();
+            .sync_related_entities::<ChildOf>();
 
         let child1 = app.world_mut().spawn(Replicated).id();
         let root1 = app.world_mut().spawn(Replicated).add_child(child1).id();
@@ -388,7 +388,7 @@ mod tests {
     fn reparent() {
         let mut app = App::new();
         app.init_resource::<RelatedEntities>()
-            .replicate_together::<ChildOf>();
+            .sync_related_entities::<ChildOf>();
 
         let child1 = app.world_mut().spawn(Replicated).id();
         let root1 = app.world_mut().spawn(Replicated).add_child(child1).id();
@@ -410,7 +410,7 @@ mod tests {
     fn orphan_after_split() {
         let mut app = App::new();
         app.init_resource::<RelatedEntities>()
-            .replicate_together::<ChildOf>();
+            .sync_related_entities::<ChildOf>();
 
         let child = app.world_mut().spawn(Replicated).id();
         let root = app.world_mut().spawn(Replicated).add_child(child).id();
@@ -428,7 +428,7 @@ mod tests {
     fn despawn() {
         let mut app = App::new();
         app.init_resource::<RelatedEntities>()
-            .replicate_together::<ChildOf>();
+            .sync_related_entities::<ChildOf>();
 
         let child1 = app.world_mut().spawn(Replicated).id();
         let child2 = app.world_mut().spawn(Replicated).id();
@@ -452,8 +452,8 @@ mod tests {
     fn intersection() {
         let mut app = App::new();
         app.init_resource::<RelatedEntities>()
-            .replicate_together::<ChildOf>()
-            .replicate_together::<OwnedBy>();
+            .sync_related_entities::<ChildOf>()
+            .sync_related_entities::<OwnedBy>();
 
         let child = app.world_mut().spawn(Replicated).id();
         let root1 = app.world_mut().spawn(Replicated).add_child(child).id();
@@ -475,8 +475,8 @@ mod tests {
     fn overlap() {
         let mut app = App::new();
         app.init_resource::<RelatedEntities>()
-            .replicate_together::<ChildOf>()
-            .replicate_together::<OwnedBy>();
+            .sync_related_entities::<ChildOf>()
+            .sync_related_entities::<OwnedBy>();
 
         let child = app.world_mut().spawn(Replicated).id();
         let root = app
@@ -497,8 +497,8 @@ mod tests {
     fn overlap_removal() {
         let mut app = App::new();
         app.init_resource::<RelatedEntities>()
-            .replicate_together::<ChildOf>()
-            .replicate_together::<OwnedBy>();
+            .sync_related_entities::<ChildOf>()
+            .sync_related_entities::<OwnedBy>();
 
         let child = app.world_mut().spawn(Replicated).id();
         let root = app
@@ -521,8 +521,8 @@ mod tests {
     fn connected() {
         let mut app = App::new();
         app.init_resource::<RelatedEntities>()
-            .replicate_together::<ChildOf>()
-            .replicate_together::<OwnedBy>();
+            .sync_related_entities::<ChildOf>()
+            .sync_related_entities::<OwnedBy>();
 
         let grandchild = app.world_mut().spawn(Replicated).id();
         let child = app.world_mut().spawn(Replicated).add_child(grandchild).id();
@@ -544,8 +544,8 @@ mod tests {
     fn replication_start() {
         let mut app = App::new();
         app.init_resource::<RelatedEntities>()
-            .replicate_together::<ChildOf>()
-            .replicate_together::<OwnedBy>();
+            .sync_related_entities::<ChildOf>()
+            .sync_related_entities::<OwnedBy>();
 
         let child = app.world_mut().spawn_empty().id();
         let root = app.world_mut().spawn_empty().add_child(child).id();
@@ -564,8 +564,8 @@ mod tests {
     fn replication_stop() {
         let mut app = App::new();
         app.init_resource::<RelatedEntities>()
-            .replicate_together::<ChildOf>()
-            .replicate_together::<OwnedBy>();
+            .sync_related_entities::<ChildOf>()
+            .sync_related_entities::<OwnedBy>();
 
         let child = app.world_mut().spawn(Replicated).id();
         let root = app

@@ -186,7 +186,7 @@ fn related() {
                 ..Default::default()
             }),
         ))
-        .replicate_together::<ChildOf>()
+        .sync_related_entities::<ChildOf>()
         .replicate::<BoolComponent>();
     }
 

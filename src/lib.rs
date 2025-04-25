@@ -209,7 +209,7 @@ This behavior is also configurable via [client markers](#client-markers).
 Some components depend on each other. For example, [`ChildOf`] and [`Children`]. You can enable
 replication only for [`ChildOf`] and [`Children`] will be updated automatically on insertion.
 
-You can also ensure that their mutations arrive in sync by using [`ReplicateTogetherAppExt::replicate_together`].
+You can also ensure that their mutations arrive in sync by using [`SyncRelatedAppExt::sync_related_entities`].
 
 ## Network events and triggers
 
@@ -614,8 +614,8 @@ pub mod prelude {
                 server_trigger::{ServerTriggerAppExt, ServerTriggerExt},
             },
             replication::{
-                Replicated, command_markers::AppMarkerExt,
-                related_entities::ReplicateTogetherAppExt, replication_rules::AppRuleExt,
+                Replicated, command_markers::AppMarkerExt, related_entities::SyncRelatedAppExt,
+                replication_rules::AppRuleExt,
             },
         },
     };
