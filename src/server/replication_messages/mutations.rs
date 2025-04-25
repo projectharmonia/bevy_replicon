@@ -117,10 +117,14 @@ impl Mutations {
     ///
     /// keeps allocated memory for reuse.
     pub(super) fn pop(&mut self) {
-        let Some(mut mutations) = self.entity_location.and_then(|location| match location {
-            EntityLocation::Related { index } => self.related[index].pop(),
-            EntityLocation::Standalone => self.standalone.pop(),
-        }) else {
+        let Some(mut mutations) = self
+            .entity_location
+            .take()
+            .and_then(|location| match location {
+                EntityLocation::Related { index } => self.related[index].pop(),
+                EntityLocation::Standalone => self.standalone.pop(),
+            })
+        else {
             return;
         };
 
