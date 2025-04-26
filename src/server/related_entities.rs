@@ -240,6 +240,10 @@ impl RelatedEntities {
     }
 }
 
+/// Collects all existing relations.
+///
+/// Used to gather previously spawned entities when the server starts,
+/// since [`add_relation`] triggers only on hierarchy changes.
 fn read_relations<C: Relationship>(
     mut related_entities: ResMut<RelatedEntities>,
     components: Query<(Entity, &C), With<Replicated>>,
