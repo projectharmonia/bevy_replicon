@@ -27,6 +27,10 @@ pub trait SyncRelatedAppExt {
     /// Calling this method guarantees that all mutations related by `C` are included in
     /// a single message.
     ///
+    /// Internally we maintain a graph of all relationship types marked for replication in sync.
+    /// Disjoint subgraphs are recalculated from scratch each tick if any changes occurred in
+    /// the main graph. Frequent changes may impact performance.
+    ///
     /// # Examples
     /// ```
     /// use bevy::prelude::*;
