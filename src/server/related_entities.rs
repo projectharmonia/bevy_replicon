@@ -33,8 +33,7 @@ pub trait SyncRelatedAppExt {
     /// a single message.
     ///
     /// Internally we maintain a graph of all relationship types marked for replication in sync.
-    /// Disjoint subgraphs are recalculated from scratch each tick if any changes occurred in
-    /// the main graph. Frequent changes may impact performance.
+    /// It's updated via observers, so frequent changes may impact the performance.
     ///
     /// # Examples
     /// ```
@@ -194,6 +193,9 @@ impl RelatedEntities {
     ///
     /// The recalculation is not incremental, so it isn't performed automatically
     /// on every change. Instead, manually call this before replication begins.
+    ///
+    /// Benchmarks show the performance impact is negligible.
+    /// The biggest overhead comes from keeping the main graph in sync via observers.
     pub(super) fn rebuild_graphs(&mut self) {
         if !self.rebuild_needed {
             return;
