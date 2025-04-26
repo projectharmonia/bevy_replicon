@@ -237,7 +237,7 @@ fn receive_acks(
 }
 
 /// Collects [`ReplicationMessages`] and sends them.
-pub(super) fn send_replication(
+fn send_replication(
     mut serialized: Local<SerializedData>,
     change_tick: SystemChangeTick,
     world: ServerWorld,
