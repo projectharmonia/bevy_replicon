@@ -1,9 +1,9 @@
-use std::{ops::Range, time::Duration};
+use core::{ops::Range, time::Duration};
 
 use bevy::{ecs::component::Tick, prelude::*};
 use postcard::experimental::{max_size::MaxSize, serialized_size};
 
-use super::{component_changes::ComponentChanges, serialized_data::SerializedData};
+use super::{change_ranges::ChangeRanges, serialized_data::SerializedData};
 use crate::shared::{
     backend::{replicon_channels::ReplicationChannel, replicon_server::RepliconServer},
     postcard_utils,
@@ -14,26 +14,14 @@ use crate::shared::{
     replicon_tick::RepliconTick,
 };
 
-/// A message with replicated component mutations.
-///
-/// Contains update tick, current tick, mutate index and component mutations since
-/// the last acknowledged tick for each entity.
-///
-/// Cannot be applied on the client until the update message matching this message's update tick
-/// has been applied to the client world.
-/// The message will be manually split into packets up to max size, and each packet will be applied
-/// independently on the client.
-/// Message splits only happen per-entity to avoid weird behavior from partial entity mutations.
+/// Component mutations for the current tick.
 ///
 /// The data is serialized manually and stored in the form of ranges
 /// from [`SerializedData`].
 ///
-/// Sent over the [`ReplicationChannel::Mutations`] channel. If the message gets lost, we try to resend it manually,
-/// using the last up-to-date mutations to avoid re-sending old values.
-///
-/// Stored inside [`ReplicationMessages`](super::ReplicationMessages).
+/// Can be packed into messages using [`Self::send`].
 #[derive(Default, Component)]
-pub(crate) struct MutateMessage {
+pub(crate) struct Mutations {
     /// List of entity values for [`Self::mutations`].
     ///
     /// Used to associate entities with the mutate index that the client
@@ -46,15 +34,15 @@ pub(crate) struct MutateMessage {
     /// Components are stored in multiple chunks because some clients may acknowledge mutations,
     /// while others may not.
     ///
-    /// Unlike [`UpdateMessage`](super::update_message::UpdateMessage), we serialize the number
+    /// Unlike [`Updates`](super::updates::Updates), we serialize the number
     /// of chunk bytes instead of the number of components. This is because, during deserialization,
     /// some entities may be skipped if they have already been updated (as mutations are sent until
     /// the client acknowledges them).
-    mutations: Vec<ComponentChanges>,
+    mutations: Vec<ChangeRanges>,
 
     /// Indicates that an entity has been written since the
-    /// last call of [`Self::start_entity_mutations`].
-    mutations_written: bool,
+    /// last call of [`Self::start_entity`].
+    entity_added: bool,
 
     /// Intermediate buffer to reuse allocated memory from [`Self::mutations`].
     buffer: Vec<Vec<Range<usize>>>,
@@ -65,54 +53,56 @@ pub(crate) struct MutateMessage {
     messages: Vec<(MutateIndex, usize, Range<usize>)>,
 }
 
-impl MutateMessage {
+impl Mutations {
     /// Updates internal state to start writing mutated components for an entity.
     ///
     /// Entities and their data written lazily during the iteration.
-    /// See [`Self::add_mutated_entity`] and [`Self::add_mutated_component`].
-    pub(crate) fn start_entity_mutations(&mut self) {
-        self.mutations_written = false;
+    /// See [`Self::add_entity`] and [`Self::add_component`].
+    pub(crate) fn start_entity(&mut self) {
+        self.entity_added = false;
     }
 
-    /// Returns `true` if [`Self::add_mutated_entity`] were called since the last
-    /// call of [`Self::start_entity_mutations`].
-    pub(crate) fn mutations_written(&mut self) -> bool {
-        self.mutations_written
+    /// Returns `true` if [`Self::add_entity`] were called since the last
+    /// call of [`Self::start_entity`].
+    pub(crate) fn entity_added(&mut self) -> bool {
+        self.entity_added
     }
 
     /// Adds an entity chunk.
-    pub(crate) fn add_mutated_entity(&mut self, entity: Entity, entity_range: Range<usize>) {
+    pub(crate) fn add_entity(&mut self, entity: Entity, entity_range: Range<usize>) {
         let components = self.buffer.pop().unwrap_or_default();
-        self.mutations.push(ComponentChanges {
+        self.mutations.push(ChangeRanges {
             entity: entity_range,
             components_len: 0,
             components,
         });
         self.entities.push(entity);
-        self.mutations_written = true;
+        self.entity_added = true;
     }
 
-    /// Adds a component chunk to the last added entity from [`Self::add_mutated_entity`].
-    pub(crate) fn add_mutated_component(&mut self, component: Range<usize>) {
-        let mutations = self
+    /// Adds a component chunk to the last added entity from [`Self::add_entity`].
+    pub(crate) fn add_component(&mut self, component: Range<usize>) {
+        let changes = self
             .mutations
             .last_mut()
             .expect("entity should be written before adding components");
 
-        mutations.add_component(component);
+        changes.add_component(component);
     }
 
-    /// Returns written mutations for the last entity from [`Self::add_mutated_entity`].
-    pub(super) fn last_mutations(&mut self) -> Option<&ComponentChanges> {
+    /// Returns written mutations for the last entity from [`Self::add_entity`].
+    pub(super) fn last(&mut self) -> Option<&ChangeRanges> {
         self.mutations.last()
     }
 
-    /// Removes last added entity from [`Self::add_mutated_entity`] with associated components.
-    pub(super) fn pop_mutations(&mut self) {
+    /// Removes last added entity from [`Self::add_entity`] with associated components.
+    ///
+    /// keeps allocated memory for reuse.
+    pub(super) fn pop(&mut self) {
         self.entities.pop();
-        if let Some(mut mutations) = self.mutations.pop() {
-            mutations.components.clear();
-            self.buffer.push(mutations.components);
+        if let Some(mut changes) = self.mutations.pop() {
+            changes.components.clear();
+            self.buffer.push(changes.components);
         }
     }
 
@@ -120,6 +110,19 @@ impl MutateMessage {
         self.mutations.is_empty()
     }
 
+    /// Packs mutations into messages.
+    ///
+    /// Contains update tick, current tick, mutate index and component mutations since
+    /// the last acknowledged tick for each entity.
+    ///
+    /// Cannot be applied on the client until the update message matching this message's update tick
+    /// has been applied to the client world.
+    /// The message will be manually split into packets up to max size, and each packet will be applied
+    /// independently on the client.
+    /// Message splits only happen per-entity to avoid weird behavior from partial entity mutations.
+    ///
+    /// Sent over the [`ReplicationChannel::Mutations`] channel. If the message gets lost, we try to resend it manually,
+    /// using the last up-to-date mutations to avoid re-sending old values.
     pub(crate) fn send(
         &mut self,
         server: &mut RepliconServer,
@@ -132,7 +135,7 @@ impl MutateMessage {
         tick: Tick,
         timestamp: Duration,
         max_size: usize,
-    ) -> postcard::Result<usize> {
+    ) -> Result<usize> {
         debug_assert_eq!(self.entities.len(), self.mutations.len());
 
         const MAX_COUNT_SIZE: usize = usize::POSTCARD_MAX_SIZE;
@@ -148,13 +151,13 @@ impl MutateMessage {
         let mut header_size = metadata_size + serialized_size(&mutate_index)?;
         let mut body_size = 0;
         let mut mutations_range = Range::<usize>::default();
-        for (entity, mutations) in self.entities.iter().zip(&self.mutations) {
-            let mutations_size = mutations.size_with_components_size()?;
+        for (entity, changes) in self.entities.iter().zip(&self.mutations) {
+            let changes_size = changes.size_with_components_size()?;
 
             // Try to pack back first, then try to pack forward.
             if body_size != 0
-                && !can_pack(header_size + body_size, mutations_size, max_size)
-                && !can_pack(header_size + mutations_size, body_size, max_size)
+                && !can_pack(header_size + body_size, changes_size, max_size)
+                && !can_pack(header_size + changes_size, body_size, max_size)
             {
                 self.messages.push((
                     mutate_index,
@@ -171,7 +174,7 @@ impl MutateMessage {
 
             entities.push(*entity);
             mutations_range.end += 1;
-            body_size += mutations_size;
+            body_size += changes_size;
         }
         if !mutations_range.is_empty() || track_mutate_messages {
             // When the loop ends, pack all leftovers into a message.
@@ -197,10 +200,10 @@ impl MutateMessage {
                 postcard_utils::to_extend_mut(&messages_count, &mut message)?;
             }
             postcard_utils::to_extend_mut(&mutate_index, &mut message)?;
-            for mutations in &self.mutations[mutations_range.clone()] {
-                message.extend_from_slice(&serialized[mutations.entity.clone()]);
-                postcard_utils::to_extend_mut(&mutations.components_size(), &mut message)?;
-                for component in &mutations.components {
+            for changes in &self.mutations[mutations_range.clone()] {
+                message.extend_from_slice(&serialized[changes.entity.clone()]);
+                postcard_utils::to_extend_mut(&changes.components_size(), &mut message)?;
+                for component in &changes.components {
                     message.extend_from_slice(&serialized[component.clone()]);
                 }
             }
@@ -219,9 +222,9 @@ impl MutateMessage {
     pub(crate) fn clear(&mut self) {
         self.entities.clear();
         self.buffer
-            .extend(self.mutations.drain(..).map(|mut mutations| {
-                mutations.components.clear();
-                mutations.components
+            .extend(self.mutations.drain(..).map(|mut changes| {
+                changes.components.clear();
+                changes.components
             }));
     }
 }

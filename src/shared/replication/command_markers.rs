@@ -1,10 +1,10 @@
-use std::cmp::Reverse;
+use core::cmp::Reverse;
 
 use bevy::{ecs::component::ComponentId, prelude::*};
 
 use super::replication_registry::{
     ReplicationRegistry,
-    command_fns::{RemoveFn, WriteFn},
+    command_fns::{MutWrite, RemoveFn, WriteFn},
 };
 
 /// Marker-based functions for [`App`].
@@ -34,20 +34,20 @@ pub trait AppMarkerExt {
 
     If this marker is present on an entity and its priority is the highest,
     then these functions will be called for this component during replication
-    instead of [`default_write`](super::replication_registry::command_fns::default_write) and
+    instead of [`default_write`](super::replication_registry::command_fns::default_write) /
+    [`default_insert_write`](super::replication_registry::command_fns::default_insert_write) and
     [`default_remove`](super::replication_registry::command_fns::default_remove).
     See also [`Self::set_command_fns`].
 
     # Examples
 
-    In this example we write all received updates for [`Transform`] into user's
-    `History<Transform>` if `History` marker is present on the client entity. In this
-    scenario, you'd insert `History` the first time the entity
-    is replicated (e.g. by detecting a `Player` marker component using the blueprint pattern).
-    Then [`Transform`] updates after that will be inserted to the history.
+    In this example we write all received updates for `Health` component into user's
+    `History<Health>` if `Predicted` marker is present on the client entity. In this
+    scenario, you'd insert `Predicted` the first time the entity is replicated.
+    Then `Health` updates after that will be inserted to the history.
 
     ```
-    use bevy::{ecs::system::EntityCommands, prelude::*, utils::HashMap};
+    use bevy::{ecs::system::EntityCommands, ecs::component::Mutable, prelude::*, platform::collections::HashMap};
     use bevy_replicon::{
         bytes::Bytes,
         shared::{
@@ -63,22 +63,23 @@ pub trait AppMarkerExt {
         },
         prelude::*,
     };
+    use serde::{Serialize, Deserialize};
 
     # let mut app = App::new();
     # app.add_plugins(RepliconPlugins);
-    app.register_marker_with::<ComponentsHistory>(MarkerConfig {
+    app.register_marker_with::<Predicted>(MarkerConfig {
         need_history: true, // Enable writing for values that are older than the last received value.
         ..Default::default()
     })
-    .set_marker_fns::<ComponentsHistory, Transform>(write_history, remove_history::<Transform>);
+    .set_marker_fns::<Predicted, Health>(write_history, remove_history::<Health>);
 
     /// Instead of writing into a component directly, it writes data into [`History<C>`].
-    fn write_history<C: Component>(
+    fn write_history<C: Component<Mutability = Mutable>>(
         ctx: &mut WriteCtx,
         rule_fns: &RuleFns<C>,
         entity: &mut DeferredEntity,
         message: &mut Bytes,
-    ) -> postcard::Result<()> {
+    ) -> Result<()> {
         let component: C = rule_fns.deserialize(ctx, message)?;
         if let Some(mut history) = entity.get_mut::<History<C>>() {
             history.insert(ctx.message_tick, component);
@@ -98,18 +99,21 @@ pub trait AppMarkerExt {
 
     /// If this marker is present on an entity, registered components will be stored in [`History<T>`].
     ///
-    ///Present only on client.
+    /// Present only on clients.
     #[derive(Component)]
-    struct ComponentsHistory;
+    struct Predicted;
 
-    /// Stores history of values of `C` received from server. Present only on client.
+    /// Stores history of values of `C` received from server.
     ///
-    /// Present only on client.
+    /// Present only on clients.
     #[derive(Component, Deref, DerefMut)]
     struct History<C>(HashMap<RepliconTick, C>);
+
+    #[derive(Component, Deref, DerefMut, Serialize, Deserialize)]
+    struct Health(u32);
     ```
     **/
-    fn set_marker_fns<M: Component, C: Component>(
+    fn set_marker_fns<M: Component, C: Component<Mutability: MutWrite<C>>>(
         &mut self,
         write: WriteFn<C>,
         remove: RemoveFn,
@@ -119,10 +123,15 @@ pub trait AppMarkerExt {
     ///
     /// If there are no markers present on an entity, then these functions will
     /// be called for this component during replication instead of
-    /// [`default_write`](super::replication_registry::command_fns::default_write) and
+    /// [`default_write`](super::replication_registry::command_fns::default_write) /
+    /// [`default_insert_write`](super::replication_registry::command_fns::default_insert_write) and
     /// [`default_remove`](super::replication_registry::command_fns::default_remove).
     /// See also [`Self::set_marker_fns`].
-    fn set_command_fns<C: Component>(&mut self, write: WriteFn<C>, remove: RemoveFn) -> &mut Self;
+    fn set_command_fns<C: Component<Mutability: MutWrite<C>>>(
+        &mut self,
+        write: WriteFn<C>,
+        remove: RemoveFn,
+    ) -> &mut Self;
 }
 
 impl AppMarkerExt for App {
@@ -144,7 +153,7 @@ impl AppMarkerExt for App {
         self
     }
 
-    fn set_marker_fns<M: Component, C: Component>(
+    fn set_marker_fns<M: Component, C: Component<Mutability: MutWrite<C>>>(
         &mut self,
         write: WriteFn<C>,
         remove: RemoveFn,
@@ -160,7 +169,11 @@ impl AppMarkerExt for App {
         self
     }
 
-    fn set_command_fns<C: Component>(&mut self, write: WriteFn<C>, remove: RemoveFn) -> &mut Self {
+    fn set_command_fns<C: Component<Mutability: MutWrite<C>>>(
+        &mut self,
+        write: WriteFn<C>,
+        remove: RemoveFn,
+    ) -> &mut Self {
         self.world_mut()
             .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
                 registry.set_command_fns::<C>(world, write, remove);

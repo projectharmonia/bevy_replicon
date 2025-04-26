@@ -1,12 +1,13 @@
 //! A game to showcase single-player and multiplier game.
 //! Run it with `cargo run --example tic_tac_toe -- hotseat` to play locally or with `-- client` / `-- server`
 
-use std::{
-    fmt::{self, Formatter},
-    io,
-};
+use std::fmt::{self, Formatter};
 
-use bevy::{prelude::*, utils::hashbrown::HashMap};
+use bevy::{
+    ecs::{relationship::RelatedSpawner, spawn::SpawnWith},
+    platform::collections::HashMap,
+    prelude::*,
+};
 use bevy_replicon::prelude::*;
 use bevy_replicon_example_backend::{ExampleClient, ExampleServer, RepliconExampleBackendPlugins};
 use clap::{Parser, ValueEnum};
@@ -85,7 +86,7 @@ const LINE_THICKNESS: f32 = 10.0;
 const BUTTON_SIZE: f32 = CELL_SIZE / 1.2;
 const BUTTON_MARGIN: f32 = (CELL_SIZE + LINE_THICKNESS - BUTTON_SIZE) / 2.0;
 
-fn read_cli(mut commands: Commands, cli: Res<Cli>) -> io::Result<()> {
+fn read_cli(mut commands: Commands, cli: Res<Cli>) -> Result<()> {
     match *cli {
         Cli::Hotseat => {
             info!("starting hotseat");
@@ -151,64 +152,62 @@ fn setup_ui(mut commands: Commands, symbol_font: Res<SymbolFont>) {
     const TEXT_COLOR: Color = Color::srgb(0.5, 0.5, 1.0);
     const FONT_SIZE: f32 = 32.0;
 
-    commands
-        .spawn(Node {
+    commands.spawn((
+        Node {
             width: Val::Percent(100.0),
             height: Val::Percent(100.0),
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
             ..Default::default()
-        })
-        .with_children(|parent| {
-            parent
-                .spawn(Node {
-                    flex_direction: FlexDirection::Column,
-                    width: Val::Px(BOARD_SIZE - LINE_THICKNESS),
-                    height: Val::Px(BOARD_SIZE - LINE_THICKNESS),
-                    ..Default::default()
-                })
-                .with_children(|parent| {
-                    parent
-                        .spawn(Node {
-                            display: Display::Grid,
-                            grid_template_columns: vec![GridTrack::auto(); GRID_SIZE],
+        },
+        children![(
+            Node {
+                flex_direction: FlexDirection::Column,
+                width: Val::Px(BOARD_SIZE - LINE_THICKNESS),
+                height: Val::Px(BOARD_SIZE - LINE_THICKNESS),
+                ..Default::default()
+            },
+            children![
+                (
+                    Node {
+                        display: Display::Grid,
+                        grid_template_columns: vec![GridTrack::auto(); GRID_SIZE],
+                        ..Default::default()
+                    },
+                    Children::spawn(SpawnWith(|parent: &mut RelatedSpawner<_>| {
+                        for index in 0..GRID_SIZE * GRID_SIZE {
+                            parent.spawn(Cell { index }).observe(pick_cell);
+                        }
+                    }))
+                ),
+                (
+                    Node {
+                        margin: UiRect::top(Val::Px(20.0)),
+                        justify_content: JustifyContent::Center,
+                        ..Default::default()
+                    },
+                    children![(
+                        Text::default(),
+                        TextFont {
+                            font_size: FONT_SIZE,
                             ..Default::default()
-                        })
-                        .with_children(|parent| {
-                            for index in 0..GRID_SIZE * GRID_SIZE {
-                                parent.spawn(Cell { index }).observe(pick_cell);
-                            }
-                        });
-
-                    parent
-                        .spawn(Node {
-                            margin: UiRect::top(Val::Px(20.0)),
-                            justify_content: JustifyContent::Center,
-                            ..Default::default()
-                        })
-                        .with_children(|parent| {
-                            parent
-                                .spawn((
-                                    Text::default(),
-                                    TextFont {
-                                        font_size: FONT_SIZE,
-                                        ..Default::default()
-                                    },
-                                    TextColor(TEXT_COLOR),
-                                    BottomText,
-                                ))
-                                .with_child((
-                                    TextSpan::default(),
-                                    TextFont {
-                                        font: symbol_font.0.clone(),
-                                        font_size: FONT_SIZE,
-                                        ..Default::default()
-                                    },
-                                    TextColor(TEXT_COLOR),
-                                ));
-                        });
-                });
-        });
+                        },
+                        TextColor(TEXT_COLOR),
+                        BottomText,
+                        children![(
+                            TextSpan::default(),
+                            TextFont {
+                                font: symbol_font.0.clone(),
+                                font_size: FONT_SIZE,
+                                ..Default::default()
+                            },
+                            TextColor(TEXT_COLOR),
+                        )]
+                    )]
+                )
+            ]
+        )],
+    ));
 }
 
 /// Converts point clicks into cell picking events.
@@ -231,7 +230,7 @@ fn pick_cell(
     }
 
     let cell = cells
-        .get(trigger.entity())
+        .get(trigger.target())
         .expect("cells should have assigned indices");
     // We don't check if a cell can't be picked on client on purpose
     // just to demonstrate how server can receive invalid requests from a client.
@@ -281,25 +280,23 @@ fn init_symbols(
     symbol_font: Res<SymbolFont>,
     mut cells: Query<(&mut BackgroundColor, &Symbol), With<Button>>,
 ) {
-    let Ok((mut background, symbol)) = cells.get_mut(trigger.entity()) else {
+    let Ok((mut background, symbol)) = cells.get_mut(trigger.target()) else {
         return;
     };
     *background = BACKGROUND_COLOR.into();
 
     commands
-        .entity(trigger.entity())
+        .entity(trigger.target())
         .remove::<Interaction>()
-        .with_children(|parent| {
-            parent.spawn((
-                Text::new(symbol.glyph()),
-                TextFont {
-                    font: symbol_font.0.clone(),
-                    font_size: 65.0,
-                    ..Default::default()
-                },
-                TextColor(symbol.color()),
-            ));
-        });
+        .with_child((
+            Text::new(symbol.glyph()),
+            TextFont {
+                font: symbol_font.0.clone(),
+                font_size: 65.0,
+                ..Default::default()
+            },
+            TextColor(symbol.color()),
+        ));
 }
 
 /// Sends cell and local player entities and starts the game.
@@ -363,7 +360,7 @@ fn init_client(
 }
 
 fn make_local(trigger: Trigger<MakeLocal>, mut commands: Commands) {
-    commands.entity(trigger.entity()).insert(LocalPlayer);
+    commands.entity(trigger.target()).insert(LocalPlayer);
 }
 
 /// Sets the game in disconnected state if client closes the connection.
@@ -595,13 +592,13 @@ struct BottomText;
 #[require(
     Button,
     Replicated,
-    BackgroundColor(|| BackgroundColor(BACKGROUND_COLOR)),
-    Node(|| Node {
+    BackgroundColor(BACKGROUND_COLOR),
+    Node {
         width: Val::Px(BUTTON_SIZE),
         height: Val::Px(BUTTON_SIZE),
         margin: UiRect::all(Val::Px(BUTTON_MARGIN)),
         ..Default::default()
-    })
+    }
 )]
 struct Cell {
     index: usize,

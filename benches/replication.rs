@@ -1,9 +1,6 @@
-use std::{
-    any,
-    time::{Duration, Instant},
-};
+use core::{any, time::Duration};
 
-use bevy::prelude::*;
+use bevy::{ecs::component::Mutable, platform::time::Instant, prelude::*};
 use bevy_replicon::{prelude::*, test_app::ServerTestAppExt};
 use criterion::{Criterion, criterion_group, criterion_main};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
@@ -41,7 +38,11 @@ impl Default for StructComponent {
     }
 }
 
-fn replication<C: Component + Default + Serialize + DeserializeOwned + Clone>(c: &mut Criterion) {
+fn replication<
+    C: Component<Mutability = Mutable> + Default + Serialize + DeserializeOwned + Clone,
+>(
+    c: &mut Criterion,
+) {
     const ENTITIES: usize = 1000;
     const MODULE_PREFIX_LEN: usize = module_path!().len() + 2;
 
@@ -206,7 +207,7 @@ fn replication<C: Component + Default + Serialize + DeserializeOwned + Clone>(c:
     });
 }
 
-fn create_app<C: Component + Serialize + DeserializeOwned>() -> App {
+fn create_app<C: Component<Mutability = Mutable> + Serialize + DeserializeOwned>() -> App {
     let mut app = App::new();
     app.add_plugins((
         MinimalPlugins,

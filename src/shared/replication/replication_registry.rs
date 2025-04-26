@@ -8,7 +8,7 @@ use bevy::{ecs::component::ComponentId, prelude::*};
 use serde::{Deserialize, Serialize};
 
 use super::command_markers::CommandMarkerIndex;
-use command_fns::{RemoveFn, UntypedCommandFns, WriteFn};
+use command_fns::{MutWrite, RemoveFn, UntypedCommandFns, WriteFn};
 use component_fns::ComponentFns;
 use ctx::DespawnCtx;
 use rule_fns::{RuleFns, UntypedRuleFns};
@@ -61,7 +61,7 @@ impl ReplicationRegistry {
     /// # Panics
     ///
     /// Panics if the marker wasn't registered. Use [`Self::register_marker`] first.
-    pub(super) fn set_marker_fns<C: Component>(
+    pub(super) fn set_marker_fns<C: Component<Mutability: MutWrite<C>>>(
         &mut self,
         world: &mut World,
         marker_id: CommandMarkerIndex,
@@ -81,7 +81,7 @@ impl ReplicationRegistry {
     /// Sets default functions for a component when there are no markers.
     ///
     /// See also [`Self::set_marker_fns`].
-    pub(super) fn set_command_fns<C: Component>(
+    pub(super) fn set_command_fns<C: Component<Mutability: MutWrite<C>>>(
         &mut self,
         world: &mut World,
         write: WriteFn<C>,
@@ -101,7 +101,7 @@ impl ReplicationRegistry {
     ///
     /// Returned data can be assigned to a
     /// [`ReplicationRule`](super::replication_rules::ReplicationRule)
-    pub fn register_rule_fns<C: Component>(
+    pub fn register_rule_fns<C: Component<Mutability: MutWrite<C>>>(
         &mut self,
         world: &mut World,
         rule_fns: RuleFns<C>,
@@ -116,7 +116,10 @@ impl ReplicationRegistry {
     ///
     /// If a [`ComponentFns`] has already been created for this component,
     /// then it returns its index instead of creating a new one.
-    fn init_component_fns<C: Component>(&mut self, world: &mut World) -> (usize, ComponentId) {
+    fn init_component_fns<C: Component<Mutability: MutWrite<C>>>(
+        &mut self,
+        world: &mut World,
+    ) -> (usize, ComponentId) {
         let component_id = world.register_component::<C>();
         let index = self
             .components
@@ -169,13 +172,11 @@ pub type DespawnFn = fn(&DespawnCtx, EntityWorldMut);
 
 /// Default entity despawn function.
 pub fn despawn_recursive(_ctx: &DespawnCtx, entity: EntityWorldMut) {
-    entity.despawn_recursive();
+    entity.despawn();
 }
 
 #[cfg(test)]
 mod tests {
-    use bevy::ecs::entity::MapEntities;
-
     use super::*;
 
     #[test]
@@ -218,8 +219,4 @@ mod tests {
 
     #[derive(Component, Deserialize, Serialize)]
     struct ComponentB;
-
-    impl MapEntities for ComponentB {
-        fn map_entities<M: EntityMapper>(&mut self, _entity_mapper: &mut M) {}
-    }
 }

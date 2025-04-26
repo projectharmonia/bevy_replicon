@@ -2,7 +2,7 @@ use bevy::{prelude::*, ptr::Ptr};
 use bytes::Bytes;
 
 use super::{
-    command_fns::UntypedCommandFns,
+    command_fns::{MutWrite, UntypedCommandFns},
     ctx::{RemoveCtx, SerializeCtx, WriteCtx},
     rule_fns::UntypedRuleFns,
 };
@@ -24,7 +24,7 @@ pub(crate) struct ComponentFns {
 
 impl ComponentFns {
     /// Creates a new instance for `C` with the specified number of empty marker function slots.
-    pub(super) fn new<C: Component>(marker_slots: usize) -> Self {
+    pub(super) fn new<C: Component<Mutability: MutWrite<C>>>(marker_slots: usize) -> Self {
         Self {
             serialize: untyped_serialize::<C>,
             write: untyped_write::<C>,
@@ -88,7 +88,7 @@ impl ComponentFns {
         rule_fns: &UntypedRuleFns,
         ptr: Ptr,
         message: &mut Vec<u8>,
-    ) -> postcard::Result<()> {
+    ) -> Result<()> {
         unsafe { (self.serialize)(ctx, rule_fns, ptr, message) }
     }
 
@@ -108,7 +108,7 @@ impl ComponentFns {
         entity_markers: &EntityMarkers,
         entity: &mut DeferredEntity,
         message: &mut Bytes,
-    ) -> postcard::Result<()> {
+    ) -> Result<()> {
         let command_fns = self
             .markers
             .iter()
@@ -136,7 +136,7 @@ impl ComponentFns {
         command_markers: &CommandMarkers,
         entity: &mut DeferredEntity,
         message: &mut Bytes,
-    ) -> postcard::Result<()> {
+    ) -> Result<()> {
         if let Some(command_fns) = self
             .markers
             .iter()
@@ -173,7 +173,7 @@ impl ComponentFns {
 
 /// Signature of component serialization functions that restore the original type.
 type UntypedSerializeFn =
-    unsafe fn(&SerializeCtx, &UntypedRuleFns, Ptr, &mut Vec<u8>) -> postcard::Result<()>;
+    unsafe fn(&SerializeCtx, &UntypedRuleFns, Ptr, &mut Vec<u8>) -> Result<()>;
 
 /// Signature of component writing functions that restore the original type.
 type UntypedWriteFn = unsafe fn(
@@ -182,11 +182,10 @@ type UntypedWriteFn = unsafe fn(
     &UntypedRuleFns,
     &mut DeferredEntity,
     &mut Bytes,
-) -> postcard::Result<()>;
+) -> Result<()>;
 
 /// Signature of component consuming functions that restores the original type.
-type UntypedConsumeFn =
-    unsafe fn(&mut WriteCtx, &UntypedRuleFns, &mut Bytes) -> postcard::Result<()>;
+type UntypedConsumeFn = unsafe fn(&mut WriteCtx, &UntypedRuleFns, &mut Bytes) -> Result<()>;
 
 /// Dereferences a component from a pointer and calls the passed serialization function.
 ///
@@ -198,7 +197,7 @@ unsafe fn untyped_serialize<C: Component>(
     rule_fns: &UntypedRuleFns,
     ptr: Ptr,
     message: &mut Vec<u8>,
-) -> postcard::Result<()> {
+) -> Result<()> {
     unsafe {
         let rule_fns = rule_fns.typed::<C>();
         rule_fns.serialize(ctx, ptr.deref::<C>(), message)
@@ -216,7 +215,7 @@ unsafe fn untyped_write<C: Component>(
     rule_fns: &UntypedRuleFns,
     entity: &mut DeferredEntity,
     message: &mut Bytes,
-) -> postcard::Result<()> {
+) -> Result<()> {
     unsafe { command_fns.write::<C>(ctx, &rule_fns.typed::<C>(), entity, message) }
 }
 
@@ -229,6 +228,6 @@ unsafe fn untyped_consume<C: Component>(
     ctx: &mut WriteCtx,
     rule_fns: &UntypedRuleFns,
     message: &mut Bytes,
-) -> postcard::Result<()> {
+) -> Result<()> {
     unsafe { rule_fns.typed::<C>().consume(ctx, message) }
 }

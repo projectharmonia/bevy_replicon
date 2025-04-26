@@ -181,7 +181,8 @@ fn group() {
     let client_entity = client_app
         .world_mut()
         .query_filtered::<Entity, (With<GroupComponentA>, With<GroupComponentB>)>()
-        .single(client_app.world());
+        .single(client_app.world())
+        .unwrap();
 
     server_app
         .world_mut()
@@ -226,7 +227,8 @@ fn not_replicated() {
     let client_entity = client_app
         .world_mut()
         .query_filtered::<Entity, (With<Replicated>, Without<NotReplicatedComponent>)>()
-        .single(client_app.world());
+        .single(client_app.world())
+        .unwrap();
 
     client_app
         .world_mut()
@@ -396,7 +398,8 @@ fn confirm_history() {
     let client_entity = client_app
         .world_mut()
         .query_filtered::<Entity, With<DummyComponent>>()
-        .single(client_app.world());
+        .single(client_app.world())
+        .unwrap();
 
     server_app
         .world_mut()
@@ -505,7 +508,7 @@ fn replace(
     rule_fns: &RuleFns<OriginalComponent>,
     entity: &mut DeferredEntity,
     message: &mut Bytes,
-) -> postcard::Result<()> {
+) -> Result<()> {
     rule_fns.deserialize(ctx, message)?;
     ctx.commands.entity(entity.id()).insert(ReplacedComponent);
 

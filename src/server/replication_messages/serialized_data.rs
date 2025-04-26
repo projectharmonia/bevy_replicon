@@ -1,4 +1,4 @@
-use std::ops::Range;
+use core::ops::Range;
 
 use bevy::{prelude::*, ptr::Ptr};
 
@@ -12,8 +12,8 @@ use crate::shared::{
 
 /// Single continuous buffer that stores serialized data for messages.
 ///
-/// See [`UpdateMessage`](super::update_message::UpdateMessage) and
-/// [`MutateMessage`](super::mutate_message::MutateMessage).
+/// See [`Updates`](super::updates::Updates) and
+/// [`MutateMessage`](super::mutations::MutateMessage).
 #[derive(Default, Deref, DerefMut)]
 pub(crate) struct SerializedData(Vec<u8>);
 
@@ -21,7 +21,7 @@ impl SerializedData {
     pub(crate) fn write_mappings(
         &mut self,
         mappings: impl Iterator<Item = (Entity, Entity)>,
-    ) -> postcard::Result<Range<usize>> {
+    ) -> Result<Range<usize>> {
         let start = self.len();
 
         for (server_entity, client_entity) in mappings {
@@ -37,7 +37,7 @@ impl SerializedData {
     pub(crate) fn write_fn_ids(
         &mut self,
         fn_ids: impl Iterator<Item = FnsId>,
-    ) -> postcard::Result<Range<usize>> {
+    ) -> Result<Range<usize>> {
         let start = self.len();
 
         for fns_id in fn_ids {
@@ -56,7 +56,7 @@ impl SerializedData {
         ctx: &SerializeCtx,
         fns_id: FnsId,
         ptr: Ptr,
-    ) -> postcard::Result<Range<usize>> {
+    ) -> Result<Range<usize>> {
         let start = self.len();
 
         postcard_utils::to_extend_mut(&fns_id, &mut self.0)?;
@@ -74,7 +74,7 @@ impl SerializedData {
     /// is serialized or not. It is not serialized if <= 1; note that generations are [`NonZeroU32`](std::num::NonZeroU32)
     /// and a value of zero is used in [`Option<Entity>`] to signify [`None`], so generation 1 is the first
     /// generation.
-    pub(crate) fn write_entity(&mut self, entity: Entity) -> postcard::Result<Range<usize>> {
+    pub(crate) fn write_entity(&mut self, entity: Entity) -> Result<Range<usize>> {
         let start = self.len();
 
         entity_serde::serialize_entity(&mut self.0, entity)?;
@@ -84,7 +84,7 @@ impl SerializedData {
         Ok(start..end)
     }
 
-    pub(crate) fn write_tick(&mut self, tick: RepliconTick) -> postcard::Result<Range<usize>> {
+    pub(crate) fn write_tick(&mut self, tick: RepliconTick) -> Result<Range<usize>> {
         let start = self.len();
 
         postcard_utils::to_extend_mut(&tick, &mut self.0)?;

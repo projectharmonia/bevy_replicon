@@ -22,7 +22,7 @@ impl Plugin for RepliconExampleClientPlugin {
             (
                 set_disconnected.run_if(resource_removed::<ExampleClient>),
                 set_connected.run_if(resource_added::<ExampleClient>),
-                receive_packets.never_param_warn(),
+                receive_packets.run_if(resource_exists::<ExampleClient>),
             )
                 .chain()
                 .in_set(ClientSet::ReceivePackets),
@@ -30,8 +30,8 @@ impl Plugin for RepliconExampleClientPlugin {
         .add_systems(
             PostUpdate,
             send_packets
-                .never_param_warn()
-                .in_set(ClientSet::SendPackets),
+                .in_set(ClientSet::SendPackets)
+                .run_if(resource_exists::<ExampleClient>),
         );
     }
 }

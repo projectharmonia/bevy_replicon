@@ -10,6 +10,7 @@ use bevy::{
     prelude::*,
     ptr::Ptr,
 };
+use log::{debug, trace};
 
 use crate::shared::replication::{
     Replicated, replication_registry::FnsId, replication_rules::ReplicationRules,
@@ -232,6 +233,7 @@ pub(super) struct ReplicatedComponent {
 
 #[cfg(test)]
 mod tests {
+    use bevy::transform::components::Transform;
     use serde::{Deserialize, Serialize};
 
     use super::*;
