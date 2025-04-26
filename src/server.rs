@@ -305,11 +305,13 @@ fn send_replication(
 fn reset(
     mut commands: Commands,
     mut server_tick: ResMut<ServerTick>,
+    mut related_entities: ResMut<RelatedEntities>,
     clients: Query<Entity, With<ConnectedClient>>,
     mut buffered_events: ResMut<BufferedServerEvents>,
 ) {
     *server_tick = Default::default();
     buffered_events.clear();
+    related_entities.clear();
     for entity in &clients {
         commands.entity(entity).despawn();
     }
