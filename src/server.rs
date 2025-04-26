@@ -9,7 +9,9 @@ mod server_world;
 use core::{ops::Range, time::Duration};
 
 use bevy::{
-    ecs::{component::StorageType, system::SystemChangeTick},
+    ecs::{
+        archetype::Archetypes, component::StorageType, entity::Entities, system::SystemChangeTick,
+    },
     prelude::*,
     ptr::Ptr,
     reflect::TypeRegistry,
@@ -35,13 +37,14 @@ use crate::shared::{
             ReplicationRegistry, component_fns::ComponentFns, ctx::SerializeCtx,
             rule_fns::UntypedRuleFns,
         },
+        replication_rules::ReplicationRules,
         track_mutate_messages::TrackMutateMessages,
     },
     replicon_tick::RepliconTick,
 };
 use client_entity_map::ClientEntityMap;
 use client_visibility::{ClientVisibility, Visibility};
-use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
+use removal_buffer::{RemovalBuffer, RemovalReader};
 use replication_messages::{
     mutations::Mutations, serialized_data::SerializedData, updates::Updates,
 };
@@ -88,8 +91,8 @@ impl Default for ServerPlugin {
 /// Can be disabled for client-only apps.
 impl Plugin for ServerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(RemovalBufferPlugin)
-            .init_resource::<DespawnBuffer>()
+        app.init_resource::<DespawnBuffer>()
+            .init_resource::<RemovalBuffer>()
             .init_resource::<RepliconServer>()
             .init_resource::<ServerTick>()
             .init_resource::<EntityBuffer>()
@@ -119,11 +122,15 @@ impl Plugin for ServerPlugin {
             .add_systems(
                 PostUpdate,
                 (
-                    send_replication
-                        .map(Result::unwrap)
+                    (
+                        buffer_removals,
+                        send_replication
+                            .map(Result::unwrap)
+                            .run_if(resource_changed::<ServerTick>),
+                    )
+                        .chain()
                         .in_set(ServerSet::Send)
-                        .run_if(server_running)
-                        .run_if(resource_changed::<ServerTick>),
+                        .run_if(server_running),
                     reset.run_if(server_just_stopped),
                 ),
             );
@@ -244,6 +251,23 @@ fn buffer_despawns(
 ) {
     if server.is_running() {
         despawn_buffer.push(trigger.target());
+    }
+}
+
+fn buffer_removals(
+    entities: &Entities,
+    archetypes: &Archetypes,
+    mut removal_reader: RemovalReader,
+    mut removal_buffer: ResMut<RemovalBuffer>,
+    rules: Res<ReplicationRules>,
+) {
+    for (&entity, removed_components) in removal_reader.read() {
+        let location = entities
+            .get(entity)
+            .expect("removals count only existing entities");
+        let archetype = archetypes.get(location.archetype_id).unwrap();
+
+        removal_buffer.update(&rules, archetype, entity, removed_components);
     }
 }
 
