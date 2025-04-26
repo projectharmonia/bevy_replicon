@@ -209,6 +209,8 @@ This behavior is also configurable via [client markers](#client-markers).
 Some components depend on each other. For example, [`ChildOf`] and [`Children`]. You can enable
 replication only for [`ChildOf`] and [`Children`] will be updated automatically on insertion.
 
+You can also ensure that their mutations arrive in sync by using [`SyncRelatedAppExt::sync_related_entities`].
+
 ## Network events and triggers
 
 This replaces RPCs (remote procedure calls) in other engines and,
@@ -549,9 +551,9 @@ All events, inserts, removals and despawns will be applied to clients in the sam
 However, if you insert/mutate a component and immediately remove it, the client will only receive the removal because the component value
 won't exist in the [`World`] during the replication process. But removal followed by insertion will work as expected since we buffer removals.
 
-Entity component mutations are grouped by entity, and component groupings may be applied to clients in a different order than on the server.
+Entity component mutations may be applied to clients in a different order than on the server.
 For example, if two entities are spawned in tick 1 on the server and their components are mutated in tick 2,
-then the client is guaranteed to see the spawns at the same time, but the component mutations may appear in different client ticks.
+then the client is guaranteed to see the spawns at the same tick, but the component mutations may appear later (but not earlier).
 
 If a component is dependent on other data, mutations to the component will only be applied to the client when that data has arrived.
 So if your component references another entity, mutations to that component will only be applied when the referenced entity has been spawned on the client.
@@ -612,7 +614,8 @@ pub mod prelude {
                 server_trigger::{ServerTriggerAppExt, ServerTriggerExt},
             },
             replication::{
-                Replicated, command_markers::AppMarkerExt, replication_rules::AppRuleExt,
+                Replicated, command_markers::AppMarkerExt, related_entities::SyncRelatedAppExt,
+                replication_rules::AppRuleExt,
             },
         },
     };
