@@ -2,6 +2,7 @@ pub mod client_entity_map;
 pub mod client_visibility;
 pub(super) mod despawn_buffer;
 pub mod event;
+pub mod related_entities;
 pub(super) mod removal_buffer;
 pub(super) mod replication_messages;
 pub mod server_tick;
@@ -30,7 +31,6 @@ use crate::shared::{
     postcard_utils,
     replication::{
         client_ticks::{ClientTicks, EntityBuffer},
-        related_entities::RelatedEntities,
         replication_registry::{
             ReplicationRegistry, component_fns::ComponentFns, ctx::SerializeCtx,
             rule_fns::UntypedRuleFns,
@@ -42,6 +42,7 @@ use crate::shared::{
 use client_entity_map::ClientEntityMap;
 use client_visibility::{ClientVisibility, Visibility};
 use despawn_buffer::{DespawnBuffer, DespawnBufferPlugin};
+use related_entities::RelatedEntities;
 use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
 use replication_messages::{
     mutations::Mutations, serialized_data::SerializedData, updates::Updates,
@@ -94,6 +95,7 @@ impl Plugin for ServerPlugin {
             .init_resource::<ServerTick>()
             .init_resource::<EntityBuffer>()
             .init_resource::<BufferedServerEvents>()
+            .init_resource::<RelatedEntities>()
             .configure_sets(
                 PreUpdate,
                 (ServerSet::ReceivePackets, ServerSet::Receive).chain(),

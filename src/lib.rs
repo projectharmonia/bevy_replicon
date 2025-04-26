@@ -614,8 +614,7 @@ pub mod prelude {
                 server_trigger::{ServerTriggerAppExt, ServerTriggerExt},
             },
             replication::{
-                Replicated, command_markers::AppMarkerExt, related_entities::SyncRelatedAppExt,
-                replication_rules::AppRuleExt,
+                Replicated, command_markers::AppMarkerExt, replication_rules::AppRuleExt,
             },
         },
     };
@@ -629,7 +628,7 @@ pub mod prelude {
     pub use super::server::{
         ReplicatedClient, ServerPlugin, ServerSet, TickPolicy, VisibilityPolicy,
         client_entity_map::ClientEntityMap, client_visibility::ClientVisibility,
-        event::ServerEventPlugin,
+        event::ServerEventPlugin, related_entities::SyncRelatedAppExt,
     };
 
     #[cfg(feature = "client_diagnostics")]
