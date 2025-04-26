@@ -1,8 +1,8 @@
 use bevy::{
     ecs::{
-        archetype::{Archetype, Archetypes},
+        archetype::Archetype,
         component::ComponentId,
-        entity::{Entities, hash_map::EntityHashMap},
+        entity::hash_map::EntityHashMap,
         event::EventCursor,
         removal_detection::{RemovedComponentEntity, RemovedComponentEvents},
         system::SystemParam,
@@ -11,51 +11,15 @@ use bevy::{
     prelude::*,
 };
 
-use super::ServerSet;
-use crate::shared::{
-    common_conditions::server_running,
-    replication::{Replicated, replication_registry::FnsId, replication_rules::ReplicationRules},
+use crate::shared::replication::{
+    Replicated, replication_registry::FnsId, replication_rules::ReplicationRules,
 };
-
-/// Buffers all replicated component removals in [`RemovalBuffer`] resource.
-///
-/// Used to avoid missing events.
-pub(super) struct RemovalBufferPlugin;
-
-impl Plugin for RemovalBufferPlugin {
-    fn build(&self, app: &mut App) {
-        app.init_resource::<RemovalBuffer>().add_systems(
-            PostUpdate,
-            buffer_removals
-                .before(super::send_replication)
-                .in_set(ServerSet::Send)
-                .run_if(server_running),
-        );
-    }
-}
-
-fn buffer_removals(
-    entities: &Entities,
-    archetypes: &Archetypes,
-    mut removal_reader: RemovalReader,
-    mut removal_buffer: ResMut<RemovalBuffer>,
-    rules: Res<ReplicationRules>,
-) {
-    for (&entity, removed_components) in removal_reader.read() {
-        let location = entities
-            .get(entity)
-            .expect("removals count only existing entities");
-        let archetype = archetypes.get(location.archetype_id).unwrap();
-
-        removal_buffer.update(&rules, archetype, entity, removed_components);
-    }
-}
 
 /// Reader for removed components.
 ///
 /// Like [`RemovedComponentEvents`], but reads them in per-entity format.
 #[derive(SystemParam)]
-struct RemovalReader<'w, 's> {
+pub(super) struct RemovalReader<'w, 's> {
     /// Cached components list from [`ReplicationRules`].
     components: Local<'s, ReplicatedComponents>,
 
@@ -82,7 +46,7 @@ impl RemovalReader<'_, '_> {
     /// Returns iterator over all components removed since the last call.
     ///
     /// Only replicated entities taken into account.
-    fn read(&mut self) -> impl Iterator<Item = (&Entity, &HashSet<ComponentId>)> {
+    pub(super) fn read(&mut self) -> impl Iterator<Item = (&Entity, &HashSet<ComponentId>)> {
         self.clear();
 
         for (&component_id, component_events) in self
@@ -111,7 +75,7 @@ impl RemovalReader<'_, '_> {
     /// Clears all removals.
     ///
     /// Keeps the allocated memory for reuse.
-    pub(super) fn clear(&mut self) {
+    fn clear(&mut self) {
         self.ids_buffer
             .extend(self.removals.drain().map(|(_, mut components)| {
                 components.clear();
@@ -137,8 +101,10 @@ impl FromWorld for ReplicatedComponents {
 }
 
 /// Buffer with removed components.
+///
+/// Used to avoid missing events.
 #[derive(Default, Resource, Deref)]
-pub(crate) struct RemovalBuffer {
+pub(super) struct RemovalBuffer {
     /// Component removals grouped by entity.
     #[deref]
     removals: EntityHashMap<Vec<(ComponentId, FnsId)>>,
@@ -152,7 +118,7 @@ pub(crate) struct RemovalBuffer {
 
 impl RemovalBuffer {
     /// Registers component removals that match replication rules for an entity.
-    fn update(
+    pub(super) fn update(
         &mut self,
         rules: &ReplicationRules,
         archetype: &Archetype,
@@ -201,9 +167,9 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::shared::{
-        backend::replicon_server::RepliconServer,
-        replication::{
+    use crate::{
+        server::{self},
+        shared::replication::{
             Replicated, replication_registry::ReplicationRegistry, replication_rules::AppRuleExt,
         },
     };
@@ -211,14 +177,10 @@ mod tests {
     #[test]
     fn not_replicated() {
         let mut app = App::new();
-        app.add_plugins(RemovalBufferPlugin)
-            .init_resource::<RepliconServer>()
+        app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
-            .init_resource::<ReplicationRules>();
-
-        app.world_mut()
-            .resource_mut::<RepliconServer>()
-            .set_running(true);
+            .init_resource::<RemovalBuffer>()
+            .add_systems(PostUpdate, server::buffer_removals);
 
         app.update();
 
@@ -235,15 +197,11 @@ mod tests {
     #[test]
     fn component() {
         let mut app = App::new();
-        app.add_plugins(RemovalBufferPlugin)
-            .init_resource::<RepliconServer>()
+        app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
-            .init_resource::<ReplicationRules>()
+            .init_resource::<RemovalBuffer>()
+            .add_systems(PostUpdate, server::buffer_removals)
             .replicate::<ComponentA>();
-
-        app.world_mut()
-            .resource_mut::<RepliconServer>()
-            .set_running(true);
 
         app.update();
 
@@ -265,15 +223,11 @@ mod tests {
     #[test]
     fn group() {
         let mut app = App::new();
-        app.add_plugins(RemovalBufferPlugin)
-            .init_resource::<RepliconServer>()
+        app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
-            .init_resource::<ReplicationRules>()
+            .init_resource::<RemovalBuffer>()
+            .add_systems(PostUpdate, server::buffer_removals)
             .replicate_group::<(ComponentA, ComponentB)>();
-
-        app.world_mut()
-            .resource_mut::<RepliconServer>()
-            .set_running(true);
 
         app.update();
 
@@ -295,15 +249,11 @@ mod tests {
     #[test]
     fn part_of_group() {
         let mut app = App::new();
-        app.add_plugins(RemovalBufferPlugin)
-            .init_resource::<RepliconServer>()
+        app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
-            .init_resource::<ReplicationRules>()
+            .init_resource::<RemovalBuffer>()
+            .add_systems(PostUpdate, server::buffer_removals)
             .replicate_group::<(ComponentA, ComponentB)>();
-
-        app.world_mut()
-            .resource_mut::<RepliconServer>()
-            .set_running(true);
 
         app.update();
 
@@ -325,16 +275,12 @@ mod tests {
     #[test]
     fn group_with_subset() {
         let mut app = App::new();
-        app.add_plugins(RemovalBufferPlugin)
-            .init_resource::<RepliconServer>()
+        app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
-            .init_resource::<ReplicationRules>()
+            .init_resource::<RemovalBuffer>()
+            .add_systems(PostUpdate, server::buffer_removals)
             .replicate::<ComponentA>()
             .replicate_group::<(ComponentA, ComponentB)>();
-
-        app.world_mut()
-            .resource_mut::<RepliconServer>()
-            .set_running(true);
 
         app.update();
 
@@ -356,16 +302,12 @@ mod tests {
     #[test]
     fn part_of_group_with_subset() {
         let mut app = App::new();
-        app.add_plugins(RemovalBufferPlugin)
-            .init_resource::<RepliconServer>()
+        app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
-            .init_resource::<ReplicationRules>()
+            .init_resource::<RemovalBuffer>()
+            .add_systems(PostUpdate, server::buffer_removals)
             .replicate::<ComponentA>()
             .replicate_group::<(ComponentA, ComponentB)>();
-
-        app.world_mut()
-            .resource_mut::<RepliconServer>()
-            .set_running(true);
 
         app.update();
 
@@ -387,15 +329,11 @@ mod tests {
     #[test]
     fn despawn() {
         let mut app = App::new();
-        app.add_plugins(RemovalBufferPlugin)
-            .init_resource::<RepliconServer>()
+        app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
-            .init_resource::<ReplicationRules>()
+            .init_resource::<RemovalBuffer>()
+            .add_systems(PostUpdate, server::buffer_removals)
             .replicate::<ComponentA>();
-
-        app.world_mut()
-            .resource_mut::<RepliconServer>()
-            .set_running(true);
 
         app.update();
 

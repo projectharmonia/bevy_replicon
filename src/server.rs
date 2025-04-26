@@ -1,6 +1,5 @@
 pub mod client_entity_map;
 pub mod client_visibility;
-pub(super) mod despawn_buffer;
 pub mod event;
 pub mod related_entities;
 pub(super) mod removal_buffer;
@@ -11,7 +10,9 @@ mod server_world;
 use core::{ops::Range, time::Duration};
 
 use bevy::{
-    ecs::{component::StorageType, system::SystemChangeTick},
+    ecs::{
+        archetype::Archetypes, component::StorageType, entity::Entities, system::SystemChangeTick,
+    },
     prelude::*,
     ptr::Ptr,
     reflect::TypeRegistry,
@@ -30,20 +31,21 @@ use crate::shared::{
     event::server_event::BufferedServerEvents,
     postcard_utils,
     replication::{
+        Replicated,
         client_ticks::{ClientTicks, EntityBuffer},
         replication_registry::{
             ReplicationRegistry, component_fns::ComponentFns, ctx::SerializeCtx,
             rule_fns::UntypedRuleFns,
         },
+        replication_rules::ReplicationRules,
         track_mutate_messages::TrackMutateMessages,
     },
     replicon_tick::RepliconTick,
 };
 use client_entity_map::ClientEntityMap;
 use client_visibility::{ClientVisibility, Visibility};
-use despawn_buffer::{DespawnBuffer, DespawnBufferPlugin};
 use related_entities::RelatedEntities;
-use removal_buffer::{RemovalBuffer, RemovalBufferPlugin};
+use removal_buffer::{RemovalBuffer, RemovalReader};
 use replication_messages::{
     mutations::Mutations, serialized_data::SerializedData, updates::Updates,
 };
@@ -90,7 +92,8 @@ impl Default for ServerPlugin {
 /// Can be disabled for client-only apps.
 impl Plugin for ServerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins((DespawnBufferPlugin, RemovalBufferPlugin))
+        app.init_resource::<DespawnBuffer>()
+            .init_resource::<RemovalBuffer>()
             .init_resource::<RepliconServer>()
             .init_resource::<ServerTick>()
             .init_resource::<EntityBuffer>()
@@ -106,6 +109,7 @@ impl Plugin for ServerPlugin {
             )
             .add_observer(handle_connects)
             .add_observer(handle_disconnects)
+            .add_observer(buffer_despawns)
             .add_systems(Startup, setup_channels)
             .add_systems(
                 PreUpdate,
@@ -120,11 +124,15 @@ impl Plugin for ServerPlugin {
             .add_systems(
                 PostUpdate,
                 (
-                    send_replication
-                        .map(Result::unwrap)
+                    (
+                        buffer_removals,
+                        send_replication
+                            .map(Result::unwrap)
+                            .run_if(resource_changed::<ServerTick>),
+                    )
+                        .chain()
                         .in_set(ServerSet::Send)
-                        .run_if(server_running)
-                        .run_if(resource_changed::<ServerTick>),
+                        .run_if(server_running),
                     reset.run_if(server_just_stopped),
                 ),
             );
@@ -235,6 +243,33 @@ fn receive_acks(
                 }
             }
         }
+    }
+}
+
+fn buffer_despawns(
+    trigger: Trigger<OnRemove, Replicated>,
+    mut despawn_buffer: ResMut<DespawnBuffer>,
+    server: Res<RepliconServer>,
+) {
+    if server.is_running() {
+        despawn_buffer.push(trigger.target());
+    }
+}
+
+fn buffer_removals(
+    entities: &Entities,
+    archetypes: &Archetypes,
+    mut removal_reader: RemovalReader,
+    mut removal_buffer: ResMut<RemovalBuffer>,
+    rules: Res<ReplicationRules>,
+) {
+    for (&entity, removed_components) in removal_reader.read() {
+        let location = entities
+            .get(entity)
+            .expect("removals count only existing entities");
+        let archetype = archetypes.get(location.archetype_id).unwrap();
+
+        removal_buffer.update(&rules, archetype, entity, removed_components);
     }
 }
 
@@ -741,3 +776,11 @@ pub enum VisibilityPolicy {
     /// All entities are hidden by default and should be explicitly registered to be visible.
     Whitelist,
 }
+
+/// Buffer with all despawned entities.
+///
+/// We treat removals of [`Replicated`] component as despawns
+/// to avoid missing events in case the server's tick policy is
+/// not [`TickPolicy::EveryFrame`].
+#[derive(Default, Resource, Deref, DerefMut)]
+struct DespawnBuffer(Vec<Entity>);
