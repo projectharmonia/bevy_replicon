@@ -39,6 +39,18 @@ pub fn server_just_stopped(
     just_stopped
 }
 
+/// Returns `true` if the server started on this tick.
+pub fn server_just_started(
+    mut last_running: Local<bool>,
+    server: Option<Res<RepliconServer>>,
+) -> bool {
+    let running = server.is_some_and(|server| server.is_running());
+
+    let just_started = !*last_running && running;
+    *last_running = running;
+    just_started
+}
+
 /// Returns `true` when the client just started connecting on this tick.
 pub fn client_started_connecting(
     mut last_connecting: Local<bool>,

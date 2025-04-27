@@ -76,6 +76,10 @@ scene = ["bevy/bevy_scene"]
 name = "replication"
 harness = false
 
+[[bench]]
+name = "related_entities"
+harness = false
+
 [[test]]
 name = "mutations"
 required-features = ["client", "server"]

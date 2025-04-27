@@ -1,6 +1,7 @@
 pub mod client_entity_map;
 pub mod client_visibility;
 pub mod event;
+pub mod related_entities;
 pub(super) mod removal_buffer;
 pub(super) mod replication_messages;
 pub mod server_tick;
@@ -32,7 +33,6 @@ use crate::shared::{
     replication::{
         Replicated,
         client_ticks::{ClientTicks, EntityBuffer},
-        related_entities::RelatedEntities,
         replication_registry::{
             ReplicationRegistry, component_fns::ComponentFns, ctx::SerializeCtx,
             rule_fns::UntypedRuleFns,
@@ -44,6 +44,7 @@ use crate::shared::{
 };
 use client_entity_map::ClientEntityMap;
 use client_visibility::{ClientVisibility, Visibility};
+use related_entities::RelatedEntities;
 use removal_buffer::{RemovalBuffer, RemovalReader};
 use replication_messages::{
     mutations::Mutations, serialized_data::SerializedData, updates::Updates,
@@ -97,6 +98,7 @@ impl Plugin for ServerPlugin {
             .init_resource::<ServerTick>()
             .init_resource::<EntityBuffer>()
             .init_resource::<BufferedServerEvents>()
+            .init_resource::<RelatedEntities>()
             .configure_sets(
                 PreUpdate,
                 (ServerSet::ReceivePackets, ServerSet::Receive).chain(),
@@ -338,11 +340,13 @@ fn send_replication(
 fn reset(
     mut commands: Commands,
     mut server_tick: ResMut<ServerTick>,
+    mut related_entities: ResMut<RelatedEntities>,
     clients: Query<Entity, With<ConnectedClient>>,
     mut buffered_events: ResMut<BufferedServerEvents>,
 ) {
     *server_tick = Default::default();
     buffered_events.clear();
+    related_entities.clear();
     for entity in &clients {
         commands.entity(entity).despawn();
     }

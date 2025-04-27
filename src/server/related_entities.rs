@@ -14,7 +14,12 @@ use petgraph::{
     visit::EdgeRef,
 };
 
-use super::Replicated;
+use crate::{
+    server::ServerSet,
+    shared::{
+        backend::replicon_server::RepliconServer, common_conditions::*, replication::Replicated,
+    },
+};
 
 pub trait SyncRelatedAppExt {
     /// Ensures that entities related by `C` are replicated in sync.
@@ -28,8 +33,7 @@ pub trait SyncRelatedAppExt {
     /// a single message.
     ///
     /// Internally we maintain a graph of all relationship types marked for replication in sync.
-    /// Disjoint subgraphs are recalculated from scratch each tick if any changes occurred in
-    /// the main graph. Frequent changes may impact performance.
+    /// It's updated via observers, so frequent changes may impact the performance.
     ///
     /// # Examples
     /// ```
@@ -58,18 +62,27 @@ impl SyncRelatedAppExt for App {
     where
         C: Relationship + Component<Mutability = Immutable>,
     {
-        self.add_observer(add_relation::<C>)
-            .add_observer(remove_relation::<C>)
-            .add_observer(start_replication::<C>)
-            .add_observer(stop_replication::<C>)
+        self.add_systems(
+            PostUpdate,
+            read_relations::<C>
+                .before(super::send_replication)
+                .in_set(ServerSet::Send)
+                .run_if(server_just_started),
+        )
+        .add_observer(add_relation::<C>)
+        .add_observer(remove_relation::<C>)
+        .add_observer(start_replication::<C>)
+        .add_observer(stop_replication::<C>)
     }
 }
 
 /// Disjoined graphs of related entities.
 ///
 /// Each graph represented by index.
+///
+/// Updated only when the server is running and cleared on stop.
 #[derive(Resource, Default)]
-pub(crate) struct RelatedEntities {
+pub(super) struct RelatedEntities {
     /// Global graph of all relationship types marked for replication in sync.
     ///
     /// We use a stable graph to avoid indices invalidation since we map them to entities and
@@ -180,7 +193,10 @@ impl RelatedEntities {
     ///
     /// The recalculation is not incremental, so it isn't performed automatically
     /// on every change. Instead, manually call this before replication begins.
-    pub(crate) fn rebuild_graphs(&mut self) {
+    ///
+    /// Benchmarks show the performance impact is negligible.
+    /// The biggest overhead comes from keeping the main graph in sync via observers.
+    pub(super) fn rebuild_graphs(&mut self) {
         if !self.rebuild_needed {
             return;
         }
@@ -202,7 +218,7 @@ impl RelatedEntities {
     /// Returns graph index for an entity if it has a relationship.
     ///
     /// Should be called only after [`Self::rebuild_graphs`]
-    pub(crate) fn graph_index(&self, entity: Entity) -> Option<usize> {
+    pub(super) fn graph_index(&self, entity: Entity) -> Option<usize> {
         debug_assert!(
             !self.rebuild_needed,
             "`rebuild_graphs` should be called beforehand"
@@ -210,48 +226,82 @@ impl RelatedEntities {
         self.entity_graphs.get(&entity).copied()
     }
 
-    pub(crate) fn graphs_count(&self) -> usize {
+    pub(super) fn graphs_count(&self) -> usize {
         self.graphs_count
+    }
+
+    pub(super) fn clear(&mut self) {
+        self.graph.clear();
+        self.entity_to_node.clear();
+        self.node_to_entity.clear();
+        self.rebuild_needed = false;
+        self.entity_graphs.clear();
+        self.graphs_count = 0;
+    }
+}
+
+/// Collects all existing relations.
+///
+/// Used to gather previously spawned entities when the server starts,
+/// since [`add_relation`] triggers only on hierarchy changes.
+fn read_relations<C: Relationship>(
+    mut related_entities: ResMut<RelatedEntities>,
+    components: Query<(Entity, &C), With<Replicated>>,
+) {
+    for (entity, relationship) in &components {
+        related_entities.add_relation::<C>(entity, relationship.get());
     }
 }
 
 fn add_relation<C: Relationship>(
     trigger: Trigger<OnInsert, C>,
+    server: Res<RepliconServer>,
     mut related_entities: ResMut<RelatedEntities>,
     components: Query<&C, With<Replicated>>,
 ) {
-    if let Ok(relationship) = components.get(trigger.target()) {
-        related_entities.add_relation::<C>(trigger.target(), relationship.get());
+    if server.is_running() {
+        if let Ok(relationship) = components.get(trigger.target()) {
+            related_entities.add_relation::<C>(trigger.target(), relationship.get());
+        }
     }
 }
 
 fn remove_relation<C: Relationship>(
     trigger: Trigger<OnReplace, C>,
+    server: Res<RepliconServer>,
     mut related_entities: ResMut<RelatedEntities>,
     relationships: Query<&C, With<Replicated>>,
 ) {
-    if let Ok(relationship) = relationships.get(trigger.target()) {
-        related_entities.remove_relation::<C>(trigger.target(), relationship.get());
+    if server.is_running() {
+        if let Ok(relationship) = relationships.get(trigger.target()) {
+            related_entities.remove_relation::<C>(trigger.target(), relationship.get());
+        }
     }
 }
 
 fn start_replication<C: Relationship>(
     trigger: Trigger<OnInsert, Replicated>,
+    server: Res<RepliconServer>,
     mut related_entities: ResMut<RelatedEntities>,
     components: Query<&C, With<Replicated>>,
 ) {
-    if let Ok(relationship) = components.get(trigger.target()) {
-        related_entities.add_relation::<C>(trigger.target(), relationship.get());
+    if server.is_running() {
+        if let Ok(relationship) = components.get(trigger.target()) {
+            related_entities.add_relation::<C>(trigger.target(), relationship.get());
+        }
     }
 }
 
 fn stop_replication<C: Relationship>(
     trigger: Trigger<OnReplace, Replicated>,
+    server: Res<RepliconServer>,
     mut related_entities: ResMut<RelatedEntities>,
     relationships: Query<&C, With<Replicated>>,
 ) {
-    if let Ok(relationship) = relationships.get(trigger.target()) {
-        related_entities.remove_relation::<C>(trigger.target(), relationship.get());
+    if server.is_running() {
+        if let Ok(relationship) = relationships.get(trigger.target()) {
+            related_entities.remove_relation::<C>(trigger.target(), relationship.get());
+        }
     }
 }
 
@@ -264,6 +314,10 @@ mod tests {
         let mut app = App::new();
         app.init_resource::<RelatedEntities>()
             .sync_related_entities::<ChildOf>();
+
+        let mut server = RepliconServer::default();
+        server.set_running(true);
+        app.insert_resource(server);
 
         let entity1 = app
             .world_mut()
@@ -287,6 +341,10 @@ mod tests {
         app.init_resource::<RelatedEntities>()
             .sync_related_entities::<ChildOf>();
 
+        let mut server = RepliconServer::default();
+        server.set_running(true);
+        app.insert_resource(server);
+
         let child1 = app.world_mut().spawn(Replicated).id();
         let child2 = app.world_mut().spawn(Replicated).id();
         let root = app
@@ -309,6 +367,10 @@ mod tests {
         app.init_resource::<RelatedEntities>()
             .sync_related_entities::<ChildOf>();
 
+        let mut server = RepliconServer::default();
+        server.set_running(true);
+        app.insert_resource(server);
+
         let child1 = app.world_mut().spawn(Replicated).id();
         let root1 = app.world_mut().spawn(Replicated).add_child(child1).id();
         let child2 = app.world_mut().spawn(Replicated).id();
@@ -329,6 +391,10 @@ mod tests {
         app.init_resource::<RelatedEntities>()
             .sync_related_entities::<ChildOf>();
 
+        let mut server = RepliconServer::default();
+        server.set_running(true);
+        app.insert_resource(server);
+
         let grandchild = app.world_mut().spawn(Replicated).id();
         let child = app.world_mut().spawn(Replicated).add_child(grandchild).id();
         let root = app.world_mut().spawn(Replicated).add_child(child).id();
@@ -346,6 +412,10 @@ mod tests {
         let mut app = App::new();
         app.init_resource::<RelatedEntities>()
             .sync_related_entities::<ChildOf>();
+
+        let mut server = RepliconServer::default();
+        server.set_running(true);
+        app.insert_resource(server);
 
         let grandgrandchild = app.world_mut().spawn(Replicated).id();
         let grandchild = app
@@ -373,6 +443,10 @@ mod tests {
         app.init_resource::<RelatedEntities>()
             .sync_related_entities::<ChildOf>();
 
+        let mut server = RepliconServer::default();
+        server.set_running(true);
+        app.insert_resource(server);
+
         let child1 = app.world_mut().spawn(Replicated).id();
         let root1 = app.world_mut().spawn(Replicated).add_child(child1).id();
         let child2 = app.world_mut().spawn(Replicated).id();
@@ -394,6 +468,10 @@ mod tests {
         let mut app = App::new();
         app.init_resource::<RelatedEntities>()
             .sync_related_entities::<ChildOf>();
+
+        let mut server = RepliconServer::default();
+        server.set_running(true);
+        app.insert_resource(server);
 
         let child1 = app.world_mut().spawn(Replicated).id();
         let root1 = app.world_mut().spawn(Replicated).add_child(child1).id();
@@ -417,6 +495,10 @@ mod tests {
         app.init_resource::<RelatedEntities>()
             .sync_related_entities::<ChildOf>();
 
+        let mut server = RepliconServer::default();
+        server.set_running(true);
+        app.insert_resource(server);
+
         let child = app.world_mut().spawn(Replicated).id();
         let root = app.world_mut().spawn(Replicated).add_child(child).id();
 
@@ -434,6 +516,10 @@ mod tests {
         let mut app = App::new();
         app.init_resource::<RelatedEntities>()
             .sync_related_entities::<ChildOf>();
+
+        let mut server = RepliconServer::default();
+        server.set_running(true);
+        app.insert_resource(server);
 
         let child1 = app.world_mut().spawn(Replicated).id();
         let child2 = app.world_mut().spawn(Replicated).id();
@@ -460,6 +546,10 @@ mod tests {
             .sync_related_entities::<ChildOf>()
             .sync_related_entities::<OwnedBy>();
 
+        let mut server = RepliconServer::default();
+        server.set_running(true);
+        app.insert_resource(server);
+
         let child = app.world_mut().spawn(Replicated).id();
         let root1 = app.world_mut().spawn(Replicated).add_child(child).id();
         let root2 = app
@@ -483,6 +573,10 @@ mod tests {
             .sync_related_entities::<ChildOf>()
             .sync_related_entities::<OwnedBy>();
 
+        let mut server = RepliconServer::default();
+        server.set_running(true);
+        app.insert_resource(server);
+
         let child = app.world_mut().spawn(Replicated).id();
         let root = app
             .world_mut()
@@ -504,6 +598,10 @@ mod tests {
         app.init_resource::<RelatedEntities>()
             .sync_related_entities::<ChildOf>()
             .sync_related_entities::<OwnedBy>();
+
+        let mut server = RepliconServer::default();
+        server.set_running(true);
+        app.insert_resource(server);
 
         let child = app.world_mut().spawn(Replicated).id();
         let root = app
@@ -529,6 +627,10 @@ mod tests {
             .sync_related_entities::<ChildOf>()
             .sync_related_entities::<OwnedBy>();
 
+        let mut server = RepliconServer::default();
+        server.set_running(true);
+        app.insert_resource(server);
+
         let grandchild = app.world_mut().spawn(Replicated).id();
         let child = app.world_mut().spawn(Replicated).add_child(grandchild).id();
         let root = app
@@ -552,6 +654,10 @@ mod tests {
             .sync_related_entities::<ChildOf>()
             .sync_related_entities::<OwnedBy>();
 
+        let mut server = RepliconServer::default();
+        server.set_running(true);
+        app.insert_resource(server);
+
         let child = app.world_mut().spawn_empty().id();
         let root = app.world_mut().spawn_empty().add_child(child).id();
 
@@ -572,6 +678,10 @@ mod tests {
             .sync_related_entities::<ChildOf>()
             .sync_related_entities::<OwnedBy>();
 
+        let mut server = RepliconServer::default();
+        server.set_running(true);
+        app.insert_resource(server);
+
         let child = app.world_mut().spawn(Replicated).id();
         let root = app
             .world_mut()
@@ -587,6 +697,42 @@ mod tests {
         assert_eq!(related.graphs_count(), 0);
         assert_eq!(related.graph_index(root), None);
         assert_eq!(related.graph_index(child), None);
+    }
+
+    #[test]
+    fn runs_only_with_server() {
+        let mut app = App::new();
+        app.init_resource::<RelatedEntities>()
+            .init_resource::<RepliconServer>()
+            .sync_related_entities::<ChildOf>();
+
+        let child1 = app.world_mut().spawn(Replicated).id();
+        let child2 = app.world_mut().spawn(Replicated).id();
+        let root = app
+            .world_mut()
+            .spawn(Replicated)
+            .add_children(&[child1, child2])
+            .id();
+
+        let mut related = app.world_mut().resource_mut::<RelatedEntities>();
+        related.rebuild_graphs();
+        assert_eq!(related.graphs_count(), 0);
+        assert_eq!(related.graph_index(root), None);
+        assert_eq!(related.graph_index(child1), None);
+        assert_eq!(related.graph_index(child2), None);
+
+        app.world_mut()
+            .resource_mut::<RepliconServer>()
+            .set_running(true);
+
+        app.update();
+
+        let mut related = app.world_mut().resource_mut::<RelatedEntities>();
+        related.rebuild_graphs();
+        assert_eq!(related.graphs_count(), 1);
+        assert_eq!(related.graph_index(root), Some(0));
+        assert_eq!(related.graph_index(child1), Some(0));
+        assert_eq!(related.graph_index(child2), Some(0));
     }
 
     #[derive(Component)]

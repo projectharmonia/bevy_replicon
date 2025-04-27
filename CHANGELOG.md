@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support for `no_std`.
 - Relationships networking. Use `SyncRelatedAppExt::sync_related_entities<C>` to ensure that entities related by `C` are replicated in sync.
 - Seamless support for immutable components. For these components, replication is always applied via insertion.
+- `server_just_started` run condition.
 
 ### Changed
 
