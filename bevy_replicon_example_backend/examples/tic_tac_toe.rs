@@ -46,7 +46,7 @@ fn main() {
         .add_observer(apply_pick)
         .add_observer(init_symbols)
         .add_observer(advance_turn)
-        .add_systems(Startup, (setup_ui, read_cli.map(Result::unwrap)))
+        .add_systems(Startup, (setup_ui, read_cli))
         .add_systems(
             OnEnter(GameState::InGame),
             (show_turn_text, show_turn_symbol),

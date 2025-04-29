@@ -126,9 +126,7 @@ impl Plugin for ServerPlugin {
                 (
                     (
                         buffer_removals,
-                        send_replication
-                            .map(Result::unwrap)
-                            .run_if(resource_changed::<ServerTick>),
+                        send_replication.run_if(resource_changed::<ServerTick>),
                     )
                         .chain()
                         .in_set(ServerSet::Send)
