@@ -32,7 +32,7 @@ fn main() {
         .add_observer(spawn_clients)
         .add_observer(despawn_clients)
         .add_observer(apply_movement)
-        .add_systems(Startup, (read_cli.map(Result::unwrap), spawn_camera))
+        .add_systems(Startup, (read_cli, spawn_camera))
         .add_systems(Update, (read_input, draw_boxes))
         .run();
 }

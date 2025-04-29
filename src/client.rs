@@ -68,7 +68,6 @@ impl Plugin for ClientPlugin {
             .add_systems(
                 PreUpdate,
                 receive_replication
-                    .map(Result::unwrap)
                     .in_set(ClientSet::Receive)
                     .run_if(client_connected),
             )

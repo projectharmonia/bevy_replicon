@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.33.0] - 2025-04-27
 
+### Changed
+
+- Don't unwrap systems.
+
 ### Added
 
 - Support for `no_std`.
