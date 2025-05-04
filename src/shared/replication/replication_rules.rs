@@ -1,7 +1,7 @@
 use core::cmp::Reverse;
 
 use bevy::{
-    ecs::{archetype::Archetype, component::ComponentId, entity::MapEntities},
+    ecs::{archetype::Archetype, component::ComponentId},
     platform::collections::HashSet,
     prelude::*,
 };
@@ -28,14 +28,6 @@ pub trait AppRuleExt {
         C: Component<Mutability: MutWrite<C>> + Serialize + DeserializeOwned,
     {
         self.replicate_with::<C>(RuleFns::default())
-    }
-
-    #[deprecated(note = "no longer needed, just use `replicate` instead")]
-    fn replicate_mapped<C>(&mut self) -> &mut Self
-    where
-        C: Component<Mutability: MutWrite<C>> + Serialize + DeserializeOwned + MapEntities,
-    {
-        self.replicate::<C>()
     }
 
     /**
