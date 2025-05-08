@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Rules created with the same priority now evaluated in their creation order.
+
 ### Removed
 
 - Deprecated methods.

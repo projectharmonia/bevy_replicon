@@ -376,11 +376,18 @@ pub struct ReplicationRules(Vec<ReplicationRule>);
 impl ReplicationRules {
     /// Inserts a new rule, maintaining sorting by their priority in descending order.
     fn insert(&mut self, rule: ReplicationRule) {
-        let index = self
-            .binary_search_by_key(&Reverse(rule.priority), |rule| Reverse(rule.priority))
-            .unwrap_or_else(|index| index);
-
-        self.0.insert(index, rule);
+        match self.binary_search_by_key(&Reverse(rule.priority), |rule| Reverse(rule.priority)) {
+            Ok(index) => {
+                // Insert last to preserve entry creation order.
+                let last_priority_index = self
+                    .iter()
+                    .skip(index + 1)
+                    .position(|other| other.priority != rule.priority)
+                    .unwrap_or_default();
+                self.0.insert(index + last_priority_index + 1, rule);
+            }
+            Err(index) => self.0.insert(index, rule),
+        }
     }
 }
 
