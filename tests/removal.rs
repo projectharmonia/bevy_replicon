@@ -5,7 +5,7 @@ use bevy_replicon::{
     server::server_tick::ServerTick,
     shared::replication::{
         deferred_entity::DeferredEntity,
-        replication_registry::{command_fns, ctx::WriteCtx, rule_fns::RuleFns},
+        replication_registry::{command_fns, ctx::WriteCtx},
     },
     test_app::{ServerTestAppExt, TestClientEntity},
 };
@@ -163,7 +163,7 @@ fn group() {
                 ..Default::default()
             }),
         ))
-        .replicate_group::<(GroupComponentA, GroupComponentB)>();
+        .replicate_bundle::<(GroupComponentA, GroupComponentB)>();
     }
 
     server_app.connect_client(&mut client_app);

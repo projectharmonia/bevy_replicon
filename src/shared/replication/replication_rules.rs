@@ -10,34 +10,131 @@ use serde::{Serialize, de::DeserializeOwned};
 use super::replication_registry::{
     FnsId, ReplicationRegistry, command_fns::MutWrite, rule_fns::RuleFns,
 };
+use crate::shared::replicon_tick::RepliconTick;
 
 /// Replication functions for [`App`].
 pub trait AppRuleExt {
-    /// Creates a replication rule for a single component.
+    /// Defines a [`ReplicationRule`] for a single component.
     ///
-    /// The component will be replicated if its entity contains the [`Replicated`](super::Replicated)
-    /// marker component.
+    /// If present on an entity with [`Replicated`](super::Replicated) component,
+    /// it will be serialized and deserialized as-is using [`postcard`]
+    /// and sent at [`SendRate::EveryTick`]. To customize this, use [`Self::replicate_with`].
     ///
-    /// Component will be serialized and deserialized as-is using postcard.
-    /// To customize it, use [`Self::replicate_group`].
-    ///
-    /// See also [`Self::replicate_with`] and the section on [`components`](../../index.html#components)
-    /// from the quick start guide.
+    /// See also the section on [`components`](../../index.html#components) from the quick start guide.
     fn replicate<C>(&mut self) -> &mut Self
     where
         C: Component<Mutability: MutWrite<C>> + Serialize + DeserializeOwned,
     {
-        self.replicate_with::<C>(RuleFns::default())
+        self.replicate_with(RuleFns::<C>::default())
+    }
+
+    /// Sames as [`Self::replicate`], but uses [`SendRate::Once`].
+    fn replicate_once<C>(&mut self) -> &mut Self
+    where
+        C: Component<Mutability: MutWrite<C>> + Serialize + DeserializeOwned,
+    {
+        self.replicate_with((RuleFns::<C>::default(), SendRate::Once))
+    }
+
+    /// Sames as [`Self::replicate`], but uses [`SendRate::Periodic`] with the given period.
+    fn replicate_periodic<C>(&mut self, period: u32) -> &mut Self
+    where
+        C: Component<Mutability: MutWrite<C>> + Serialize + DeserializeOwned,
+    {
+        self.replicate_with((RuleFns::<C>::default(), SendRate::Periodic(period)))
     }
 
     /**
-    Same as [`Self::replicate`], but uses the specified functions for serialization and deserialization.
+    Defines a [`ReplicationRule`] for a bundle.
 
-    Can be used to customize how the component will be passed over the network or
+    Implemented for tuples of components. Use it to conveniently create a rule with
+    default ser/de functions and [`SendRate::EveryTick`] for all components.
+    To customize this, use [`Self::replicate_with`].
+
+    Can also be implemented manually for user-defined bundles.
+
+    # Examples
+
+    ```
+    use bevy::prelude::*;
+    use bevy_replicon::{
+        bytes::Bytes,
+        shared::replication::{
+            replication_registry::{
+                ctx::{SerializeCtx, WriteCtx},
+                ReplicationRegistry,
+            },
+            replication_rules::{ReplicationBundle, ReplicationRule, ComponentRule},
+        },
+        prelude::*,
+    };
+    use serde::{Deserialize, Serialize};
+
+    # let mut app = App::new();
+    # app.add_plugins(RepliconPlugins);
+    app.replicate_bundle::<(Name, City)>() // Tuple of components is also a bundle!
+        .replicate_bundle::<PlayerBundle>();
+
+    #[derive(Component, Deserialize, Serialize)]
+    struct City;
+
+    #[derive(Bundle)]
+    struct PlayerBundle {
+        transform: Transform,
+        player: Player,
+        replicated: Replicated,
+    }
+
+    #[derive(Component, Deserialize, Serialize)]
+    struct Player;
+
+    impl ReplicationBundle for PlayerBundle {
+        fn register(world: &mut World, registry: &mut ReplicationRegistry) -> ReplicationRule {
+            // Customize serlialization to serialize only `translation`.
+            let (transform_id, transform_fns_id) = registry.register_rule_fns(
+                world,
+                RuleFns::new(serialize_translation, deserialize_translation),
+            );
+            let transform_rule = ComponentRule::new(transform_id, transform_fns_id);
+
+            // Serialize `player` as usual.
+            let (player_id, player_fns_id) = registry.register_rule_fns(world, RuleFns::<Player>::default());
+            let player_rule = ComponentRule::new(player_id, player_fns_id);
+
+            // We skip `replication` registration since it's a special component.
+            // It's automatically inserted on clients after replication and
+            // deserialization from scenes.
+
+            ReplicationRule::new(vec![transform_rule, player_rule])
+        }
+    }
+
+    # fn serialize_translation(_: &SerializeCtx, _: &Transform, _: &mut Vec<u8>) -> Result<()> { unimplemented!() }
+    # fn deserialize_translation(_: &mut WriteCtx, _: &mut Bytes) -> Result<Transform> { unimplemented!() }
+    ```
+    **/
+    fn replicate_bundle<B: ReplicationBundle>(&mut self) -> &mut Self;
+
+    /**
+    Defines a customizable [`ReplicationRule`].
+
+    Can be used to customize how a component is passed over the network, or
     for components that don't implement [`Serialize`] or [`DeserializeOwned`].
 
-    You can also override how the component will be written,
-    see [`AppMarkerExt`](super::command_markers::AppMarkerExt).
+    You can also pass a tuple of [`RuleFns`] to define a rule for multiple components.
+    These components will only be replicated if all of them are present on the entity.
+    To assign a [`SendRate`] to a component, wrap its [`RuleFns`] in a tuple with the
+    desired rate.
+
+    If an entity matches multiple rules, the functions from the rule with higher priority
+    will take precedence for overlapping components. For example, a rule for `Health`
+    and a `Player` marker will take precedence over a rule for `Health` alone. This can
+    be used to specialize serialization for a specific set of components.
+
+    If you remove a single component from such a rule from an entity, only one
+    removal will be sent to clients. The other components in the rule will remain
+    present on both the server and the clients. Replication for them will be stopped,
+    unless they match another rule.
 
     <div class="warning">
 
@@ -46,11 +143,14 @@ pub trait AppRuleExt {
 
     </div>
 
-    See also [`postcard_utils`](crate::shared::postcard_utils).
+    You can also override how the component will be written,
+    see [`AppMarkerExt`](super::command_markers::AppMarkerExt).
+
+    See also [`postcard_utils`](crate::shared::postcard_utils) for serialization helpers.
 
     # Examples
 
-    Ser/de only specific field:
+    Pass [`RuleFns`] to ser/de only specific field:
 
     ```
     use bevy::prelude::*;
@@ -60,7 +160,7 @@ pub trait AppRuleExt {
             postcard_utils,
             replication::replication_registry::{
                 ctx::{SerializeCtx, WriteCtx},
-                rule_fns::{RuleFns, DeserializeFn},
+                rule_fns::DeserializeFn,
             },
         },
         prelude::*,
@@ -108,6 +208,37 @@ pub trait AppRuleExt {
         component.translation = transform.translation;
         Ok(())
     }
+    ```
+
+    A rule with multiple components:
+
+    ```
+    use bevy::prelude::*;
+    use bevy_replicon::prelude::*;
+    use serde::{Deserialize, Serialize};
+
+    # let mut app = App::new();
+    # app.add_plugins(RepliconPlugins);
+    app.replicate_with((
+        // You can also use `replicate_bundle` if you don't want
+        // to tweak functions or send rate.
+        RuleFns::<Player>::default(),
+        RuleFns::<Position>::default(),
+    ))
+    .replicate_with((
+        RuleFns::<MovingPlatform>::default(),
+        // Send position only once.
+        (RuleFns::<Position>::default(), SendRate::Once),
+    ));
+
+    #[derive(Component, Deserialize, Serialize)]
+    struct Player;
+
+    #[derive(Component, Deserialize, Serialize)]
+    struct MovingPlatform;
+
+    #[derive(Component, Deserialize, Serialize)]
+    struct Position(Vec2);
     ```
 
     Ser/de with compression:
@@ -285,66 +416,29 @@ pub trait AppRuleExt {
     #[derive(Component)]
     struct ReflectedComponent(Box<dyn PartialReflect>);
     ```
-    */
-    fn replicate_with<C>(&mut self, rule_fns: RuleFns<C>) -> &mut Self
-    where
-        C: Component<Mutability: MutWrite<C>>;
-
-    /**
-    Creates a replication rule for a group of components.
-
-    A group will only be replicated if all its components are present on the entity.
-
-    If a group contains a single component, it will work the same as [`Self::replicate`].
-
-    If an entity matches multiple groups, functions from a group with higher priority
-    will take precedence for overlapping components. For example, a rule with `Health`
-    and a `Player` marker will take precedence over a single `Health` rule.
-
-    If you remove a single component from a group, only a single removal will be sent to clients.
-    Other group components will continue to be present on both server and clients.
-    Replication for them will be stopped, unless they match other rules.
-
-    We provide blanket impls for tuples to replicate them as-is, but a user could manually implement the trait
-    to customize how components will be serialized and deserialized. For details see [`GroupReplication`].
-
-    # Panics
-
-    Panics if `debug_assertions` are enabled and any rule is a subset of another.
-
-    # Examples
-
-    Replicate `Health` and `Player` components only if both of them are present on an entity:
-
-    ```
-    use bevy::prelude::*;
-    use bevy_replicon::prelude::*;
-    use serde::{Deserialize, Serialize};
-
-    # let mut app = App::new();
-    # app.add_plugins(RepliconPlugins);
-    app.replicate_group::<(Player, Health)>();
-
-    #[derive(Component, Deserialize, Serialize)]
-    struct Player;
-
-    #[derive(Component, Deserialize, Serialize)]
-    struct Health(u32);
-    ```
     **/
-    fn replicate_group<C: GroupReplication>(&mut self) -> &mut Self;
+    fn replicate_with<R: IntoReplicationRule>(&mut self, rule: R) -> &mut Self {
+        self.replicate_with_priority(R::DEFAULT_PRIORITY, rule)
+    }
+
+    /// Same as [`Self::replicate_with`], but uses the specified priority instead of the default one.
+    fn replicate_with_priority<R: IntoReplicationRule>(
+        &mut self,
+        priority: usize,
+        rule: R,
+    ) -> &mut Self;
 }
 
 impl AppRuleExt for App {
-    fn replicate_with<C>(&mut self, rule_fns: RuleFns<C>) -> &mut Self
-    where
-        C: Component<Mutability: MutWrite<C>>,
-    {
+    fn replicate_with_priority<R: IntoReplicationRule>(
+        &mut self,
+        priority: usize,
+        rule: R,
+    ) -> &mut Self {
         let rule =
             self.world_mut()
                 .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
-                    let fns_info = registry.register_rule_fns(world, rule_fns);
-                    ReplicationRule::new(vec![fns_info])
+                    rule.register(priority, world, &mut registry)
                 });
 
         self.world_mut()
@@ -354,11 +448,11 @@ impl AppRuleExt for App {
         self
     }
 
-    fn replicate_group<C: GroupReplication>(&mut self) -> &mut Self {
+    fn replicate_bundle<B: ReplicationBundle>(&mut self) -> &mut Self {
         let rule =
             self.world_mut()
                 .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
-                    C::register(world, &mut registry)
+                    B::register(world, &mut registry)
                 });
 
         self.world_mut()
@@ -368,6 +462,144 @@ impl AppRuleExt for App {
         self
     }
 }
+
+/// Parameters that can be turned into a replication rule.
+///
+/// Implemented for tuples of [`IntoComponentRule`].
+///
+/// See [`AppRuleExt::replicate_with`] for more details.
+pub trait IntoReplicationRule {
+    /// Priority when registered with [`AppRuleExt::replicate_with`].
+    ///
+    /// Equals to the number of component in a rule.
+    const DEFAULT_PRIORITY: usize;
+
+    /// Turns into a replication rule and registers its functions in [`ReplicationRegistry`].
+    fn register(
+        self,
+        priority: usize,
+        world: &mut World,
+        registry: &mut ReplicationRegistry,
+    ) -> ReplicationRule;
+}
+
+impl<C: IntoComponentRule> IntoReplicationRule for C {
+    const DEFAULT_PRIORITY: usize = 1;
+
+    fn register(
+        self,
+        priority: usize,
+        world: &mut World,
+        registry: &mut ReplicationRegistry,
+    ) -> ReplicationRule {
+        ReplicationRule {
+            priority,
+            components: vec![self.register_component(world, registry)],
+        }
+    }
+}
+
+macro_rules! impl_into_replication_rule {
+    ($(($n:tt, $C:ident)),*) => {
+        impl<$($C: IntoComponentRule),*> IntoReplicationRule for ($($C,)*) {
+            const DEFAULT_PRIORITY: usize = 0 $(+ { let _ = $n; 1 })*;
+
+            fn register(self, priority: usize, world: &mut World, registry: &mut ReplicationRegistry) -> ReplicationRule {
+                let components = vec![
+                    $(
+                        self.$n.register_component(world, registry),
+                    )*
+                ];
+
+                ReplicationRule {
+                    priority,
+                    components,
+                }
+            }
+        }
+    }
+}
+
+variadics_please::all_tuples_enumerated!(impl_into_replication_rule, 1, 15, R);
+
+/// Parameters for that can be turned into a component replication rule.
+///
+/// Used for [`IntoReplicationRule`] to accept either [`RuleFns`] or a tuple combining
+/// [`RuleFns`] with an associated [`SendRate`].
+///
+/// See [`AppRuleExt::replicate_with`] for more details.
+pub trait IntoComponentRule {
+    /// Turns into a component replication rule and registers its functions in [`ReplicationRegistry`].
+    fn register_component(
+        self,
+        world: &mut World,
+        registry: &mut ReplicationRegistry,
+    ) -> ComponentRule;
+}
+
+impl<C: Component<Mutability: MutWrite<C>>> IntoComponentRule for RuleFns<C> {
+    fn register_component(
+        self,
+        world: &mut World,
+        registry: &mut ReplicationRegistry,
+    ) -> ComponentRule {
+        let (id, fns_id) = registry.register_rule_fns(world, self);
+        ComponentRule {
+            id,
+            fns_id,
+            send_rate: Default::default(),
+        }
+    }
+}
+
+impl<C: Component<Mutability: MutWrite<C>>> IntoComponentRule for (RuleFns<C>, SendRate) {
+    fn register_component(
+        self,
+        world: &mut World,
+        registry: &mut ReplicationRegistry,
+    ) -> ComponentRule {
+        let (rule_fns, send_rate) = self;
+        let (id, fns_id) = registry.register_rule_fns(world, rule_fns);
+        ComponentRule {
+            id,
+            fns_id,
+            send_rate,
+        }
+    }
+}
+
+/// Replication rule associated with a bundle.
+///
+/// See [`AppRuleExt::replicate_bundle`] for more details.
+pub trait ReplicationBundle {
+    /// Creates the associated replication rules and registers its functions in [`ReplicationRegistry`].
+    fn register(world: &mut World, registry: &mut ReplicationRegistry) -> ReplicationRule;
+}
+
+macro_rules! impl_replication_bundle {
+    ($($C:ident),*) => {
+        impl<$($C: Component<Mutability: MutWrite<$C>> + Serialize + DeserializeOwned),*> ReplicationBundle for ($($C,)*) {
+            fn register(world: &mut World, registry: &mut ReplicationRegistry) -> ReplicationRule {
+                let components = vec![
+                    $(
+                        {
+                            let (id, fns_id) = registry.register_rule_fns(world, RuleFns::<$C>::default());
+                            ComponentRule {
+                                id,
+                                fns_id,
+                                send_rate: Default::default(),
+                            }
+                        },
+                    )*
+                ];
+
+                ReplicationRule::new(components)
+            }
+        }
+    }
+}
+
+variadics_please::all_tuples!(impl_replication_bundle, 1, 15, C);
 
 /// All registered rules for components replication.
 #[derive(Default, Deref, Resource, Clone)]
@@ -391,8 +623,8 @@ impl ReplicationRules {
     }
 }
 
-/// Describes a replicated component or a group of components.
-#[derive(Clone)]
+/// Describes how component(s) will be replicated.
+#[derive(Clone, Debug)]
 pub struct ReplicationRule {
     /// Priority for this rule.
     ///
@@ -400,13 +632,13 @@ pub struct ReplicationRule {
     /// but can be adjusted by the user.
     pub priority: usize,
 
-    /// Rule components and their serialization/deserialization/removal functions.
-    pub components: Vec<(ComponentId, FnsId)>,
+    /// Components for the rule.
+    pub components: Vec<ComponentRule>,
 }
 
 impl ReplicationRule {
     /// Creates a new rule with priority equal to the number of serializable components.
-    pub fn new(components: Vec<(ComponentId, FnsId)>) -> Self {
+    pub fn new(components: Vec<ComponentRule>) -> Self {
         Self {
             priority: components.len(),
             components,
@@ -417,7 +649,7 @@ impl ReplicationRule {
     pub(crate) fn matches(&self, archetype: &Archetype) -> bool {
         self.components
             .iter()
-            .all(|&(component_id, _)| archetype.contains(component_id))
+            .all(|component| archetype.contains(component.id))
     }
 
     /// Determines whether the rule is applicable to an archetype with removals included and contains at least one removal.
@@ -432,10 +664,10 @@ impl ReplicationRule {
         removed_components: &HashSet<ComponentId>,
     ) -> bool {
         let mut matches = false;
-        for &(component_id, _) in &self.components {
-            if removed_components.contains(&component_id) {
+        for component in &self.components {
+            if removed_components.contains(&component.id) {
                 matches = true;
-            } else if !post_removal_archetype.contains(component_id) {
+            } else if !post_removal_archetype.contains(component.id) {
                 return false;
             }
         }
@@ -444,88 +676,67 @@ impl ReplicationRule {
     }
 }
 
-/**
-Describes how a component group should be serialized, deserialized, written, and removed.
-
-Can be implemented on any struct to create a custom replication group.
-
-# Examples
-
-```
-# use bevy::prelude::*;
-# use bevy_replicon::{
-#     bytes::Bytes,
-#     shared::replication::{
-#         replication_registry::{
-#             ctx::{SerializeCtx, WriteCtx},
-#             rule_fns::RuleFns,
-#             ReplicationRegistry,
-#         },
-#         replication_rules::{GroupReplication, ReplicationRule},
-#     },
-#     prelude::*,
-# };
-# use serde::{Deserialize, Serialize};
-# let mut app = App::new();
-# app.add_plugins(RepliconPlugins);
-app.replicate_group::<PlayerBundle>();
-
-#[derive(Bundle)]
-struct PlayerBundle {
-    transform: Transform,
-    player: Player,
-    replicated: Replicated,
+/// Component for [`ReplicationRule`].
+#[derive(Clone, Copy, Debug)]
+pub struct ComponentRule {
+    /// ID of the replicated component.
+    pub id: ComponentId,
+    /// Associated serialization and deserialization functions.
+    pub fns_id: FnsId,
+    /// Sendi rate configuration.
+    pub send_rate: SendRate,
 }
 
-#[derive(Component, Deserialize, Serialize)]
-struct Player;
-
-impl GroupReplication for PlayerBundle {
-    fn register(world: &mut World, registry: &mut ReplicationRegistry) -> ReplicationRule {
-        // Customize serlialization to serialize only `translation`.
-        let transform_info = registry.register_rule_fns(
-            world,
-            RuleFns::new(serialize_translation, deserialize_translation),
-        );
-
-        // Serialize `player` as usual.
-        let player_info = registry.register_rule_fns(world, RuleFns::<Player>::default());
-
-        // We skip `replication` registration since it's a special component.
-        // It's automatically inserted on clients after replication and
-        // deserialization from scenes.
-
-        ReplicationRule::new(vec![transform_info, player_info])
-    }
-}
-
-# fn serialize_translation(_: &SerializeCtx, _: &Transform, _: &mut Vec<u8>) -> Result<()> { unimplemented!() }
-# fn deserialize_translation(_: &mut WriteCtx, _: &mut Bytes) -> Result<Transform> { unimplemented!() }
-```
-**/
-pub trait GroupReplication {
-    /// Creates the associated replication rules and registers its functions in [`ReplicationRegistry`].
-    fn register(world: &mut World, registry: &mut ReplicationRegistry) -> ReplicationRule;
-}
-
-macro_rules! impl_registrations {
-    ($($type:ident),*) => {
-        impl<$($type: Component<Mutability: MutWrite<$type>> + Serialize + DeserializeOwned),*> GroupReplication for ($($type,)*) {
-            fn register(world: &mut World, registry: &mut ReplicationRegistry) -> ReplicationRule {
-                // TODO: initialize with capacity after stabilization: https://github.com/rust-lang/rust/pull/122808
-                let mut components = Vec::new();
-                $(
-                    let fns_info = registry.register_rule_fns(world, RuleFns::<$type>::default());
-                    components.push(fns_info);
-                )*
-
-                ReplicationRule::new(components)
-            }
+impl ComponentRule {
+    /// Creates a new instance with the default send rate.
+    pub fn new(id: ComponentId, fns_id: FnsId) -> Self {
+        Self {
+            id,
+            fns_id,
+            send_rate: Default::default(),
         }
     }
 }
 
-variadics_please::all_tuples!(impl_registrations, 1, 15, B);
+/// Describes how often component changes should be replicated.
+///
+/// Used inside [`ComponentRule`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SendRate {
+    /// Replicate any change every tick.
+    ///
+    /// If multiple changes occur in the same tick,
+    /// only the latest value will be replicated.
+    #[default]
+    EveryTick,
+
+    /// Replicates only the initial value and removal.
+    ///
+    /// Component mutations won't be sent.
+    Once,
+
+    /// Replicate mutations at a specified interval.
+    ///
+    /// If multiple mutations occur within the interval,
+    /// only the latest value at the time of sending will
+    /// be replicated.
+    ///
+    /// Does not affect initial values or removals.
+    ///
+    /// For example, with a period of 2, any mutation
+    /// will be replicated every second tick.
+    Periodic(u32),
+}
+
+impl SendRate {
+    pub fn send_mutations(self, tick: RepliconTick) -> bool {
+        match self {
+            SendRate::EveryTick => true,
+            SendRate::Once => false,
+            SendRate::Periodic(period) => tick.get() % period == 0,
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -535,20 +746,77 @@ mod tests {
     use crate::AppRuleExt;
 
     #[test]
-    fn sorting() {
+    fn registration() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .replicate::<ComponentA>()
-            .replicate::<ComponentB>()
-            .replicate_group::<(ComponentA, ComponentB)>()
-            .replicate_group::<(ComponentB, ComponentC)>()
-            .replicate::<ComponentC>()
-            .replicate::<ComponentD>();
+            .replicate_with((
+                RuleFns::<ComponentA>::default(),
+                RuleFns::<ComponentB>::default(),
+            ))
+            .replicate_once::<ComponentB>()
+            .replicate_with((
+                (RuleFns::<ComponentB>::default(), SendRate::Once),
+                (RuleFns::<ComponentC>::default(), SendRate::Periodic(2)),
+            ))
+            .replicate_periodic::<ComponentC>(1)
+            .replicate_with_priority(
+                4,
+                (
+                    RuleFns::<ComponentC>::default(),
+                    RuleFns::<ComponentD>::default(),
+                ),
+            )
+            .replicate_with((RuleFns::<ComponentD>::default(), SendRate::Once))
+            .replicate_bundle::<(ComponentA, ComponentB)>();
 
-        let replication_rules = app.world().resource::<ReplicationRules>();
-        let priorities: Vec<_> = replication_rules.iter().map(|rule| rule.priority).collect();
-        assert_eq!(priorities, [2, 2, 1, 1, 1, 1]);
+        let a = app.world().component_id::<ComponentA>().unwrap();
+        let b = app.world().component_id::<ComponentB>().unwrap();
+        let c = app.world().component_id::<ComponentC>().unwrap();
+        let d = app.world().component_id::<ComponentD>().unwrap();
+
+        let rules = &**app.world().resource::<ReplicationRules>();
+
+        assert_eq!(rules[0].priority, 4);
+        assert_eq!(rules[0].components[0].id, c);
+        assert_eq!(rules[0].components[0].send_rate, SendRate::EveryTick);
+        assert_eq!(rules[0].components[1].id, d);
+        assert_eq!(rules[0].components[1].send_rate, SendRate::EveryTick);
+
+        assert_eq!(rules[1].priority, 2);
+        assert_eq!(rules[1].components[0].id, a);
+        assert_eq!(rules[1].components[0].send_rate, SendRate::EveryTick);
+        assert_eq!(rules[1].components[1].id, b);
+        assert_eq!(rules[1].components[1].send_rate, SendRate::EveryTick);
+
+        assert_eq!(rules[2].priority, 2);
+        assert_eq!(rules[2].components[0].id, b);
+        assert_eq!(rules[2].components[0].send_rate, SendRate::Once);
+        assert_eq!(rules[2].components[1].id, c);
+        assert_eq!(rules[2].components[1].send_rate, SendRate::Periodic(2));
+
+        assert_eq!(rules[3].priority, 2);
+        assert_eq!(rules[3].components[0].id, a);
+        assert_eq!(rules[3].components[0].send_rate, SendRate::EveryTick);
+        assert_eq!(rules[3].components[1].id, b);
+        assert_eq!(rules[3].components[1].send_rate, SendRate::EveryTick);
+
+        assert_eq!(rules[4].priority, 1);
+        assert_eq!(rules[4].components[0].id, a);
+        assert_eq!(rules[4].components[0].send_rate, SendRate::EveryTick);
+
+        assert_eq!(rules[5].priority, 1);
+        assert_eq!(rules[5].components[0].id, b);
+        assert_eq!(rules[5].components[0].send_rate, SendRate::Once);
+
+        assert_eq!(rules[6].priority, 1);
+        assert_eq!(rules[6].components[0].id, c);
+        assert_eq!(rules[6].components[0].send_rate, SendRate::Periodic(1));
+
+        assert_eq!(rules[7].priority, 1);
+        assert_eq!(rules[7].components[0].id, d);
+        assert_eq!(rules[7].components[0].send_rate, SendRate::Once);
     }
 
     #[derive(Serialize, Deserialize, Component)]
