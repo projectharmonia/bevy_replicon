@@ -560,6 +560,7 @@ A tick for an entity is confirmed if one of the following is true:
 - [`ConfirmHistory`](client::confirm_history::ConfirmHistory) is greater than the tick.
 - [`ServerMutateTicks`](client::server_mutate_ticks::ServerMutateTicks) reports that for at least one of the next ticks, all update
   messages have been received.
+- [`SendRate::send_mutations`] returns `false` for all replicated components on the entity for every tick prior to the current one.
 
 # Eventual consistency
 
