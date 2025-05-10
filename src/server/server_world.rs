@@ -13,7 +13,8 @@ use bevy::{
 use log::{debug, trace};
 
 use crate::shared::replication::{
-    Replicated, replication_registry::FnsId, replication_rules::ReplicationRules,
+    Replicated,
+    replication_rules::{ComponentRule, ReplicationRules},
 };
 
 /// A [`SystemParam`] that wraps [`World`], but provides access only for replicated components.
@@ -35,13 +36,13 @@ impl<'w> ServerWorld<'w, '_> {
         &self,
         entity: &ArchetypeEntity,
         table_id: TableId,
-        storage_type: StorageType,
+        storage: StorageType,
         component_id: ComponentId,
     ) -> (Ptr<'w>, ComponentTicks) {
         debug_assert!(self.state.access.has_component_read(component_id));
 
         let storages = unsafe { self.world.storages() };
-        match storage_type {
+        match storage {
             StorageType::Table => unsafe {
                 let table = storages.tables.get(table_id).unwrap_unchecked();
                 // TODO: re-use column lookup, asked in https://github.com/bevyengine/bevy/issues/16593.
@@ -101,12 +102,12 @@ unsafe impl SystemParam for ServerWorld<'_, '_> {
         debug!("initializing with {} replication rules", rules.len());
         let combined_access = system_meta.component_access_set().combined_access();
         for rule in rules.iter() {
-            for &(component_id, _) in &rule.components {
-                filtered_access.add_component_read(component_id);
+            for component in &rule.components {
+                filtered_access.add_component_read(component.id);
                 assert!(
-                    !combined_access.has_component_write(component_id),
+                    !combined_access.has_component_write(component.id),
                     "replicated component `{}` in system `{}` shouldn't be in conflict with other system parameters",
-                    world.components().get_name(component_id).unwrap(),
+                    world.components().get_name(component.id).unwrap(),
                     system_meta.name(),
                 );
             }
@@ -140,34 +141,30 @@ unsafe impl SystemParam for ServerWorld<'_, '_> {
         trace!("marking `{:?}` as replicated", archetype.id());
         let mut replicated_archetype = ReplicatedArchetype::new(archetype.id());
         for rule in state.rules.iter().filter(|rule| rule.matches(archetype)) {
-            for &(component_id, fns_id) in &rule.components {
+            for &component in &rule.components {
                 // Since rules are sorted by priority,
                 // we are inserting only new components that aren't present.
                 if replicated_archetype
                     .components
                     .iter()
-                    .any(|component| component.component_id == component_id)
+                    .any(|(existing, _)| existing.id == component.id)
                 {
                     continue;
                 }
 
                 // SAFETY: archetype matches the rule, so the component is present.
-                let storage_type =
-                    unsafe { archetype.get_storage_type(component_id).unwrap_unchecked() };
-                replicated_archetype.components.push(ReplicatedComponent {
-                    component_id,
-                    storage_type,
-                    fns_id,
-                });
+                let storage =
+                    unsafe { archetype.get_storage_type(component.id).unwrap_unchecked() };
+                replicated_archetype.components.push((component, storage));
             }
         }
 
         // Update system access for proper parallelization.
-        for component in &replicated_archetype.components {
+        for (component, _) in &replicated_archetype.components {
             // SAFETY: archetype contains this component and we don't remove access from system meta.
             unsafe {
                 let archetype_id = archetype
-                    .get_archetype_component_id(component.component_id)
+                    .get_archetype_component_id(component.id)
                     .unwrap_unchecked();
                 system_meta
                     .archetype_component_access_mut()
@@ -212,7 +209,7 @@ pub(crate) struct ReplicatedArchetype {
     pub(super) id: ArchetypeId,
 
     /// Components marked as replicated.
-    pub(super) components: Vec<ReplicatedComponent>,
+    pub(super) components: Vec<(ComponentRule, StorageType)>,
 }
 
 impl ReplicatedArchetype {
@@ -222,13 +219,6 @@ impl ReplicatedArchetype {
             components: Default::default(),
         }
     }
-}
-
-/// Stores information about a replicated component.
-pub(super) struct ReplicatedComponent {
-    component_id: ComponentId,
-    pub(super) storage_type: StorageType,
-    pub(super) fns_id: FnsId,
 }
 
 #[cfg(test)]
@@ -354,7 +344,7 @@ mod tests {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
-            .replicate_group::<(ComponentA, ComponentB)>()
+            .replicate_bundle::<(ComponentA, ComponentB)>()
             .add_systems(Update, |world: ServerWorld| {
                 assert_eq!(world.state.archetypes.len(), 1);
                 let archetype = world.state.archetypes.first().unwrap();
@@ -370,7 +360,7 @@ mod tests {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
-            .replicate_group::<(ComponentA, ComponentB)>()
+            .replicate_bundle::<(ComponentA, ComponentB)>()
             .add_systems(Update, |world: ServerWorld| {
                 assert_eq!(world.state.archetypes.len(), 1);
                 let archetype = world.state.archetypes.first().unwrap();
@@ -387,7 +377,7 @@ mod tests {
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .replicate::<ComponentA>()
-            .replicate_group::<(ComponentA, ComponentB)>()
+            .replicate_bundle::<(ComponentA, ComponentB)>()
             .add_systems(Update, |world: ServerWorld| {
                 assert_eq!(world.state.archetypes.len(), 1);
                 let archetype = world.state.archetypes.first().unwrap();
@@ -405,7 +395,7 @@ mod tests {
             .init_resource::<ReplicationRegistry>()
             .replicate::<ComponentA>()
             .replicate::<ComponentB>()
-            .replicate_group::<(ComponentA, ComponentB)>()
+            .replicate_bundle::<(ComponentA, ComponentB)>()
             .add_systems(Update, |world: ServerWorld| {
                 assert_eq!(world.state.archetypes.len(), 1);
                 let archetype = world.state.archetypes.first().unwrap();
@@ -421,8 +411,8 @@ mod tests {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
-            .replicate_group::<(ComponentA, ComponentC)>()
-            .replicate_group::<(ComponentA, ComponentB)>()
+            .replicate_bundle::<(ComponentA, ComponentC)>()
+            .replicate_bundle::<(ComponentA, ComponentB)>()
             .add_systems(Update, |world: ServerWorld| {
                 assert_eq!(world.state.archetypes.len(), 1);
                 let archetype = world.state.archetypes.first().unwrap();

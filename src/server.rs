@@ -37,7 +37,7 @@ use crate::shared::{
             ReplicationRegistry, component_fns::ComponentFns, ctx::SerializeCtx,
             rule_fns::UntypedRuleFns,
         },
-        replication_rules::ReplicationRules,
+        replication_rules::{ComponentRule, ReplicationRules},
         track_mutate_messages::TrackMutateMessages,
     },
     replicon_tick::RepliconTick,
@@ -50,7 +50,7 @@ use replication_messages::{
     mutations::Mutations, serialized_data::SerializedData, updates::Updates,
 };
 use server_tick::ServerTick;
-use server_world::{ReplicatedComponent, ServerWorld};
+use server_world::ServerWorld;
 
 pub struct ServerPlugin {
     /// Tick configuration.
@@ -546,16 +546,16 @@ fn collect_changes(
             let marker_added =
                 marker_ticks.is_added(change_tick.last_run(), change_tick.this_run());
 
-            for replicated_component in &replicated_archetype.components {
-                let (component_id, component_fns, rule_fns) =
-                    registry.get(replicated_component.fns_id);
+            for &(component_rule, storage) in &replicated_archetype.components {
+                let (component_id, component_fns, rule_fns) = registry.get(component_rule.fns_id);
+                let send_mutations = component_rule.send_rate.send_mutations(server_tick);
 
                 // SAFETY: component and storage were obtained from this archetype.
                 let (component, ticks) = unsafe {
                     world.get_component_unchecked(
                         entity,
                         archetype.table_id(),
-                        replicated_component.storage_type,
+                        storage,
                         component_id,
                     )
                 };
@@ -577,7 +577,7 @@ fn collect_changes(
                         .filter(|_| updates.entity_visibility() != Visibility::Gained)
                         .filter(|_| !ticks.is_added(change_tick.last_run(), change_tick.this_run()))
                     {
-                        if ticks.is_changed(tick, change_tick.this_run()) {
+                        if ticks.is_changed(tick, change_tick.this_run()) && send_mutations {
                             if !mutations.entity_added() {
                                 let graph_index = related_entities.graph_index(entity.id());
                                 let entity_range = write_entity_cached(
@@ -593,7 +593,7 @@ fn collect_changes(
                                 rule_fns,
                                 component_fns,
                                 &ctx,
-                                replicated_component,
+                                component_rule,
                                 component,
                             )?;
                             mutations.add_component(component_range);
@@ -610,7 +610,7 @@ fn collect_changes(
                             rule_fns,
                             component_fns,
                             &ctx,
-                            replicated_component,
+                            component_rule,
                             component,
                         )?;
                         updates.add_inserted_component(component_range);
@@ -671,7 +671,7 @@ fn write_component_cached(
     rule_fns: &UntypedRuleFns,
     component_fns: &ComponentFns,
     ctx: &SerializeCtx,
-    replicated_component: &ReplicatedComponent,
+    component_rule: ComponentRule,
     component: Ptr<'_>,
 ) -> Result<Range<usize>> {
     if let Some(component_range) = component_range.clone() {
@@ -682,7 +682,7 @@ fn write_component_cached(
         rule_fns,
         component_fns,
         ctx,
-        replicated_component.fns_id,
+        component_rule.fns_id,
         component,
     )?;
     *component_range = Some(range.clone());

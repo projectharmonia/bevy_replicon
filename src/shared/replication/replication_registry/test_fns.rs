@@ -28,7 +28,7 @@ use bevy::prelude::*;
 use bevy_replicon::{
     shared::{
         replication::replication_registry::{
-            rule_fns::RuleFns, test_fns::TestFnsEntityExt, ReplicationRegistry,
+            test_fns::TestFnsEntityExt, ReplicationRegistry,
         },
         replicon_tick::RepliconTick,
     },

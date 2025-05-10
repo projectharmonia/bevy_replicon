@@ -93,7 +93,7 @@ impl FromWorld for ReplicatedComponents {
         let component_ids = rules
             .iter()
             .flat_map(|rule| &rule.components)
-            .map(|&(component_id, _)| component_id)
+            .map(|component| component.id)
             .collect();
 
         Self(component_ids)
@@ -130,15 +130,13 @@ impl RemovalBuffer {
             .iter()
             .filter(|rule| rule.matches_removals(archetype, removed_components))
         {
-            for &(component_id, fns_id) in &rule.components {
+            for component in &rule.components {
                 // Since rules are sorted by priority,
                 // we are inserting only new components that aren't present.
-                if removed_ids
-                    .iter()
-                    .all(|&(removed_id, _)| removed_id != component_id)
-                    && removed_components.contains(&component_id)
+                if removed_ids.iter().all(|&(id, _)| id != component.id)
+                    && removed_components.contains(&component.id)
                 {
-                    removed_ids.push((component_id, fns_id));
+                    removed_ids.push((component.id, component.fns_id));
                 }
             }
         }
@@ -168,7 +166,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        server::{self},
+        server,
         shared::replication::{
             Replicated, replication_registry::ReplicationRegistry, replication_rules::AppRuleExt,
         },
@@ -227,7 +225,7 @@ mod tests {
             .init_resource::<ReplicationRegistry>()
             .init_resource::<RemovalBuffer>()
             .add_systems(PostUpdate, server::buffer_removals)
-            .replicate_group::<(ComponentA, ComponentB)>();
+            .replicate_bundle::<(ComponentA, ComponentB)>();
 
         app.update();
 
@@ -253,7 +251,7 @@ mod tests {
             .init_resource::<ReplicationRegistry>()
             .init_resource::<RemovalBuffer>()
             .add_systems(PostUpdate, server::buffer_removals)
-            .replicate_group::<(ComponentA, ComponentB)>();
+            .replicate_bundle::<(ComponentA, ComponentB)>();
 
         app.update();
 
@@ -280,7 +278,7 @@ mod tests {
             .init_resource::<RemovalBuffer>()
             .add_systems(PostUpdate, server::buffer_removals)
             .replicate::<ComponentA>()
-            .replicate_group::<(ComponentA, ComponentB)>();
+            .replicate_bundle::<(ComponentA, ComponentB)>();
 
         app.update();
 
@@ -307,7 +305,7 @@ mod tests {
             .init_resource::<RemovalBuffer>()
             .add_systems(PostUpdate, server::buffer_removals)
             .replicate::<ComponentA>()
-            .replicate_group::<(ComponentA, ComponentB)>();
+            .replicate_bundle::<(ComponentA, ComponentB)>();
 
         app.update();
 

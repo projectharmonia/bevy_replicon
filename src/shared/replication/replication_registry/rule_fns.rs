@@ -3,7 +3,7 @@ use core::{
     mem,
 };
 
-use bevy::{ecs::entity::MapEntities, prelude::*};
+use bevy::prelude::*;
 use bytes::Bytes;
 use serde::{Serialize, de::DeserializeOwned};
 
@@ -155,14 +155,6 @@ impl<C: Component> RuleFns<C> {
     }
 }
 
-impl<C: Component + Serialize + DeserializeOwned + MapEntities> RuleFns<C> {
-    #[deprecated(note = "no longer needed, use `default` instead")]
-    #[allow(deprecated)]
-    pub fn default_mapped() -> Self {
-        Self::new(default_serialize::<C>, default_deserialize_mapped::<C>)
-    }
-}
-
 impl<C: Component + Serialize + DeserializeOwned> Default for RuleFns<C> {
     /// Creates a new instance with default functions for a component.
     ///
@@ -202,16 +194,6 @@ pub fn default_deserialize<C: Component + DeserializeOwned>(
 ) -> Result<C> {
     let mut component: C = postcard_utils::from_buf(message)?;
     C::map_entities(&mut component, ctx);
-    Ok(component)
-}
-
-#[deprecated(note = "no longer needed, use `default_serialize` instead")]
-pub fn default_deserialize_mapped<C: Component + DeserializeOwned + MapEntities>(
-    ctx: &mut WriteCtx,
-    message: &mut Bytes,
-) -> Result<C> {
-    let mut component: C = postcard_utils::from_buf(message)?;
-    component.map_entities(ctx);
     Ok(component)
 }
 
