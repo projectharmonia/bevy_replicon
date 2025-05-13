@@ -385,7 +385,8 @@ fn apply_despawn(
     let server_entity = entity_serde::deserialize_entity(message)?;
     if let Some(client_entity) = params
         .entity_map
-        .remove_by_server(server_entity)
+        .server_entry(server_entity)
+        .remove()
         .and_then(|entity| world.get_entity_mut(entity).ok())
     {
         let ctx = DespawnCtx { message_tick };
@@ -406,7 +407,8 @@ fn apply_removals(
 
     let client_entity = params
         .entity_map
-        .get_by_server_or_insert(server_entity, || world.spawn(Replicated).id());
+        .server_entry(server_entity)
+        .or_insert_with(|| world.spawn(Replicated).id());
 
     let mut client_entity = DeferredEntity::new(world, client_entity);
     let mut commands = client_entity.commands(params.queue);
@@ -454,7 +456,8 @@ fn apply_changes(
 
     let client_entity = params
         .entity_map
-        .get_by_server_or_insert(server_entity, || world.spawn(Replicated).id());
+        .server_entry(server_entity)
+        .or_insert_with(|| world.spawn(Replicated).id());
 
     let mut client_entity = DeferredEntity::new(world, client_entity);
     let mut commands = client_entity.commands(params.queue);
@@ -570,7 +573,7 @@ fn apply_mutations(
     let server_entity = entity_serde::deserialize_entity(message)?;
     let data_size: usize = postcard_utils::from_buf(message)?;
 
-    let Some(client_entity) = params.entity_map.get_by_server(server_entity) else {
+    let Some(&client_entity) = params.entity_map.to_client().get(&server_entity) else {
         // Mutation could arrive after a despawn from update message.
         debug!("ignoring mutations received for unknown server's {server_entity:?}");
         message.advance(data_size);

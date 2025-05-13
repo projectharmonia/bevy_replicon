@@ -46,7 +46,8 @@ impl EntityMapper for WriteCtx<'_, '_, '_> {
         }
 
         self.entity_map
-            .get_by_server_or_insert(source, || self.commands.spawn(Replicated).id())
+            .server_entry(source)
+            .or_insert_with(|| self.commands.spawn(Replicated).id())
     }
 
     fn set_mapped(&mut self, _source: Entity, _target: Entity) {
