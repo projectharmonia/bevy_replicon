@@ -78,6 +78,45 @@ fn with_component() {
 }
 
 #[test]
+fn with_multiple_components() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<DummyComponent>()
+        .replicate::<OtherComponent>();
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    let before_archetypes = client_app.world().archetypes().len();
+
+    server_app
+        .world_mut()
+        .spawn((Replicated, DummyComponent, OtherComponent));
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    let mut components = client_app
+        .world_mut()
+        .query::<(&Replicated, &DummyComponent, &OtherComponent)>();
+    assert_eq!(components.iter(client_app.world()).count(), 1);
+    assert_eq!(
+        client_app.world().archetypes().len() - before_archetypes,
+        1,
+        "should cause only a single archetype move"
+    );
+}
+
+#[test]
 fn with_old_component() {
     let mut server_app = App::new();
     let mut client_app = App::new();
@@ -254,3 +293,6 @@ fn after_despawn() {
 
 #[derive(Component, Deserialize, Serialize)]
 struct DummyComponent;
+
+#[derive(Component, Deserialize, Serialize)]
+struct OtherComponent;

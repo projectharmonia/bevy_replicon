@@ -1,4 +1,4 @@
-use bevy::{ecs::world::CommandQueue, prelude::*};
+use bevy::prelude::*;
 use bytes::Bytes;
 
 use super::{
@@ -8,7 +8,7 @@ use super::{
 use crate::shared::{
     replication::{
         command_markers::{CommandMarkers, EntityMarkers},
-        deferred_entity::DeferredEntity,
+        deferred_entity::{DeferredChanges, DeferredEntity},
     },
     replicon_tick::RepliconTick,
     server_entity_map::ServerEntityMap,
@@ -136,13 +136,19 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
             world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
                 world.resource_scope(|world, registry: Mut<ReplicationRegistry>| {
                     world.resource_scope(|world, type_registry: Mut<AppTypeRegistry>| {
-                        let mut queue = CommandQueue::default();
-                        let mut entity = DeferredEntity::new(world, entity);
-                        let mut commands = entity.commands(&mut queue);
+                        let world_cell = world.as_unsafe_world_cell();
+                        let entities = world_cell.entities();
+                        // SAFETY: split into `Entities` and `DeferredEntity`.
+                        // The latter won't apply any structural changes until `flush`, and `Entities` won't be used afterward.
+                        let world = unsafe { world_cell.world_mut() };
+
+                        let mut changes = DeferredChanges::default();
+                        let mut entity =
+                            DeferredEntity::new(world.entity_mut(entity), &mut changes);
 
                         let (component_id, component_fns, rule_fns) = registry.get(fns_id);
                         let mut ctx = WriteCtx {
-                            commands: &mut commands,
+                            entities,
                             entity_map: &mut entity_map,
                             type_registry: &type_registry.read(),
                             component_id,
@@ -162,7 +168,7 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
                                 .expect("writing data into an entity shouldn't fail");
                         }
 
-                        queue.apply(world);
+                        entity.flush();
                     })
                 })
             })
@@ -179,20 +185,18 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
         let entity = self.id();
         self.world_scope(|world| {
             world.resource_scope(|world, registry: Mut<ReplicationRegistry>| {
-                let mut queue = CommandQueue::default();
-                let mut entity = DeferredEntity::new(world, entity);
-                let mut commands = entity.commands(&mut queue);
+                let mut changes = DeferredChanges::default();
+                let mut entity = DeferredEntity::new(world.entity_mut(entity), &mut changes);
 
                 let (component_id, component_fns, _) = registry.get(fns_id);
                 let mut ctx = RemoveCtx {
-                    commands: &mut commands,
                     message_tick,
                     component_id,
                 };
 
                 component_fns.remove(&mut ctx, &entity_markers, &mut entity);
 
-                queue.apply(world);
+                entity.flush();
             })
         });
 

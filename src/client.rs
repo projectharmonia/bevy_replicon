@@ -4,7 +4,7 @@ pub mod diagnostics;
 pub mod event;
 pub mod server_mutate_ticks;
 
-use bevy::{ecs::world::CommandQueue, prelude::*, reflect::TypeRegistry};
+use bevy::{prelude::*, reflect::TypeRegistry};
 use bytes::{Buf, Bytes};
 use log::{debug, trace};
 use postcard::experimental::max_size::MaxSize;
@@ -19,7 +19,7 @@ use crate::shared::{
     replication::{
         Replicated,
         command_markers::{CommandMarkers, EntityMarkers},
-        deferred_entity::DeferredEntity,
+        deferred_entity::{DeferredChanges, DeferredEntity},
         mutate_index::MutateIndex,
         replication_registry::{
             ReplicationRegistry,
@@ -29,7 +29,7 @@ use crate::shared::{
         update_message_flags::UpdateMessageFlags,
     },
     replicon_tick::RepliconTick,
-    server_entity_map::ServerEntityMap,
+    server_entity_map::{EntityEntry, ServerEntityMap},
 };
 use confirm_history::{ConfirmHistory, EntityReplicated};
 use server_mutate_ticks::{MutateTickReceived, ServerMutateTicks};
@@ -103,7 +103,7 @@ fn setup_channels(mut client: ResMut<RepliconClient>, channels: Res<RepliconChan
 /// See also [`ReplicationMessages`](crate::server::replication_messages::ReplicationMessages).
 pub(super) fn receive_replication(
     world: &mut World,
-    mut queue: Local<CommandQueue>,
+    mut changes: Local<DeferredChanges>,
     mut entity_markers: Local<EntityMarkers>,
 ) -> Result<()> {
     world.resource_scope(|world, mut client: Mut<RepliconClient>| {
@@ -119,7 +119,7 @@ pub(super) fn receive_replication(
                                     let mut mutate_ticks =
                                         world.remove_resource::<ServerMutateTicks>();
                                     let mut params = ReceiveParams {
-                                        queue: &mut queue,
+                                        changes: &mut changes,
                                         entity_markers: &mut entity_markers,
                                         entity_map: &mut entity_map,
                                         replicated_events: &mut replicated_events,
@@ -405,29 +405,31 @@ fn apply_removals(
 ) -> Result<()> {
     let server_entity = entity_serde::deserialize_entity(message)?;
 
-    let client_entity = params
-        .entity_map
-        .server_entry(server_entity)
-        .or_insert_with(|| world.spawn(Replicated).id());
+    let mut client_entity = match params.entity_map.server_entry(server_entity) {
+        EntityEntry::Occupied(entry) => {
+            DeferredEntity::new(world.entity_mut(entry.get()), params.changes)
+        }
+        EntityEntry::Vacant(entry) => {
+            // It's possible to receive a removal when an entity is spawned and has a component removed in the same tick.
+            // We could serialize the size of the removals instead of the total number of removals and just advance the cursor,
+            // but it's a very rare case and not worth optimizing for.
+            let mut client_entity = DeferredEntity::new(world.spawn_empty(), params.changes);
+            client_entity.insert(Replicated);
+            entry.insert(client_entity.id());
+            client_entity
+        }
+    };
 
-    let mut client_entity = DeferredEntity::new(world, client_entity);
-    let mut commands = client_entity.commands(params.queue);
     params
         .entity_markers
         .read(params.command_markers, &*client_entity);
 
-    confirm_tick(
-        &mut commands,
-        &mut client_entity,
-        params.replicated_events,
-        message_tick,
-    );
+    confirm_tick(&mut client_entity, params.replicated_events, message_tick);
 
     let len = apply_array(ArrayKind::Sized, message, |message| {
         let fns_id = postcard_utils::from_buf(message)?;
         let (component_id, component_fns, _) = params.registry.get(fns_id);
         let mut ctx = RemoveCtx {
-            commands: &mut commands,
             message_tick,
             component_id,
         };
@@ -440,7 +442,7 @@ fn apply_removals(
         stats.components_changed += len;
     }
 
-    params.queue.apply(world);
+    client_entity.flush();
 
     Ok(())
 }
@@ -454,33 +456,39 @@ fn apply_changes(
 ) -> Result<()> {
     let server_entity = entity_serde::deserialize_entity(message)?;
 
-    let client_entity = params
-        .entity_map
-        .server_entry(server_entity)
-        .or_insert_with(|| world.spawn(Replicated).id());
+    let world_cell = world.as_unsafe_world_cell();
+    let entities = world_cell.entities();
+    // SAFETY: split into `Entities` and `DeferredEntity`.
+    // The latter won't apply any structural changes until `flush`, and `Entities` won't be used afterward.
+    let world = unsafe { world_cell.world_mut() };
 
-    let mut client_entity = DeferredEntity::new(world, client_entity);
-    let mut commands = client_entity.commands(params.queue);
+    let mut client_entity = match params.entity_map.server_entry(server_entity) {
+        EntityEntry::Occupied(entry) => {
+            DeferredEntity::new(world.entity_mut(entry.get()), params.changes)
+        }
+        EntityEntry::Vacant(entry) => {
+            let mut client_entity = DeferredEntity::new(world.spawn_empty(), params.changes);
+            client_entity.insert(Replicated);
+            entry.insert(client_entity.id());
+            client_entity
+        }
+    };
+
     params
         .entity_markers
         .read(params.command_markers, &*client_entity);
 
-    confirm_tick(
-        &mut commands,
-        &mut client_entity,
-        params.replicated_events,
-        message_tick,
-    );
+    confirm_tick(&mut client_entity, params.replicated_events, message_tick);
 
     let len = apply_array(ArrayKind::Sized, message, |message| {
         let fns_id = postcard_utils::from_buf(message)?;
         let (component_id, component_fns, rule_fns) = params.registry.get(fns_id);
         let mut ctx = WriteCtx {
-            commands: &mut commands,
             entity_map: params.entity_map,
             type_registry: params.type_registry,
             component_id,
             message_tick,
+            entities,
             ignore_mapping: false,
         };
 
@@ -502,7 +510,7 @@ fn apply_changes(
         stats.components_changed += len;
     }
 
-    params.queue.apply(world);
+    client_entity.flush();
 
     Ok(())
 }
@@ -543,7 +551,6 @@ enum ArrayKind {
 }
 
 fn confirm_tick(
-    commands: &mut Commands,
     entity: &mut DeferredEntity,
     replicated_events: &mut Events<EntityReplicated>,
     tick: RepliconTick,
@@ -551,9 +558,7 @@ fn confirm_tick(
     if let Some(mut history) = entity.get_mut::<ConfirmHistory>() {
         history.set_last_tick(tick);
     } else {
-        commands
-            .entity(entity.id())
-            .insert(ConfirmHistory::new(tick));
+        entity.insert(ConfirmHistory::new(tick));
     }
     replicated_events.send(EntityReplicated {
         entity: entity.id(),
@@ -580,8 +585,13 @@ fn apply_mutations(
         return Ok(());
     };
 
-    let mut client_entity = DeferredEntity::new(world, client_entity);
-    let mut commands = client_entity.commands(params.queue);
+    let world_cell = world.as_unsafe_world_cell();
+    let entities = world_cell.entities();
+    // SAFETY: split into `Entities` and `DeferredEntity`.
+    // The latter won't apply any structural changes until `flush`, and `Entities` won't be used afterward.
+    let world = unsafe { world_cell.world_mut() };
+
+    let mut client_entity = DeferredEntity::new(world.entity_mut(client_entity), params.changes);
     params
         .entity_markers
         .read(params.command_markers, &*client_entity);
@@ -625,11 +635,11 @@ fn apply_mutations(
         let fns_id = postcard_utils::from_buf(&mut data)?;
         let (component_id, component_fns, rule_fns) = params.registry.get(fns_id);
         let mut ctx = WriteCtx {
-            commands: &mut commands,
             entity_map: params.entity_map,
             type_registry: params.type_registry,
             component_id,
             message_tick,
+            entities,
             ignore_mapping: false,
         };
 
@@ -662,7 +672,7 @@ fn apply_mutations(
         stats.components_changed += components_count;
     }
 
-    params.queue.apply(world);
+    client_entity.flush();
 
     Ok(())
 }
@@ -671,7 +681,7 @@ fn apply_mutations(
 ///
 /// To avoid passing a lot of arguments into all receive functions.
 struct ReceiveParams<'a> {
-    queue: &'a mut CommandQueue,
+    changes: &'a mut DeferredChanges,
     entity_markers: &'a mut EntityMarkers,
     entity_map: &'a mut ServerEntityMap,
     replicated_events: &'a mut Events<EntityReplicated>,
