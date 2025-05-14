@@ -83,7 +83,6 @@ pub trait AppRuleExt {
     struct PlayerBundle {
         transform: Transform,
         player: Player,
-        replicated: Replicated,
     }
 
     #[derive(Component, Deserialize, Serialize)]
