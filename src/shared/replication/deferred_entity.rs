@@ -21,6 +21,7 @@ pub struct DeferredEntity<'w> {
 
 impl<'w> DeferredEntity<'w> {
     pub(crate) fn new(entity: EntityWorldMut<'w>, changes: &'w mut DeferredChanges) -> Self {
+        changes.clear();
         Self { entity, changes }
     }
 
@@ -65,21 +66,26 @@ impl<'w> DeferredEntity<'w> {
 /// Buffered changes for [`DeferredEntity`].
 #[derive(Default)]
 pub(crate) struct DeferredChanges {
-    insertions: DeferredInsertions,
     removals: Vec<ComponentId>,
+    insertions: DeferredInsertions,
 }
 
 impl DeferredChanges {
     fn apply(&mut self, entity: &mut EntityWorldMut) {
         if !self.removals.is_empty() {
             entity.remove_by_ids(&self.removals);
-            self.removals.clear();
         }
 
         if !self.insertions.is_empty() {
             self.insertions.apply(entity);
-            self.insertions.clear();
         }
+
+        self.clear();
+    }
+
+    fn clear(&mut self) {
+        self.removals.clear();
+        self.insertions.clear();
     }
 }
 
