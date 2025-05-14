@@ -21,8 +21,18 @@ impl ServerEntityMap {
     /// Inserts a server-client pair into the map.
     #[inline]
     pub fn insert(&mut self, server_entity: Entity, client_entity: Entity) {
-        self.server_entry(server_entity)
-            .or_insert_with(|| client_entity);
+        if let Some(existing_entity) = self.server_to_client.insert(server_entity, client_entity) {
+            if client_entity != existing_entity {
+                error!(
+                    "mapping {server_entity:?} to {client_entity:?}, but it's already mapped to {existing_entity:?}"
+                );
+                self.client_to_server.remove(&existing_entity);
+            } else {
+                warn!("ignoring duplicate mapping from {server_entity:?} to {client_entity:?}");
+            }
+        }
+
+        self.client_to_server.insert(client_entity, server_entity);
     }
 
     /// Returns server to client mappings.
@@ -100,7 +110,7 @@ impl<'a> EntityEntry<'a> {
         }
     }
 
-    /// Inserts the mapped entity from the function and returns it.
+    /// Inserts a new mapping from the function if the entry is not mapped, and returns the mapped entity.
     pub fn or_insert_with<F: FnOnce() -> Entity>(self, f: F) -> Entity {
         match self {
             EntityEntry::Occupied(entry) => entry.get(),
@@ -121,22 +131,6 @@ impl OccupiedEntityEntry<'_> {
     /// Returns the mappend entity for the entry.
     pub fn get(&self) -> Entity {
         *self.main_entry.get()
-    }
-
-    /// Sets the mapped entity for the entry and returns the old mapping.
-    pub fn insert(&mut self, value: Entity) -> Entity {
-        let key = *self.main_entry.key();
-        let old_value = self.main_entry.insert(value);
-        if value != old_value {
-            error!("mapping {key:?} to {value:?}, but it's already mapped to {old_value:?}");
-        } else {
-            warn!("ignoring duplicate mapping from {key:?} to {value:?}");
-            return value;
-        }
-
-        self.reverse_map.remove(&old_value);
-        self.reverse_map.insert(value, *self.main_entry.key());
-        old_value
     }
 
     /// Removes the entry and returns the mapped entity.
@@ -162,5 +156,59 @@ impl VacantEntityEntry<'_> {
         self.main_entry.insert(value);
         self.reverse_map.insert(value, key);
         value
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mapping() {
+        const SERVER_ENTITY: Entity = Entity::from_raw(0);
+        const CLIENT_ENTITY: Entity = Entity::from_raw(1);
+
+        let mut map = ServerEntityMap::default();
+        assert_eq!(map.server_entry(SERVER_ENTITY).get(), None);
+        assert_eq!(map.client_entry(CLIENT_ENTITY).get(), None);
+
+        map.insert(SERVER_ENTITY, CLIENT_ENTITY);
+        assert_eq!(map.server_entry(SERVER_ENTITY).get(), Some(CLIENT_ENTITY));
+        assert_eq!(map.client_entry(CLIENT_ENTITY).get(), Some(SERVER_ENTITY));
+
+        map.insert(SERVER_ENTITY, Entity::PLACEHOLDER);
+        assert_eq!(
+            map.server_entry(SERVER_ENTITY).get(),
+            Some(Entity::PLACEHOLDER)
+        );
+        assert_eq!(
+            map.client_entry(Entity::PLACEHOLDER).get(),
+            Some(SERVER_ENTITY)
+        );
+        assert_eq!(map.client_entry(CLIENT_ENTITY).get(), None);
+
+        map.insert(SERVER_ENTITY, CLIENT_ENTITY);
+        assert_eq!(
+            map.server_entry(SERVER_ENTITY).remove(),
+            Some(CLIENT_ENTITY)
+        );
+        assert_eq!(map.server_entry(SERVER_ENTITY).get(), None);
+        assert_eq!(map.client_entry(CLIENT_ENTITY).get(), None);
+
+        assert_eq!(
+            map.server_entry(SERVER_ENTITY)
+                .or_insert_with(|| CLIENT_ENTITY),
+            CLIENT_ENTITY
+        );
+        assert_eq!(map.server_entry(SERVER_ENTITY).get(), Some(CLIENT_ENTITY));
+        assert_eq!(map.client_entry(CLIENT_ENTITY).get(), Some(SERVER_ENTITY));
+
+        assert_eq!(
+            map.server_entry(SERVER_ENTITY)
+                .or_insert_with(|| Entity::PLACEHOLDER),
+            CLIENT_ENTITY
+        );
+        assert_eq!(map.server_entry(SERVER_ENTITY).get(), Some(CLIENT_ENTITY));
+        assert_eq!(map.client_entry(CLIENT_ENTITY).get(), Some(SERVER_ENTITY));
     }
 }
