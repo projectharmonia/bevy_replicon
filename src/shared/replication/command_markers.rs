@@ -84,17 +84,15 @@ pub trait AppMarkerExt {
         if let Some(mut history) = entity.get_mut::<History<C>>() {
             history.insert(ctx.message_tick, component);
         } else {
-            ctx.commands
-                .entity(entity.id())
-                .insert(History([(ctx.message_tick, component)].into()));
+            entity.insert(History([(ctx.message_tick, component)].into()));
         }
 
         Ok(())
     }
 
     /// Removes component `C` and its history.
-    fn remove_history<C: Component>(ctx: &mut RemoveCtx, entity: &mut DeferredEntity) {
-        ctx.commands.entity(entity.id()).remove::<History<C>>().remove::<C>();
+    fn remove_history<C: Component>(_ctx: &mut RemoveCtx, entity: &mut DeferredEntity) {
+        entity.remove::<History<C>>().remove::<C>();
     }
 
     /// If this marker is present on an entity, registered components will be stored in [`History<T>`].

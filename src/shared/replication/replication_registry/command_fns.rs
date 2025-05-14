@@ -112,7 +112,7 @@ pub fn default_write<C: Component<Mutability = Mutable>>(
         rule_fns.deserialize_in_place(ctx, &mut *component, message)?;
     } else {
         let component: C = rule_fns.deserialize(ctx, message)?;
-        ctx.commands.entity(entity.id()).insert(component);
+        entity.insert(component);
     }
 
     Ok(())
@@ -130,11 +130,11 @@ pub fn default_insert_write<C: Component>(
     message: &mut Bytes,
 ) -> Result<()> {
     let component: C = rule_fns.deserialize(ctx, message)?;
-    ctx.commands.entity(entity.id()).insert(component);
+    entity.insert(component);
     Ok(())
 }
 
 /// Default component removal function.
-pub fn default_remove<C: Component>(ctx: &mut RemoveCtx, entity: &mut DeferredEntity) {
-    ctx.commands.entity(entity.id()).remove::<C>();
+pub fn default_remove<C: Component>(_ctx: &mut RemoveCtx, entity: &mut DeferredEntity) {
+    entity.remove::<C>();
 }

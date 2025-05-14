@@ -230,7 +230,54 @@ fn mapped_new_entity() {
     assert!(client_app.world().get_entity(mapped_component.0).is_ok());
 
     let mut replicated = client_app.world_mut().query::<&Replicated>();
-    assert_eq!(replicated.iter(client_app.world()).count(), 2);
+    assert_eq!(replicated.iter(client_app.world()).count(), 1);
+}
+
+#[test]
+fn multiple_components() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<DummyComponent>()
+        .replicate::<SparseSetComponent>();
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    let server_entity = server_app.world_mut().spawn(Replicated).id();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    let before_archetypes = client_app.world().archetypes().len();
+
+    server_app
+        .world_mut()
+        .entity_mut(server_entity)
+        .insert((DummyComponent, SparseSetComponent));
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    let mut components = client_app
+        .world_mut()
+        .query::<(&DummyComponent, &SparseSetComponent)>();
+    assert_eq!(components.iter(client_app.world()).count(), 1);
+    assert_eq!(
+        client_app.world().archetypes().len() - before_archetypes,
+        1,
+        "should cause only a single archetype move"
+    );
 }
 
 #[test]
@@ -634,7 +681,7 @@ fn replace(
     message: &mut Bytes,
 ) -> Result<()> {
     rule_fns.deserialize(ctx, message)?;
-    ctx.commands.entity(entity.id()).insert(ReplacedComponent);
+    entity.insert(ReplacedComponent);
 
     Ok(())
 }

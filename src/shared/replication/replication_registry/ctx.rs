@@ -1,8 +1,10 @@
-use bevy::{ecs::component::ComponentId, prelude::*, reflect::TypeRegistry};
-
-use crate::shared::{
-    replication::Replicated, replicon_tick::RepliconTick, server_entity_map::ServerEntityMap,
+use bevy::{
+    ecs::{component::ComponentId, entity::Entities},
+    prelude::*,
+    reflect::TypeRegistry,
 };
+
+use crate::shared::{replicon_tick::RepliconTick, server_entity_map::ServerEntityMap};
 
 /// Replication context for serialization function.
 #[non_exhaustive]
@@ -19,10 +21,7 @@ pub struct SerializeCtx<'a> {
 
 /// Replication context for writing and deserialization.
 #[non_exhaustive]
-pub struct WriteCtx<'a, 'w, 's> {
-    /// A queue to perform structural changes to the [`World`].
-    pub commands: &'a mut Commands<'w, 's>,
-
+pub struct WriteCtx<'a> {
     /// Maps server entities to client entities and vice versa.
     pub entity_map: &'a mut ServerEntityMap,
 
@@ -35,18 +34,22 @@ pub struct WriteCtx<'a, 'w, 's> {
     /// Tick for the currently processing message.
     pub message_tick: RepliconTick,
 
+    /// World's entities to reserve IDs on new entities inside components.
+    pub(crate) entities: &'a Entities,
+
     /// Disables mapping logic to avoid spawning entities for consume functions.
     pub(crate) ignore_mapping: bool,
 }
 
-impl EntityMapper for WriteCtx<'_, '_, '_> {
-    fn get_mapped(&mut self, source: Entity) -> Entity {
+impl EntityMapper for WriteCtx<'_> {
+    fn get_mapped(&mut self, server_entity: Entity) -> Entity {
         if self.ignore_mapping {
-            return source;
+            return server_entity;
         }
 
         self.entity_map
-            .get_by_server_or_insert(source, || self.commands.spawn(Replicated).id())
+            .server_entry(server_entity)
+            .or_insert_with(|| self.entities.reserve_entity())
     }
 
     fn set_mapped(&mut self, _source: Entity, _target: Entity) {
@@ -56,10 +59,7 @@ impl EntityMapper for WriteCtx<'_, '_, '_> {
 
 /// Replication context for removal.
 #[non_exhaustive]
-pub struct RemoveCtx<'a, 'w, 's> {
-    /// A queue to perform structural changes to the [`World`].
-    pub commands: &'a mut Commands<'w, 's>,
-
+pub struct RemoveCtx {
     /// ID of the removing component.
     pub component_id: ComponentId,
 

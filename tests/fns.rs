@@ -366,7 +366,7 @@ fn replace(
     message: &mut Bytes,
 ) -> Result<()> {
     rule_fns.deserialize(ctx, message)?;
-    ctx.commands.entity(entity.id()).insert(ReplacedComponent);
+    entity.insert(ReplacedComponent);
 
     Ok(())
 }

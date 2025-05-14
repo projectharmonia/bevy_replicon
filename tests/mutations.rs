@@ -593,6 +593,8 @@ fn marker_with_history_consume() {
 
     server_app.connect_client(&mut client_app);
 
+    let entities_before = client_app.world().entities().len();
+
     let server_map_entity = server_app.world_mut().spawn_empty().id();
     let server_entity = server_app
         .world_mut()
@@ -647,9 +649,8 @@ fn marker_with_history_consume() {
         "client should consume older mutations for other components with marker that requested history"
     );
 
-    let mut replicated = client_app.world_mut().query::<&Replicated>();
     assert_eq!(
-        replicated.iter(client_app.world()).len(),
+        client_app.world().entities().len() - entities_before,
         3,
         "client should have 2 initial entities and 1 from mutate message"
     );
@@ -993,6 +994,8 @@ fn old_ignored() {
 
     server_app.connect_client(&mut client_app);
 
+    let entities_before = client_app.world().entities().len();
+
     let server_map_entity = server_app.world_mut().spawn_empty().id();
     let server_entity = server_app
         .world_mut()
@@ -1033,9 +1036,8 @@ fn old_ignored() {
         "client should ignore older mutation"
     );
 
-    let mut replicated = client_app.world_mut().query::<&Replicated>();
     assert_eq!(
-        replicated.iter(client_app.world()).len(),
+        client_app.world().entities().len() - entities_before,
         3,
         "client should have 2 initial entities and 1 from mutation"
     );
@@ -1266,9 +1268,8 @@ fn replace(
     message: &mut Bytes,
 ) -> Result<()> {
     let component = rule_fns.deserialize(ctx, message)?;
-    ctx.commands
-        .entity(entity.id())
-        .insert(ReplacedComponent(component.0));
+
+    entity.insert(ReplacedComponent(component.0));
 
     Ok(())
 }
@@ -1284,9 +1285,7 @@ fn write_history(
     if let Some(mut history) = entity.get_mut::<BoolHistory>() {
         history.push(component.0);
     } else {
-        ctx.commands
-            .entity(entity.id())
-            .insert(BoolHistory(vec![component.0]));
+        entity.insert(BoolHistory(vec![component.0]));
     }
 
     Ok(())

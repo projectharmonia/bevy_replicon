@@ -55,6 +55,58 @@ fn single() {
 }
 
 #[test]
+fn multiple() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .replicate::<DummyComponent>()
+        .replicate::<OtherComponent>();
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    let server_entity = server_app
+        .world_mut()
+        .spawn((Replicated, DummyComponent, OtherComponent))
+        .id();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    let mut components = client_app
+        .world_mut()
+        .query::<(&DummyComponent, &OtherComponent)>();
+    assert_eq!(components.iter(client_app.world()).len(), 1);
+
+    let before_archetypes = client_app.world().archetypes().len();
+
+    server_app
+        .world_mut()
+        .entity_mut(server_entity)
+        .remove::<(DummyComponent, OtherComponent)>();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    assert_eq!(components.iter(client_app.world()).len(), 0);
+    assert_eq!(
+        client_app.world().archetypes().len() - before_archetypes,
+        1,
+        "should cause only a single archetype move"
+    );
+}
+
+#[test]
 fn command_fns() {
     let mut server_app = App::new();
     let mut client_app = App::new();
@@ -485,6 +537,9 @@ fn hidden() {
 struct DummyComponent;
 
 #[derive(Component, Deserialize, Serialize)]
+struct OtherComponent;
+
+#[derive(Component, Deserialize, Serialize)]
 struct GroupComponentA;
 
 #[derive(Component, Deserialize, Serialize)]
@@ -510,7 +565,7 @@ fn replace(
     message: &mut Bytes,
 ) -> Result<()> {
     rule_fns.deserialize(ctx, message)?;
-    ctx.commands.entity(entity.id()).insert(ReplacedComponent);
+    entity.insert(ReplacedComponent);
 
     Ok(())
 }
