@@ -18,7 +18,7 @@ use rule_fns::{RuleFns, UntypedRuleFns};
 pub struct ReplicationRegistry {
     /// Custom function to handle entity despawning.
     ///
-    /// By default uses [`despawn_recursive`].
+    /// By default uses [`despawn`].
     /// Useful if you need to intercept despawns and handle them in a special way.
     pub despawn: DespawnFn,
 
@@ -153,7 +153,7 @@ impl ReplicationRegistry {
 impl Default for ReplicationRegistry {
     fn default() -> Self {
         Self {
-            despawn: despawn_recursive,
+            despawn,
             components: Default::default(),
             rules: Default::default(),
             marker_slots: 0,
@@ -171,7 +171,7 @@ pub struct FnsId(usize);
 pub type DespawnFn = fn(&DespawnCtx, EntityWorldMut);
 
 /// Default entity despawn function.
-pub fn despawn_recursive(_ctx: &DespawnCtx, entity: EntityWorldMut) {
+pub fn despawn(_ctx: &DespawnCtx, entity: EntityWorldMut) {
     entity.despawn();
 }
 
