@@ -7,9 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Configurable `SendRate` for deterministic replication. Use `SendRate::Once` to send only the initial value, or `SendRate::Periodic` to only sync the state periodically.
+- `AppRuleExt::replicate_with_priority` to configure replication rule priority.
+
 ### Changed
 
+- `AppRuleExt::replicate_with` now accepts `IntoReplicationRule` trait that allows to define rules with multiple components.
+- Rename `GroupReplication` into `BundleReplication`.
+- Rename `AppRuleExt::replicate_group` into `AppRuleExt::replicate_bundle`.
 - Rename `replication_registry::despawn_recursive` into `replication_registry::despawn`.
+- `ReplicationRule` now stores `Vec<ComponentRule>` instead of `Vec<(ComponentId, FnsId)>`
+- `RuleFns` now available from prelude.
+- Rules created with the same priority now evaluated in their creation order.
+
+### Removed
+
+- Deprecated methods.
 
 ## [0.33.0] - 2025-04-27
 
