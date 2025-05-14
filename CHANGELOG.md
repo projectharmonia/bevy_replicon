@@ -7,8 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Configurable `SendRate` for deterministic replication. Use `SendRate::Once` to send only the initial value, or `SendRate::Periodic` to only sync the state periodically.
+- `AppRuleExt::replicate_with_priority` to configure replication rule priority.
+
 ### Changed
 
+- `AppRuleExt::replicate_with` now accepts `IntoReplicationRule` trait that allows to define rules with multiple components.
+- Rename `GroupReplication` into `BundleReplication`.
+- Rename `AppRuleExt::replicate_group` into `AppRuleExt::replicate_bundle`.
+- Rename `replication_registry::despawn_recursive` into `replication_registry::despawn`.
+- `ReplicationRule` now stores `Vec<ComponentRule>` instead of `Vec<(ComponentId, FnsId)>`
+- `RuleFns` now available from prelude.
+- Rules created with the same priority now evaluated in their creation order.
 - Component removals and insertions for an entity are now buffered and applied as bundles to avoid triggering observers without all components being inserted or removed. This also significantly improves performance by avoiding extra archetype moves and lookups.
 - The `Replicated` component is no longer automatically inserted into non-replicated entities spawned from replicated components.
 - Replace `ServerEntityMap::get_by_*` and `ServerEntityMap::remove_by_*` with an entry-based API. Use `ServerEntityMap::server_entry` or `ServerEntityMap::client_entry` instead.
@@ -17,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - `WriteCtx::commands`. You can now insert and remove components directly through `DeferredEntity`.
+- Deprecated methods.
 
 ## [0.33.0] - 2025-04-27
 

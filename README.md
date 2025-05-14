@@ -32,8 +32,8 @@ Check out the [quick start guide](https://docs.rs/bevy_replicon).
 For examples navigate to the [`bevy_replicon_example_backend`](bevy_replicon_example_backend) (because you need I/O in order to run them).
 
 You can also:
-- Watch [my talk at Bevy Meetup #9](https://www.youtube.com/watch?v=aDsVFmXD2cc)  
-- Read [this great article](https://www.hankruiger.com/posts/adding-networked-multiplayer-to-my-game-with-bevy-replicon) *(not mine)*  
+- Watch [my talk at Bevy Meetup #9](https://www.youtube.com/watch?v=aDsVFmXD2cc)
+- Read [this great article](https://www.hankruiger.com/posts/adding-networked-multiplayer-to-my-game-with-bevy-replicon) *(not mine)*
 
 Have any questions? Feel free to ask in the dedicated [`bevy_replicon` channel](https://discord.com/channels/691052431525675048/1090432346907492443) in Bevy's Discord server.
 
@@ -62,7 +62,7 @@ Depending on your game, you may need additional features. We provide an API that
 #### Miscellaneous
 
 - [`bevy_replicon_repair`](https://github.com/UkoeHB/bevy_replicon_repair) - preserves replicated client state across reconnects.
-- [`bevy_bundlication`](https://github.com/NiseVoid/bevy_bundlication) - adds registration of replication groups using a bundle-like api.
+- [`bevy_bundlication`](https://github.com/NiseVoid/bevy_bundlication) - automates the creation of replication rules for bundles.
 
 #### Unmaintained
 

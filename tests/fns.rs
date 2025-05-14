@@ -8,7 +8,6 @@ use bevy_replicon::{
             replication_registry::{
                 ReplicationRegistry, command_fns,
                 ctx::{DespawnCtx, WriteCtx},
-                rule_fns::RuleFns,
                 test_fns::TestFnsEntityExt,
             },
         },

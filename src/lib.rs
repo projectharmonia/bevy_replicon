@@ -104,9 +104,9 @@ resource.
 ### Components
 
 Components will be replicated only on entities marked for replication.
-By default no components are replicated.
+By default no components are replicated, you need to define rules for it.
 
-Use [`AppRuleExt::replicate`] to enable replication for a component:
+Use [`AppRuleExt::replicate`] to create a replication rule for a single component:
 
 ```
 # use bevy::prelude::*;
@@ -132,8 +132,10 @@ If your component doesn't implement serde traits or you want to customize the se
 (for example, quantize, skip some fields or apply compression), you can use
 [`AppRuleExt::replicate_with`].
 
-If you want a group of components to be replicated only if all of them are present on an entity,
-you can use [`AppRuleExt::replicate_group`].
+You can also create a rule for multiple components. Use [`AppRuleExt::replicate_bundle`],
+or pass a tuple of [`RuleFns`] to [`AppRuleExt::replicate_with`]. The components will only
+be replicated if all of them are present on the entity. This also allows you to specialize
+serialization and deserialization based on specific entity components.
 
 #### Required components
 
@@ -210,6 +212,21 @@ Some components depend on each other. For example, [`ChildOf`] and [`Children`].
 replication only for [`ChildOf`] and [`Children`] will be updated automatically on insertion.
 
 You can also ensure that their mutations arrive in sync by using [`SyncRelatedAppExt::sync_related_entities`].
+
+#### Deterministic replication
+
+Up until now, we've covered only authoritative replication (AR), where the server is the source of truth
+and continuously sends changes. However, sometimes you may want to send data only once and simulate independently,
+relying on determinism. This approach is called deterministic replication (DR).
+
+For example, you might use AR for things like player health, and DR for moving platform positions to reduce
+network traffic.
+
+Use [`AppRuleExt::replicate_once`] to replicate only the initial value of a component. If you want a mix of
+both - relying on determinism but periodically syncing with a defined interval - use [`AppRuleExt::replicate_periodic`].
+You can configure this per-component within a replication rule using [`AppRuleExt::replicate_with`].
+
+See also [server events](#from-server-to-client), which are also useful for DR.
 
 ## Network events and triggers
 
@@ -543,6 +560,7 @@ A tick for an entity is confirmed if one of the following is true:
 - [`ConfirmHistory`](client::confirm_history::ConfirmHistory) is greater than the tick.
 - [`ServerMutateTicks`](client::server_mutate_ticks::ServerMutateTicks) reports that for at least one of the next ticks, all update
   messages have been received.
+- [`SendRate::send_mutations`] returns `false` for all replicated components on the entity for every tick prior to the current one.
 
 # Eventual consistency
 
@@ -614,7 +632,10 @@ pub mod prelude {
                 server_trigger::{ServerTriggerAppExt, ServerTriggerExt},
             },
             replication::{
-                Replicated, command_markers::AppMarkerExt, replication_rules::AppRuleExt,
+                Replicated,
+                command_markers::AppMarkerExt,
+                replication_registry::rule_fns::RuleFns,
+                replication_rules::{AppRuleExt, SendRate},
             },
         },
     };
