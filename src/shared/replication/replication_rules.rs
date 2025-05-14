@@ -29,7 +29,7 @@ pub trait AppRuleExt {
         self.replicate_with(RuleFns::<C>::default())
     }
 
-    /// Sames as [`Self::replicate`], but uses [`SendRate::Once`].
+    /// Same as [`Self::replicate`], but uses [`SendRate::Once`].
     fn replicate_once<C>(&mut self) -> &mut Self
     where
         C: Component<Mutability: MutWrite<C>> + Serialize + DeserializeOwned,
@@ -37,7 +37,7 @@ pub trait AppRuleExt {
         self.replicate_with((RuleFns::<C>::default(), SendRate::Once))
     }
 
-    /// Sames as [`Self::replicate`], but uses [`SendRate::Periodic`] with the given period.
+    /// Sames as [`Self::replicate`], but uses [`SendRate::Periodic`] with the given tick period.
     fn replicate_periodic<C>(&mut self, period: u32) -> &mut Self
     where
         C: Component<Mutability: MutWrite<C>> + Serialize + DeserializeOwned,
@@ -474,7 +474,7 @@ impl AppRuleExt for App {
 pub trait IntoReplicationRule {
     /// Priority when registered with [`AppRuleExt::replicate_with`].
     ///
-    /// Equals to the number of component in a rule.
+    /// Equals the number of components in a rule.
     const DEFAULT_PRIORITY: usize;
 
     /// Turns into a replication rule and registers its functions in [`ReplicationRegistry`].
@@ -686,7 +686,7 @@ pub struct ComponentRule {
     pub id: ComponentId,
     /// Associated serialization and deserialization functions.
     pub fns_id: FnsId,
-    /// Sendi rate configuration.
+    /// Send rate configuration.
     pub send_rate: SendRate,
 }
 

@@ -135,7 +135,7 @@ If your component doesn't implement serde traits or you want to customize the se
 You can also create a rule for multiple components. Use [`AppRuleExt::replicate_bundle`],
 or pass a tuple of [`RuleFns`] to [`AppRuleExt::replicate_with`]. The components will only
 be replicated if all of them are present on the entity. This also allows you to specialize
-serialization and deserialization based on specific specific entity components.
+serialization and deserialization based on specific entity components.
 
 #### Required components
 
