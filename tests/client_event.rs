@@ -23,12 +23,12 @@ fn channels() {
         }),
     ))
     .add_event::<NonRemoteEvent>()
-    .add_client_event::<DummyEvent>(Channel::Ordered)
+    .add_client_event::<TestEvent>(Channel::Ordered)
     .finish();
 
     let event_registry = app.world().resource::<RemoteEventRegistry>();
     assert_eq!(event_registry.client_channel::<NonRemoteEvent>(), None);
-    assert_eq!(event_registry.client_channel::<DummyEvent>(), Some(2));
+    assert_eq!(event_registry.client_channel::<TestEvent>(), Some(2));
 }
 
 #[test]
@@ -37,13 +37,13 @@ fn sending_receiving() {
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((MinimalPlugins, RepliconPlugins))
-            .add_client_event::<DummyEvent>(Channel::Ordered)
+            .add_client_event::<TestEvent>(Channel::Ordered)
             .finish();
     }
 
     server_app.connect_client(&mut client_app);
 
-    client_app.world_mut().send_event(DummyEvent);
+    client_app.world_mut().send_event(TestEvent);
 
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -51,7 +51,7 @@ fn sending_receiving() {
 
     let client_events = server_app
         .world()
-        .resource::<Events<FromClient<DummyEvent>>>();
+        .resource::<Events<FromClient<TestEvent>>>();
     assert_eq!(client_events.len(), 1);
 }
 
@@ -103,7 +103,7 @@ fn sending_receiving_without_plugins() {
                 .disable::<ClientPlugin>()
                 .disable::<ClientEventPlugin>(),
         ))
-        .add_client_event::<DummyEvent>(Channel::Ordered)
+        .add_client_event::<TestEvent>(Channel::Ordered)
         .finish();
     client_app
         .add_plugins((
@@ -113,12 +113,12 @@ fn sending_receiving_without_plugins() {
                 .disable::<ServerPlugin>()
                 .disable::<ServerEventPlugin>(),
         ))
-        .add_client_event::<DummyEvent>(Channel::Ordered)
+        .add_client_event::<TestEvent>(Channel::Ordered)
         .finish();
 
     server_app.connect_client(&mut client_app);
 
-    client_app.world_mut().send_event(DummyEvent);
+    client_app.world_mut().send_event(TestEvent);
 
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -126,7 +126,7 @@ fn sending_receiving_without_plugins() {
 
     let client_events = server_app
         .world()
-        .resource::<Events<FromClient<DummyEvent>>>();
+        .resource::<Events<FromClient<TestEvent>>>();
     assert_eq!(client_events.len(), 1);
 }
 
@@ -134,17 +134,17 @@ fn sending_receiving_without_plugins() {
 fn local_resending() {
     let mut app = App::new();
     app.add_plugins((TimePlugin, RepliconPlugins))
-        .add_client_event::<DummyEvent>(Channel::Ordered)
+        .add_client_event::<TestEvent>(Channel::Ordered)
         .finish();
 
-    app.world_mut().send_event(DummyEvent);
+    app.world_mut().send_event(TestEvent);
 
     app.update();
 
-    let dummy_events = app.world().resource::<Events<DummyEvent>>();
-    assert!(dummy_events.is_empty());
+    let events = app.world().resource::<Events<TestEvent>>();
+    assert!(events.is_empty());
 
-    let client_events = app.world().resource::<Events<FromClient<DummyEvent>>>();
+    let client_events = app.world().resource::<Events<FromClient<TestEvent>>>();
     assert_eq!(client_events.len(), 1);
 }
 
@@ -152,7 +152,7 @@ fn local_resending() {
 struct NonRemoteEvent;
 
 #[derive(Deserialize, Event, Serialize)]
-struct DummyEvent;
+struct TestEvent;
 
 #[derive(Deserialize, Event, Serialize, Clone, MapEntities)]
 struct EntityEvent(#[entities] Entity);

@@ -25,12 +25,12 @@ fn channels() {
         }),
     ))
     .add_event::<NonRemoteEvent>()
-    .add_server_event::<DummyEvent>(Channel::Ordered)
+    .add_server_event::<TestEvent>(Channel::Ordered)
     .finish();
 
     let event_registry = app.world().resource::<RemoteEventRegistry>();
     assert_eq!(event_registry.server_channel::<NonRemoteEvent>(), None);
-    assert_eq!(event_registry.server_channel::<DummyEvent>(), Some(2));
+    assert_eq!(event_registry.server_channel::<TestEvent>(), Some(2));
 }
 
 #[test]
@@ -45,7 +45,7 @@ fn sending_receiving() {
                 ..Default::default()
             }),
         ))
-        .add_server_event::<DummyEvent>(Channel::Ordered)
+        .add_server_event::<TestEvent>(Channel::Ordered)
         .finish();
     }
 
@@ -61,7 +61,7 @@ fn sending_receiving() {
     ] {
         server_app.world_mut().send_event(ToClients {
             mode,
-            event: DummyEvent,
+            event: TestEvent,
         });
 
         server_app.update();
@@ -69,7 +69,7 @@ fn sending_receiving() {
         client_app.update();
         server_app.exchange_with_client(&mut client_app);
 
-        let mut events = client_app.world_mut().resource_mut::<Events<DummyEvent>>();
+        let mut events = client_app.world_mut().resource_mut::<Events<TestEvent>>();
         assert_eq!(
             events.drain().count(),
             events_count,
@@ -137,7 +137,7 @@ fn sending_receiving_without_plugins() {
                 .disable::<ClientPlugin>()
                 .disable::<ClientEventPlugin>(),
         ))
-        .add_server_event::<DummyEvent>(Channel::Ordered)
+        .add_server_event::<TestEvent>(Channel::Ordered)
         .finish();
     client_app
         .add_plugins((
@@ -147,7 +147,7 @@ fn sending_receiving_without_plugins() {
                 .disable::<ServerPlugin>()
                 .disable::<ServerEventPlugin>(),
         ))
-        .add_server_event::<DummyEvent>(Channel::Ordered)
+        .add_server_event::<TestEvent>(Channel::Ordered)
         .finish();
 
     server_app.connect_client(&mut client_app);
@@ -162,7 +162,7 @@ fn sending_receiving_without_plugins() {
     ] {
         server_app.world_mut().send_event(ToClients {
             mode,
-            event: DummyEvent,
+            event: TestEvent,
         });
 
         server_app.update();
@@ -170,7 +170,7 @@ fn sending_receiving_without_plugins() {
         client_app.update();
         server_app.exchange_with_client(&mut client_app);
 
-        let mut events = client_app.world_mut().resource_mut::<Events<DummyEvent>>();
+        let mut events = client_app.world_mut().resource_mut::<Events<TestEvent>>();
         assert_eq!(
             events.drain().count(),
             events_count,
@@ -189,30 +189,30 @@ fn local_resending() {
             ..Default::default()
         }),
     ))
-    .add_server_event::<DummyEvent>(Channel::Ordered)
+    .add_server_event::<TestEvent>(Channel::Ordered)
     .finish();
 
-    const DUMMY_CLIENT_ID: Entity = Entity::from_raw(1);
+    const PLACEHOLDER_CLIENT_ID: Entity = Entity::from_raw(1);
     for (mode, events_count) in [
         (SendMode::Broadcast, 1),
         (SendMode::Direct(SERVER), 1),
-        (SendMode::Direct(DUMMY_CLIENT_ID), 0),
+        (SendMode::Direct(PLACEHOLDER_CLIENT_ID), 0),
         (SendMode::BroadcastExcept(SERVER), 0),
-        (SendMode::BroadcastExcept(DUMMY_CLIENT_ID), 1),
+        (SendMode::BroadcastExcept(PLACEHOLDER_CLIENT_ID), 1),
     ] {
         app.world_mut().send_event(ToClients {
             mode,
-            event: DummyEvent,
+            event: TestEvent,
         });
 
         app.update();
 
-        let server_events = app.world().resource::<Events<ToClients<DummyEvent>>>();
+        let server_events = app.world().resource::<Events<ToClients<TestEvent>>>();
         assert!(server_events.is_empty());
 
-        let mut dummy_events = app.world_mut().resource_mut::<Events<DummyEvent>>();
+        let mut events = app.world_mut().resource_mut::<Events<TestEvent>>();
         assert_eq!(
-            dummy_events.drain().count(),
+            events.drain().count(),
             events_count,
             "event should be emitted {events_count} times for {mode:?}"
         );
@@ -231,7 +231,7 @@ fn event_buffering() {
                 ..Default::default()
             }),
         ))
-        .add_server_event::<DummyEvent>(Channel::Ordered)
+        .add_server_event::<TestEvent>(Channel::Ordered)
         .finish();
     }
 
@@ -239,7 +239,7 @@ fn event_buffering() {
 
     server_app.world_mut().send_event(ToClients {
         mode: SendMode::Broadcast,
-        event: DummyEvent,
+        event: TestEvent,
     });
 
     server_app.update();
@@ -247,7 +247,7 @@ fn event_buffering() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    let events = client_app.world().resource::<Events<DummyEvent>>();
+    let events = client_app.world().resource::<Events<TestEvent>>();
     assert!(events.is_empty(), "event should be buffered on server");
 
     // Trigger replication.
@@ -261,7 +261,7 @@ fn event_buffering() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    let events = client_app.world().resource::<Events<DummyEvent>>();
+    let events = client_app.world().resource::<Events<TestEvent>>();
     assert_eq!(events.len(), 1);
 }
 
@@ -277,7 +277,7 @@ fn event_queue() {
                 ..Default::default()
             }),
         ))
-        .add_server_event::<DummyEvent>(Channel::Ordered)
+        .add_server_event::<TestEvent>(Channel::Ordered)
         .finish();
     }
 
@@ -297,14 +297,14 @@ fn event_queue() {
     *update_tick = Default::default();
     server_app.world_mut().send_event(ToClients {
         mode: SendMode::Broadcast,
-        event: DummyEvent,
+        event: TestEvent,
     });
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let events = client_app.world().resource::<Events<DummyEvent>>();
+    let events = client_app.world().resource::<Events<TestEvent>>();
     assert!(events.is_empty());
 
     // Restore the update tick to receive the event.
@@ -312,7 +312,7 @@ fn event_queue() {
 
     client_app.update();
 
-    assert_eq!(client_app.world().resource::<Events<DummyEvent>>().len(), 1);
+    assert_eq!(client_app.world().resource::<Events<TestEvent>>().len(), 1);
 }
 
 #[test]
@@ -390,7 +390,7 @@ fn multiple_event_queues() {
                 ..Default::default()
             }),
         ))
-        .add_server_event::<DummyEvent>(Channel::Ordered)
+        .add_server_event::<TestEvent>(Channel::Ordered)
         .add_server_event::<EntityEvent>(Channel::Ordered) // Use as a regular event with a different serialization size.
         .finish();
     }
@@ -411,7 +411,7 @@ fn multiple_event_queues() {
     *update_tick = Default::default();
     server_app.world_mut().send_event(ToClients {
         mode: SendMode::Broadcast,
-        event: DummyEvent,
+        event: TestEvent,
     });
     server_app.world_mut().send_event(ToClients {
         mode: SendMode::Broadcast,
@@ -422,7 +422,7 @@ fn multiple_event_queues() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let events = client_app.world().resource::<Events<DummyEvent>>();
+    let events = client_app.world().resource::<Events<TestEvent>>();
     assert!(events.is_empty());
 
     let mapped_events = client_app.world().resource::<Events<EntityEvent>>();
@@ -433,7 +433,7 @@ fn multiple_event_queues() {
 
     client_app.update();
 
-    assert_eq!(client_app.world().resource::<Events<DummyEvent>>().len(), 1);
+    assert_eq!(client_app.world().resource::<Events<TestEvent>>().len(), 1);
     assert_eq!(
         client_app.world().resource::<Events<EntityEvent>>().len(),
         1
@@ -452,8 +452,8 @@ fn independent() {
                 ..Default::default()
             }),
         ))
-        .add_server_event::<DummyEvent>(Channel::Ordered)
-        .make_independent::<DummyEvent>()
+        .add_server_event::<TestEvent>(Channel::Ordered)
+        .make_independent::<TestEvent>()
         .finish();
     }
 
@@ -482,7 +482,7 @@ fn independent() {
     ] {
         server_app.world_mut().send_event(ToClients {
             mode,
-            event: DummyEvent,
+            event: TestEvent,
         });
 
         server_app.update();
@@ -492,7 +492,7 @@ fn independent() {
 
         // Event should have already been triggered, even without resetting the tick,
         // since it's independent.
-        let mut events = client_app.world_mut().resource_mut::<Events<DummyEvent>>();
+        let mut events = client_app.world_mut().resource_mut::<Events<TestEvent>>();
         assert_eq!(
             events.drain().count(),
             events_count,
@@ -514,7 +514,7 @@ fn before_started_replication() {
                 ..Default::default()
             }),
         ))
-        .add_server_event::<DummyEvent>(Channel::Ordered)
+        .add_server_event::<TestEvent>(Channel::Ordered)
         .finish();
     }
 
@@ -528,7 +528,7 @@ fn before_started_replication() {
     ] {
         server_app.world_mut().send_event(ToClients {
             mode,
-            event: DummyEvent,
+            event: TestEvent,
         });
     }
 
@@ -537,7 +537,7 @@ fn before_started_replication() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    let events = client_app.world().resource::<Events<DummyEvent>>();
+    let events = client_app.world().resource::<Events<TestEvent>>();
     assert!(events.is_empty());
 }
 
@@ -554,8 +554,8 @@ fn independent_before_started_replication() {
                 ..Default::default()
             }),
         ))
-        .add_server_event::<DummyEvent>(Channel::Ordered)
-        .make_independent::<DummyEvent>()
+        .add_server_event::<TestEvent>(Channel::Ordered)
+        .make_independent::<TestEvent>()
         .finish();
     }
 
@@ -566,7 +566,7 @@ fn independent_before_started_replication() {
 
     server_app.world_mut().send_event(ToClients {
         mode: SendMode::Broadcast,
-        event: DummyEvent,
+        event: TestEvent,
     });
 
     server_app.update();
@@ -574,7 +574,7 @@ fn independent_before_started_replication() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    assert_eq!(client_app.world().resource::<Events<DummyEvent>>().len(), 1);
+    assert_eq!(client_app.world().resource::<Events<TestEvent>>().len(), 1);
 }
 
 #[test]
@@ -590,7 +590,7 @@ fn different_ticks() {
                 ..Default::default()
             }),
         ))
-        .add_server_event::<DummyEvent>(Channel::Ordered)
+        .add_server_event::<TestEvent>(Channel::Ordered)
         .finish();
     }
 
@@ -612,7 +612,7 @@ fn different_ticks() {
 
     server_app.world_mut().send_event(ToClients {
         mode: SendMode::Broadcast,
-        event: DummyEvent,
+        event: TestEvent,
     });
 
     // If any client does not have a replicon tick >= the update tick associated with this event,
@@ -623,21 +623,15 @@ fn different_ticks() {
     client_app1.update();
     client_app2.update();
 
-    assert_eq!(
-        client_app1.world().resource::<Events<DummyEvent>>().len(),
-        1
-    );
-    assert_eq!(
-        client_app2.world().resource::<Events<DummyEvent>>().len(),
-        1
-    );
+    assert_eq!(client_app1.world().resource::<Events<TestEvent>>().len(), 1);
+    assert_eq!(client_app2.world().resource::<Events<TestEvent>>().len(), 1);
 }
 
 #[derive(Event)]
 struct NonRemoteEvent;
 
 #[derive(Deserialize, Event, Serialize)]
-struct DummyEvent;
+struct TestEvent;
 
 #[derive(Deserialize, Event, Serialize, MapEntities)]
 struct EntityEvent(#[entities] Entity);

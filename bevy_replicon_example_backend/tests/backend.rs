@@ -89,7 +89,7 @@ fn server_event() {
             }),
             RepliconExampleBackendPlugins,
         ))
-        .add_server_event::<DummyEvent>(Channel::Ordered)
+        .add_server_event::<TestEvent>(Channel::Ordered)
         .finish();
     }
 
@@ -97,14 +97,14 @@ fn server_event() {
 
     server_app.world_mut().send_event(ToClients {
         mode: SendMode::Broadcast,
-        event: DummyEvent,
+        event: TestEvent,
     });
 
     server_app.update();
     client_app.update();
 
-    let dummy_events = client_app.world().resource::<Events<DummyEvent>>();
-    assert_eq!(dummy_events.len(), 1);
+    let events = client_app.world().resource::<Events<TestEvent>>();
+    assert_eq!(events.len(), 1);
 }
 
 #[test]
@@ -120,20 +120,20 @@ fn client_event() {
             }),
             RepliconExampleBackendPlugins,
         ))
-        .add_client_event::<DummyEvent>(Channel::Ordered)
+        .add_client_event::<TestEvent>(Channel::Ordered)
         .finish();
     }
 
     setup(&mut server_app, &mut client_app).unwrap();
 
-    client_app.world_mut().send_event(DummyEvent);
+    client_app.world_mut().send_event(TestEvent);
 
     client_app.update();
     server_app.update();
 
     let client_events = server_app
         .world()
-        .resource::<Events<FromClient<DummyEvent>>>();
+        .resource::<Events<FromClient<TestEvent>>>();
     assert_eq!(client_events.len(), 1);
 }
 
@@ -152,4 +152,4 @@ fn setup(server_app: &mut App, client_app: &mut App) -> io::Result<()> {
 }
 
 #[derive(Deserialize, Event, Serialize)]
-struct DummyEvent;
+struct TestEvent;

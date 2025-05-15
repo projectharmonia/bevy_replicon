@@ -76,7 +76,7 @@ mod tests {
 
     #[test]
     fn lower_tick() {
-        let mut queue = ClientEventQueue::<DummyEvent>::default();
+        let mut queue = ClientEventQueue::<TestEvent>::default();
         queue.insert(RepliconTick::new(1), Default::default());
 
         assert_eq!(queue.len(), 1);
@@ -85,7 +85,7 @@ mod tests {
 
     #[test]
     fn bigger_tick() {
-        let mut queue = ClientEventQueue::<DummyEvent>::default();
+        let mut queue = ClientEventQueue::<TestEvent>::default();
         queue.insert(RepliconTick::new(1), Default::default());
 
         assert!(queue.pop_if_le(RepliconTick::new(2)).is_some());
@@ -94,7 +94,7 @@ mod tests {
 
     #[test]
     fn ticks_ordering() {
-        let mut queue = ClientEventQueue::<DummyEvent>::default();
+        let mut queue = ClientEventQueue::<TestEvent>::default();
         queue.insert(RepliconTick::new(0), Default::default());
         queue.insert(RepliconTick::new(1), Default::default());
         queue.insert(RepliconTick::new(2), Default::default());
@@ -111,7 +111,7 @@ mod tests {
 
     #[test]
     fn messages_ordering() {
-        let mut queue = ClientEventQueue::<DummyEvent>::default();
+        let mut queue = ClientEventQueue::<TestEvent>::default();
         queue.insert(RepliconTick::new(0), Bytes::from_static(&[0]));
         queue.insert(RepliconTick::new(0), Bytes::from_static(&[1]));
 
@@ -121,5 +121,5 @@ mod tests {
         assert!(queue.is_empty());
     }
 
-    struct DummyEvent;
+    struct TestEvent;
 }

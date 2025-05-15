@@ -319,9 +319,9 @@ mod tests {
         let mut app = App::new();
         app.init_resource::<CommandMarkers>()
             .init_resource::<ReplicationRegistry>()
-            .set_marker_fns::<DummyMarkerA, DummyComponent>(
+            .set_marker_fns::<Marker, TestComponent>(
                 command_fns::default_write,
-                command_fns::default_remove::<DummyComponent>,
+                command_fns::default_remove::<TestComponent>,
             );
     }
 
@@ -330,16 +330,16 @@ mod tests {
         let mut app = App::new();
         app.init_resource::<CommandMarkers>()
             .init_resource::<ReplicationRegistry>()
-            .register_marker::<DummyMarkerA>()
-            .register_marker_with::<DummyMarkerB>(MarkerConfig {
+            .register_marker::<MarkerA>()
+            .register_marker_with::<MarkerB>(MarkerConfig {
                 priority: 2,
                 ..Default::default()
             })
-            .register_marker_with::<DummyMarkerC>(MarkerConfig {
+            .register_marker_with::<MarkerC>(MarkerConfig {
                 priority: 1,
                 ..Default::default()
             })
-            .register_marker::<DummyMarkerD>();
+            .register_marker::<MarkerD>();
 
         let markers = app.world().resource::<CommandMarkers>();
         let priorities: Vec<_> = markers
@@ -351,17 +351,20 @@ mod tests {
     }
 
     #[derive(Component)]
-    struct DummyMarkerA;
+    struct Marker;
 
     #[derive(Component)]
-    struct DummyMarkerB;
+    struct MarkerA;
 
     #[derive(Component)]
-    struct DummyMarkerC;
+    struct MarkerB;
 
     #[derive(Component)]
-    struct DummyMarkerD;
+    struct MarkerC;
+
+    #[derive(Component)]
+    struct MarkerD;
 
     #[derive(Component, Serialize, Deserialize)]
-    struct DummyComponent;
+    struct TestComponent;
 }

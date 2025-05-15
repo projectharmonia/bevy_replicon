@@ -60,12 +60,12 @@ fn with_component() {
                 ..Default::default()
             }),
         ))
-        .replicate::<DummyComponent>();
+        .replicate::<TestComponent>();
     }
 
     server_app.connect_client(&mut client_app);
 
-    server_app.world_mut().spawn((Replicated, DummyComponent));
+    server_app.world_mut().spawn((Replicated, TestComponent));
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -73,7 +73,7 @@ fn with_component() {
 
     let mut components = client_app
         .world_mut()
-        .query::<(&Replicated, &DummyComponent)>();
+        .query::<(&Replicated, &TestComponent)>();
     assert_eq!(components.iter(client_app.world()).count(), 1);
 }
 
@@ -89,8 +89,8 @@ fn with_multiple_components() {
                 ..Default::default()
             }),
         ))
-        .replicate::<DummyComponent>()
-        .replicate::<OtherComponent>();
+        .replicate::<ComponentA>()
+        .replicate::<ComponentB>();
     }
 
     server_app.connect_client(&mut client_app);
@@ -99,7 +99,7 @@ fn with_multiple_components() {
 
     server_app
         .world_mut()
-        .spawn((Replicated, DummyComponent, OtherComponent));
+        .spawn((Replicated, ComponentA, ComponentB));
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -107,7 +107,7 @@ fn with_multiple_components() {
 
     let mut components = client_app
         .world_mut()
-        .query::<(&Replicated, &DummyComponent, &OtherComponent)>();
+        .query::<(&Replicated, &ComponentA, &ComponentB)>();
     assert_eq!(components.iter(client_app.world()).count(), 1);
     assert_eq!(
         client_app.world().archetypes().len() - before_archetypes,
@@ -128,13 +128,13 @@ fn with_old_component() {
                 ..Default::default()
             }),
         ))
-        .replicate::<DummyComponent>();
+        .replicate::<TestComponent>();
     }
 
     server_app.connect_client(&mut client_app);
 
     // Spawn an entity with replicated component, but without a marker.
-    let server_entity = server_app.world_mut().spawn(DummyComponent).id();
+    let server_entity = server_app.world_mut().spawn(TestComponent).id();
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -156,7 +156,7 @@ fn with_old_component() {
 
     let mut components = client_app
         .world_mut()
-        .query::<(&Replicated, &DummyComponent)>();
+        .query::<(&Replicated, &TestComponent)>();
     assert_eq!(components.iter(client_app.world()).count(), 1);
 }
 
@@ -172,11 +172,11 @@ fn before_connection() {
                 ..Default::default()
             }),
         ))
-        .replicate::<DummyComponent>();
+        .replicate::<TestComponent>();
     }
 
     // Spawn an entity before client connected.
-    server_app.world_mut().spawn((Replicated, DummyComponent));
+    server_app.world_mut().spawn((Replicated, TestComponent));
 
     server_app.connect_client(&mut client_app);
 
@@ -185,7 +185,7 @@ fn before_connection() {
 
     let mut components = client_app
         .world_mut()
-        .query::<(&Replicated, &DummyComponent)>();
+        .query::<(&Replicated, &TestComponent)>();
     assert_eq!(components.iter(client_app.world()).count(), 1);
 }
 
@@ -201,7 +201,7 @@ fn pre_spawn() {
                 ..Default::default()
             }),
         ))
-        .replicate::<DummyComponent>();
+        .replicate::<TestComponent>();
     }
 
     server_app.connect_client(&mut client_app);
@@ -209,7 +209,7 @@ fn pre_spawn() {
     let client_entity = client_app.world_mut().spawn_empty().id();
     let server_entity = server_app
         .world_mut()
-        .spawn((Replicated, DummyComponent))
+        .spawn((Replicated, TestComponent))
         .id();
 
     let test_client_entity = **client_app.world().resource::<TestClientEntity>();
@@ -245,7 +245,7 @@ fn pre_spawn() {
         "server should confirm replication of client entity"
     );
     assert!(
-        client_entity.contains::<DummyComponent>(),
+        client_entity.contains::<TestComponent>(),
         "component from server should be replicated"
     );
 
@@ -269,7 +269,7 @@ fn after_despawn() {
                 ..Default::default()
             }),
         ))
-        .replicate::<DummyComponent>();
+        .replicate::<TestComponent>();
     }
 
     server_app.connect_client(&mut client_app);
@@ -277,7 +277,7 @@ fn after_despawn() {
     // Remove and insert `Replicated` to trigger despawn and spawn for client at the same time.
     server_app
         .world_mut()
-        .spawn((Replicated, DummyComponent))
+        .spawn((Replicated, TestComponent))
         .remove::<Replicated>()
         .insert(Replicated);
 
@@ -287,12 +287,15 @@ fn after_despawn() {
 
     let mut components = client_app
         .world_mut()
-        .query::<(&Replicated, &DummyComponent)>();
+        .query::<(&Replicated, &TestComponent)>();
     assert_eq!(components.iter(client_app.world()).count(), 1);
 }
 
 #[derive(Component, Deserialize, Serialize)]
-struct DummyComponent;
+struct TestComponent;
 
 #[derive(Component, Deserialize, Serialize)]
-struct OtherComponent;
+struct ComponentA;
+
+#[derive(Component, Deserialize, Serialize)]
+struct ComponentB;

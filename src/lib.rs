@@ -114,10 +114,10 @@ Use [`AppRuleExt::replicate`] to create a replication rule for a single componen
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
-app.replicate::<DummyComponent>();
+app.replicate::<ExampleComponent>();
 
 #[derive(Component, Deserialize, Serialize)]
-struct DummyComponent;
+struct ExampleComponent;
 ```
 
 If your component contains an entity, it cannot be deserialized as is
@@ -251,7 +251,7 @@ contains sender ID and the sent event.
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
-app.add_client_event::<DummyEvent>(Channel::Ordered)
+app.add_client_event::<ExampleEvent>(Channel::Ordered)
     .add_systems(
         PreUpdate,
         receive_events
@@ -263,18 +263,18 @@ app.add_client_event::<DummyEvent>(Channel::Ordered)
         send_events.before(ClientSet::Send).run_if(client_connected),
     );
 
-fn send_events(mut dummy_events: EventWriter<DummyEvent>) {
-    dummy_events.send_default();
+fn send_events(mut events: EventWriter<ExampleEvent>) {
+    events.send_default();
 }
 
-fn receive_events(mut dummy_events: EventReader<FromClient<DummyEvent>>) {
-    for FromClient { client_entity, event } in dummy_events.read() {
+fn receive_events(mut events: EventReader<FromClient<ExampleEvent>>) {
+    for FromClient { client_entity, event } in events.read() {
         info!("received event `{event:?}` from client `{client_entity}`");
     }
 }
 
 #[derive(Debug, Default, Deserialize, Event, Serialize)]
-struct DummyEvent;
+struct ExampleEvent;
 ```
 
 If an event contains an entity, implement
@@ -295,19 +295,19 @@ using [`ClientTriggerAppExt::add_client_trigger`], and then use [`ClientTriggerE
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
-app.add_client_trigger::<DummyEvent>(Channel::Ordered)
+app.add_client_trigger::<ExampleEvent>(Channel::Ordered)
     .add_observer(receive_events)
     .add_systems(Update, send_events.run_if(client_connected));
 
 fn send_events(mut commands: Commands) {
-    commands.client_trigger(DummyEvent);
+    commands.client_trigger(ExampleEvent);
 }
 
-fn receive_events(trigger: Trigger<FromClient<DummyEvent>>) {
+fn receive_events(trigger: Trigger<FromClient<ExampleEvent>>) {
     info!("received event `{:?}` from client `{}`", **trigger, trigger.client_entity);
 }
 # #[derive(Event, Debug, Deserialize, Serialize)]
-# struct DummyEvent;
+# struct ExampleEvent;
 ```
 
 Trigger targets are also supported via [`ClientTriggerExt::client_trigger_targets`], no change
@@ -329,7 +329,7 @@ and the event itself.
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
-app.add_server_event::<DummyEvent>(Channel::Ordered)
+app.add_server_event::<ExampleEvent>(Channel::Ordered)
     .add_systems(
         PreUpdate,
         receive_events
@@ -341,21 +341,21 @@ app.add_server_event::<DummyEvent>(Channel::Ordered)
         send_events.before(ServerSet::Send).run_if(server_running),
     );
 
-fn send_events(mut dummy_events: EventWriter<ToClients<DummyEvent>>) {
-    dummy_events.write(ToClients {
+fn send_events(mut events: EventWriter<ToClients<ExampleEvent>>) {
+    events.write(ToClients {
         mode: SendMode::Broadcast,
-        event: DummyEvent,
+        event: ExampleEvent,
     });
 }
 
-fn receive_events(mut dummy_events: EventReader<DummyEvent>) {
-    for event in dummy_events.read() {
+fn receive_events(mut events: EventReader<ExampleEvent>) {
+    for event in events.read() {
         info!("received event {event:?} from server");
     }
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Event, Serialize)]
-struct DummyEvent;
+struct ExampleEvent;
 ```
 
 Just like for client events, we provide [`ServerEventAppExt::add_mapped_server_event`]
@@ -370,22 +370,22 @@ with [`ServerTriggerAppExt::add_server_trigger`] and then use [`ServerTriggerExt
 # use serde::{Deserialize, Serialize};
 # let mut app = App::new();
 # app.add_plugins(RepliconPlugins);
-app.add_server_trigger::<DummyEvent>(Channel::Ordered)
+app.add_server_trigger::<ExampleEvent>(Channel::Ordered)
     .add_observer(receive_events)
     .add_systems(Update, send_events.run_if(server_running));
 
 fn send_events(mut commands: Commands) {
     commands.server_trigger(ToClients {
         mode: SendMode::Broadcast,
-        event: DummyEvent,
+        event: ExampleEvent,
     });
 }
 
-fn receive_events(trigger: Trigger<DummyEvent>) {
+fn receive_events(trigger: Trigger<ExampleEvent>) {
     info!("received event {:?} from server", *trigger);
 }
 # #[derive(Event, Debug, Deserialize, Serialize)]
-# struct DummyEvent;
+# struct ExampleEvent;
 ```
 
 And just like for client trigger, we provide [`ServerTriggerAppExt::add_mapped_server_trigger`]

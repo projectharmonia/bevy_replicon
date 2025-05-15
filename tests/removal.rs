@@ -24,14 +24,14 @@ fn single() {
                 ..Default::default()
             }),
         ))
-        .replicate::<DummyComponent>();
+        .replicate::<TestComponent>();
     }
 
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
         .world_mut()
-        .spawn((Replicated, DummyComponent))
+        .spawn((Replicated, TestComponent))
         .id();
 
     server_app.update();
@@ -39,13 +39,13 @@ fn single() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    let mut components = client_app.world_mut().query::<&DummyComponent>();
+    let mut components = client_app.world_mut().query::<&TestComponent>();
     assert_eq!(components.iter(client_app.world()).len(), 1);
 
     server_app
         .world_mut()
         .entity_mut(server_entity)
-        .remove::<DummyComponent>();
+        .remove::<TestComponent>();
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -66,15 +66,15 @@ fn multiple() {
                 ..Default::default()
             }),
         ))
-        .replicate::<DummyComponent>()
-        .replicate::<OtherComponent>();
+        .replicate::<ComponentA>()
+        .replicate::<ComponentB>();
     }
 
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
         .world_mut()
-        .spawn((Replicated, DummyComponent, OtherComponent))
+        .spawn((Replicated, ComponentA, ComponentB))
         .id();
 
     server_app.update();
@@ -82,9 +82,7 @@ fn multiple() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    let mut components = client_app
-        .world_mut()
-        .query::<(&DummyComponent, &OtherComponent)>();
+    let mut components = client_app.world_mut().query::<(&ComponentA, &ComponentB)>();
     assert_eq!(components.iter(client_app.world()).len(), 1);
 
     let before_archetypes = client_app.world().archetypes().len();
@@ -92,7 +90,7 @@ fn multiple() {
     server_app
         .world_mut()
         .entity_mut(server_entity)
-        .remove::<(DummyComponent, OtherComponent)>();
+        .remove::<(ComponentA, ComponentB)>();
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -215,14 +213,14 @@ fn group() {
                 ..Default::default()
             }),
         ))
-        .replicate_bundle::<(GroupComponentA, GroupComponentB)>();
+        .replicate_bundle::<(ComponentA, ComponentB)>();
     }
 
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
         .world_mut()
-        .spawn((Replicated, (GroupComponentA, GroupComponentB)))
+        .spawn((Replicated, (ComponentA, ComponentB)))
         .id();
 
     server_app.update();
@@ -232,22 +230,22 @@ fn group() {
 
     let client_entity = client_app
         .world_mut()
-        .query_filtered::<Entity, (With<GroupComponentA>, With<GroupComponentB>)>()
+        .query_filtered::<Entity, (With<ComponentA>, With<ComponentB>)>()
         .single(client_app.world())
         .unwrap();
 
     server_app
         .world_mut()
         .entity_mut(server_entity)
-        .remove::<(GroupComponentA, GroupComponentB)>();
+        .remove::<(ComponentA, ComponentB)>();
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let client_entity = client_app.world().entity(client_entity);
-    assert!(!client_entity.contains::<GroupComponentA>());
-    assert!(!client_entity.contains::<GroupComponentB>());
+    assert!(!client_entity.contains::<ComponentA>());
+    assert!(!client_entity.contains::<ComponentB>());
 }
 
 #[test]
@@ -312,14 +310,14 @@ fn after_insertion() {
                 ..Default::default()
             }),
         ))
-        .replicate::<DummyComponent>();
+        .replicate::<TestComponent>();
     }
 
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
         .world_mut()
-        .spawn((Replicated, DummyComponent))
+        .spawn((Replicated, TestComponent))
         .id();
 
     server_app.update();
@@ -327,15 +325,15 @@ fn after_insertion() {
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    let mut components = client_app.world_mut().query::<&DummyComponent>();
+    let mut components = client_app.world_mut().query::<&TestComponent>();
     assert_eq!(components.iter(client_app.world()).len(), 1);
 
     // Insert and remove at the same time.
     server_app
         .world_mut()
         .entity_mut(server_entity)
-        .insert(DummyComponent)
-        .remove::<DummyComponent>();
+        .insert(TestComponent)
+        .remove::<TestComponent>();
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -356,15 +354,15 @@ fn with_spawn() {
                 ..Default::default()
             }),
         ))
-        .replicate::<DummyComponent>();
+        .replicate::<TestComponent>();
     }
 
     server_app.connect_client(&mut client_app);
 
     server_app
         .world_mut()
-        .spawn((Replicated, DummyComponent))
-        .remove::<DummyComponent>();
+        .spawn((Replicated, TestComponent))
+        .remove::<TestComponent>();
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -372,7 +370,7 @@ fn with_spawn() {
 
     let mut components = client_app
         .world_mut()
-        .query_filtered::<&Replicated, Without<DummyComponent>>();
+        .query_filtered::<&Replicated, Without<TestComponent>>();
     assert_eq!(components.iter(client_app.world()).len(), 1);
 }
 
@@ -388,14 +386,14 @@ fn with_despawn() {
                 ..Default::default()
             }),
         ))
-        .replicate::<DummyComponent>();
+        .replicate::<TestComponent>();
     }
 
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
         .world_mut()
-        .spawn((Replicated, DummyComponent))
+        .spawn((Replicated, TestComponent))
         .id();
 
     server_app.update();
@@ -410,7 +408,7 @@ fn with_despawn() {
     server_app
         .world_mut()
         .entity_mut(server_entity)
-        .remove::<DummyComponent>()
+        .remove::<TestComponent>()
         .remove::<Replicated>();
 
     server_app.update();
@@ -432,14 +430,14 @@ fn confirm_history() {
                 ..Default::default()
             }),
         ))
-        .replicate::<DummyComponent>();
+        .replicate::<TestComponent>();
     }
 
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
         .world_mut()
-        .spawn((Replicated, DummyComponent))
+        .spawn((Replicated, TestComponent))
         .id();
 
     server_app.update();
@@ -449,14 +447,14 @@ fn confirm_history() {
 
     let client_entity = client_app
         .world_mut()
-        .query_filtered::<Entity, With<DummyComponent>>()
+        .query_filtered::<Entity, With<TestComponent>>()
         .single(client_app.world())
         .unwrap();
 
     server_app
         .world_mut()
         .entity_mut(server_entity)
-        .remove::<DummyComponent>();
+        .remove::<TestComponent>();
 
     // Clear previous events.
     client_app
@@ -501,14 +499,14 @@ fn hidden() {
                 ..Default::default()
             }),
         ))
-        .replicate::<DummyComponent>();
+        .replicate::<TestComponent>();
     }
 
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
         .world_mut()
-        .spawn((Replicated, DummyComponent))
+        .spawn((Replicated, TestComponent))
         .id();
 
     server_app.update();
@@ -519,7 +517,7 @@ fn hidden() {
     server_app
         .world_mut()
         .entity_mut(server_entity)
-        .remove::<DummyComponent>();
+        .remove::<TestComponent>();
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -534,16 +532,13 @@ fn hidden() {
 }
 
 #[derive(Component, Deserialize, Serialize)]
-struct DummyComponent;
+struct TestComponent;
 
 #[derive(Component, Deserialize, Serialize)]
-struct OtherComponent;
+struct ComponentA;
 
 #[derive(Component, Deserialize, Serialize)]
-struct GroupComponentA;
-
-#[derive(Component, Deserialize, Serialize)]
-struct GroupComponentB;
+struct ComponentB;
 
 #[derive(Component, Deserialize, Serialize)]
 struct NotReplicatedComponent;

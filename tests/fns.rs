@@ -202,13 +202,13 @@ fn remove_with_marker() {
 fn write_with_multiple_markers() {
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, RepliconPlugins))
-        .register_marker::<DummyMarker>()
+        .register_marker::<Marker>()
         .register_marker::<ReplaceMarker>()
         .set_marker_fns::<ReplaceMarker, _>(
             replace,
             command_fns::default_remove::<ReplacedComponent>,
         )
-        .set_marker_fns::<DummyMarker, _>(
+        .set_marker_fns::<Marker, _>(
             command_fns::default_write::<OriginalComponent>,
             command_fns::default_remove::<OriginalComponent>,
         );
@@ -222,7 +222,7 @@ fn write_with_multiple_markers() {
 
     let mut entity = app
         .world_mut()
-        .spawn((OriginalComponent, ReplaceMarker, DummyMarker));
+        .spawn((OriginalComponent, ReplaceMarker, Marker));
     let data = entity.serialize(fns_id, tick);
     entity.apply_write(data, fns_id, tick);
     assert!(
@@ -235,13 +235,13 @@ fn write_with_multiple_markers() {
 fn remove_with_mutltiple_markers() {
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, RepliconPlugins))
-        .register_marker::<DummyMarker>()
+        .register_marker::<Marker>()
         .register_marker::<ReplaceMarker>()
         .set_marker_fns::<ReplaceMarker, _>(
             replace,
             command_fns::default_remove::<ReplacedComponent>,
         )
-        .set_marker_fns::<DummyMarker, _>(
+        .set_marker_fns::<Marker, _>(
             command_fns::default_write::<OriginalComponent>,
             command_fns::default_remove::<OriginalComponent>,
         );
@@ -255,7 +255,7 @@ fn remove_with_mutltiple_markers() {
 
     let mut entity = app
         .world_mut()
-        .spawn((ReplacedComponent, ReplaceMarker, DummyMarker));
+        .spawn((ReplacedComponent, ReplaceMarker, Marker));
     entity.apply_remove(fns_id, tick);
     assert!(
         !entity.contains::<ReplacedComponent>(),
@@ -271,12 +271,12 @@ fn write_with_priority_marker() {
             priority: 1,
             ..Default::default()
         })
-        .register_marker::<DummyMarker>()
+        .register_marker::<Marker>()
         .set_marker_fns::<ReplaceMarker, _>(
             replace,
             command_fns::default_remove::<ReplacedComponent>,
         )
-        .set_marker_fns::<DummyMarker, _>(
+        .set_marker_fns::<Marker, _>(
             command_fns::default_write::<OriginalComponent>,
             command_fns::default_remove::<OriginalComponent>,
         );
@@ -290,7 +290,7 @@ fn write_with_priority_marker() {
 
     let mut entity = app
         .world_mut()
-        .spawn((OriginalComponent, ReplaceMarker, DummyMarker));
+        .spawn((OriginalComponent, ReplaceMarker, Marker));
     let data = entity.serialize(fns_id, tick);
     entity.apply_write(data, fns_id, tick);
     assert!(entity.contains::<ReplacedComponent>());
@@ -304,12 +304,12 @@ fn remove_with_priority_marker() {
             priority: 1,
             ..Default::default()
         })
-        .register_marker::<DummyMarker>()
+        .register_marker::<Marker>()
         .set_marker_fns::<ReplaceMarker, _>(
             replace,
             command_fns::default_remove::<ReplacedComponent>,
         )
-        .set_marker_fns::<DummyMarker, _>(
+        .set_marker_fns::<Marker, _>(
             command_fns::default_write::<OriginalComponent>,
             command_fns::default_remove::<OriginalComponent>,
         );
@@ -323,7 +323,7 @@ fn remove_with_priority_marker() {
 
     let mut entity = app
         .world_mut()
-        .spawn((ReplacedComponent, ReplaceMarker, DummyMarker));
+        .spawn((ReplacedComponent, ReplaceMarker, Marker));
     entity.apply_remove(fns_id, tick);
     assert!(!entity.contains::<ReplacedComponent>());
 }
@@ -356,7 +356,7 @@ struct Despawned;
 struct ReplaceMarker;
 
 #[derive(Component, Deserialize, Serialize)]
-struct DummyMarker;
+struct Marker;
 
 /// Deserializes [`OriginalComponent`], but ignores it and inserts [`ReplacedComponent`].
 fn replace(

@@ -18,12 +18,12 @@ fn empty_blacklist() {
                 ..Default::default()
             }),
         ))
-        .replicate::<DummyComponent>();
+        .replicate::<TestComponent>();
     }
 
     server_app.connect_client(&mut client_app);
 
-    server_app.world_mut().spawn((Replicated, DummyComponent));
+    server_app.world_mut().spawn((Replicated, TestComponent));
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -31,7 +31,7 @@ fn empty_blacklist() {
 
     let mut components = client_app
         .world_mut()
-        .query::<(&Replicated, &DummyComponent)>();
+        .query::<(&Replicated, &TestComponent)>();
     assert_eq!(components.iter(client_app.world()).count(), 1);
 }
 
@@ -48,14 +48,14 @@ fn blacklist() {
                 ..Default::default()
             }),
         ))
-        .replicate::<DummyComponent>();
+        .replicate::<TestComponent>();
     }
 
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
         .world_mut()
-        .spawn((Replicated, DummyComponent))
+        .spawn((Replicated, TestComponent))
         .id();
 
     let test_client_entity = **client_app.world().resource::<TestClientEntity>();
@@ -86,7 +86,7 @@ fn blacklist() {
 
     let mut components = client_app
         .world_mut()
-        .query::<(&Replicated, &DummyComponent)>();
+        .query::<(&Replicated, &TestComponent)>();
     assert_eq!(components.iter(client_app.world()).count(), 1);
 }
 
@@ -103,7 +103,7 @@ fn blacklist_with_despawn() {
                 ..Default::default()
             }),
         ))
-        .replicate::<DummyComponent>();
+        .replicate::<TestComponent>();
     }
 
     server_app.connect_client(&mut client_app);
@@ -145,12 +145,12 @@ fn empty_whitelist() {
                 ..Default::default()
             }),
         ))
-        .replicate::<DummyComponent>();
+        .replicate::<TestComponent>();
     }
 
     server_app.connect_client(&mut client_app);
 
-    server_app.world_mut().spawn((Replicated, DummyComponent));
+    server_app.world_mut().spawn((Replicated, TestComponent));
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -177,14 +177,14 @@ fn whitelist() {
                 ..Default::default()
             }),
         ))
-        .replicate::<DummyComponent>();
+        .replicate::<TestComponent>();
     }
 
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
         .world_mut()
-        .spawn((Replicated, DummyComponent))
+        .spawn((Replicated, TestComponent))
         .id();
 
     let test_client_entity = **client_app.world().resource::<TestClientEntity>();
@@ -201,7 +201,7 @@ fn whitelist() {
 
     let mut components = client_app
         .world_mut()
-        .query::<(&Replicated, &DummyComponent)>();
+        .query::<(&Replicated, &TestComponent)>();
     assert_eq!(components.iter(client_app.world()).len(), 1);
 
     // Reverse visibility.
@@ -235,7 +235,7 @@ fn whitelist_with_despawn() {
                 ..Default::default()
             }),
         ))
-        .replicate::<DummyComponent>();
+        .replicate::<TestComponent>();
     }
 
     server_app.connect_client(&mut client_app);
@@ -265,4 +265,4 @@ fn whitelist_with_despawn() {
 }
 
 #[derive(Component, Deserialize, Serialize)]
-struct DummyComponent;
+struct TestComponent;

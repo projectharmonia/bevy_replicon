@@ -6,18 +6,18 @@ use serde::{Deserialize, Serialize};
 fn replicated_entity() {
     let mut app = App::new();
     app.add_plugins(RepliconPlugins)
-        .register_type::<DummyComponent>()
+        .register_type::<TestComponent>()
         .register_type::<NonReflectedComponent>()
-        .replicate::<DummyComponent>()
-        .replicate::<OtherReflectedComponent>() // Reflected, but the type is not registered.
+        .replicate::<TestComponent>()
+        .replicate::<ReflectedComponent>() // Reflected, but the type is not registered.
         .replicate::<NonReflectedComponent>();
 
     let entity = app
         .world_mut()
         .spawn((
             Replicated,
-            DummyComponent,
-            OtherReflectedComponent,
+            TestComponent,
+            ReflectedComponent,
             NonReflectedComponent,
         ))
         .id();
@@ -60,10 +60,10 @@ fn empty_entity() {
 fn not_replicated_entity() {
     let mut app = App::new();
     app.add_plugins(RepliconPlugins)
-        .register_type::<DummyComponent>()
-        .replicate::<DummyComponent>();
+        .register_type::<TestComponent>()
+        .replicate::<TestComponent>();
 
-    app.world_mut().spawn(DummyComponent);
+    app.world_mut().spawn(TestComponent);
 
     let mut scene = DynamicScene::default();
     scene::replicate_into(&mut scene, app.world());
@@ -76,18 +76,18 @@ fn not_replicated_entity() {
 fn entity_update() {
     let mut app = App::new();
     app.add_plugins(RepliconPlugins)
-        .register_type::<DummyComponent>()
-        .replicate::<DummyComponent>()
-        .register_type::<OtherReflectedComponent>();
+        .register_type::<TestComponent>()
+        .replicate::<TestComponent>()
+        .register_type::<ReflectedComponent>();
 
     let entity = app
         .world_mut()
-        .spawn((Replicated, DummyComponent, OtherReflectedComponent))
+        .spawn((Replicated, TestComponent, ReflectedComponent))
         .id();
 
     // Populate scene only with a single non-replicated component.
     let mut scene = DynamicSceneBuilder::from_world(app.world())
-        .allow_component::<OtherReflectedComponent>()
+        .allow_component::<ReflectedComponent>()
         .extract_entity(entity)
         .build();
 
@@ -104,11 +104,11 @@ fn entity_update() {
 
 #[derive(Component, Default, Deserialize, Reflect, Serialize)]
 #[reflect(Component)]
-struct DummyComponent;
+struct TestComponent;
 
 #[derive(Component, Default, Deserialize, Reflect, Serialize)]
 #[reflect(Component)]
-struct OtherReflectedComponent;
+struct ReflectedComponent;
 
 /// Component that have `Reflect` derive, but without `#[reflect(Component)]`
 #[derive(Component, Default, Deserialize, Reflect, Serialize)]

@@ -620,32 +620,32 @@ fn marker_with_history_consume() {
     server_app.exchange_with_client(&mut client_app);
 
     // Change value, but don't process it on client.
-    let dummy_entity1 = server_app.world_mut().spawn_empty().id();
+    let new_entity1 = server_app.world_mut().spawn_empty().id();
     let mut component = server_app
         .world_mut()
         .get_mut::<MappedComponent>(server_entity)
         .unwrap();
-    component.0 = dummy_entity1;
+    component.0 = new_entity1;
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
 
     // Change value again to trigger another message.
-    let dummy_entity2 = server_app.world_mut().spawn_empty().id();
+    let new_entity2 = server_app.world_mut().spawn_empty().id();
     let mut component = server_app
         .world_mut()
         .get_mut::<MappedComponent>(server_entity)
         .unwrap();
-    component.0 = dummy_entity2;
+    component.0 = new_entity2;
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let entity_map = client_app.world().resource::<ServerEntityMap>();
-    assert!(entity_map.to_client().contains_key(&dummy_entity2));
+    assert!(entity_map.to_client().contains_key(&new_entity2));
     assert!(
-        !entity_map.to_client().contains_key(&dummy_entity1),
+        !entity_map.to_client().contains_key(&new_entity1),
         "client should consume older mutations for other components with marker that requested history"
     );
 
@@ -797,7 +797,7 @@ fn with_insertion() {
             }),
         ))
         .replicate::<BoolComponent>()
-        .replicate::<DummyComponent>();
+        .replicate::<TestComponent>();
     }
 
     server_app.connect_client(&mut client_app);
@@ -814,7 +814,7 @@ fn with_insertion() {
 
     let mut server_entity = server_app.world_mut().entity_mut(server_entity);
     server_entity.get_mut::<BoolComponent>().unwrap().0 = true;
-    server_entity.insert(DummyComponent);
+    server_entity.insert(TestComponent);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -822,7 +822,7 @@ fn with_insertion() {
 
     let component = client_app
         .world_mut()
-        .query_filtered::<&BoolComponent, With<DummyComponent>>()
+        .query_filtered::<&BoolComponent, With<TestComponent>>()
         .single(client_app.world())
         .unwrap();
     assert!(component.0);
@@ -841,14 +841,14 @@ fn with_removal() {
             }),
         ))
         .replicate::<BoolComponent>()
-        .replicate::<DummyComponent>();
+        .replicate::<TestComponent>();
     }
 
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
         .world_mut()
-        .spawn((Replicated, BoolComponent(false), DummyComponent))
+        .spawn((Replicated, BoolComponent(false), TestComponent))
         .id();
 
     server_app.update();
@@ -858,7 +858,7 @@ fn with_removal() {
 
     let mut server_entity = server_app.world_mut().entity_mut(server_entity);
     server_entity.get_mut::<BoolComponent>().unwrap().0 = true;
-    server_entity.remove::<DummyComponent>();
+    server_entity.remove::<TestComponent>();
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -866,7 +866,7 @@ fn with_removal() {
 
     let component = client_app
         .world_mut()
-        .query_filtered::<&BoolComponent, Without<DummyComponent>>()
+        .query_filtered::<&BoolComponent, Without<TestComponent>>()
         .single(client_app.world())
         .unwrap();
     assert!(component.0);
@@ -1008,23 +1008,23 @@ fn old_ignored() {
     server_app.exchange_with_client(&mut client_app);
 
     // Change the value, but don't process it on client.
-    let dummy_entity1 = server_app.world_mut().spawn_empty().id();
+    let new_entity1 = server_app.world_mut().spawn_empty().id();
     let mut component = server_app
         .world_mut()
         .get_mut::<MappedComponent>(server_entity)
         .unwrap();
-    component.0 = dummy_entity1;
+    component.0 = new_entity1;
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
 
     // Change the value again to trigger another message.
-    let dummy_entity2 = server_app.world_mut().spawn_empty().id();
+    let new_entity2 = server_app.world_mut().spawn_empty().id();
     let mut component = server_app
         .world_mut()
         .get_mut::<MappedComponent>(server_entity)
         .unwrap();
-    component.0 = dummy_entity2;
+    component.0 = new_entity2;
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -1032,7 +1032,7 @@ fn old_ignored() {
 
     let entity_map = client_app.world().resource::<ServerEntityMap>();
     assert!(
-        !entity_map.to_client().contains_key(&dummy_entity1),
+        !entity_map.to_client().contains_key(&new_entity1),
         "client should ignore older mutation"
     );
 
@@ -1234,7 +1234,7 @@ fn after_disconnect() {
 }
 
 #[derive(Component, Deserialize, Serialize)]
-struct DummyComponent;
+struct TestComponent;
 
 #[derive(Clone, Component, Copy, Deserialize, Serialize)]
 struct BoolComponent(bool);

@@ -45,25 +45,25 @@ let tick = RepliconTick::default();
 let (_, fns_id) = app
     .world_mut()
     .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
-        registry.register_rule_fns(world, RuleFns::<DummyComponent>::default())
+        registry.register_rule_fns(world, RuleFns::<ExampleComponent>::default())
     });
 
-let mut entity = app.world_mut().spawn(DummyComponent);
+let mut entity = app.world_mut().spawn(ExampleComponent);
 let data = entity.serialize(fns_id, tick);
-entity.remove::<DummyComponent>();
+entity.remove::<ExampleComponent>();
 
 entity.apply_write(data, fns_id, tick);
-assert!(entity.contains::<DummyComponent>());
+assert!(entity.contains::<ExampleComponent>());
 
 entity.apply_remove(fns_id, tick);
-assert!(!entity.contains::<DummyComponent>());
+assert!(!entity.contains::<ExampleComponent>());
 
 entity.apply_despawn(tick);
-let mut replicated = app.world_mut().query::<&DummyComponent>();
+let mut replicated = app.world_mut().query::<&ExampleComponent>();
 assert_eq!(replicated.iter(app.world()).len(), 0);
 
 #[derive(Component, Serialize, Deserialize)]
-struct DummyComponent;
+struct ExampleComponent;
 ```
 **/
 pub trait TestFnsEntityExt {

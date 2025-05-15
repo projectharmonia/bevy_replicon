@@ -16,23 +16,23 @@ fn sending_receiving() {
                 ..Default::default()
             }),
         ))
-        .add_server_trigger::<DummyEvent>(Channel::Ordered)
+        .add_server_trigger::<TestEvent>(Channel::Ordered)
         .finish();
     }
-    client_app.init_resource::<TriggerReader<DummyEvent>>();
+    client_app.init_resource::<TriggerReader<TestEvent>>();
 
     server_app.connect_client(&mut client_app);
 
     server_app.world_mut().server_trigger(ToClients {
         mode: SendMode::Broadcast,
-        event: DummyEvent,
+        event: TestEvent,
     });
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let reader = client_app.world().resource::<TriggerReader<DummyEvent>>();
+    let reader = client_app.world().resource::<TriggerReader<TestEvent>>();
     assert_eq!(reader.entities, [Entity::PLACEHOLDER]);
 }
 
@@ -48,10 +48,10 @@ fn sending_receiving_with_target() {
                 ..Default::default()
             }),
         ))
-        .add_server_trigger::<DummyEvent>(Channel::Ordered)
+        .add_server_trigger::<TestEvent>(Channel::Ordered)
         .finish();
     }
-    client_app.init_resource::<TriggerReader<DummyEvent>>();
+    client_app.init_resource::<TriggerReader<TestEvent>>();
 
     server_app.connect_client(&mut client_app);
 
@@ -65,7 +65,7 @@ fn sending_receiving_with_target() {
     server_app.world_mut().server_trigger_targets(
         ToClients {
             mode: SendMode::Broadcast,
-            event: DummyEvent,
+            event: TestEvent,
         },
         server_entity,
     );
@@ -74,7 +74,7 @@ fn sending_receiving_with_target() {
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let reader = client_app.world().resource::<TriggerReader<DummyEvent>>();
+    let reader = client_app.world().resource::<TriggerReader<TestEvent>>();
     assert_eq!(reader.entities, [client_entity]);
 }
 
@@ -134,7 +134,7 @@ fn sending_receiving_without_plugins() {
                 .disable::<ClientPlugin>()
                 .disable::<ClientEventPlugin>(),
         ))
-        .add_server_trigger::<DummyEvent>(Channel::Ordered)
+        .add_server_trigger::<TestEvent>(Channel::Ordered)
         .finish();
     client_app
         .add_plugins((
@@ -144,22 +144,22 @@ fn sending_receiving_without_plugins() {
                 .disable::<ServerPlugin>()
                 .disable::<ServerEventPlugin>(),
         ))
-        .add_server_trigger::<DummyEvent>(Channel::Ordered)
+        .add_server_trigger::<TestEvent>(Channel::Ordered)
         .finish();
-    client_app.init_resource::<TriggerReader<DummyEvent>>();
+    client_app.init_resource::<TriggerReader<TestEvent>>();
 
     server_app.connect_client(&mut client_app);
 
     server_app.world_mut().server_trigger(ToClients {
         mode: SendMode::Broadcast,
-        event: DummyEvent,
+        event: TestEvent,
     });
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
-    let reader = client_app.world().resource::<TriggerReader<DummyEvent>>();
+    let reader = client_app.world().resource::<TriggerReader<TestEvent>>();
     assert_eq!(reader.entities.len(), 1);
 }
 
@@ -173,13 +173,13 @@ fn local_resending() {
             ..Default::default()
         }),
     ))
-    .add_server_trigger::<DummyEvent>(Channel::Ordered)
+    .add_server_trigger::<TestEvent>(Channel::Ordered)
     .finish();
-    app.init_resource::<TriggerReader<DummyEvent>>();
+    app.init_resource::<TriggerReader<TestEvent>>();
 
     app.world_mut().server_trigger(ToClients {
         mode: SendMode::Broadcast,
-        event: DummyEvent,
+        event: TestEvent,
     });
 
     // Requires 2 updates because local resending runs
@@ -187,12 +187,12 @@ fn local_resending() {
     app.update();
     app.update();
 
-    let reader = app.world().resource::<TriggerReader<DummyEvent>>();
+    let reader = app.world().resource::<TriggerReader<TestEvent>>();
     assert_eq!(reader.entities.len(), 1);
 }
 
 #[derive(Event, Serialize, Deserialize, Clone)]
-struct DummyEvent;
+struct TestEvent;
 
 #[derive(Event, Deserialize, Serialize, Clone, MapEntities)]
 struct EntityEvent(#[entities] Entity);

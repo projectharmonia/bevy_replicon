@@ -17,7 +17,7 @@ fn client_stats() {
                 ..Default::default()
             }),
         ))
-        .replicate::<DummyComponent>();
+        .replicate::<TestComponent>();
     }
 
     server_app.connect_client(&mut client_app);
@@ -25,7 +25,7 @@ fn client_stats() {
     let client_entity = client_app.world_mut().spawn_empty().id();
     let server_entity = server_app
         .world_mut()
-        .spawn((Replicated, DummyComponent))
+        .spawn((Replicated, TestComponent))
         .id();
 
     let test_client_entity = **client_app.world().resource::<TestClientEntity>();
@@ -44,7 +44,7 @@ fn client_stats() {
 
     server_app
         .world_mut()
-        .get_mut::<DummyComponent>(server_entity)
+        .get_mut::<TestComponent>(server_entity)
         .unwrap()
         .set_changed();
 
@@ -62,4 +62,4 @@ fn client_stats() {
 }
 
 #[derive(Component, Deserialize, Serialize)]
-struct DummyComponent;
+struct TestComponent;

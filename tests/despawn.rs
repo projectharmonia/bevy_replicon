@@ -98,7 +98,7 @@ fn after_spawn() {
                 ..Default::default()
             }),
         ))
-        .replicate::<DummyComponent>();
+        .replicate::<TestComponent>();
     }
 
     server_app.connect_client(&mut client_app);
@@ -106,7 +106,7 @@ fn after_spawn() {
     // Insert and remove `Replicated` to trigger spawn and despawn for client at the same time.
     server_app
         .world_mut()
-        .spawn((Replicated, DummyComponent))
+        .spawn((Replicated, TestComponent))
         .remove::<Replicated>();
 
     server_app.update();
@@ -156,4 +156,4 @@ fn hidden() {
 }
 
 #[derive(Component, Deserialize, Serialize)]
-struct DummyComponent;
+struct TestComponent;
