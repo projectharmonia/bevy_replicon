@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, state::app::StatesPlugin};
 use bevy_replicon::{
     prelude::*,
     test_app::{ServerTestAppExt, TestClientEntity},
@@ -12,6 +12,7 @@ fn empty_blacklist() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Blacklist,
@@ -42,6 +43,7 @@ fn blacklist() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Blacklist,
@@ -97,6 +99,7 @@ fn blacklist_with_despawn() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Blacklist,
@@ -139,6 +142,7 @@ fn empty_whitelist() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
@@ -171,6 +175,7 @@ fn whitelist() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,
@@ -229,6 +234,7 @@ fn whitelist_with_despawn() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist,

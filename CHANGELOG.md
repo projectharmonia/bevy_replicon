@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Rename `RepliconClientStatus` to `ClientState` and `RepliconServerStatus` to `ServerState`. They are now regular Bevy states. As result, we now require `StatesPlugin` to be added. It's present by default in `DefaultPlugins`, but with `MinimalPlugins` you have to add it manually.
 - `AppRuleExt::replicate_with` now accepts `IntoReplicationRule` trait that allows to define rules with multiple components.
 - Rename `GroupReplication` into `BundleReplication`.
 - Rename `AppRuleExt::replicate_group` into `AppRuleExt::replicate_bundle`.
@@ -30,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `WriteCtx::commands`. You can now insert and remove components directly through `DeferredEntity`.
 - Deprecated methods.
+- Methods in `RepliconServer` and `RepliconClient` that updated the connection state. Use Bevy's state API with `ServerState` and `ClientState` instead.
+- All provided run conditions. Just use `in_state` or `OnEnter`/`OnExit` with `ServerState` and `ClientState` instead.
 
 ## [0.33.0] - 2025-04-27
 

@@ -1,11 +1,10 @@
 use bevy::prelude::*;
 use bytes::Bytes;
-use log::{debug, trace, warn};
+use log::trace;
 
 /// Stores information about the server independent from the messaging backend.
 ///
 /// The messaging backend is responsible for updating this resource:
-/// - When the server is started or stopped, [`Self::set_running`] should be used to reflect this.
 /// - For receiving messages, [`Self::insert_received`] should be used.
 ///   A system to forward messages from the backend to Replicon should run in [`ServerSet::ReceivePackets`](crate::server::ServerSet::ReceivePackets).
 /// - For sending messages, [`Self::drain_sent`] should be used to drain all sent messages.
@@ -14,11 +13,6 @@ use log::{debug, trace, warn};
 /// Inserted as resource by [`ServerPlugin`](crate::server::ServerPlugin).
 #[derive(Resource, Default)]
 pub struct RepliconServer {
-    /// Indicates if the server is open for connections.
-    ///
-    /// By default set to `false`.
-    running: bool,
-
     /// List of received messages for each channel.
     ///
     /// Top index is channel ID.
@@ -57,11 +51,6 @@ impl RepliconServer {
         &mut self,
         channel_id: I,
     ) -> impl Iterator<Item = (Entity, Bytes)> + '_ {
-        if !self.running {
-            // We can't return here because we need to return an empty iterator.
-            warn!("trying to receive a message when the server is not running");
-        }
-
         let channel_id = channel_id.into();
         let channel_messages = self
             .received_messages
@@ -93,11 +82,6 @@ impl RepliconServer {
         channel_id: I,
         message: B,
     ) {
-        if !self.running {
-            warn!("trying to send a message when the server is not running");
-            return;
-        }
-
         let channel_id = channel_id.into();
         let message: Bytes = message.into();
 
@@ -105,32 +89,6 @@ impl RepliconServer {
 
         self.sent_messages
             .push((client_entity, channel_id, message));
-    }
-
-    /// Marks the server as running or stopped.
-    ///
-    /// <div class="warning">
-    ///
-    /// Should only be called from the messaging backend when the server changes its state.
-    ///
-    /// </div>
-    pub fn set_running(&mut self, running: bool) {
-        debug!("changing `RepliconServer` running status to `{running}`");
-
-        if !running {
-            for receive_channel in &mut self.received_messages {
-                receive_channel.clear();
-            }
-            self.sent_messages.clear();
-        }
-
-        self.running = running;
-    }
-
-    /// Returns `true` if the server is running.
-    #[inline]
-    pub fn is_running(&self) -> bool {
-        self.running
     }
 
     /// Retains only the messages specified by the predicate.
@@ -167,11 +125,6 @@ impl RepliconServer {
         channel_id: I,
         message: B,
     ) {
-        if !self.running {
-            warn!("trying to insert a received message when the server is not running");
-            return;
-        }
-
         let channel_id = channel_id.into();
         let receive_channel = self
             .received_messages
@@ -179,5 +132,12 @@ impl RepliconServer {
             .unwrap_or_else(|| panic!("server should have a receive channel with id {channel_id}"));
 
         receive_channel.push((client_entity, message.into()));
+    }
+
+    pub(crate) fn clear(&mut self) {
+        for receive_channel in &mut self.received_messages {
+            receive_channel.clear();
+        }
+        self.sent_messages.clear();
     }
 }

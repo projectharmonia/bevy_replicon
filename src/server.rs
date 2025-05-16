@@ -23,11 +23,11 @@ use log::{debug, trace};
 
 use crate::shared::{
     backend::{
+        ServerState,
         connected_client::ConnectedClient,
         replicon_channels::{ReplicationChannel, RepliconChannels},
         replicon_server::RepliconServer,
     },
-    common_conditions::*,
     event::server_event::BufferedServerEvents,
     postcard_utils,
     replication::{
@@ -111,6 +111,7 @@ impl Plugin for ServerPlugin {
             .add_observer(handle_disconnects)
             .add_observer(buffer_despawns)
             .add_systems(Startup, setup_channels)
+            .add_systems(OnExit(ServerState::Running), reset)
             .add_systems(
                 PreUpdate,
                 (
@@ -119,20 +120,17 @@ impl Plugin for ServerPlugin {
                 )
                     .chain()
                     .in_set(ServerSet::Receive)
-                    .run_if(server_running),
+                    .run_if(in_state(ServerState::Running)),
             )
             .add_systems(
                 PostUpdate,
                 (
-                    (
-                        buffer_removals,
-                        send_replication.run_if(resource_changed::<ServerTick>),
-                    )
-                        .chain()
-                        .in_set(ServerSet::Send)
-                        .run_if(server_running),
-                    reset.run_if(server_just_stopped),
-                ),
+                    buffer_removals,
+                    send_replication.run_if(resource_changed::<ServerTick>),
+                )
+                    .chain()
+                    .in_set(ServerSet::Send)
+                    .run_if(in_state(ServerState::Running)),
             );
 
         match self.tick_policy {
@@ -142,7 +140,7 @@ impl Plugin for ServerPlugin {
                     PostUpdate,
                     increment_tick
                         .before(send_replication)
-                        .run_if(server_running)
+                        .run_if(in_state(ServerState::Running))
                         .run_if(on_timer(tick_time)),
                 );
             }
@@ -151,7 +149,7 @@ impl Plugin for ServerPlugin {
                     PostUpdate,
                     increment_tick
                         .before(send_replication)
-                        .run_if(server_running),
+                        .run_if(in_state(ServerState::Running)),
                 );
             }
             TickPolicy::Manual => (),
@@ -247,9 +245,9 @@ fn receive_acks(
 fn buffer_despawns(
     trigger: Trigger<OnRemove, Replicated>,
     mut despawn_buffer: ResMut<DespawnBuffer>,
-    server: Res<RepliconServer>,
+    state: Res<State<ServerState>>,
 ) {
-    if server.is_running() {
+    if *state == ServerState::Running {
         despawn_buffer.push(trigger.target());
     }
 }
@@ -337,11 +335,13 @@ fn send_replication(
 
 fn reset(
     mut commands: Commands,
+    mut server: ResMut<RepliconServer>,
     mut server_tick: ResMut<ServerTick>,
     mut related_entities: ResMut<RelatedEntities>,
     clients: Query<Entity, With<ConnectedClient>>,
     mut buffered_events: ResMut<BufferedServerEvents>,
 ) {
+    server.clear();
     *server_tick = Default::default();
     buffered_events.clear();
     related_entities.clear();

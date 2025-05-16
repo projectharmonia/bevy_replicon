@@ -72,7 +72,7 @@ pub trait AppRuleExt {
     use serde::{Deserialize, Serialize};
 
     # let mut app = App::new();
-    # app.add_plugins(RepliconPlugins);
+    # app.add_plugins((MinimalPlugins, bevy::state::app::StatesPlugin, RepliconPlugins));
     app.replicate_bundle::<(Name, City)>() // Tuple of components is also a bundle!
         .replicate_bundle::<PlayerBundle>();
 
@@ -167,7 +167,7 @@ pub trait AppRuleExt {
     };
 
     # let mut app = App::new();
-    # app.add_plugins(RepliconPlugins);
+    # app.add_plugins((MinimalPlugins, bevy::state::app::StatesPlugin, RepliconPlugins));
     // We override in-place as well to apply only translation when the component is already inserted.
     app.replicate_with(
         RuleFns::new(serialize_translation, deserialize_translation)
@@ -218,7 +218,7 @@ pub trait AppRuleExt {
     use serde::{Deserialize, Serialize};
 
     # let mut app = App::new();
-    # app.add_plugins(RepliconPlugins);
+    # app.add_plugins((MinimalPlugins, state::app::StatesPlugin, RepliconPlugins));
     app.replicate_with((
         // You can also use `replicate_bundle` if you don't want
         // to tweak functions or send rate.
@@ -261,7 +261,7 @@ pub trait AppRuleExt {
     use serde::{Deserialize, Serialize};
 
     # let mut app = App::new();
-    # app.add_plugins(RepliconPlugins);
+    # app.add_plugins((MinimalPlugins, bevy::state::app::StatesPlugin, RepliconPlugins));
     app.replicate_with(RuleFns::new(
         serialize_big_component,
         deserialize_big_component,
@@ -313,7 +313,7 @@ pub trait AppRuleExt {
     Custom ser/de with entity mapping:
 
     ```
-    use bevy::prelude::*;
+    use bevy::{prelude::*, state::app::StatesPlugin};
     use bevy_replicon::{
         bytes::Bytes,
         shared::{
@@ -329,7 +329,7 @@ pub trait AppRuleExt {
     use serde::{Deserialize, Serialize};
 
     let mut app = App::new();
-    app.add_plugins(RepliconPlugins);
+    app.add_plugins((MinimalPlugins, StatesPlugin, RepliconPlugins));
     app.replicate_with(RuleFns::new(
         serialize_mapped_component,
         deserialize_mapped_component,
@@ -372,6 +372,7 @@ pub trait AppRuleExt {
     ```
     use bevy::{
         prelude::*,
+        state::app::StatesPlugin,
         reflect::serde::{ReflectDeserializer, ReflectSerializer},
     };
     use bevy_replicon::{
@@ -389,7 +390,7 @@ pub trait AppRuleExt {
     use serde::{de::DeserializeSeed, Serialize};
 
     let mut app = App::new();
-    app.add_plugins(RepliconPlugins);
+    app.add_plugins((MinimalPlugins, StatesPlugin, RepliconPlugins));
     app.replicate_with(RuleFns::new(serialize_reflect, deserialize_reflect));
 
     fn serialize_reflect(

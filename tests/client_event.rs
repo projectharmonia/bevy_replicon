@@ -1,6 +1,7 @@
 use bevy::{
     ecs::{entity::MapEntities, event::Events},
     prelude::*,
+    state::app::StatesPlugin,
     time::TimePlugin,
 };
 use bevy_replicon::{
@@ -17,6 +18,7 @@ fn channels() {
     let mut app = App::new();
     app.add_plugins((
         MinimalPlugins,
+        StatesPlugin,
         RepliconPlugins.set(ServerPlugin {
             tick_policy: TickPolicy::EveryFrame,
             ..Default::default()
@@ -36,7 +38,7 @@ fn sending_receiving() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((MinimalPlugins, RepliconPlugins))
+        app.add_plugins((MinimalPlugins, StatesPlugin, RepliconPlugins))
             .add_client_event::<TestEvent>(Channel::Ordered)
             .finish();
     }
@@ -60,7 +62,7 @@ fn mapping_and_sending_receiving() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((MinimalPlugins, RepliconPlugins))
+        app.add_plugins((MinimalPlugins, StatesPlugin, RepliconPlugins))
             .add_mapped_client_event::<EntityEvent>(Channel::Ordered)
             .finish();
     }
@@ -98,6 +100,7 @@ fn sending_receiving_without_plugins() {
     server_app
         .add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins
                 .build()
                 .disable::<ClientPlugin>()
@@ -108,6 +111,7 @@ fn sending_receiving_without_plugins() {
     client_app
         .add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins
                 .build()
                 .disable::<ServerPlugin>()
@@ -133,7 +137,7 @@ fn sending_receiving_without_plugins() {
 #[test]
 fn local_resending() {
     let mut app = App::new();
-    app.add_plugins((TimePlugin, RepliconPlugins))
+    app.add_plugins((TimePlugin, StatesPlugin, RepliconPlugins))
         .add_client_event::<TestEvent>(Channel::Ordered)
         .finish();
 

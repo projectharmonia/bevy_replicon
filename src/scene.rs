@@ -15,11 +15,11 @@ So on deserialization you need to insert it back if you want entities to continu
 # Examples
 
 ```
-use bevy::{prelude::*, asset::ron, scene::serde::SceneDeserializer};
+use bevy::{asset::ron, prelude::*, scene::serde::SceneDeserializer};
 use bevy_replicon::{prelude::*, scene};
 use serde::de::DeserializeSeed;
 # let mut app = App::new();
-# app.add_plugins(RepliconPlugins);
+# app.add_plugins((MinimalPlugins, bevy::state::app::StatesPlugin, RepliconPlugins));
 
 // Serialization
 let registry = app.world().resource::<AppTypeRegistry>();

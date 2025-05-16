@@ -1,6 +1,6 @@
 use std::io;
 
-use bevy::prelude::*;
+use bevy::{prelude::*, state::app::StatesPlugin};
 use bevy_replicon::prelude::*;
 use bevy_replicon_example_backend::{ExampleClient, ExampleServer, RepliconExampleBackendPlugins};
 use serde::{Deserialize, Serialize};
@@ -12,6 +12,7 @@ fn connect_disconnect() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
@@ -22,13 +23,14 @@ fn connect_disconnect() {
 
     setup(&mut server_app, &mut client_app).unwrap();
 
-    assert!(server_app.world().resource::<RepliconServer>().is_running());
+    let server_state = server_app.world().resource::<State<ServerState>>();
+    assert_eq!(*server_state, ServerState::Running);
 
     let mut clients = server_app.world_mut().query::<&ConnectedClient>();
     assert_eq!(clients.iter(server_app.world()).len(), 1);
 
-    let replicon_client = client_app.world().resource::<RepliconClient>();
-    assert!(replicon_client.is_connected());
+    let client_state = client_app.world().resource::<State<ClientState>>();
+    assert_eq!(*client_state, ClientState::Connected);
 
     let renet_client = client_app.world().resource::<ExampleClient>();
     assert!(renet_client.is_connected());
@@ -40,14 +42,15 @@ fn connect_disconnect() {
 
     assert_eq!(clients.iter(server_app.world()).len(), 0);
 
-    let replicon_client = client_app.world().resource::<RepliconClient>();
-    assert!(replicon_client.is_disconnected());
+    let client_state = client_app.world().resource::<State<ClientState>>();
+    assert_eq!(*client_state, ClientState::Disconnected);
 
     server_app.world_mut().remove_resource::<ExampleServer>();
 
     server_app.update();
 
-    assert!(!server_app.world().resource::<RepliconServer>().is_running());
+    let server_state = server_app.world().resource::<State<ServerState>>();
+    assert_eq!(*server_state, ServerState::Running);
 }
 
 #[test]
@@ -57,6 +60,7 @@ fn replication() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
@@ -83,6 +87,7 @@ fn server_event() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
@@ -114,6 +119,7 @@ fn client_event() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()

@@ -1,4 +1,4 @@
-use bevy::{ecs::entity::MapEntities, prelude::*, time::TimePlugin};
+use bevy::{ecs::entity::MapEntities, prelude::*, state::app::StatesPlugin, time::TimePlugin};
 use bevy_replicon::{
     prelude::*, shared::server_entity_map::ServerEntityMap, test_app::ServerTestAppExt,
 };
@@ -9,7 +9,7 @@ fn sending_receiving() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((MinimalPlugins, RepliconPlugins))
+        app.add_plugins((MinimalPlugins, StatesPlugin, RepliconPlugins))
             .add_client_trigger::<TestEvent>(Channel::Ordered)
             .finish();
     }
@@ -32,7 +32,7 @@ fn sending_receiving_with_target() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((MinimalPlugins, RepliconPlugins))
+        app.add_plugins((MinimalPlugins, StatesPlugin, RepliconPlugins))
             .add_client_trigger::<TestEvent>(Channel::Ordered)
             .finish();
     }
@@ -64,7 +64,7 @@ fn mapping_and_sending_receiving() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((MinimalPlugins, RepliconPlugins))
+        app.add_plugins((MinimalPlugins, StatesPlugin, RepliconPlugins))
             .add_mapped_client_trigger::<EntityEvent>(Channel::Ordered)
             .finish();
     }
@@ -99,6 +99,7 @@ fn sending_receiving_without_plugins() {
     server_app
         .add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins
                 .build()
                 .disable::<ClientPlugin>()
@@ -109,6 +110,7 @@ fn sending_receiving_without_plugins() {
     client_app
         .add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins
                 .build()
                 .disable::<ServerPlugin>()
@@ -133,7 +135,7 @@ fn sending_receiving_without_plugins() {
 #[test]
 fn local_resending() {
     let mut app = App::new();
-    app.add_plugins((TimePlugin, RepliconPlugins))
+    app.add_plugins((TimePlugin, StatesPlugin, RepliconPlugins))
         .add_client_trigger::<TestEvent>(Channel::Ordered)
         .finish();
     app.init_resource::<TriggerReader<TestEvent>>();

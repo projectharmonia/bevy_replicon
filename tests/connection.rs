@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, state::app::StatesPlugin};
 use bevy_replicon::{
     prelude::*,
     server::server_tick::ServerTick,
@@ -14,20 +14,17 @@ fn client_to_server() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((MinimalPlugins, RepliconPlugins));
+        app.add_plugins((MinimalPlugins, StatesPlugin, RepliconPlugins));
         app.update();
     }
 
     const MESSAGES: &[&[u8]] = &[&[0], &[1]];
     let mut client = client_app.world_mut().resource_mut::<RepliconClient>();
-    client.set_status(RepliconClientStatus::Connected);
     for &message in MESSAGES {
         client.send(ReplicationChannel::Updates, message);
     }
 
     let mut server = server_app.world_mut().resource_mut::<RepliconServer>();
-    server.set_running(true);
-
     for (channel_id, message) in client.drain_sent() {
         server.insert_received(Entity::PLACEHOLDER, channel_id, message);
     }
@@ -44,20 +41,17 @@ fn server_to_client() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((MinimalPlugins, RepliconPlugins));
+        app.add_plugins((MinimalPlugins, StatesPlugin, RepliconPlugins));
         app.update();
     }
 
     const MESSAGES: &[&[u8]] = &[&[0], &[1]];
     let mut server = server_app.world_mut().resource_mut::<RepliconServer>();
-    server.set_running(true);
     for &message in MESSAGES {
         server.send(Entity::PLACEHOLDER, ReplicationChannel::Updates, message);
     }
 
     let mut client = client_app.world_mut().resource_mut::<RepliconClient>();
-    client.set_status(RepliconClientStatus::Connected);
-
     for (_, channel_id, message) in server.drain_sent() {
         client.insert_received(channel_id, message);
     }
@@ -71,13 +65,7 @@ fn connect_disconnect() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((
-            MinimalPlugins,
-            RepliconPlugins.set(ServerPlugin {
-                tick_policy: TickPolicy::EveryFrame,
-                ..Default::default()
-            }),
-        ));
+        app.add_plugins((MinimalPlugins, StatesPlugin, RepliconPlugins));
     }
 
     server_app.connect_client(&mut client_app);
@@ -102,106 +90,57 @@ fn connect_disconnect() {
 #[test]
 fn client_cleanup_on_disconnect() {
     let mut app = App::new();
-    app.add_plugins((
-        MinimalPlugins,
-        RepliconPlugins.set(ServerPlugin {
-            tick_policy: TickPolicy::EveryFrame,
-            ..Default::default()
-        }),
-    ));
+    app.add_plugins((MinimalPlugins, StatesPlugin, RepliconPlugins));
 
     app.update();
 
-    let mut client = app.world_mut().resource_mut::<RepliconClient>();
-    client.set_status(RepliconClientStatus::Connected);
+    app.world_mut()
+        .resource_mut::<NextState<ClientState>>()
+        .set(ClientState::Connected);
 
+    app.world_mut().run_schedule(StateTransition);
+
+    let mut client = app.world_mut().resource_mut::<RepliconClient>();
     client.send(ReplicationChannel::Updates, Vec::new());
     client.insert_received(ReplicationChannel::Updates, Vec::new());
 
-    client.set_status(RepliconClientStatus::Disconnected);
+    app.world_mut()
+        .resource_mut::<NextState<ClientState>>()
+        .set(ClientState::Disconnected);
 
+    app.world_mut().run_schedule(StateTransition);
+
+    let mut client = app.world_mut().resource_mut::<RepliconClient>();
     assert_eq!(client.drain_sent().count(), 0);
     assert_eq!(client.receive(ReplicationChannel::Updates).count(), 0);
-
-    app.update();
 }
 
 #[test]
 fn server_cleanup_on_stop() {
     let mut app = App::new();
-    app.add_plugins((
-        MinimalPlugins,
-        RepliconPlugins.set(ServerPlugin {
-            tick_policy: TickPolicy::EveryFrame,
-            ..Default::default()
-        }),
-    ));
+    app.add_plugins((MinimalPlugins, StatesPlugin, RepliconPlugins));
 
     app.update();
 
-    let mut server = app.world_mut().resource_mut::<RepliconServer>();
-    server.set_running(true);
+    app.world_mut()
+        .resource_mut::<NextState<ServerState>>()
+        .set(ServerState::Running);
 
+    app.world_mut().run_schedule(StateTransition);
+
+    let mut server = app.world_mut().resource_mut::<RepliconServer>();
     server.send(Entity::PLACEHOLDER, ReplicationChannel::Updates, Vec::new());
     server.insert_received(Entity::PLACEHOLDER, ReplicationChannel::Updates, Vec::new());
 
-    server.set_running(false);
+    app.world_mut()
+        .resource_mut::<NextState<ServerState>>()
+        .set(ServerState::Stopped);
 
-    assert_eq!(server.drain_sent().count(), 0);
-    assert_eq!(server.receive(ReplicationChannel::Updates).count(), 0);
-
-    app.update();
-
-    assert_eq!(app.world().resource::<ServerTick>().get(), 0);
-}
-
-#[test]
-fn client_disconnected() {
-    let mut app = App::new();
-    app.add_plugins((
-        MinimalPlugins,
-        RepliconPlugins.set(ServerPlugin {
-            tick_policy: TickPolicy::EveryFrame,
-            ..Default::default()
-        }),
-    ));
-
-    app.update();
-
-    let mut client = app.world_mut().resource_mut::<RepliconClient>();
-
-    client.send(ReplicationChannel::Updates, Vec::new());
-    client.insert_received(ReplicationChannel::Updates, Vec::new());
-
-    assert_eq!(client.drain_sent().count(), 0);
-    assert_eq!(client.receive(ReplicationChannel::Updates).count(), 0);
-
-    app.update();
-}
-
-#[test]
-fn server_inactive() {
-    let mut app = App::new();
-    app.add_plugins((
-        MinimalPlugins,
-        RepliconPlugins.set(ServerPlugin {
-            tick_policy: TickPolicy::EveryFrame,
-            ..Default::default()
-        }),
-    ));
-
-    app.update();
+    app.world_mut().run_schedule(StateTransition);
 
     let mut server = app.world_mut().resource_mut::<RepliconServer>();
-
-    server.send(Entity::PLACEHOLDER, ReplicationChannel::Updates, Vec::new());
-    server.insert_received(Entity::PLACEHOLDER, ReplicationChannel::Updates, Vec::new());
-
     assert_eq!(server.drain_sent().count(), 0);
     assert_eq!(server.receive(ReplicationChannel::Updates).count(), 0);
-
-    app.update();
-
     assert_eq!(app.world().resource::<ServerTick>().get(), 0);
 }
 
@@ -212,6 +151,7 @@ fn deferred_replication() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 replicate_after_connect: false,
