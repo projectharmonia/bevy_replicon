@@ -36,12 +36,12 @@ impl Plugin for RepliconExampleServerPlugin {
     }
 }
 
-fn set_stopped(mut server: ResMut<RepliconServer>) {
-    server.set_running(false);
+fn set_stopped(mut state: ResMut<NextState<ServerState>>) {
+    state.set(ServerState::Stopped);
 }
 
-fn set_running(mut server: ResMut<RepliconServer>) {
-    server.set_running(true);
+fn set_running(mut state: ResMut<NextState<ServerState>>) {
+    state.set(ServerState::Running);
 }
 
 fn receive_packets(

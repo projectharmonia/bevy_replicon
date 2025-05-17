@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, state::app::StatesPlugin};
 use bevy_replicon::{
     client::confirm_history::{ConfirmHistory, EntityReplicated},
     prelude::*,
@@ -19,6 +19,7 @@ fn single() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
@@ -61,6 +62,7 @@ fn multiple() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
@@ -111,6 +113,7 @@ fn command_fns() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
@@ -154,6 +157,7 @@ fn marker() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
@@ -208,6 +212,7 @@ fn group() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
@@ -255,6 +260,7 @@ fn not_replicated() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
@@ -305,6 +311,7 @@ fn after_insertion() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
@@ -349,6 +356,7 @@ fn with_spawn() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
@@ -381,6 +389,7 @@ fn with_despawn() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
@@ -425,6 +434,7 @@ fn confirm_history() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
@@ -493,6 +503,7 @@ fn hidden() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 visibility_policy: VisibilityPolicy::Whitelist, // Hide all spawned entities by default.

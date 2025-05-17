@@ -1,4 +1,4 @@
-use bevy::{ecs::entity::MapEntities, prelude::*, time::TimePlugin};
+use bevy::{ecs::entity::MapEntities, prelude::*, state::app::StatesPlugin, time::TimePlugin};
 use bevy_replicon::{
     prelude::*, shared::server_entity_map::ServerEntityMap, test_app::ServerTestAppExt,
 };
@@ -11,6 +11,7 @@ fn sending_receiving() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
@@ -43,6 +44,7 @@ fn sending_receiving_with_target() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
@@ -85,6 +87,7 @@ fn sending_receiving_and_mapping() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins.set(ServerPlugin {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
@@ -125,6 +128,7 @@ fn sending_receiving_without_plugins() {
     server_app
         .add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins
                 .build()
                 .set(ServerPlugin {
@@ -139,6 +143,7 @@ fn sending_receiving_without_plugins() {
     client_app
         .add_plugins((
             MinimalPlugins,
+            StatesPlugin,
             RepliconPlugins
                 .build()
                 .disable::<ServerPlugin>()
@@ -168,6 +173,7 @@ fn local_resending() {
     let mut app = App::new();
     app.add_plugins((
         TimePlugin,
+        StatesPlugin,
         RepliconPlugins.set(ServerPlugin {
             tick_policy: TickPolicy::EveryFrame,
             ..Default::default()

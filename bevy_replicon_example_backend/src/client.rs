@@ -36,12 +36,12 @@ impl Plugin for RepliconExampleClientPlugin {
     }
 }
 
-fn set_disconnected(mut replicon_client: ResMut<RepliconClient>) {
-    replicon_client.set_status(RepliconClientStatus::Disconnected);
+fn set_disconnected(mut state: ResMut<NextState<ClientState>>) {
+    state.set(ClientState::Disconnected);
 }
 
-fn set_connected(mut replicon_client: ResMut<RepliconClient>) {
-    replicon_client.set_status(RepliconClientStatus::Connected);
+fn set_connected(mut state: ResMut<NextState<ClientState>>) {
+    state.set(ClientState::Connected);
 }
 
 fn receive_packets(

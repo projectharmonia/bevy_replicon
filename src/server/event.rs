@@ -5,8 +5,10 @@ use bevy::{
 
 use super::{ServerSet, server_tick::ServerTick};
 use crate::shared::{
-    backend::{connected_client::ConnectedClient, replicon_server::RepliconServer},
-    common_conditions::*,
+    backend::{
+        ClientState, ServerState, connected_client::ConnectedClient,
+        replicon_server::RepliconServer,
+    },
     event::{
         ctx::{ServerReceiveCtx, ServerSendCtx},
         remote_event_registry::RemoteEventRegistry,
@@ -92,8 +94,8 @@ impl Plugin for ServerEventPlugin {
             .add_systems(
                 PreUpdate,
                 (
-                    receive.run_if(server_running),
-                    trigger.run_if(server_or_singleplayer),
+                    receive.run_if(in_state(ServerState::Running)),
+                    trigger.run_if(in_state(ClientState::Disconnected)),
                 )
                     .chain()
                     .in_set(ServerSet::Receive),
@@ -101,11 +103,13 @@ impl Plugin for ServerEventPlugin {
             .add_systems(
                 PostUpdate,
                 (
-                    send_or_buffer.run_if(server_running),
-                    send_buffered
-                        .run_if(server_running)
-                        .run_if(resource_changed::<ServerTick>),
-                    resend_locally.run_if(server_or_singleplayer),
+                    (
+                        send_or_buffer,
+                        send_buffered.run_if(resource_changed::<ServerTick>),
+                    )
+                        .chain()
+                        .run_if(in_state(ServerState::Running)),
+                    resend_locally.run_if(in_state(ClientState::Disconnected)),
                 )
                     .chain()
                     .after(super::send_replication)

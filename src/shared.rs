@@ -1,5 +1,4 @@
 pub mod backend;
-pub mod common_conditions;
 pub mod entity_serde;
 pub mod event;
 pub mod postcard_utils;
@@ -10,6 +9,7 @@ pub mod server_entity_map;
 use bevy::prelude::*;
 
 use backend::{
+    ClientState, ServerState,
     connected_client::{ConnectedClient, NetworkIdMap, NetworkStats},
     replicon_channels::RepliconChannels,
 };
@@ -28,6 +28,8 @@ impl Plugin for RepliconSharedPlugin {
             .register_type::<ConnectedClient>()
             .register_type::<NetworkIdMap>()
             .register_type::<NetworkStats>()
+            .init_state::<ClientState>()
+            .init_state::<ServerState>()
             .init_resource::<NetworkIdMap>()
             .init_resource::<TrackMutateMessages>()
             .init_resource::<RepliconChannels>()

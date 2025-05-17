@@ -1,7 +1,6 @@
 use super::{ClientSet, ServerUpdateTick};
 use crate::shared::{
-    backend::replicon_client::RepliconClient,
-    common_conditions::*,
+    backend::{ClientState, replicon_client::RepliconClient},
     event::{
         ctx::{ClientReceiveCtx, ClientSendCtx},
         remote_event_registry::RemoteEventRegistry,
@@ -115,24 +114,25 @@ impl Plugin for ClientEventPlugin {
 
         app.insert_resource(event_registry)
             .add_systems(
+                OnEnter(ClientState::Connected),
+                reset.in_set(ClientSet::ResetEvents),
+            )
+            .add_systems(
                 PreUpdate,
                 (
-                    reset.in_set(ClientSet::ResetEvents),
-                    (
-                        receive
-                            .after(super::receive_replication)
-                            .run_if(client_connected),
-                        trigger,
-                    )
-                        .chain()
-                        .in_set(ClientSet::Receive),
-                ),
+                    receive
+                        .after(super::receive_replication)
+                        .run_if(in_state(ClientState::Connected)),
+                    trigger,
+                )
+                    .chain()
+                    .in_set(ClientSet::Receive),
             )
             .add_systems(
                 PostUpdate,
                 (
-                    send.run_if(client_connected),
-                    resend_locally.run_if(server_or_singleplayer),
+                    send.run_if(in_state(ClientState::Connected)),
+                    resend_locally.run_if(in_state(ClientState::Disconnected)),
                 )
                     .chain()
                     .in_set(ClientSet::Send),

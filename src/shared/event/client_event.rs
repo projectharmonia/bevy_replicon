@@ -59,11 +59,11 @@ pub trait ClientEventAppExt {
     /// # Examples
     ///
     /// ```
-    /// # use bevy::{prelude::*, ecs::entity::MapEntities};
+    /// # use bevy::{ecs::entity::MapEntities, prelude::*, state::app::StatesPlugin};
     /// # use bevy_replicon::prelude::*;
     /// # use serde::{Deserialize, Serialize};
     /// # let mut app = App::new();
-    /// # app.add_plugins(RepliconPlugins);
+    /// # app.add_plugins((MinimalPlugins, StatesPlugin, RepliconPlugins));
     /// app.add_mapped_client_event::<MappedEvent>(Channel::Ordered);
     ///
     /// #[derive(Debug, Deserialize, Event, Serialize, Clone, MapEntities)]
@@ -94,6 +94,7 @@ pub trait ClientEventAppExt {
     use bevy::{
         prelude::*,
         reflect::serde::{ReflectDeserializer, ReflectSerializer},
+        state::app::StatesPlugin,
     };
     use bevy_replicon::{
         bytes::Bytes,
@@ -107,7 +108,7 @@ pub trait ClientEventAppExt {
     use serde::{de::DeserializeSeed, Serialize};
 
     let mut app = App::new();
-    app.add_plugins((MinimalPlugins, RepliconPlugins));
+    app.add_plugins((MinimalPlugins, StatesPlugin, RepliconPlugins));
     app.add_client_event_with(Channel::Ordered, serialize_reflect, deserialize_reflect);
 
     fn serialize_reflect(

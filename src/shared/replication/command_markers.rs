@@ -47,7 +47,10 @@ pub trait AppMarkerExt {
     Then `Health` updates after that will be inserted to the history.
 
     ```
-    use bevy::{ecs::system::EntityCommands, ecs::component::Mutable, prelude::*, platform::collections::HashMap};
+    use bevy::{
+        ecs::component::Mutable, ecs::system::EntityCommands, platform::collections::HashMap,
+        prelude::*,
+    };
     use bevy_replicon::{
         bytes::Bytes,
         shared::{
@@ -66,7 +69,7 @@ pub trait AppMarkerExt {
     use serde::{Serialize, Deserialize};
 
     # let mut app = App::new();
-    # app.add_plugins(RepliconPlugins);
+    # app.add_plugins((MinimalPlugins, bevy::state::app::StatesPlugin, RepliconPlugins));
     app.register_marker_with::<Predicted>(MarkerConfig {
         need_history: true, // Enable writing for values that are older than the last received value.
         ..Default::default()
