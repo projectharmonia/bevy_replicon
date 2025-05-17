@@ -48,6 +48,46 @@ own metadata to them or even replicate these entiteis back to clients.
 You can use [`Trigger<OnAdd, ConnectedClient>`] to react to new connections,
 or use backend-provided events if you need the disconnect reason.
 
+## States
+
+We provide [`ClientState`] and [`ServerState`], which are Bevy [`States`].
+These are managed by your messaging backend, and you can use them to control when your systems run.
+
+For systems that should run continuously while in a specific state, use [`IntoScheduleConfigs::run_if`]
+with the [`in_state`] run condition:
+
+```
+# use bevy::prelude::*;
+# use bevy_replicon::prelude::*;
+# let mut app = App::new();
+app.add_systems(
+    Update,
+    (
+        apply_damage.run_if(in_state(ServerState::Running)), // Runs every frame on the server.
+        display_vfx.run_if(in_state(ClientState::Connected)), // Runs every frame on the client.
+    ),
+);
+# fn apply_damage() {}
+# fn display_vfx() {}
+```
+
+To run systems when entering or exiting a state, use the [`OnEnter`] or [`OnExit`] schedules:
+
+```
+# use bevy::prelude::*;
+# use bevy_replicon::prelude::*;
+# let mut app = App::new();
+app.add_systems(OnEnter(ClientState::Connecting), display_connection_message) // Runs when the client starts connecting.
+    .add_systems(OnExit(ClientState::Connected), show_disconnected_message) // Runs when the client disconnects.
+    .add_systems(OnEnter(ServerState::Running), initialize_match); // Runs when the server starts.
+# fn display_connection_message() {}
+# fn show_disconnected_message() {}
+# fn initialize_match() {}
+```
+
+Read more about system patterns in the [Abstracting over configurations](abstracting-over-configurations)
+section.
+
 ## Replication
 
 It's a process of exchanging data in order to keep the world in sync. Replicon
@@ -435,10 +475,11 @@ without actually running them:
 - Listen server configuration runs only the server and both logics.
 - Singleplayer configuration doesn't run the client or server but runs both logics.
 
-To achieve this, we provide the [`ClientState`] and [`ServerState`] states:
+To achieve this, use the provided [`ClientState`] and [`ServerState`] states:
 
 - Use [`ClientState::Disconnected`] for systems that require server authority.
-  For example, systems that apply damage or send server events.
+  For example, systems that apply damage or send server events. This basically means "run when not a client",
+  which applies to both server **and** singleplayer.
 - Use [`ClientState::Connecting`], [`ClientState::Connected`], [`ServerState::Running`], etc.
   **only** for miscellaneous things, like display a connection message or a menu to kick connected players
   (things that actually require server or client running)
@@ -451,9 +492,11 @@ Internally we run replication sending system only in [`ServerState::Running`] an
 only in [`ClientState::Connected`]. This way for singleplayer replication systems won't run at all and
 for listen server replication will only be sending (server world is already in the correct state).
 
-For events it's a bit trickier. For all client events we internally drain events as `E` and re-emit
-them as [`FromClient<E>`] locally with a special [`SERVER`] entity in [`ClientState::Disconnected`],
-regardless of [`ServerState`]. So it works for both server and singleplayer.
+For events, it's a bit trickier. For all client events, we internally drain events as `E` and re-emit
+them as [`FromClient<E>`] locally with a special [`SERVER`] entity in [`ClientState::Disconnected`].
+This emulates event receiving for both server and singleplayer without actually transmitting data
+over the network.
+
 For server events we drain [`ToClients<E>`] and, if the [`SERVER`] entity is the recipient of the event,
 re-emit it as `E` locally.
 
