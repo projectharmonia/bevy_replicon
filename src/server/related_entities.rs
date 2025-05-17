@@ -36,7 +36,7 @@ pub trait SyncRelatedAppExt {
     /// use bevy_replicon::prelude::*;
     ///
     /// # let mut app = App::new();
-    /// # app.add_plugins((MinimalPlugins, state::app::StatesPlugin, RepliconPlugins));
+    /// # app.add_plugins((MinimalPlugins, bevy::state::app::StatesPlugin, RepliconPlugins));
     /// app.sync_related_entities::<ChildOf>();
     ///
     /// // Changes to any replicated components on these

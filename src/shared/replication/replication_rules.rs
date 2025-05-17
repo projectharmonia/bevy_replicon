@@ -218,7 +218,7 @@ pub trait AppRuleExt {
     use serde::{Deserialize, Serialize};
 
     # let mut app = App::new();
-    # app.add_plugins((MinimalPlugins, state::app::StatesPlugin, RepliconPlugins));
+    # app.add_plugins((MinimalPlugins, bevy::state::app::StatesPlugin, RepliconPlugins));
     app.replicate_with((
         // You can also use `replicate_bundle` if you don't want
         // to tweak functions or send rate.
