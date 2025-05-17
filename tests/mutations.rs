@@ -34,7 +34,8 @@ fn small_component() {
                 ..Default::default()
             }),
         ))
-        .replicate::<BoolComponent>();
+        .replicate::<BoolComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -81,7 +82,8 @@ fn package_size_component() {
                 ..Default::default()
             }),
         ))
-        .replicate::<VecComponent>();
+        .replicate::<VecComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -135,7 +137,8 @@ fn many_components() {
             }),
         ))
         .replicate::<BoolComponent>()
-        .replicate::<VecComponent>();
+        .replicate::<VecComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -190,7 +193,8 @@ fn once() {
                 ..Default::default()
             }),
         ))
-        .replicate_once::<BoolComponent>();
+        .replicate_once::<BoolComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -238,7 +242,8 @@ fn periodic() {
                 ..Default::default()
             }),
         ))
-        .replicate_periodic::<BoolComponent>(PERIOD);
+        .replicate_periodic::<BoolComponent>(PERIOD)
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -295,7 +300,8 @@ fn periodic_with_miss() {
                 ..Default::default()
             }),
         ))
-        .replicate_periodic::<BoolComponent>(PERIOD);
+        .replicate_periodic::<BoolComponent>(PERIOD)
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -360,7 +366,8 @@ fn related() {
             }),
         ))
         .sync_related_entities::<ChildOf>()
-        .replicate::<BoolComponent>();
+        .replicate::<BoolComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -406,7 +413,8 @@ fn command_fns() {
             }),
         ))
         .replicate::<OriginalComponent>()
-        .set_command_fns(replace, command_fns::default_remove::<ReplacedComponent>);
+        .set_command_fns(replace, command_fns::default_remove::<ReplacedComponent>)
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -459,7 +467,8 @@ fn marker() {
         .set_marker_fns::<ReplaceMarker, _>(
             replace,
             command_fns::default_remove::<ReplacedComponent>,
-        );
+        )
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -522,7 +531,8 @@ fn marker_with_history() {
             write_history,
             command_fns::default_remove::<BoolComponent>,
         )
-        .replicate::<BoolComponent>();
+        .replicate::<BoolComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -599,7 +609,8 @@ fn marker_with_history_consume() {
             command_fns::default_remove::<BoolComponent>,
         )
         .replicate::<BoolComponent>()
-        .replicate::<MappedComponent>();
+        .replicate::<MappedComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -688,7 +699,8 @@ fn marker_with_history_old_update() {
             write_history,
             command_fns::default_remove::<BoolComponent>,
         )
-        .replicate::<BoolComponent>();
+        .replicate::<BoolComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -757,7 +769,8 @@ fn many_entities() {
                 ..Default::default()
             }),
         ))
-        .replicate::<BoolComponent>();
+        .replicate::<BoolComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -811,7 +824,8 @@ fn with_insertion() {
             }),
         ))
         .replicate::<BoolComponent>()
-        .replicate::<TestComponent>();
+        .replicate::<TestComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -856,7 +870,8 @@ fn with_removal() {
             }),
         ))
         .replicate::<BoolComponent>()
-        .replicate::<TestComponent>();
+        .replicate::<TestComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -900,7 +915,8 @@ fn with_despawn() {
                 ..Default::default()
             }),
         ))
-        .replicate::<BoolComponent>();
+        .replicate::<BoolComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -949,7 +965,8 @@ fn buffering() {
                 ..Default::default()
             }),
         ))
-        .replicate::<BoolComponent>();
+        .replicate::<BoolComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -1007,7 +1024,8 @@ fn old_ignored() {
                 ..Default::default()
             }),
         ))
-        .replicate::<MappedComponent>();
+        .replicate::<MappedComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -1075,7 +1093,8 @@ fn acknowledgment() {
                 ..Default::default()
             }),
         ))
-        .replicate::<BoolComponent>();
+        .replicate::<BoolComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -1152,9 +1171,9 @@ fn confirm_history() {
                 ..Default::default()
             }),
         ))
-        .replicate::<BoolComponent>();
+        .replicate::<BoolComponent>()
+        .finish();
     }
-    client_app.finish();
 
     server_app.connect_client(&mut client_app);
 
@@ -1219,7 +1238,8 @@ fn after_disconnect() {
                 ..Default::default()
             }),
         ))
-        .replicate::<BoolComponent>();
+        .replicate::<BoolComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
