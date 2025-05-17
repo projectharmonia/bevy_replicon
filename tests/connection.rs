@@ -98,6 +98,7 @@ fn client_cleanup_on_disconnect() {
         .resource_mut::<NextState<ClientState>>()
         .set(ClientState::Connected);
 
+    // Run only state transition to avoid actually processing the messages.
     app.world_mut().run_schedule(StateTransition);
 
     let mut client = app.world_mut().resource_mut::<RepliconClient>();
@@ -126,6 +127,7 @@ fn server_cleanup_on_stop() {
         .resource_mut::<NextState<ServerState>>()
         .set(ServerState::Running);
 
+    // Run only state transition to avoid actually processing the messages.
     app.world_mut().run_schedule(StateTransition);
 
     let mut server = app.world_mut().resource_mut::<RepliconServer>();
