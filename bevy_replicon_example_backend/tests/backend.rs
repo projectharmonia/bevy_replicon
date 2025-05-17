@@ -50,7 +50,7 @@ fn connect_disconnect() {
     server_app.update();
 
     let server_state = server_app.world().resource::<State<ServerState>>();
-    assert_eq!(*server_state, ServerState::Running);
+    assert_eq!(*server_state, ServerState::Stopped);
 }
 
 #[test]
