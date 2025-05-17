@@ -18,7 +18,8 @@ fn connect_disconnect() {
                 ..Default::default()
             }),
             RepliconExampleBackendPlugins,
-        ));
+        ))
+        .finish();
     }
 
     setup(&mut server_app, &mut client_app).unwrap();
@@ -66,7 +67,8 @@ fn replication() {
                 ..Default::default()
             }),
             RepliconExampleBackendPlugins,
-        ));
+        ))
+        .finish();
     }
 
     setup(&mut server_app, &mut client_app).unwrap();
