@@ -60,7 +60,6 @@ impl Plugin for ClientPlugin {
                 PostUpdate,
                 (ClientSet::Send, ClientSet::SendPackets).chain(),
             )
-            .add_systems(Startup, setup_channels)
             .add_systems(
                 OnExit(ClientState::Connected),
                 reset.in_set(ClientSet::Reset),
@@ -77,11 +76,13 @@ impl Plugin for ClientPlugin {
         if **app.world().resource::<TrackMutateMessages>() {
             app.init_resource::<ServerMutateTicks>();
         }
-    }
-}
 
-fn setup_channels(mut client: ResMut<RepliconClient>, channels: Res<RepliconChannels>) {
-    client.setup_server_channels(channels.server_channels().len());
+        app.world_mut()
+            .resource_scope(|world, mut client: Mut<RepliconClient>| {
+                let channels = world.resource::<RepliconChannels>();
+                client.setup_server_channels(channels.server_channels().len());
+            });
+    }
 }
 
 /// Receives and applies replication messages from the server.

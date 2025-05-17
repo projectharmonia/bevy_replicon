@@ -19,7 +19,8 @@ fn empty_blacklist() {
                 ..Default::default()
             }),
         ))
-        .replicate::<TestComponent>();
+        .replicate::<TestComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -50,7 +51,8 @@ fn blacklist() {
                 ..Default::default()
             }),
         ))
-        .replicate::<TestComponent>();
+        .replicate::<TestComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -106,7 +108,8 @@ fn blacklist_with_despawn() {
                 ..Default::default()
             }),
         ))
-        .replicate::<TestComponent>();
+        .replicate::<TestComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -149,7 +152,8 @@ fn empty_whitelist() {
                 ..Default::default()
             }),
         ))
-        .replicate::<TestComponent>();
+        .replicate::<TestComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -182,7 +186,8 @@ fn whitelist() {
                 ..Default::default()
             }),
         ))
-        .replicate::<TestComponent>();
+        .replicate::<TestComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -241,7 +246,8 @@ fn whitelist_with_despawn() {
                 ..Default::default()
             }),
         ))
-        .replicate::<TestComponent>();
+        .replicate::<TestComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);

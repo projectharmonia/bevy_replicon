@@ -14,8 +14,8 @@ fn client_to_server() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((MinimalPlugins, StatesPlugin, RepliconPlugins));
-        app.update();
+        app.add_plugins((MinimalPlugins, StatesPlugin, RepliconPlugins))
+            .finish();
     }
 
     const MESSAGES: &[&[u8]] = &[&[0], &[1]];
@@ -41,8 +41,8 @@ fn server_to_client() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((MinimalPlugins, StatesPlugin, RepliconPlugins));
-        app.update();
+        app.add_plugins((MinimalPlugins, StatesPlugin, RepliconPlugins))
+            .finish();
     }
 
     const MESSAGES: &[&[u8]] = &[&[0], &[1]];
@@ -65,7 +65,8 @@ fn connect_disconnect() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((MinimalPlugins, StatesPlugin, RepliconPlugins));
+        app.add_plugins((MinimalPlugins, StatesPlugin, RepliconPlugins))
+            .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -90,9 +91,8 @@ fn connect_disconnect() {
 #[test]
 fn client_cleanup_on_disconnect() {
     let mut app = App::new();
-    app.add_plugins((MinimalPlugins, StatesPlugin, RepliconPlugins));
-
-    app.update();
+    app.add_plugins((MinimalPlugins, StatesPlugin, RepliconPlugins))
+        .finish();
 
     app.world_mut()
         .resource_mut::<NextState<ClientState>>()
@@ -119,9 +119,8 @@ fn client_cleanup_on_disconnect() {
 #[test]
 fn server_cleanup_on_stop() {
     let mut app = App::new();
-    app.add_plugins((MinimalPlugins, StatesPlugin, RepliconPlugins));
-
-    app.update();
+    app.add_plugins((MinimalPlugins, StatesPlugin, RepliconPlugins))
+        .finish();
 
     app.world_mut()
         .resource_mut::<NextState<ServerState>>()
@@ -159,7 +158,8 @@ fn deferred_replication() {
                 replicate_after_connect: false,
                 ..Default::default()
             }),
-        ));
+        ))
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
