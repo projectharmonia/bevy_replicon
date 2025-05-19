@@ -38,9 +38,6 @@ manually. It is included by default with [`DefaultPlugins`].
 This part is specific to your messaging backend. For `bevy_replicon_renet`,
 see [this section](https://docs.rs/bevy_replicon_renet#server-and-client-creation).
 
-Backends manage [`RepliconServer`] and [`RepliconClient`] resources. They can be used
-to obtain things like state or statistic in backend-independent way.
-
 On server connected clients represented as entities with [`ConnectedClient`] component.
 Their data represented as components, such as [`NetworkStats`]. Users can also attach their
 own metadata to them or even replicate these entiteis back to clients.
