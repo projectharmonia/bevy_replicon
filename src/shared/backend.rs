@@ -3,6 +3,7 @@
 //! We don't provide any traits to avoid Rust's orphan rule. Instead, backends are expected to:
 //!
 //! - Create channels defined in the [`RepliconChannels`](replicon_channels::RepliconChannels) resource.
+//!   This can be done via an extension trait that provides a conversion which the user needs to call manually to get channels for the backend.
 //! - Manage the [`ClientState`] and [`ServerState`] states.
 //! - Update the [`RepliconServer`](replicon_server::RepliconServer) and [`RepliconClient`](replicon_client::RepliconClient) resources.
 //! - Spawn and despawn entities with [`ConnectedClient`](connected_client::ConnectedClient) component.
