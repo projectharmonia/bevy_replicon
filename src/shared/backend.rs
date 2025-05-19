@@ -5,7 +5,7 @@
 //! - Create channels defined in the [`RepliconChannels`](replicon_channels::RepliconChannels) resource.
 //! - Manage the [`ClientState`] and [`ServerState`] states.
 //! - Update the [`RepliconServer`](replicon_server::RepliconServer) and [`RepliconClient`](replicon_client::RepliconClient) resources.
-//! - Spawn entities with [`ConnectedClient`](connected_client::ConnectedClient) component.
+//! - Spawn and despawn entities with [`ConnectedClient`](connected_client::ConnectedClient) component.
 //!
 //! This way, integrations can be provided as separate crates without requiring us or crate authors to maintain them under a feature.
 //! See the documentation on types in this module for details.
