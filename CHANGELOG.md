@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rename `replication_registry::despawn_recursive` into `replication_registry::despawn`.
 - `ReplicationRule` now stores `Vec<ComponentRule>` instead of `Vec<(ComponentId, FnsId)>`
 - `RuleFns` now available from prelude.
+- Initialize channels in `App::finish` instead of `Startup`. It's called automatically on `App::run`, but in tests you need to call `App::finish` manually.
 - Rules created with the same priority now evaluated in their creation order.
 - Component removals and insertions for an entity are now buffered and applied as bundles to avoid triggering observers without all components being inserted or removed. This also significantly improves performance by avoiding extra archetype moves and lookups.
 - The `Replicated` component is no longer automatically inserted into non-replicated entities spawned from replicated components.

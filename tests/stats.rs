@@ -17,7 +17,8 @@ fn client_stats() {
                 ..Default::default()
             }),
         ))
-        .replicate::<TestComponent>();
+        .replicate::<TestComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
