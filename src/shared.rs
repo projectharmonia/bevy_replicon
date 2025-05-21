@@ -10,6 +10,7 @@ pub mod server_entity_map;
 use bevy::prelude::*;
 
 use backend::{
+    DisconnectRequest,
     connected_client::{ConnectedClient, NetworkIdMap, NetworkStats},
     replicon_channels::RepliconChannels,
 };
@@ -34,7 +35,8 @@ impl Plugin for RepliconSharedPlugin {
             .init_resource::<ReplicationRegistry>()
             .init_resource::<ReplicationRules>()
             .init_resource::<CommandMarkers>()
-            .init_resource::<RemoteEventRegistry>();
+            .init_resource::<RemoteEventRegistry>()
+            .add_event::<DisconnectRequest>();
     }
 }
 

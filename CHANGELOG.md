@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Configurable `SendRate` for deterministic replication. Use `SendRate::Once` to send only the initial value, or `SendRate::Periodic` to only sync the state periodically.
 - `AppRuleExt::replicate_with_priority` to configure replication rule priority.
+- `DisconnectRequest` event to queue a disconnection for a specific client on the server.
 
 ### Changed
 
