@@ -18,7 +18,8 @@ fn empty() {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
-        ));
+        ))
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -60,7 +61,8 @@ fn with_component() {
                 ..Default::default()
             }),
         ))
-        .replicate::<TestComponent>();
+        .replicate::<TestComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -90,7 +92,8 @@ fn with_multiple_components() {
             }),
         ))
         .replicate::<ComponentA>()
-        .replicate::<ComponentB>();
+        .replicate::<ComponentB>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -128,7 +131,8 @@ fn with_old_component() {
                 ..Default::default()
             }),
         ))
-        .replicate::<TestComponent>();
+        .replicate::<TestComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -172,7 +176,8 @@ fn before_connection() {
                 ..Default::default()
             }),
         ))
-        .replicate::<TestComponent>();
+        .replicate::<TestComponent>()
+        .finish();
     }
 
     // Spawn an entity before client connected.
@@ -201,7 +206,8 @@ fn pre_spawn() {
                 ..Default::default()
             }),
         ))
-        .replicate::<TestComponent>();
+        .replicate::<TestComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -269,7 +275,8 @@ fn after_despawn() {
                 ..Default::default()
             }),
         ))
-        .replicate::<TestComponent>();
+        .replicate::<TestComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
