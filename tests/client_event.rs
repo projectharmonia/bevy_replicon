@@ -28,7 +28,7 @@ fn channels() {
 
     let event_registry = app.world().resource::<RemoteEventRegistry>();
     assert_eq!(event_registry.client_channel::<NonRemoteEvent>(), None);
-    assert_eq!(event_registry.client_channel::<TestEvent>(), Some(2));
+    assert_eq!(event_registry.client_channel::<TestEvent>(), Some(1));
 }
 
 #[test]

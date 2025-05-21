@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Component removals and insertions for an entity are now buffered and applied as bundles to avoid triggering observers without all components being inserted or removed. This also significantly improves performance by avoiding extra archetype moves and lookups.
 - The `Replicated` component is no longer automatically inserted into non-replicated entities spawned from replicated components.
 - Replace `ServerEntityMap::get_by_*` and `ServerEntityMap::remove_by_*` with an entry-based API. Use `ServerEntityMap::server_entry` or `ServerEntityMap::client_entry` instead.
+- Split `ReplicationChannel` into `ServerChannel` and `ClientChannel` for clarity.
+- Don't register an additional unreliable client channel for replication. While the server requires two channels, the client only needs one.
 - Print error instead of panic on mapping overwrite in `ServerEntityMap`.
 
 ### Removed

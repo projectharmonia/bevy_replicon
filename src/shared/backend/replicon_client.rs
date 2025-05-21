@@ -57,12 +57,6 @@ impl RepliconClient {
     /// Receives all available messages from the server over a channel.
     ///
     /// All messages will be drained.
-    ///
-    /// <div class="warning">
-    ///
-    /// Should only be called from the messaging backend.
-    ///
-    /// </div>
     pub fn receive<I: Into<usize>>(&mut self, channel_id: I) -> impl Iterator<Item = Bytes> + '_ {
         if !self.is_connected() {
             // We can't return here because we need to return an empty iterator.

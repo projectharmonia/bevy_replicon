@@ -11,7 +11,7 @@ use postcard::experimental::max_size::MaxSize;
 
 use crate::shared::{
     backend::{
-        replicon_channels::{ReplicationChannel, RepliconChannels},
+        replicon_channels::{ClientChannel, RepliconChannels, ServerChannel},
         replicon_client::RepliconClient,
     },
     common_conditions::{client_connected, client_just_connected, client_just_disconnected},
@@ -87,10 +87,10 @@ fn setup_channels(mut client: ResMut<RepliconClient>, channels: Res<RepliconChan
 
 /// Receives and applies replication messages from the server.
 ///
-/// Update messages are sent over the [`ReplicationChannel::Updates`] and are applied first to ensure valid state
+/// Update messages are sent over the [`ServerChannel::Updates`] and are applied first to ensure valid state
 /// for component mutations.
 ///
-/// Mutate messages are sent over [`ReplicationChannel::Mutations`], which means they may appear
+/// Mutate messages are sent over [`ServerChannel::Mutations`], which means they may appear
 /// ahead-of or behind update messages from the same server tick. A mutation will only be applied if its
 /// update tick has already appeared in an update message, otherwise it will be buffered while waiting.
 /// Since component mutations can arrive in any order, they will only be applied if they correspond to a more
@@ -178,7 +178,7 @@ fn apply_replication(
     client: &mut RepliconClient,
     buffered_mutations: &mut BufferedMutations,
 ) -> Result<()> {
-    for mut message in client.receive(ReplicationChannel::Updates) {
+    for mut message in client.receive(ServerChannel::Updates) {
         apply_update_message(world, params, &mut message)?;
     }
 
@@ -189,14 +189,14 @@ fn apply_replication(
     // (unless user requested history via marker).
     let update_tick = *world.resource::<ServerUpdateTick>();
     let acks_size =
-        MutateIndex::POSTCARD_MAX_SIZE * client.received_count(ReplicationChannel::Mutations);
+        MutateIndex::POSTCARD_MAX_SIZE * client.received_count(ServerChannel::Mutations);
     if acks_size != 0 {
         let mut acks = Vec::with_capacity(acks_size);
-        for message in client.receive(ReplicationChannel::Mutations) {
+        for message in client.receive(ServerChannel::Mutations) {
             let mutate_index = buffer_mutate_message(params, buffered_mutations, message)?;
             postcard_utils::to_extend_mut(&mutate_index, &mut acks)?;
         }
-        client.send(ReplicationChannel::Updates, acks);
+        client.send(ClientChannel::MutationAcks, acks);
     }
 
     apply_mutate_messages(world, params, buffered_mutations, update_tick)

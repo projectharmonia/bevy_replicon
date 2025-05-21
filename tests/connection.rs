@@ -4,7 +4,7 @@ use bevy_replicon::{
     server::server_tick::ServerTick,
     shared::backend::{
         connected_client::{ConnectedClient, NetworkId, NetworkIdMap},
-        replicon_channels::ReplicationChannel,
+        replicon_channels::{ClientChannel, ServerChannel},
     },
     test_app::ServerTestAppExt,
 };
@@ -22,7 +22,7 @@ fn client_to_server() {
     let mut client = client_app.world_mut().resource_mut::<RepliconClient>();
     client.set_status(RepliconClientStatus::Connected);
     for &message in MESSAGES {
-        client.send(ReplicationChannel::Updates, message);
+        client.send(ClientChannel::MutationAcks, message);
     }
 
     let mut server = server_app.world_mut().resource_mut::<RepliconServer>();
@@ -33,7 +33,7 @@ fn client_to_server() {
     }
 
     let messages: Vec<_> = server
-        .receive(ReplicationChannel::Updates)
+        .receive(ClientChannel::MutationAcks)
         .map(|(_, message)| message)
         .collect();
     assert_eq!(messages, MESSAGES);
@@ -52,7 +52,7 @@ fn server_to_client() {
     let mut server = server_app.world_mut().resource_mut::<RepliconServer>();
     server.set_running(true);
     for &message in MESSAGES {
-        server.send(Entity::PLACEHOLDER, ReplicationChannel::Updates, message);
+        server.send(Entity::PLACEHOLDER, ServerChannel::Mutations, message);
     }
 
     let mut client = client_app.world_mut().resource_mut::<RepliconClient>();
@@ -62,7 +62,7 @@ fn server_to_client() {
         client.insert_received(channel_id, message);
     }
 
-    let messages: Vec<_> = client.receive(ReplicationChannel::Updates).collect();
+    let messages: Vec<_> = client.receive(ServerChannel::Mutations).collect();
     assert_eq!(messages, MESSAGES);
 }
 
@@ -115,13 +115,13 @@ fn client_cleanup_on_disconnect() {
     let mut client = app.world_mut().resource_mut::<RepliconClient>();
     client.set_status(RepliconClientStatus::Connected);
 
-    client.send(ReplicationChannel::Updates, Vec::new());
-    client.insert_received(ReplicationChannel::Updates, Vec::new());
+    client.send(ClientChannel::MutationAcks, Vec::new());
+    client.insert_received(ServerChannel::Mutations, Vec::new());
 
     client.set_status(RepliconClientStatus::Disconnected);
 
     assert_eq!(client.drain_sent().count(), 0);
-    assert_eq!(client.receive(ReplicationChannel::Updates).count(), 0);
+    assert_eq!(client.receive(ServerChannel::Mutations).count(), 0);
 
     app.update();
 }
@@ -142,13 +142,13 @@ fn server_cleanup_on_stop() {
     let mut server = app.world_mut().resource_mut::<RepliconServer>();
     server.set_running(true);
 
-    server.send(Entity::PLACEHOLDER, ReplicationChannel::Updates, Vec::new());
-    server.insert_received(Entity::PLACEHOLDER, ReplicationChannel::Updates, Vec::new());
+    server.send(Entity::PLACEHOLDER, ServerChannel::Mutations, Vec::new());
+    server.insert_received(Entity::PLACEHOLDER, ClientChannel::MutationAcks, Vec::new());
 
     server.set_running(false);
 
     assert_eq!(server.drain_sent().count(), 0);
-    assert_eq!(server.receive(ReplicationChannel::Updates).count(), 0);
+    assert_eq!(server.receive(ClientChannel::MutationAcks).count(), 0);
 
     app.update();
 
@@ -170,11 +170,11 @@ fn client_disconnected() {
 
     let mut client = app.world_mut().resource_mut::<RepliconClient>();
 
-    client.send(ReplicationChannel::Updates, Vec::new());
-    client.insert_received(ReplicationChannel::Updates, Vec::new());
+    client.send(ClientChannel::MutationAcks, Vec::new());
+    client.insert_received(ServerChannel::Mutations, Vec::new());
 
     assert_eq!(client.drain_sent().count(), 0);
-    assert_eq!(client.receive(ReplicationChannel::Updates).count(), 0);
+    assert_eq!(client.receive(ServerChannel::Mutations).count(), 0);
 
     app.update();
 }
@@ -194,11 +194,11 @@ fn server_inactive() {
 
     let mut server = app.world_mut().resource_mut::<RepliconServer>();
 
-    server.send(Entity::PLACEHOLDER, ReplicationChannel::Updates, Vec::new());
-    server.insert_received(Entity::PLACEHOLDER, ReplicationChannel::Updates, Vec::new());
+    server.send(Entity::PLACEHOLDER, ServerChannel::Mutations, Vec::new());
+    server.insert_received(Entity::PLACEHOLDER, ClientChannel::MutationAcks, Vec::new());
 
     assert_eq!(server.drain_sent().count(), 0);
-    assert_eq!(server.receive(ReplicationChannel::Updates).count(), 0);
+    assert_eq!(server.receive(ClientChannel::MutationAcks).count(), 0);
 
     app.update();
 

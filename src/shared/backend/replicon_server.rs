@@ -47,12 +47,6 @@ impl RepliconServer {
     /// Receives all available messages from clients over a channel.
     ///
     /// All messages will be drained.
-    ///
-    /// <div class="warning">
-    ///
-    /// Should only be called from the messaging backend.
-    ///
-    /// </div>
     pub fn receive<I: Into<usize>>(
         &mut self,
         channel_id: I,
