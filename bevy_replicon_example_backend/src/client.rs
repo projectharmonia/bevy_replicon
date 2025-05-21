@@ -20,9 +20,9 @@ impl Plugin for RepliconExampleClientPlugin {
         app.add_systems(
             PreUpdate,
             (
-                set_disconnected.run_if(resource_removed::<ExampleClient>),
                 set_connected.run_if(resource_added::<ExampleClient>),
                 receive_packets.run_if(resource_exists::<ExampleClient>),
+                set_disconnected.run_if(resource_removed::<ExampleClient>),
             )
                 .chain()
                 .in_set(ClientSet::ReceivePackets),

@@ -52,6 +52,40 @@ fn connect_disconnect() {
 }
 
 #[test]
+fn disconnect_request() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+            RepliconExampleBackendPlugins,
+        ));
+    }
+
+    setup(&mut server_app, &mut client_app).unwrap();
+
+    let mut clients = server_app
+        .world_mut()
+        .query_filtered::<Entity, With<ConnectedClient>>();
+    let client_entity = clients.single(server_app.world()).unwrap();
+    server_app
+        .world_mut()
+        .send_event(DisconnectRequest { client_entity });
+
+    server_app.update();
+    client_app.update();
+
+    assert_eq!(clients.iter(server_app.world()).len(), 0);
+
+    let client = client_app.world().resource::<RepliconClient>();
+    assert!(client.is_disconnected());
+}
+
+#[test]
 fn replication() {
     let mut server_app = App::new();
     let mut client_app = App::new();

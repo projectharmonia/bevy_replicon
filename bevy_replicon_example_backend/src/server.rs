@@ -20,9 +20,9 @@ impl Plugin for RepliconExampleServerPlugin {
         app.add_systems(
             PreUpdate,
             (
-                set_stopped.run_if(resource_removed::<ExampleServer>),
                 set_running.run_if(resource_added::<ExampleServer>),
                 receive_packets.run_if(resource_exists::<ExampleServer>),
+                set_stopped.run_if(resource_removed::<ExampleServer>),
             )
                 .chain()
                 .in_set(ServerSet::ReceivePackets),
@@ -120,6 +120,7 @@ fn receive_packets(
 
 fn send_packets(
     mut commands: Commands,
+    mut disconnect_events: EventReader<DisconnectRequest>,
     mut replicon_server: ResMut<RepliconServer>,
     mut clients: Query<&mut ExampleConnection>,
 ) {
@@ -131,6 +132,10 @@ fn send_packets(
             commands.entity(client_entity).despawn();
             error!("disconnecting client `{client_entity}` due to error: {e}");
         }
+    }
+
+    for event in disconnect_events.read() {
+        commands.entity(event.client_entity).despawn();
     }
 }
 
