@@ -47,7 +47,7 @@ impl RepliconServer {
     /// Receives all available messages from clients over a channel.
     ///
     /// All messages will be drained.
-    pub fn receive<I: Into<usize>>(
+    pub(crate) fn receive<I: Into<usize>>(
         &mut self,
         channel_id: I,
     ) -> impl Iterator<Item = (Entity, Bytes)> + '_ {
@@ -173,5 +173,42 @@ impl RepliconServer {
             .unwrap_or_else(|| panic!("server should have a receive channel with id {channel_id}"));
 
         receive_channel.push((client_entity, message.into()));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::shared::backend::replicon_channels::{
+        ClientChannel, RepliconChannels, ServerChannel,
+    };
+
+    #[test]
+    fn cleanup_on_stop() {
+        let channels = RepliconChannels::default();
+        let mut server = RepliconServer::default();
+        server.setup_client_channels(channels.client_channels().len());
+        server.set_running(true);
+
+        server.send(Entity::PLACEHOLDER, ServerChannel::Mutations, Vec::new());
+        server.insert_received(Entity::PLACEHOLDER, ClientChannel::MutationAcks, Vec::new());
+
+        server.set_running(false);
+
+        assert_eq!(server.drain_sent().count(), 0);
+        assert_eq!(server.receive(ClientChannel::MutationAcks).count(), 0);
+    }
+
+    #[test]
+    fn inactive() {
+        let channels = RepliconChannels::default();
+        let mut server = RepliconServer::default();
+        server.setup_client_channels(channels.client_channels().len());
+
+        server.send(Entity::PLACEHOLDER, ServerChannel::Mutations, Vec::new());
+        server.insert_received(Entity::PLACEHOLDER, ClientChannel::MutationAcks, Vec::new());
+
+        assert_eq!(server.drain_sent().count(), 0);
+        assert_eq!(server.receive(ClientChannel::MutationAcks).count(), 0);
     }
 }

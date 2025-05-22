@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - `WriteCtx::commands`. You can now insert and remove components directly through `DeferredEntity`.
+- `RepliconClient::receive` and `RepliconServer::receive` are now private since they should only be called internally by Replicon.
 - Deprecated methods.
 
 ## [0.33.0] - 2025-04-27

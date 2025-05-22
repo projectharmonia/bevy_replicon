@@ -2,70 +2,12 @@ use bevy::prelude::*;
 use bevy_replicon::{
     prelude::*,
     server::server_tick::ServerTick,
-    shared::backend::{
-        connected_client::{ConnectedClient, NetworkId, NetworkIdMap},
-        replicon_channels::{ClientChannel, ServerChannel},
-    },
+    shared::backend::connected_client::{ConnectedClient, NetworkId, NetworkIdMap},
     test_app::ServerTestAppExt,
 };
 
 #[test]
-fn client_to_server() {
-    let mut server_app = App::new();
-    let mut client_app = App::new();
-    for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((MinimalPlugins, RepliconPlugins)).finish();
-    }
-
-    const MESSAGES: &[&[u8]] = &[&[0], &[1]];
-    let mut client = client_app.world_mut().resource_mut::<RepliconClient>();
-    client.set_status(RepliconClientStatus::Connected);
-    for &message in MESSAGES {
-        client.send(ClientChannel::MutationAcks, message);
-    }
-
-    let mut server = server_app.world_mut().resource_mut::<RepliconServer>();
-    server.set_running(true);
-
-    for (channel_id, message) in client.drain_sent() {
-        server.insert_received(Entity::PLACEHOLDER, channel_id, message);
-    }
-
-    let messages: Vec<_> = server
-        .receive(ClientChannel::MutationAcks)
-        .map(|(_, message)| message)
-        .collect();
-    assert_eq!(messages, MESSAGES);
-}
-
-#[test]
-fn server_to_client() {
-    let mut server_app = App::new();
-    let mut client_app = App::new();
-    for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((MinimalPlugins, RepliconPlugins)).finish();
-    }
-
-    const MESSAGES: &[&[u8]] = &[&[0], &[1]];
-    let mut server = server_app.world_mut().resource_mut::<RepliconServer>();
-    server.set_running(true);
-    for &message in MESSAGES {
-        server.send(Entity::PLACEHOLDER, ServerChannel::Mutations, message);
-    }
-
-    let mut client = client_app.world_mut().resource_mut::<RepliconClient>();
-    client.set_status(RepliconClientStatus::Connected);
-
-    for (_, channel_id, message) in server.drain_sent() {
-        client.insert_received(channel_id, message);
-    }
-
-    let messages: Vec<_> = client.receive(ServerChannel::Mutations).collect();
-    assert_eq!(messages, MESSAGES);
-}
-
-#[test]
-fn connect_disconnect() {
+fn client_connect_disconnect() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
@@ -77,103 +19,57 @@ fn connect_disconnect() {
     let mut clients = server_app
         .world_mut()
         .query_filtered::<Entity, With<ConnectedClient>>();
-    let client_entity = clients.single(server_app.world_mut()).unwrap();
-
-    // Assign a placeholder network ID to test network map.
-    server_app
-        .world_mut()
-        .entity_mut(client_entity)
-        .insert(NetworkId::new(0));
-    assert_eq!(server_app.world().resource::<NetworkIdMap>().len(), 1);
+    assert_eq!(clients.iter(server_app.world()).len(), 1);
 
     server_app.disconnect_client(&mut client_app);
+
     assert_eq!(clients.iter(server_app.world()).len(), 0);
-    assert_eq!(server_app.world().resource::<NetworkIdMap>().len(), 0);
 }
 
 #[test]
-fn client_cleanup_on_disconnect() {
+fn server_start_stop() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                replicate_after_connect: false,
+                ..Default::default()
+            }),
+        ))
+        .finish();
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    let mut clients = server_app
+        .world_mut()
+        .query_filtered::<Entity, With<ConnectedClient>>();
+    assert_eq!(clients.iter(server_app.world()).len(), 1);
+    assert_ne!(server_app.world().resource::<ServerTick>().get(), 0);
+
+    server_app
+        .world_mut()
+        .resource_mut::<RepliconServer>()
+        .set_running(false);
+    server_app.update();
+
+    assert_eq!(clients.iter(server_app.world()).len(), 0);
+    assert_eq!(server_app.world().resource::<ServerTick>().get(), 0);
+}
+
+#[test]
+fn network_id_map() {
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, RepliconPlugins)).finish();
 
-    let mut client = app.world_mut().resource_mut::<RepliconClient>();
-    client.set_status(RepliconClientStatus::Connected);
+    let client_entity = app.world_mut().spawn(NetworkId::new(0)).id();
+    assert_eq!(app.world().resource::<NetworkIdMap>().len(), 1);
 
-    client.send(ClientChannel::MutationAcks, Vec::new());
-    client.insert_received(ServerChannel::Mutations, Vec::new());
-
-    client.set_status(RepliconClientStatus::Disconnected);
-
-    assert_eq!(client.drain_sent().count(), 0);
-    assert_eq!(client.receive(ServerChannel::Mutations).count(), 0);
-
-    app.update();
-}
-
-#[test]
-fn server_cleanup_on_stop() {
-    let mut app = App::new();
-    app.add_plugins((MinimalPlugins, RepliconPlugins)).finish();
-
-    let mut server = app.world_mut().resource_mut::<RepliconServer>();
-    server.set_running(true);
-
-    server.send(Entity::PLACEHOLDER, ServerChannel::Mutations, Vec::new());
-    server.insert_received(Entity::PLACEHOLDER, ClientChannel::MutationAcks, Vec::new());
-
-    server.set_running(false);
-
-    assert_eq!(server.drain_sent().count(), 0);
-    assert_eq!(server.receive(ClientChannel::MutationAcks).count(), 0);
-
-    app.update();
-
-    assert_eq!(app.world().resource::<ServerTick>().get(), 0);
-}
-
-#[test]
-fn client_disconnected() {
-    let mut app = App::new();
-    app.add_plugins((MinimalPlugins, RepliconPlugins)).finish();
-
-    app.update();
-
-    let mut client = app.world_mut().resource_mut::<RepliconClient>();
-
-    client.send(ClientChannel::MutationAcks, Vec::new());
-    client.insert_received(ServerChannel::Mutations, Vec::new());
-
-    assert_eq!(client.drain_sent().count(), 0);
-    assert_eq!(client.receive(ServerChannel::Mutations).count(), 0);
-
-    app.update();
-}
-
-#[test]
-fn server_inactive() {
-    let mut app = App::new();
-    app.add_plugins((
-        MinimalPlugins,
-        RepliconPlugins.set(ServerPlugin {
-            tick_policy: TickPolicy::EveryFrame,
-            ..Default::default()
-        }),
-    ))
-    .finish();
-
-    app.update();
-
-    let mut server = app.world_mut().resource_mut::<RepliconServer>();
-
-    server.send(Entity::PLACEHOLDER, ServerChannel::Mutations, Vec::new());
-    server.insert_received(Entity::PLACEHOLDER, ClientChannel::MutationAcks, Vec::new());
-
-    assert_eq!(server.drain_sent().count(), 0);
-    assert_eq!(server.receive(ClientChannel::MutationAcks).count(), 0);
-
-    app.update();
-
-    assert_eq!(app.world().resource::<ServerTick>().get(), 0);
+    app.world_mut().despawn(client_entity);
+    assert!(app.world().resource::<NetworkIdMap>().is_empty());
 }
 
 #[test]

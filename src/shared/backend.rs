@@ -37,3 +37,64 @@ use bevy::prelude::*;
 pub struct DisconnectRequest {
     pub client_entity: Entity,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        replicon_channels::{ClientChannel, RepliconChannels, ServerChannel},
+        replicon_client::{RepliconClient, RepliconClientStatus},
+        replicon_server::RepliconServer,
+        *,
+    };
+
+    #[test]
+    fn client_to_server() {
+        let channels = RepliconChannels::default();
+        let mut client = RepliconClient::default();
+        client.setup_server_channels(channels.server_channels().len());
+        client.set_status(RepliconClientStatus::Connected);
+
+        const MESSAGES: &[&[u8]] = &[&[0], &[1]];
+        for &message in MESSAGES {
+            client.send(ClientChannel::MutationAcks, message);
+        }
+
+        let mut server = RepliconServer::default();
+        server.setup_client_channels(channels.client_channels().len());
+        server.set_running(true);
+
+        for (channel_id, message) in client.drain_sent() {
+            server.insert_received(Entity::PLACEHOLDER, channel_id, message);
+        }
+
+        let messages: Vec<_> = server
+            .receive(ClientChannel::MutationAcks)
+            .map(|(_, message)| message)
+            .collect();
+        assert_eq!(messages, MESSAGES);
+    }
+
+    #[test]
+    fn server_to_client() {
+        let channels = RepliconChannels::default();
+        let mut server = RepliconServer::default();
+        server.setup_client_channels(channels.client_channels().len());
+        server.set_running(true);
+
+        const MESSAGES: &[&[u8]] = &[&[0], &[1]];
+        for &message in MESSAGES {
+            server.send(Entity::PLACEHOLDER, ServerChannel::Mutations, message);
+        }
+
+        let mut client = RepliconClient::default();
+        client.setup_server_channels(channels.server_channels().len());
+        client.set_status(RepliconClientStatus::Connected);
+
+        for (_, channel_id, message) in server.drain_sent() {
+            client.insert_received(channel_id, message);
+        }
+
+        let messages: Vec<_> = client.receive(ServerChannel::Mutations).collect();
+        assert_eq!(messages, MESSAGES);
+    }
+}
