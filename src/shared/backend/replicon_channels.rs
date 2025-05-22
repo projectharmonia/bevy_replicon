@@ -3,6 +3,9 @@ use log::debug;
 
 /// A resource with all channels used by Replicon.
 ///
+/// Initialized in [`ClientPlugin::finish`](crate::client::ClientPlugin) and
+/// [`ServerPlugin::finish`](crate::server::ServerPlugin).
+///
 /// Channel IDs are represented by [`usize`], but backends may limit the number of channels.
 /// See [`ServerChannel`] and [`ClientChannel`] for channels that are always reserved.
 ///

@@ -14,8 +14,7 @@ fn client_to_server() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((MinimalPlugins, RepliconPlugins));
-        app.update();
+        app.add_plugins((MinimalPlugins, RepliconPlugins)).finish();
     }
 
     const MESSAGES: &[&[u8]] = &[&[0], &[1]];
@@ -44,8 +43,7 @@ fn server_to_client() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((MinimalPlugins, RepliconPlugins));
-        app.update();
+        app.add_plugins((MinimalPlugins, RepliconPlugins)).finish();
     }
 
     const MESSAGES: &[&[u8]] = &[&[0], &[1]];
@@ -71,13 +69,7 @@ fn connect_disconnect() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((
-            MinimalPlugins,
-            RepliconPlugins.set(ServerPlugin {
-                tick_policy: TickPolicy::EveryFrame,
-                ..Default::default()
-            }),
-        ));
+        app.add_plugins((MinimalPlugins, RepliconPlugins)).finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -102,15 +94,7 @@ fn connect_disconnect() {
 #[test]
 fn client_cleanup_on_disconnect() {
     let mut app = App::new();
-    app.add_plugins((
-        MinimalPlugins,
-        RepliconPlugins.set(ServerPlugin {
-            tick_policy: TickPolicy::EveryFrame,
-            ..Default::default()
-        }),
-    ));
-
-    app.update();
+    app.add_plugins((MinimalPlugins, RepliconPlugins)).finish();
 
     let mut client = app.world_mut().resource_mut::<RepliconClient>();
     client.set_status(RepliconClientStatus::Connected);
@@ -129,15 +113,7 @@ fn client_cleanup_on_disconnect() {
 #[test]
 fn server_cleanup_on_stop() {
     let mut app = App::new();
-    app.add_plugins((
-        MinimalPlugins,
-        RepliconPlugins.set(ServerPlugin {
-            tick_policy: TickPolicy::EveryFrame,
-            ..Default::default()
-        }),
-    ));
-
-    app.update();
+    app.add_plugins((MinimalPlugins, RepliconPlugins)).finish();
 
     let mut server = app.world_mut().resource_mut::<RepliconServer>();
     server.set_running(true);
@@ -158,13 +134,7 @@ fn server_cleanup_on_stop() {
 #[test]
 fn client_disconnected() {
     let mut app = App::new();
-    app.add_plugins((
-        MinimalPlugins,
-        RepliconPlugins.set(ServerPlugin {
-            tick_policy: TickPolicy::EveryFrame,
-            ..Default::default()
-        }),
-    ));
+    app.add_plugins((MinimalPlugins, RepliconPlugins)).finish();
 
     app.update();
 
@@ -188,7 +158,8 @@ fn server_inactive() {
             tick_policy: TickPolicy::EveryFrame,
             ..Default::default()
         }),
-    ));
+    ))
+    .finish();
 
     app.update();
 
@@ -217,7 +188,8 @@ fn deferred_replication() {
                 replicate_after_connect: false,
                 ..Default::default()
             }),
-        ));
+        ))
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);

@@ -24,7 +24,8 @@ fn single() {
                 ..Default::default()
             }),
         ))
-        .replicate::<TestComponent>();
+        .replicate::<TestComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -67,7 +68,8 @@ fn multiple() {
             }),
         ))
         .replicate::<ComponentA>()
-        .replicate::<ComponentB>();
+        .replicate::<ComponentB>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -117,7 +119,8 @@ fn command_fns() {
             }),
         ))
         .replicate::<OriginalComponent>()
-        .set_command_fns(replace, command_fns::default_remove::<ReplacedComponent>);
+        .set_command_fns(replace, command_fns::default_remove::<ReplacedComponent>)
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -164,7 +167,8 @@ fn marker() {
         .set_marker_fns::<ReplaceMarker, _>(
             replace,
             command_fns::default_remove::<ReplacedComponent>,
-        );
+        )
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -213,7 +217,8 @@ fn group() {
                 ..Default::default()
             }),
         ))
-        .replicate_bundle::<(ComponentA, ComponentB)>();
+        .replicate_bundle::<(ComponentA, ComponentB)>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -259,7 +264,8 @@ fn not_replicated() {
                 tick_policy: TickPolicy::EveryFrame,
                 ..Default::default()
             }),
-        ));
+        ))
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -310,7 +316,8 @@ fn after_insertion() {
                 ..Default::default()
             }),
         ))
-        .replicate::<TestComponent>();
+        .replicate::<TestComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -354,7 +361,8 @@ fn with_spawn() {
                 ..Default::default()
             }),
         ))
-        .replicate::<TestComponent>();
+        .replicate::<TestComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -386,7 +394,8 @@ fn with_despawn() {
                 ..Default::default()
             }),
         ))
-        .replicate::<TestComponent>();
+        .replicate::<TestComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -430,7 +439,8 @@ fn confirm_history() {
                 ..Default::default()
             }),
         ))
-        .replicate::<TestComponent>();
+        .replicate::<TestComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);
@@ -499,7 +509,8 @@ fn hidden() {
                 ..Default::default()
             }),
         ))
-        .replicate::<TestComponent>();
+        .replicate::<TestComponent>()
+        .finish();
     }
 
     server_app.connect_client(&mut client_app);

@@ -110,7 +110,6 @@ impl Plugin for ServerPlugin {
             .add_observer(handle_connects)
             .add_observer(handle_disconnects)
             .add_observer(buffer_despawns)
-            .add_systems(Startup, setup_channels)
             .add_systems(
                 PreUpdate,
                 (
@@ -175,10 +174,14 @@ impl Plugin for ServerPlugin {
             app.register_required_components::<ConnectedClient, ReplicatedClient>();
         }
     }
-}
 
-fn setup_channels(mut server: ResMut<RepliconServer>, channels: Res<RepliconChannels>) {
-    server.setup_client_channels(channels.client_channels().len());
+    fn finish(&self, app: &mut App) {
+        app.world_mut()
+            .resource_scope(|world, mut server: Mut<RepliconServer>| {
+                let channels = world.resource::<RepliconChannels>();
+                server.setup_client_channels(channels.client_channels().len());
+            });
+    }
 }
 
 /// Increments current server tick which causes the server to replicate this frame.
@@ -280,7 +283,7 @@ fn send_replication(
         Entity,
         &mut Updates,
         &mut Mutations,
-        &mut ConnectedClient,
+        &ConnectedClient,
         &mut ClientEntityMap,
         &mut ClientTicks,
         Option<&mut ClientVisibility>,
@@ -355,7 +358,7 @@ fn send_messages(
         Entity,
         &mut Updates,
         &mut Mutations,
-        &mut ConnectedClient,
+        &ConnectedClient,
         &mut ClientEntityMap,
         &mut ClientTicks,
         Option<&mut ClientVisibility>,
@@ -415,7 +418,7 @@ fn collect_mappings(
         Entity,
         &mut Updates,
         &mut Mutations,
-        &mut ConnectedClient,
+        &ConnectedClient,
         &mut ClientEntityMap,
         &mut ClientTicks,
         Option<&mut ClientVisibility>,
@@ -437,7 +440,7 @@ fn collect_despawns(
         Entity,
         &mut Updates,
         &mut Mutations,
-        &mut ConnectedClient,
+        &ConnectedClient,
         &mut ClientEntityMap,
         &mut ClientTicks,
         Option<&mut ClientVisibility>,
@@ -479,7 +482,7 @@ fn collect_removals(
         Entity,
         &mut Updates,
         &mut Mutations,
-        &mut ConnectedClient,
+        &ConnectedClient,
         &mut ClientEntityMap,
         &mut ClientTicks,
         Option<&mut ClientVisibility>,
@@ -507,7 +510,7 @@ fn collect_changes(
         Entity,
         &mut Updates,
         &mut Mutations,
-        &mut ConnectedClient,
+        &ConnectedClient,
         &mut ClientEntityMap,
         &mut ClientTicks,
         Option<&mut ClientVisibility>,
