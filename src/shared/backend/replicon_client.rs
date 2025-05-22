@@ -57,13 +57,10 @@ impl RepliconClient {
     /// Receives all available messages from the server over a channel.
     ///
     /// All messages will be drained.
-    ///
-    /// <div class="warning">
-    ///
-    /// Should only be called from the messaging backend.
-    ///
-    /// </div>
-    pub fn receive<I: Into<usize>>(&mut self, channel_id: I) -> impl Iterator<Item = Bytes> + '_ {
+    pub(crate) fn receive<I: Into<usize>>(
+        &mut self,
+        channel_id: I,
+    ) -> impl Iterator<Item = Bytes> + '_ {
         if !self.is_connected() {
             // We can't return here because we need to return an empty iterator.
             warn!("trying to receive a message when the client is not connected");
@@ -225,4 +222,41 @@ pub enum RepliconClientStatus {
     Connecting,
     /// Connected to the server.
     Connected,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::shared::backend::replicon_channels::{
+        ClientChannel, RepliconChannels, ServerChannel,
+    };
+
+    #[test]
+    fn cleanup_on_disconnect() {
+        let channels = RepliconChannels::default();
+        let mut client = RepliconClient::default();
+        client.setup_server_channels(channels.server_channels().len());
+        client.set_status(RepliconClientStatus::Connected);
+
+        client.send(ClientChannel::MutationAcks, Vec::new());
+        client.insert_received(ServerChannel::Mutations, Vec::new());
+
+        client.set_status(RepliconClientStatus::Disconnected);
+
+        assert_eq!(client.drain_sent().count(), 0);
+        assert_eq!(client.receive(ServerChannel::Mutations).count(), 0);
+    }
+
+    #[test]
+    fn disconnected() {
+        let channels = RepliconChannels::default();
+        let mut client = RepliconClient::default();
+        client.setup_server_channels(channels.server_channels().len());
+
+        client.send(ClientChannel::MutationAcks, Vec::new());
+        client.insert_received(ServerChannel::Mutations, Vec::new());
+
+        assert_eq!(client.drain_sent().count(), 0);
+        assert_eq!(client.receive(ServerChannel::Mutations).count(), 0);
+    }
 }

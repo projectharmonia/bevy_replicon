@@ -6,7 +6,7 @@ use postcard::experimental::serialized_size;
 use super::{change_ranges::ChangeRanges, mutations::Mutations, serialized_data::SerializedData};
 use crate::server::client_visibility::Visibility;
 use crate::shared::{
-    backend::{replicon_channels::ReplicationChannel, replicon_server::RepliconServer},
+    backend::{replicon_channels::ServerChannel, replicon_server::RepliconServer},
     postcard_utils,
     replication::update_message_flags::UpdateMessageFlags,
 };
@@ -180,7 +180,7 @@ impl Updates {
     /// Contains tick, mappings, insertions, removals, and despawns that
     /// happened in this tick.
     ///
-    /// Sent over [`ReplicationChannel::Updates`] channel.
+    /// Sent over [`ServerChannel::Updates`] channel.
     ///
     /// Some data is optional, and their presence is encoded in the [`UpdateMessageFlags`] bitset.
     ///
@@ -285,7 +285,7 @@ impl Updates {
 
         debug_assert_eq!(message.len(), message_size);
 
-        server.send(client_entity, ReplicationChannel::Updates, message);
+        server.send(client_entity, ServerChannel::Updates, message);
 
         Ok(())
     }

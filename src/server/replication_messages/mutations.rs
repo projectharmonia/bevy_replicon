@@ -5,7 +5,7 @@ use postcard::experimental::{max_size::MaxSize, serialized_size};
 
 use super::{change_ranges::ChangeRanges, serialized_data::SerializedData};
 use crate::shared::{
-    backend::{replicon_channels::ReplicationChannel, replicon_server::RepliconServer},
+    backend::{replicon_channels::ServerChannel, replicon_server::RepliconServer},
     postcard_utils,
     replication::{
         client_ticks::{ClientTicks, EntityBuffer},
@@ -147,7 +147,7 @@ impl Mutations {
     /// independently on the client.
     /// Message splits only happen per-entity to avoid weird behavior from partial entity mutations.
     ///
-    /// Sent over the [`ReplicationChannel::Mutations`] channel. If the message gets lost, we try to resend it manually,
+    /// Sent over the [`ServerChannel::Mutations`] channel. If the message gets lost, we try to resend it manually,
     /// using the last up-to-date mutations to avoid re-sending old values.
     pub(crate) fn send(
         &mut self,
@@ -231,7 +231,7 @@ impl Mutations {
 
             debug_assert_eq!(message.len(), message_size);
 
-            server.send(client_entity, ReplicationChannel::Mutations, message);
+            server.send(client_entity, ServerChannel::Mutations, message);
         }
 
         Ok(self.messages.len())

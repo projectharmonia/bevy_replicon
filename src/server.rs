@@ -24,7 +24,7 @@ use log::{debug, trace};
 use crate::shared::{
     backend::{
         connected_client::ConnectedClient,
-        replicon_channels::{ReplicationChannel, RepliconChannels},
+        replicon_channels::{ClientChannel, RepliconChannels},
         replicon_server::RepliconServer,
     },
     common_conditions::*,
@@ -225,7 +225,7 @@ fn receive_acks(
     mut clients: Query<&mut ClientTicks>,
     mut entity_buffer: ResMut<EntityBuffer>,
 ) {
-    for (client_entity, mut message) in server.receive(ReplicationChannel::Updates) {
+    for (client_entity, mut message) in server.receive(ClientChannel::MutationAcks) {
         while message.has_remaining() {
             match postcard_utils::from_buf(&mut message) {
                 Ok(mutate_index) => {

@@ -62,7 +62,7 @@ It can be disabled by setting [`ServerPlugin::replicate_after_connect`] to `fals
 some components on connected clients are only present after replication starts.
 See the required components for [`ReplicatedClient`].
 
-For implementation details see [`ReplicationChannel`](shared::backend::replicon_channels::ReplicationChannel).
+For implementation details see [`ServerChannel`](shared::backend::replicon_channels::ServerChannel).
 
 ### Tick rate
 
@@ -545,7 +545,7 @@ You can control marker priority or enable processing of old values using [`AppMa
 ### Ticks information
 
 This requires an understanding of how replication works. See the documentation on
-[`ReplicationChannel`](shared::backend::replicon_channels::ReplicationChannel) and [this section](#eventual-consistency) for more details.
+[`ServerChannel`](shared::backend::replicon_channels::ServerChannel) and [this section](#eventual-consistency) for more details.
 
 To get information about confirmed ticks for individual entities, we provide
 [`ConfirmHistory`](client::confirm_history::ConfirmHistory) along with the [`EntityReplicated`](client::confirm_history::ConfirmHistory)

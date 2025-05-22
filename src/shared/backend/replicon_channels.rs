@@ -7,8 +7,7 @@ use log::debug;
 /// [`ServerPlugin::finish`](crate::server::ServerPlugin).
 ///
 /// Channel IDs are represented by [`usize`], but backends may limit the number of channels.
-///
-/// The first two channels are used for replication. For more details, see [`ReplicationChannel`].
+/// See [`ServerChannel`] and [`ClientChannel`] for channels that are always reserved.
 ///
 /// Other channels are used for events, with one channel per event. For more details, see
 /// [`RemoteEventRegistry`](crate::shared::event::remote_event_registry::RemoteEventRegistry).
@@ -30,13 +29,10 @@ impl Default for RepliconChannels {
     fn default() -> Self {
         Self {
             server: vec![
-                ReplicationChannel::Updates.into(),
-                ReplicationChannel::Mutations.into(),
+                ServerChannel::Updates.into(),
+                ServerChannel::Mutations.into(),
             ],
-            client: vec![
-                ReplicationChannel::Updates.into(),
-                ReplicationChannel::Mutations.into(),
-            ],
+            client: vec![ClientChannel::MutationAcks.into()],
         }
     }
 }
@@ -71,7 +67,14 @@ impl RepliconChannels {
     }
 }
 
-/// ID of a server replication channel.
+/// Constant ID of a channel for sending data from server to client.
+///
+/// These channels are always reserved, though additional channels may be required
+/// for remote server events. Use [`RepliconChannels`] to retrieve all channels required for Replicon.
+///
+/// See also [`ClientChannel`].
+///
+/// # Replication channels
 ///
 /// To synchronize the state, we send only changes using Bevy's change detection.
 ///
@@ -108,7 +111,7 @@ impl RepliconChannels {
 ///
 /// See also [`RepliconChannels`], [`Channel`] and [corresponding section](../index.html#eventual-consistency)
 /// from the quick start guide.
-pub enum ReplicationChannel {
+pub enum ServerChannel {
     /// For sending messages with entity mappings, inserts, removals and despawns.
     ///
     /// This is an ordered reliable channel.
@@ -116,20 +119,49 @@ pub enum ReplicationChannel {
     /// For sending messages with component mutations.
     ///
     /// This is an unreliable channel.
+    ///
+    /// See also [`ClientChannel::MutationAcks`].
     Mutations,
 }
 
-impl From<ReplicationChannel> for Channel {
-    fn from(value: ReplicationChannel) -> Self {
+impl From<ServerChannel> for Channel {
+    fn from(value: ServerChannel) -> Self {
         match value {
-            ReplicationChannel::Updates => Channel::Ordered,
-            ReplicationChannel::Mutations => Channel::Unreliable,
+            ServerChannel::Updates => Channel::Ordered,
+            ServerChannel::Mutations => Channel::Unreliable,
         }
     }
 }
 
-impl From<ReplicationChannel> for usize {
-    fn from(value: ReplicationChannel) -> Self {
+impl From<ServerChannel> for usize {
+    fn from(value: ServerChannel) -> Self {
+        value as usize
+    }
+}
+
+/// Constant ID of a channel for sending data from client to server.
+///
+/// These channels are always reserved, though additional channels may be required
+/// for remote client events. Use [`RepliconChannels`] to retrieve all channels required for Replicon.
+///
+/// See also [`ServerChannel`].
+pub enum ClientChannel {
+    /// For sending acks to acknowledge mutation messages received from [`ServerChannel::Mutations`].
+    ///
+    /// This is an ordered reliable channel.
+    MutationAcks,
+}
+
+impl From<ClientChannel> for Channel {
+    fn from(value: ClientChannel) -> Self {
+        match value {
+            ClientChannel::MutationAcks => Channel::Ordered,
+        }
+    }
+}
+
+impl From<ClientChannel> for usize {
+    fn from(value: ClientChannel) -> Self {
         value as usize
     }
 }
