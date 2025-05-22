@@ -63,7 +63,8 @@ fn disconnect_request() {
                 ..Default::default()
             }),
             RepliconExampleBackendPlugins,
-        ));
+        ))
+        .finish();
     }
 
     setup(&mut server_app, &mut client_app).unwrap();
