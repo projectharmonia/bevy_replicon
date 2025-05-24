@@ -116,18 +116,18 @@ impl RepliconClient {
     ///
     /// </div>
     pub fn set_status(&mut self, status: RepliconClientStatus) {
-        debug!("changing `RepliconClient` status to `{status:?}`");
-
-        if self.is_connected() && !matches!(status, RepliconClientStatus::Connected) {
-            for channel_messages in &mut self.received_messages {
-                channel_messages.clear();
-            }
-            self.sent_messages.clear();
-
-            self.stats = Default::default();
-        }
-
+        debug!("changing status to `{status:?}`");
         self.status = status;
+    }
+
+    /// Clears all received messages and statistics.
+    pub fn clear(&mut self) {
+        debug!("resetting");
+        for channel_messages in &mut self.received_messages {
+            channel_messages.clear();
+        }
+        self.sent_messages.clear();
+        self.stats = Default::default();
     }
 
     /// Returns the current client status.
@@ -230,22 +230,6 @@ mod tests {
     use crate::shared::backend::replicon_channels::{
         ClientChannel, RepliconChannels, ServerChannel,
     };
-
-    #[test]
-    fn cleanup_on_disconnect() {
-        let channels = RepliconChannels::default();
-        let mut client = RepliconClient::default();
-        client.setup_server_channels(channels.server_channels().len());
-        client.set_status(RepliconClientStatus::Connected);
-
-        client.send(ClientChannel::MutationAcks, Vec::new());
-        client.insert_received(ServerChannel::Mutations, Vec::new());
-
-        client.set_status(RepliconClientStatus::Disconnected);
-
-        assert_eq!(client.drain_sent().count(), 0);
-        assert_eq!(client.receive(ServerChannel::Mutations).count(), 0);
-    }
 
     #[test]
     fn disconnected() {
