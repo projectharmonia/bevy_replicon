@@ -14,7 +14,7 @@ use crate::shared::{
         replicon_channels::{ClientChannel, RepliconChannels, ServerChannel},
         replicon_client::RepliconClient,
     },
-    common_conditions::{client_connected, client_just_connected, client_just_disconnected},
+    common_conditions::*,
     entity_serde, postcard_utils,
     replication::{
         Replicated,
@@ -68,7 +68,7 @@ impl Plugin for ClientPlugin {
                 PreUpdate,
                 receive_replication
                     .in_set(ClientSet::Receive)
-                    .run_if(client_connected),
+                    .run_if(client_connected.or(client_just_disconnected)),
             )
             .add_systems(PreUpdate, reset.in_set(ClientSet::Reset));
     }

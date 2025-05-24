@@ -121,7 +121,7 @@ impl Plugin for ClientEventPlugin {
                     (
                         receive
                             .after(super::receive_replication)
-                            .run_if(client_connected),
+                            .run_if(client_connected.or(client_just_disconnected)),
                         trigger,
                     )
                         .chain()
