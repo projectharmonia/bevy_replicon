@@ -19,7 +19,7 @@ impl Plugin for ClientDiagnosticsPlugin {
                 PreUpdate,
                 add_measurements
                     .in_set(ClientSet::Diagnostics)
-                    .run_if(client_connected.or(client_just_disconnected)),
+                    .run_if(client_just_disconnected.or(client_connected)),
             )
             .register_diagnostic(
                 Diagnostic::new(RTT)

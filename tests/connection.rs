@@ -5,6 +5,7 @@ use bevy_replicon::{
     shared::backend::connected_client::{ConnectedClient, NetworkId, NetworkIdMap},
     test_app::ServerTestAppExt,
 };
+use serde::{Deserialize, Serialize};
 
 #[test]
 fn client_connect_disconnect() {
@@ -95,3 +96,39 @@ fn deferred_replication() {
         .query_filtered::<&ConnectedClient, Without<ReplicatedClient>>();
     assert_eq!(clients.iter(server_app.world()).count(), 1);
 }
+
+#[test]
+fn messages_with_disconnect() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .add_server_event::<TestEvent>(Channel::Ordered)
+        .finish();
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    server_app.world_mut().spawn(Replicated);
+    server_app.world_mut().send_event(ToClients {
+        mode: SendMode::Broadcast,
+        event: TestEvent,
+    });
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    server_app.disconnect_client(&mut client_app);
+
+    let mut replicated = client_app.world_mut().query::<&Replicated>();
+    assert_eq!(replicated.iter(client_app.world()).count(), 1);
+    assert_eq!(client_app.world().resource::<Events<TestEvent>>().len(), 1);
+}
+
+#[derive(Event, Serialize, Deserialize)]
+struct TestEvent;

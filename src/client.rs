@@ -51,12 +51,10 @@ impl Plugin for ClientPlugin {
                 PreUpdate,
                 (
                     ClientSet::ReceivePackets,
-                    (
-                        ClientSet::ResetEvents.run_if(client_just_connected),
-                        ClientSet::Reset.run_if(client_just_disconnected),
-                    ),
+                    ClientSet::ResetEvents.run_if(client_just_connected),
                     ClientSet::Receive,
                     ClientSet::Diagnostics,
+                    ClientSet::Reset.run_if(client_just_disconnected),
                 )
                     .chain(),
             )
@@ -66,11 +64,13 @@ impl Plugin for ClientPlugin {
             )
             .add_systems(
                 PreUpdate,
-                receive_replication
-                    .in_set(ClientSet::Receive)
-                    .run_if(client_connected.or(client_just_disconnected)),
-            )
-            .add_systems(PreUpdate, reset.in_set(ClientSet::Reset));
+                (
+                    receive_replication
+                        .in_set(ClientSet::Receive)
+                        .run_if(client_just_disconnected.or(client_connected)),
+                    reset.in_set(ClientSet::Reset),
+                ),
+            );
     }
 
     fn finish(&self, app: &mut App) {
@@ -157,11 +157,13 @@ pub(super) fn receive_replication(
 }
 
 fn reset(
+    mut client: ResMut<RepliconClient>,
     mut update_tick: ResMut<ServerUpdateTick>,
     mut entity_map: ResMut<ServerEntityMap>,
     mut buffered_mutations: ResMut<BufferedMutations>,
     stats: Option<ResMut<ClientReplicationStats>>,
 ) {
+    client.clear();
     *update_tick = Default::default();
     entity_map.clear();
     buffered_mutations.clear();
