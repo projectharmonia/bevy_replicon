@@ -1,6 +1,7 @@
 use bevy::{ecs::entity::MapEntities, prelude::*, time::TimePlugin};
 use bevy_replicon::{
-    prelude::*, shared::server_entity_map::ServerEntityMap, test_app::ServerTestAppExt,
+    client::ServerUpdateTick, prelude::*, shared::server_entity_map::ServerEntityMap,
+    test_app::ServerTestAppExt,
 };
 use serde::{Deserialize, Serialize};
 
@@ -189,6 +190,52 @@ fn local_resending() {
 
     let reader = app.world().resource::<TriggerReader<TestEvent>>();
     assert_eq!(reader.events.len(), 1);
+}
+
+#[test]
+fn independent() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+        ))
+        .add_server_trigger::<TestEvent>(Channel::Ordered)
+        .make_trigger_independent::<TestEvent>()
+        .finish();
+    }
+    client_app.init_resource::<TriggerReader<TestEvent>>();
+
+    server_app.connect_client(&mut client_app);
+
+    // Spawn entity to trigger world change.
+    server_app.world_mut().spawn(Replicated);
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    // Artificially reset the update tick.
+    // Normal events would be queued and not triggered yet,
+    // but our independent event should be triggered immediately.
+    *client_app.world_mut().resource_mut::<ServerUpdateTick>() = Default::default();
+
+    server_app.world_mut().server_trigger(ToClients {
+        mode: SendMode::Broadcast,
+        event: TestEvent,
+    });
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    let reader = client_app.world().resource::<TriggerReader<TestEvent>>();
+    assert_eq!(reader.entities, [Entity::PLACEHOLDER]);
 }
 
 #[derive(Event, Serialize, Deserialize, Clone)]
