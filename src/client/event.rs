@@ -32,12 +32,12 @@ impl Plugin for ClientEventPlugin {
 
         let send = (
             FilteredResourcesParamBuilder::new(|builder| {
-                for event in event_registry.iter_client_events() {
+                for event in event_registry.iter_all_client() {
                     builder.add_read_by_id(event.events_id());
                 }
             }),
             FilteredResourcesMutParamBuilder::new(|builder| {
-                for event in event_registry.iter_client_events() {
+                for event in event_registry.iter_all_client() {
                     builder.add_write_by_id(event.reader_id());
                 }
             }),
@@ -51,12 +51,12 @@ impl Plugin for ClientEventPlugin {
 
         let receive = (
             FilteredResourcesMutParamBuilder::new(|builder| {
-                for event in event_registry.iter_server_events() {
+                for event in event_registry.iter_all_server() {
                     builder.add_write_by_id(event.events_id());
                 }
             }),
             FilteredResourcesMutParamBuilder::new(|builder| {
-                for event in event_registry.iter_server_events() {
+                for event in event_registry.iter_all_server() {
                     builder.add_write_by_id(event.queue_id());
                 }
             }),
@@ -83,12 +83,12 @@ impl Plugin for ClientEventPlugin {
 
         let resend_locally = (
             FilteredResourcesMutParamBuilder::new(|builder| {
-                for event in event_registry.iter_client_events() {
+                for event in event_registry.iter_all_client() {
                     builder.add_write_by_id(event.client_events_id());
                 }
             }),
             FilteredResourcesMutParamBuilder::new(|builder| {
-                for event in event_registry.iter_client_events() {
+                for event in event_registry.iter_all_client() {
                     builder.add_write_by_id(event.events_id());
                 }
             }),
@@ -99,12 +99,12 @@ impl Plugin for ClientEventPlugin {
 
         let reset = (
             FilteredResourcesMutParamBuilder::new(|builder| {
-                for event in event_registry.iter_client_events() {
+                for event in event_registry.iter_all_client() {
                     builder.add_write_by_id(event.events_id());
                 }
             }),
             FilteredResourcesMutParamBuilder::new(|builder| {
-                for event in event_registry.iter_server_events() {
+                for event in event_registry.iter_all_server() {
                     builder.add_write_by_id(event.queue_id());
                 }
             }),
@@ -154,7 +154,7 @@ fn send(
         invalid_entities: Vec::new(),
     };
 
-    for event in event_registry.iter_client_events() {
+    for event in event_registry.iter_all_client() {
         let events = events
             .get_by_id(event.events_id())
             .expect("events resource should be accessible");
@@ -184,7 +184,7 @@ fn receive(
         invalid_entities: Vec::new(),
     };
 
-    for event in event_registry.iter_server_events() {
+    for event in event_registry.iter_all_server() {
         let events = events
             .get_mut_by_id(event.events_id())
             .expect("events resource should be accessible");
@@ -223,7 +223,7 @@ fn resend_locally(
     mut events: FilteredResourcesMut,
     event_registry: Res<RemoteEventRegistry>,
 ) {
-    for event in event_registry.iter_client_events() {
+    for event in event_registry.iter_all_client() {
         let client_events = client_events
             .get_mut_by_id(event.client_events_id())
             .expect("client events resource should be accessible");
@@ -241,7 +241,7 @@ fn reset(
     mut queues: FilteredResourcesMut,
     event_registry: Res<RemoteEventRegistry>,
 ) {
-    for event in event_registry.iter_client_events() {
+    for event in event_registry.iter_all_client() {
         let events = events
             .get_mut_by_id(event.events_id())
             .expect("events resource should be accessible");
@@ -250,7 +250,7 @@ fn reset(
         unsafe { event.reset(events.into_inner()) };
     }
 
-    for event in event_registry.iter_server_events() {
+    for event in event_registry.iter_all_server() {
         let queue = queues
             .get_mut_by_id(event.queue_id())
             .expect("event queue resource should be accessible");

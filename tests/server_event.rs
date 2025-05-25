@@ -453,7 +453,7 @@ fn independent() {
             }),
         ))
         .add_server_event::<TestEvent>(Channel::Ordered)
-        .make_independent::<TestEvent>()
+        .make_event_independent::<TestEvent>()
         .finish();
     }
 
@@ -555,7 +555,7 @@ fn independent_before_started_replication() {
             }),
         ))
         .add_server_event::<TestEvent>(Channel::Ordered)
-        .make_independent::<TestEvent>()
+        .make_event_independent::<TestEvent>()
         .finish();
     }
 

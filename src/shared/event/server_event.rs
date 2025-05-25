@@ -49,7 +49,7 @@ pub trait ServerEventAppExt {
     /// Calling [`App::add_event`] is not necessary. Can used for regular events that were
     /// previously registered.
     ///
-    /// Unlike client events, server events are tied to replication. See [`Self::make_independent`]
+    /// Unlike client events, server events are tied to replication. See [`Self::make_event_independent`]
     /// for more details.
     ///
     /// See also [`ServerTriggerAppExt::add_server_trigger`](super::server_trigger::ServerTriggerAppExt::add_server_trigger),
@@ -160,7 +160,7 @@ pub trait ServerEventAppExt {
     /// very difficult to debug!
     ///
     /// </div>
-    fn make_independent<E: Event>(&mut self) -> &mut Self;
+    fn make_event_independent<E: Event>(&mut self) -> &mut Self;
 }
 
 impl ServerEventAppExt for App {
@@ -180,7 +180,7 @@ impl ServerEventAppExt for App {
         self
     }
 
-    fn make_independent<E: Event>(&mut self) -> &mut Self {
+    fn make_event_independent<E: Event>(&mut self) -> &mut Self {
         let events_id = self
             .world()
             .components()

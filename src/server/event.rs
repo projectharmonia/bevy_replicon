@@ -34,7 +34,7 @@ impl Plugin for ServerEventPlugin {
 
         let send_or_buffer = (
             FilteredResourcesParamBuilder::new(|builder| {
-                for event in event_registry.iter_server_events() {
+                for event in event_registry.iter_all_server() {
                     builder.add_read_by_id(event.server_events_id());
                 }
             }),
@@ -49,7 +49,7 @@ impl Plugin for ServerEventPlugin {
 
         let receive = (
             FilteredResourcesMutParamBuilder::new(|builder| {
-                for event in event_registry.iter_client_events() {
+                for event in event_registry.iter_all_client() {
                     builder.add_write_by_id(event.client_events_id());
                 }
             }),
@@ -74,12 +74,12 @@ impl Plugin for ServerEventPlugin {
 
         let resend_locally = (
             FilteredResourcesMutParamBuilder::new(|builder| {
-                for event in event_registry.iter_server_events() {
+                for event in event_registry.iter_all_server() {
                     builder.add_write_by_id(event.server_events_id());
                 }
             }),
             FilteredResourcesMutParamBuilder::new(|builder| {
-                for event in event_registry.iter_server_events() {
+                for event in event_registry.iter_all_server() {
                     builder.add_write_by_id(event.events_id());
                 }
             }),
@@ -127,7 +127,7 @@ fn send_or_buffer(
         type_registry: &type_registry.read(),
     };
 
-    for event in event_registry.iter_server_events() {
+    for event in event_registry.iter_all_server() {
         let server_events = server_events
             .get_by_id(event.server_events_id())
             .expect("server events resource should be accessible");
@@ -165,7 +165,7 @@ fn receive(
         type_registry: &type_registry.read(),
     };
 
-    for event in event_registry.iter_client_events() {
+    for event in event_registry.iter_all_client() {
         let client_events = client_events
             .get_mut_by_id(event.client_events_id())
             .expect("client events resource should be accessible");
@@ -193,7 +193,7 @@ fn resend_locally(
     mut events: FilteredResourcesMut,
     event_registry: Res<RemoteEventRegistry>,
 ) {
-    for event in event_registry.iter_server_events() {
+    for event in event_registry.iter_all_server() {
         let server_events = server_events
             .get_mut_by_id(event.server_events_id())
             .expect("server events resource should be accessible");

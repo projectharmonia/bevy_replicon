@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rename `GroupReplication` into `BundleReplication`.
 - Rename `AppRuleExt::replicate_group` into `AppRuleExt::replicate_bundle`.
 - Rename `replication_registry::despawn_recursive` into `replication_registry::despawn`.
+- Rename `ServerEventAppExt::make_independent` into `ServerEventAppExt::make_event_independent`. It never worked for triggers.
 - `ReplicationRule` now stores `Vec<ComponentRule>` instead of `Vec<(ComponentId, FnsId)>`
 - `RuleFns` now available from prelude.
 - Initialize channels in `App::finish` instead of `Startup`. It's called automatically on `App::run`, but in tests you need to call `App::finish` manually.
