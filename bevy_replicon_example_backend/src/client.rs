@@ -22,16 +22,20 @@ impl Plugin for RepliconExampleClientPlugin {
             (
                 set_connected.run_if(resource_added::<ExampleClient>),
                 receive_packets.run_if(resource_exists::<ExampleClient>),
-                set_disconnected.run_if(resource_removed::<ExampleClient>),
             )
                 .chain()
                 .in_set(ClientSet::ReceivePackets),
         )
         .add_systems(
             PostUpdate,
-            send_packets
-                .in_set(ClientSet::SendPackets)
-                .run_if(resource_exists::<ExampleClient>),
+            (
+                set_disconnected
+                    .before(ClientSet::Send)
+                    .run_if(resource_removed::<ExampleClient>),
+                send_packets
+                    .in_set(ClientSet::SendPackets)
+                    .run_if(resource_exists::<ExampleClient>),
+            ),
         );
     }
 }
@@ -62,12 +66,12 @@ fn receive_packets(
                 io::ErrorKind::UnexpectedEof => {
                     debug!("server closed the connection");
                     commands.remove_resource::<ExampleClient>();
-                    return;
+                    break;
                 }
                 _ => {
                     error!("disconnecting due to message read error: {e}");
                     commands.remove_resource::<ExampleClient>();
-                    return;
+                    break;
                 }
             },
         }
