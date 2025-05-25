@@ -5,7 +5,11 @@ use log::{debug, trace, warn};
 /// Stores information about the server independent from the messaging backend.
 ///
 /// The messaging backend is responsible for updating this resource:
-/// - When the server is started or stopped, [`Self::set_running`] should be used to reflect this.
+/// - When the server starts or stops, [`Self::set_running`] should be used to update its status:
+///   - Set to `true` in [`ServerSet::ReceivePackets`](crate::server::ServerSet::ReceivePackets) to
+///     allow immediate processing of received messages.
+///   - Set to `false` before [`ServerSet::Send`](crate::server::ServerSet::Send) to ensure
+///     the server stops immediately on the same frame.
 /// - For receiving messages, [`Self::insert_received`] should be used.
 ///   A system to forward messages from the backend to Replicon should run in [`ServerSet::ReceivePackets`](crate::server::ServerSet::ReceivePackets).
 /// - For sending messages, [`Self::drain_sent`] should be used to drain all sent messages.

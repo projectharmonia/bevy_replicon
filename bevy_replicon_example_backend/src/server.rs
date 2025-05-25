@@ -20,7 +20,6 @@ impl Plugin for RepliconExampleServerPlugin {
         app.add_systems(
             PreUpdate,
             (
-                set_stopped.run_if(resource_removed::<ExampleServer>),
                 set_running.run_if(resource_added::<ExampleServer>),
                 receive_packets.run_if(resource_exists::<ExampleServer>),
             )
@@ -29,9 +28,14 @@ impl Plugin for RepliconExampleServerPlugin {
         )
         .add_systems(
             PostUpdate,
-            send_packets
-                .in_set(ServerSet::SendPackets)
-                .run_if(resource_exists::<ExampleServer>),
+            (
+                set_stopped
+                    .before(ServerSet::Send)
+                    .run_if(resource_removed::<ExampleServer>),
+                send_packets
+                    .in_set(ServerSet::SendPackets)
+                    .run_if(resource_exists::<ExampleServer>),
+            ),
         );
     }
 }
