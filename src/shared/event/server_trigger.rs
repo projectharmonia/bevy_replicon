@@ -62,6 +62,10 @@ pub trait ServerTriggerAppExt {
         serialize: EventSerializeFn<ServerSendCtx, E>,
         deserialize: EventDeserializeFn<ClientReceiveCtx, E>,
     ) -> &mut Self;
+
+    /// Like [`ServerEventAppExt::make_event_independent`](super::server_event::ServerEventAppExt::make_event_independent),
+    /// but for triggers.
+    fn make_trigger_independent<E: Event>(&mut self) -> &mut Self;
 }
 
 impl ServerTriggerAppExt for App {
@@ -78,6 +82,34 @@ impl ServerTriggerAppExt for App {
         let trigger = ServerTrigger::new(self, channel, event_fns);
         let mut event_registry = self.world_mut().resource_mut::<RemoteEventRegistry>();
         event_registry.register_server_trigger(trigger);
+
+        self
+    }
+
+    fn make_trigger_independent<E: Event>(&mut self) -> &mut Self {
+        let events_id = self
+            .world()
+            .components()
+            .resource_id::<Events<RemoteTrigger<E>>>()
+            .unwrap_or_else(|| {
+                panic!(
+                    "event `{}` should be previously registered",
+                    any::type_name::<E>()
+                )
+            });
+
+        let mut event_registry = self.world_mut().resource_mut::<RemoteEventRegistry>();
+        let trigger = event_registry
+            .iter_server_triggers_mut()
+            .find(|trigger| trigger.event().events_id() == events_id)
+            .unwrap_or_else(|| {
+                panic!(
+                    "event `{}` should be previously registered as a server trigger",
+                    any::type_name::<E>()
+                )
+            });
+
+        trigger.event_mut().independent = true;
 
         self
     }

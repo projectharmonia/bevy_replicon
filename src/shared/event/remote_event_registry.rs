@@ -39,6 +39,10 @@ impl RemoteEventRegistry {
         self.server_events.iter_mut()
     }
 
+    pub(super) fn iter_server_triggers_mut(&mut self) -> impl Iterator<Item = &mut ServerTrigger> {
+        self.server_triggers.iter_mut()
+    }
+
     pub(crate) fn iter_all_server(&self) -> impl Iterator<Item = &ServerEvent> {
         self.server_events
             .iter()
