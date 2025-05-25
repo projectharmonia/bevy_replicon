@@ -7,8 +7,14 @@ use super::connected_client::NetworkStats;
 /// Stores information about a client independent from the messaging backend.
 ///
 /// The messaging backend is responsible for updating this resource:
-/// - When the messaging client changes its status (connected, connecting and disconnected),
-///   [`Self::set_status`] should be used to reflect this.
+/// - When the messaging client changes its status, [`Self::set_status`] should be used to
+///   reflect this change:
+///   - [`RepliconClientStatus::Connecting`] and [`RepliconClientStatus::Connected`] should
+///     be set in [`ClientSet::ReceivePackets`](crate::client::ClientSet::ReceivePackets) to
+///     allow the client to process received messages immediately.
+///   - [`RepliconClientStatus::Disconnected`] should be set before
+///     [`ClientSet::Send`](crate::client::ClientSet::Send) to allow the client to process
+///     all received messages before disconnecting.
 /// - For receiving messages, [`Self::insert_received`] should be to used.
 ///   A system to forward backend messages to Replicon should run in
 ///   [`ClientSet::ReceivePackets`](crate::client::ClientSet::ReceivePackets).
