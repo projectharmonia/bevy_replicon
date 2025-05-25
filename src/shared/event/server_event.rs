@@ -288,10 +288,6 @@ impl ServerEvent {
         self.queue_id
     }
 
-    pub(super) fn is_independent(&self) -> bool {
-        self.independent
-    }
-
     pub(super) fn channel_id(&self) -> usize {
         self.channel_id
     }
@@ -337,7 +333,7 @@ impl ServerEvent {
         for ToClients { event, mode } in events.get_cursor().read(events) {
             debug!("sending event `{}` with `{mode:?}`", any::type_name::<E>());
 
-            if self.is_independent() {
+            if self.independent {
                 unsafe {
                     self.send_independent_event::<E, I>(ctx, event, mode, server, clients)
                         .expect("independent server event should be serializable");
@@ -484,7 +480,7 @@ impl ServerEvent {
         }
 
         for mut message in client.receive(self.channel_id) {
-            if !self.is_independent() {
+            if !self.independent {
                 let tick = match postcard_utils::from_buf(&mut message) {
                     Ok(tick) => tick,
                     Err(e) => {
