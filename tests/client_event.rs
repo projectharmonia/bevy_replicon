@@ -32,7 +32,7 @@ fn channels() {
 }
 
 #[test]
-fn sending_receiving() {
+fn regular() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
@@ -56,7 +56,7 @@ fn sending_receiving() {
 }
 
 #[test]
-fn mapping_and_sending_receiving() {
+fn mapped() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
@@ -92,7 +92,7 @@ fn mapping_and_sending_receiving() {
 }
 
 #[test]
-fn sending_receiving_without_plugins() {
+fn without_plugins() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     server_app

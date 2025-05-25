@@ -34,7 +34,7 @@ fn channels() {
 }
 
 #[test]
-fn sending_receiving() {
+fn regular() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
@@ -79,7 +79,7 @@ fn sending_receiving() {
 }
 
 #[test]
-fn sending_receiving_and_mapping() {
+fn mapped() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
@@ -122,7 +122,7 @@ fn sending_receiving_and_mapping() {
 }
 
 #[test]
-fn sending_receiving_without_plugins() {
+fn without_plugins() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     server_app
@@ -220,7 +220,7 @@ fn local_resending() {
 }
 
 #[test]
-fn event_buffering() {
+fn server_buffering() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
@@ -266,7 +266,7 @@ fn event_buffering() {
 }
 
 #[test]
-fn event_queue() {
+fn client_queue() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
@@ -316,7 +316,7 @@ fn event_queue() {
 }
 
 #[test]
-fn event_queue_and_mapping() {
+fn client_queue_and_mapping() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
@@ -379,7 +379,7 @@ fn event_queue_and_mapping() {
 }
 
 #[test]
-fn multiple_event_queues() {
+fn multiple_client_queues() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
