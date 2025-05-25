@@ -160,6 +160,8 @@ pub trait ServerEventAppExt {
     /// very difficult to debug!
     ///
     /// </div>
+    ///
+    /// See also [`ServerTriggerAppExt::make_event_independent`](crate::shared::event::server_trigger::ServerTriggerAppExt::make_trigger_independent).
     fn make_event_independent<E: Event>(&mut self) -> &mut Self;
 }
 
