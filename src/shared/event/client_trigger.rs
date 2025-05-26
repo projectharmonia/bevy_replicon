@@ -10,7 +10,7 @@ use super::{
     ctx::{ClientSendCtx, ServerReceiveCtx},
     event_fns::{EventDeserializeFn, EventFns, EventSerializeFn},
     remote_event_registry::RemoteEventRegistry,
-    trigger::{RemoteTargets, RemoteTrigger},
+    trigger::RemoteTargets,
 };
 use crate::shared::{backend::replicon_channels::Channel, entity_serde, postcard_utils};
 
@@ -96,7 +96,7 @@ impl ClientTrigger {
     fn new<E: Event>(
         app: &mut App,
         channel: Channel,
-        event_fns: EventFns<ClientSendCtx, ServerReceiveCtx, RemoteTrigger<E>, E>,
+        event_fns: EventFns<ClientSendCtx, ServerReceiveCtx, ClientTriggerEvent<E>, E>,
     ) -> Self {
         Self {
             event: ClientEvent::new(app, channel, event_fns),
@@ -110,14 +110,14 @@ impl ClientTrigger {
         }
     }
 
-    /// Drains received [`FromClient<RemoteTrigger<E>>`] events and triggers them as [`FromClient<E>`].
+    /// Drains received [`FromClient<TriggerEvent<E>>`] events and triggers them as [`FromClient<E>`].
     ///
     /// # Safety
     ///
-    /// The caller must ensure that `client_events` is [`Events<FromClient<RemoteTrigger<E>>>`]
+    /// The caller must ensure that `client_events` is [`Events<FromClient<TriggerEvent<E>>>`]
     /// and this instance was created for `E`.
     unsafe fn trigger_typed<E: Event>(commands: &mut Commands, client_events: PtrMut) {
-        let client_events: &mut Events<FromClient<RemoteTrigger<E>>> =
+        let client_events: &mut Events<FromClient<ClientTriggerEvent<E>>> =
             unsafe { client_events.deref_mut() };
         for FromClient {
             client_entity,
@@ -146,13 +146,13 @@ impl ClientTrigger {
 /// Signature of client trigger functions.
 type TriggerFn = unsafe fn(&mut Commands, PtrMut);
 
-/// Serializes targets for [`RemoteTrigger`], maps them and delegates the event
+/// Serializes targets for [`TriggerEvent`], maps them and delegates the event
 /// serialiaztion to `serialize`.
 ///
 /// Used as outer function for [`EventFns`].
 fn trigger_serialize<'a, E>(
     ctx: &mut ClientSendCtx<'a>,
-    trigger: &RemoteTrigger<E>,
+    trigger: &ClientTriggerEvent<E>,
     message: &mut Vec<u8>,
     serialize: EventSerializeFn<ClientSendCtx<'a>, E>,
 ) -> Result<()> {
@@ -165,7 +165,7 @@ fn trigger_serialize<'a, E>(
     (serialize)(ctx, &trigger.event, message)
 }
 
-/// Deserializes targets for [`RemoteTrigger`], maps them and delegates the event
+/// Deserializes targets for [`TriggerEvent`], maps them and delegates the event
 /// deserialiaztion to `deserialize`.
 ///
 /// Used as outer function for [`EventFns`].
@@ -173,7 +173,7 @@ fn trigger_deserialize<'a, E>(
     ctx: &mut ServerReceiveCtx<'a>,
     message: &mut Bytes,
     deserialize: EventDeserializeFn<ServerReceiveCtx<'a>, E>,
-) -> Result<RemoteTrigger<E>> {
+) -> Result<ClientTriggerEvent<E>> {
     let len = postcard_utils::from_buf(message)?;
     let mut targets = Vec::with_capacity(len);
     for _ in 0..len {
@@ -183,7 +183,7 @@ fn trigger_deserialize<'a, E>(
 
     let event = (deserialize)(ctx, message)?;
 
-    Ok(RemoteTrigger { event, targets })
+    Ok(ClientTriggerEvent { event, targets })
 }
 
 /// Extension trait for triggering client events.
@@ -205,7 +205,7 @@ impl ClientTriggerExt for Commands<'_, '_> {
     }
 
     fn client_trigger_targets(&mut self, event: impl Event, targets: impl RemoteTargets) {
-        self.send_event(RemoteTrigger {
+        self.send_event(ClientTriggerEvent {
             event,
             targets: targets.into_entities(),
         });
@@ -218,9 +218,20 @@ impl ClientTriggerExt for World {
     }
 
     fn client_trigger_targets(&mut self, event: impl Event, targets: impl RemoteTargets) {
-        self.send_event(RemoteTrigger {
+        self.send_event(ClientTriggerEvent {
             event,
             targets: targets.into_entities(),
         });
     }
+}
+
+/// An event that used under the hood for client triggers.
+///
+/// We can't just observe for triggers like we do for events since we need access to all its targets
+/// and we need to buffer them. This is why we just emit this event instead and after receive drain it
+/// to trigger regular events.
+#[derive(Event)]
+struct ClientTriggerEvent<E> {
+    event: E,
+    targets: Vec<Entity>,
 }

@@ -10,7 +10,7 @@ use super::{
     event_fns::{EventDeserializeFn, EventFns, EventSerializeFn},
     remote_event_registry::RemoteEventRegistry,
     server_event::{self, ServerEvent, ToClients},
-    trigger::{RemoteTargets, RemoteTrigger},
+    trigger::RemoteTargets,
 };
 use crate::shared::{backend::replicon_channels::Channel, entity_serde, postcard_utils};
 
@@ -93,7 +93,7 @@ impl ServerTrigger {
     fn new<E: Event>(
         app: &mut App,
         channel: Channel,
-        event_fns: EventFns<ServerSendCtx, ClientReceiveCtx, RemoteTrigger<E>, E>,
+        event_fns: EventFns<ServerSendCtx, ClientReceiveCtx, ServerTriggerEvent<E>, E>,
     ) -> Self {
         let event = ServerEvent::new(app, channel, event_fns);
         Self {
@@ -108,14 +108,14 @@ impl ServerTrigger {
         }
     }
 
-    /// Drains received [`RemoteTrigger<E>`] events and triggers them as `E`.
+    /// Drains received [`TriggerEvent<E>`] events and triggers them as `E`.
     ///
     /// # Safety
     ///
-    /// The caller must ensure that `events` is [`Events<RemoteTrigger<E>>`]
+    /// The caller must ensure that `events` is [`Events<TriggerEvent<E>>`]
     /// and this instance was created for `E`.
     unsafe fn trigger_typed<E: Event>(commands: &mut Commands, events: PtrMut) {
-        let events: &mut Events<RemoteTrigger<E>> = unsafe { events.deref_mut() };
+        let events: &mut Events<ServerTriggerEvent<E>> = unsafe { events.deref_mut() };
         for trigger in events.drain() {
             debug!("triggering `{}`", any::type_name::<E>());
             commands.trigger_targets(trigger.event, trigger.targets);
@@ -134,13 +134,13 @@ impl ServerTrigger {
 /// Signature of server trigger functions.
 type TriggerFn = unsafe fn(&mut Commands, PtrMut);
 
-/// Serializes targets for [`RemoteTrigger`] and delegates the event
+/// Serializes targets for [`TriggerEvent`] and delegates the event
 /// serialiaztion to `serialize`.
 ///
 /// Used as outer function for [`EventFns`].
 fn trigger_serialize<'a, E>(
     ctx: &mut ServerSendCtx<'a>,
-    trigger: &RemoteTrigger<E>,
+    trigger: &ServerTriggerEvent<E>,
     message: &mut Vec<u8>,
     serialize: EventSerializeFn<ServerSendCtx<'a>, E>,
 ) -> Result<()> {
@@ -152,7 +152,7 @@ fn trigger_serialize<'a, E>(
     (serialize)(ctx, &trigger.event, message)
 }
 
-/// Deserializes targets for [`RemoteTrigger`] and delegates the event
+/// Deserializes targets for [`TriggerEvent`] and delegates the event
 /// deserialiaztion to `deserialize`.
 ///
 /// Used as outer function for [`EventFns`].
@@ -160,7 +160,7 @@ fn trigger_deserialize<'a, E>(
     ctx: &mut ClientReceiveCtx<'a>,
     message: &mut Bytes,
     deserialize: EventDeserializeFn<ClientReceiveCtx<'a>, E>,
-) -> Result<RemoteTrigger<E>> {
+) -> Result<ServerTriggerEvent<E>> {
     let len = postcard_utils::from_buf(message)?;
     let mut targets = Vec::with_capacity(len);
     for _ in 0..len {
@@ -170,7 +170,7 @@ fn trigger_deserialize<'a, E>(
 
     let event = (deserialize)(ctx, message)?;
 
-    Ok(RemoteTrigger { event, targets })
+    Ok(ServerTriggerEvent { event, targets })
 }
 
 /// Extension trait for triggering server events.
@@ -198,7 +198,7 @@ impl ServerTriggerExt for Commands<'_, '_> {
     ) {
         self.send_event(ToClients {
             mode: event.mode,
-            event: RemoteTrigger {
+            event: ServerTriggerEvent {
                 event: event.event,
                 targets: targets.into_entities(),
             },
@@ -218,10 +218,21 @@ impl ServerTriggerExt for World {
     ) {
         self.send_event(ToClients {
             mode: event.mode,
-            event: RemoteTrigger {
+            event: ServerTriggerEvent {
                 event: event.event,
                 targets: targets.into_entities(),
             },
         });
     }
+}
+
+/// An event that used under the hood for server triggers.
+///
+/// We can't just observe for triggers like we do for events since we need access to all its targets
+/// and we need to buffer them. This is why we just emit this event instead and after receive drain it
+/// to trigger regular events.
+#[derive(Event)]
+struct ServerTriggerEvent<E> {
+    event: E,
+    targets: Vec<Entity>,
 }
