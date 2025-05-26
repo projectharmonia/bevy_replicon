@@ -242,12 +242,12 @@ fn independent() {
     client_app.update();
 
     let reader = client_app.world().resource::<TriggerReader<TestEvent>>();
-    assert!(reader.entities.is_empty());
+    assert!(reader.events.is_empty());
 
     let independent_reader = client_app
         .world()
         .resource::<TriggerReader<IndependentEvent>>();
-    assert_eq!(independent_reader.entities, [Entity::PLACEHOLDER]);
+    assert_eq!(independent_reader.events.len(), 1);
 }
 
 #[derive(Event, Serialize, Deserialize, Clone)]
