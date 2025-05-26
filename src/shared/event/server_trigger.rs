@@ -90,7 +90,7 @@ impl ServerTriggerAppExt for App {
         let events_id = self
             .world()
             .components()
-            .resource_id::<Events<RemoteTrigger<E>>>()
+            .resource_id::<Events<ServerTriggerEvent<E>>>()
             .unwrap_or_else(|| {
                 panic!(
                     "event `{}` should be previously registered",
