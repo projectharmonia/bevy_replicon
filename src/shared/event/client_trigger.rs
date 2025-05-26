@@ -10,7 +10,7 @@ use super::{
     ctx::{ClientSendCtx, ServerReceiveCtx},
     event_fns::{EventDeserializeFn, EventFns, EventSerializeFn},
     remote_event_registry::RemoteEventRegistry,
-    trigger::RemoteTargets,
+    remote_targets::RemoteTargets,
 };
 use crate::shared::{backend::replicon_channels::Channel, entity_serde, postcard_utils};
 
