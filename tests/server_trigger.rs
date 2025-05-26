@@ -160,7 +160,7 @@ fn without_plugins() {
     client_app.update();
 
     let reader = client_app.world().resource::<TriggerReader<TestEvent>>();
-    assert_eq!(reader.entities.len(), 1);
+    assert_eq!(reader.events.len(), 1);
 }
 
 #[test]
@@ -188,7 +188,7 @@ fn local_resending() {
     app.update();
 
     let reader = app.world().resource::<TriggerReader<TestEvent>>();
-    assert_eq!(reader.entities.len(), 1);
+    assert_eq!(reader.events.len(), 1);
 }
 
 #[derive(Event, Serialize, Deserialize, Clone)]
