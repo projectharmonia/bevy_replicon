@@ -205,10 +205,13 @@ fn independent() {
             }),
         ))
         .add_server_trigger::<TestEvent>(Channel::Ordered)
-        .make_trigger_independent::<TestEvent>()
+        .add_server_trigger::<IndependentEvent>(Channel::Ordered)
+        .make_trigger_independent::<IndependentEvent>()
         .finish();
     }
-    client_app.init_resource::<TriggerReader<TestEvent>>();
+    client_app
+        .init_resource::<TriggerReader<TestEvent>>()
+        .init_resource::<TriggerReader<IndependentEvent>>();
 
     server_app.connect_client(&mut client_app);
 
@@ -229,19 +232,31 @@ fn independent() {
         mode: SendMode::Broadcast,
         event: TestEvent,
     });
+    server_app.world_mut().server_trigger(ToClients {
+        mode: SendMode::Broadcast,
+        event: IndependentEvent,
+    });
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
 
     let reader = client_app.world().resource::<TriggerReader<TestEvent>>();
-    assert_eq!(reader.entities, [Entity::PLACEHOLDER]);
+    assert!(reader.entities.is_empty());
+
+    let independent_reader = client_app
+        .world()
+        .resource::<TriggerReader<IndependentEvent>>();
+    assert_eq!(independent_reader.entities, [Entity::PLACEHOLDER]);
 }
 
 #[derive(Event, Serialize, Deserialize, Clone)]
 struct TestEvent;
 
-#[derive(Event, Deserialize, Serialize, Clone, MapEntities)]
+#[derive(Event, Serialize, Deserialize, Clone)]
+struct IndependentEvent;
+
+#[derive(Event, Serialize, Deserialize, MapEntities, Clone)]
 struct EntityEvent(#[entities] Entity);
 
 #[derive(Resource)]

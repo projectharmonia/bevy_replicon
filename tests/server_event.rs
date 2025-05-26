@@ -453,7 +453,8 @@ fn independent() {
             }),
         ))
         .add_server_event::<TestEvent>(Channel::Ordered)
-        .make_event_independent::<TestEvent>()
+        .add_server_event::<IndependentEvent>(Channel::Ordered)
+        .make_event_independent::<IndependentEvent>()
         .finish();
     }
 
@@ -484,17 +485,26 @@ fn independent() {
             mode,
             event: TestEvent,
         });
+        server_app.world_mut().send_event(ToClients {
+            mode,
+            event: IndependentEvent,
+        });
 
         server_app.update();
         server_app.exchange_with_client(&mut client_app);
         client_app.update();
         server_app.exchange_with_client(&mut client_app);
 
+        let events = client_app.world().resource::<Events<TestEvent>>();
+        assert!(events.is_empty());
+
         // Event should have already been triggered, even without resetting the tick,
         // since it's independent.
-        let mut events = client_app.world_mut().resource_mut::<Events<TestEvent>>();
+        let mut independent_events = client_app
+            .world_mut()
+            .resource_mut::<Events<IndependentEvent>>();
         assert_eq!(
-            events.drain().count(),
+            independent_events.drain().count(),
             events_count,
             "event should be emitted {events_count} times for {mode:?}"
         );
@@ -555,7 +565,8 @@ fn independent_before_started_replication() {
             }),
         ))
         .add_server_event::<TestEvent>(Channel::Ordered)
-        .make_event_independent::<TestEvent>()
+        .add_server_event::<IndependentEvent>(Channel::Ordered)
+        .make_event_independent::<IndependentEvent>()
         .finish();
     }
 
@@ -568,13 +579,21 @@ fn independent_before_started_replication() {
         mode: SendMode::Broadcast,
         event: TestEvent,
     });
+    server_app.world_mut().send_event(ToClients {
+        mode: SendMode::Broadcast,
+        event: IndependentEvent,
+    });
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
     server_app.exchange_with_client(&mut client_app);
 
-    assert_eq!(client_app.world().resource::<Events<TestEvent>>().len(), 1);
+    let events = client_app.world().resource::<Events<TestEvent>>();
+    assert!(events.is_empty());
+
+    let independent_events = client_app.world().resource::<Events<IndependentEvent>>();
+    assert_eq!(independent_events.len(), 1);
 }
 
 #[test]
@@ -630,8 +649,11 @@ fn different_ticks() {
 #[derive(Event)]
 struct NonRemoteEvent;
 
-#[derive(Deserialize, Event, Serialize)]
+#[derive(Event, Serialize, Deserialize)]
 struct TestEvent;
 
-#[derive(Deserialize, Event, Serialize, MapEntities)]
+#[derive(Event, Serialize, Deserialize)]
+struct IndependentEvent;
+
+#[derive(Event, Serialize, Deserialize, MapEntities)]
 struct EntityEvent(#[entities] Entity);
