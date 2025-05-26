@@ -49,7 +49,7 @@ pub trait ServerEventAppExt {
     /// Calling [`App::add_event`] is not necessary. Can used for regular events that were
     /// previously registered.
     ///
-    /// Unlike client events, server events are tied to replication. See [`Self::make_independent`]
+    /// Unlike client events, server events are tied to replication. See [`Self::make_event_independent`]
     /// for more details.
     ///
     /// See also [`ServerTriggerAppExt::add_server_trigger`](super::server_trigger::ServerTriggerAppExt::add_server_trigger),
@@ -160,7 +160,9 @@ pub trait ServerEventAppExt {
     /// very difficult to debug!
     ///
     /// </div>
-    fn make_independent<E: Event>(&mut self) -> &mut Self;
+    ///
+    /// See also [`ServerTriggerAppExt::make_event_independent`](crate::shared::event::server_trigger::ServerTriggerAppExt::make_trigger_independent).
+    fn make_event_independent<E: Event>(&mut self) -> &mut Self;
 }
 
 impl ServerEventAppExt for App {
@@ -180,7 +182,7 @@ impl ServerEventAppExt for App {
         self
     }
 
-    fn make_independent<E: Event>(&mut self) -> &mut Self {
+    fn make_event_independent<E: Event>(&mut self) -> &mut Self {
         let events_id = self
             .world()
             .components()
@@ -218,7 +220,7 @@ pub(crate) struct ServerEvent {
     /// Events like a chat message event do not have to wait for replication to
     /// be synced. If set to `true`, the event will always be applied
     /// immediately.
-    independent: bool,
+    pub(super) independent: bool,
 
     /// ID of [`Events<E>`].
     events_id: ComponentId,
@@ -288,10 +290,6 @@ impl ServerEvent {
         self.queue_id
     }
 
-    pub(super) fn is_independent(&self) -> bool {
-        self.independent
-    }
-
     pub(super) fn channel_id(&self) -> usize {
         self.channel_id
     }
@@ -337,7 +335,7 @@ impl ServerEvent {
         for ToClients { event, mode } in events.get_cursor().read(events) {
             debug!("sending event `{}` with `{mode:?}`", any::type_name::<E>());
 
-            if self.is_independent() {
+            if self.independent {
                 unsafe {
                     self.send_independent_event::<E, I>(ctx, event, mode, server, clients)
                         .expect("independent server event should be serializable");
@@ -484,7 +482,7 @@ impl ServerEvent {
         }
 
         for mut message in client.receive(self.channel_id) {
-            if !self.is_independent() {
+            if !self.independent {
                 let tick = match postcard_utils::from_buf(&mut message) {
                     Ok(tick) => tick,
                     Err(e) => {

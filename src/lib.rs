@@ -396,7 +396,7 @@ and [`ServerTriggerAppExt::add_server_trigger_with`].
 
 We guarantee that clients will never receive events that point to an entity or require specific
 component to be presentt which client haven't received yet. For more details see the documentation on
-[`ServerEventAppExt::make_independent`].
+[`ServerEventAppExt::make_event_independent`].
 
 ## Abstracting over configurations
 

@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configurable `SendRate` for deterministic replication. Use `SendRate::Once` to send only the initial value, or `SendRate::Periodic` to only sync the state periodically.
 - `AppRuleExt::replicate_with_priority` to configure replication rule priority.
 - `DisconnectRequest` event to queue a disconnection for a specific client on the server.
+- `ServerTriggerAppExt::make_trigger_independent`.
 
 ### Changed
 
@@ -20,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rename `AppRuleExt::replicate_group` into `AppRuleExt::replicate_bundle`.
 - Rename `replication_registry::despawn_recursive` into `replication_registry::despawn`.
 - Rename `shared::event::trigger` module into `shared::event::remote_targets`.
+- Rename `ServerEventAppExt::make_independent` into `ServerEventAppExt::make_event_independent`. It never worked for triggers.
 - `ReplicationRule` now stores `Vec<ComponentRule>` instead of `Vec<(ComponentId, FnsId)>`
 - `RuleFns` now available from prelude.
 - Initialize channels in `App::finish` instead of `Startup`. It's called automatically on `App::run`, but in tests you need to call `App::finish` manually.

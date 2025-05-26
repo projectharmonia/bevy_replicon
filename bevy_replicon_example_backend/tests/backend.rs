@@ -43,12 +43,6 @@ fn connect_disconnect() {
 
     let replicon_client = client_app.world().resource::<RepliconClient>();
     assert!(replicon_client.is_disconnected());
-
-    server_app.world_mut().remove_resource::<ExampleServer>();
-
-    server_app.update();
-
-    assert!(!server_app.world().resource::<RepliconServer>().is_running());
 }
 
 #[test]
@@ -64,10 +58,17 @@ fn disconnect_request() {
             }),
             RepliconExampleBackendPlugins,
         ))
+        .add_server_event::<TestEvent>(Channel::Ordered)
         .finish();
     }
 
     setup(&mut server_app, &mut client_app).unwrap();
+
+    server_app.world_mut().spawn(Replicated);
+    server_app.world_mut().send_event(ToClients {
+        mode: SendMode::Broadcast,
+        event: TestEvent,
+    });
 
     let mut clients = server_app
         .world_mut()
@@ -84,6 +85,63 @@ fn disconnect_request() {
 
     let client = client_app.world().resource::<RepliconClient>();
     assert!(client.is_disconnected());
+
+    let events = client_app.world().resource::<Events<TestEvent>>();
+    assert_eq!(events.len(), 1, "last event should be received");
+
+    let mut replicated = client_app.world_mut().query::<&Replicated>();
+    assert_eq!(
+        replicated.iter(client_app.world()).len(),
+        1,
+        "last replication should be received"
+    );
+}
+
+#[test]
+fn server_stop() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            RepliconPlugins.set(ServerPlugin {
+                tick_policy: TickPolicy::EveryFrame,
+                ..Default::default()
+            }),
+            RepliconExampleBackendPlugins,
+        ))
+        .add_server_event::<TestEvent>(Channel::Ordered)
+        .finish();
+    }
+
+    setup(&mut server_app, &mut client_app).unwrap();
+
+    server_app.world_mut().remove_resource::<ExampleServer>();
+    server_app.world_mut().spawn(Replicated);
+    server_app.world_mut().send_event(ToClients {
+        mode: SendMode::Broadcast,
+        event: TestEvent,
+    });
+
+    server_app.update();
+    client_app.update();
+
+    let mut clients = server_app.world_mut().query::<&ConnectedClient>();
+    assert_eq!(clients.iter(server_app.world()).len(), 0);
+    assert!(!server_app.world().resource::<RepliconServer>().is_running());
+
+    let client = client_app.world().resource::<RepliconClient>();
+    assert!(client.is_disconnected());
+
+    let events = client_app.world().resource::<Events<TestEvent>>();
+    assert!(events.is_empty(), "event after stop shouldn't be received");
+
+    let mut replicated = client_app.world_mut().query::<&Replicated>();
+    assert_eq!(
+        replicated.iter(client_app.world()).len(),
+        0,
+        "replication after stop shouldn't be received"
+    );
 }
 
 #[test]

@@ -22,16 +22,20 @@ impl Plugin for RepliconExampleServerPlugin {
             (
                 set_running.run_if(resource_added::<ExampleServer>),
                 receive_packets.run_if(resource_exists::<ExampleServer>),
-                set_stopped.run_if(resource_removed::<ExampleServer>),
             )
                 .chain()
                 .in_set(ServerSet::ReceivePackets),
         )
         .add_systems(
             PostUpdate,
-            send_packets
-                .in_set(ServerSet::SendPackets)
-                .run_if(resource_exists::<ExampleServer>),
+            (
+                set_stopped
+                    .before(ServerSet::Send)
+                    .run_if(resource_removed::<ExampleServer>),
+                send_packets
+                    .in_set(ServerSet::SendPackets)
+                    .run_if(resource_exists::<ExampleServer>),
+            ),
         );
     }
 }
