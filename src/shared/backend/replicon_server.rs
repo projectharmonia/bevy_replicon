@@ -113,7 +113,7 @@ impl RepliconServer {
     ///
     /// </div>
     pub fn set_running(&mut self, running: bool) {
-        debug!("changing `RepliconServer` running status to `{running}`");
+        debug!("changing running status to `{running}`");
 
         if !running {
             for receive_channel in &mut self.received_messages {

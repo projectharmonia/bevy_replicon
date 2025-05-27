@@ -122,7 +122,7 @@ impl RepliconClient {
     ///
     /// </div>
     pub fn set_status(&mut self, status: RepliconClientStatus) {
-        debug!("changing `RepliconClient` status to `{status:?}`");
+        debug!("changing status to `{status:?}`");
 
         if self.is_connected() && !matches!(status, RepliconClientStatus::Connected) {
             for channel_messages in &mut self.received_messages {
