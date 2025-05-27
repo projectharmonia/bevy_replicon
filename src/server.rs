@@ -135,7 +135,7 @@ impl Plugin for ServerPlugin {
                 ),
             );
 
-        debug!("using `{:?}`", self.tick_policy);
+        debug!("using tick policy `{:?}`", self.tick_policy);
         match self.tick_policy {
             TickPolicy::MaxTickRate(max_tick_rate) => {
                 let tick_time = Duration::from_millis(1000 / max_tick_rate as u64);
@@ -158,7 +158,7 @@ impl Plugin for ServerPlugin {
             TickPolicy::Manual => (),
         }
 
-        debug!("using `{:?}`", self.visibility_policy);
+        debug!("using visibility policy `{:?}`", self.visibility_policy);
         match self.visibility_policy {
             VisibilityPolicy::All => {}
             VisibilityPolicy::Blacklist => {
