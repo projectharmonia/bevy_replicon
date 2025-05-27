@@ -307,6 +307,8 @@ fn stop_replication<C: Relationship>(
 
 #[cfg(test)]
 mod tests {
+    use test_log::test;
+
     use super::*;
 
     #[test]

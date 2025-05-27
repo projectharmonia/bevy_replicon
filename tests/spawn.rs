@@ -6,6 +6,7 @@ use bevy_replicon::{
     test_app::{ServerTestAppExt, TestClientEntity},
 };
 use serde::{Deserialize, Serialize};
+use test_log::test;
 
 #[test]
 fn empty() {

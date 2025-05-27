@@ -37,6 +37,7 @@ bevy = { version = "0.16.0", default-features = false, features = [
   "serialize",
   "x11",
 ] }
+test-log = "0.2"
 serde = "1.0"
 clap = { version = "4.1", features = ["derive"] }
 

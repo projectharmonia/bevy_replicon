@@ -40,6 +40,8 @@ pub struct DisconnectRequest {
 
 #[cfg(test)]
 mod tests {
+    use test_log::test;
+
     use super::{
         replicon_channels::{ClientChannel, RepliconChannels, ServerChannel},
         replicon_client::{RepliconClient, RepliconClientStatus},

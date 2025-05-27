@@ -53,6 +53,7 @@ bevy = { version = "0.16.0", default-features = false, features = [
   "bevy_sprite",
   "serialize",
 ] }
+test-log = "0.2"
 criterion = { version = "0.6", default-features = false, features = [
   "cargo_bench_support",
 ] }

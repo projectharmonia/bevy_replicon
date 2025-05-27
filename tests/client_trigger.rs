@@ -3,6 +3,7 @@ use bevy_replicon::{
     prelude::*, shared::server_entity_map::ServerEntityMap, test_app::ServerTestAppExt,
 };
 use serde::{Deserialize, Serialize};
+use test_log::test;
 
 #[test]
 fn regular() {

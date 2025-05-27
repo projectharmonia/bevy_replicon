@@ -5,6 +5,7 @@ use bevy_replicon::{
     shared::backend::connected_client::{ConnectedClient, NetworkId, NetworkIdMap},
     test_app::ServerTestAppExt,
 };
+use test_log::test;
 
 #[test]
 fn client_connect_disconnect() {

@@ -11,6 +11,7 @@ use bevy_replicon::{
 };
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
+use test_log::test;
 
 #[test]
 fn single() {
