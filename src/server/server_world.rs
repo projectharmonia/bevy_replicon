@@ -225,6 +225,7 @@ impl ReplicatedArchetype {
 mod tests {
     use bevy::transform::components::Transform;
     use serde::{Deserialize, Serialize};
+    use test_log::test;
 
     use super::*;
     use crate::shared::replication::{

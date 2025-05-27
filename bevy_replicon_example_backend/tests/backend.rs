@@ -4,6 +4,7 @@ use bevy::prelude::*;
 use bevy_replicon::prelude::*;
 use bevy_replicon_example_backend::{ExampleClient, ExampleServer, RepliconExampleBackendPlugins};
 use serde::{Deserialize, Serialize};
+use test_log::test;
 
 #[test]
 fn connect_disconnect() {

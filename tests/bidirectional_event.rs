@@ -1,6 +1,7 @@
 use bevy::{ecs::event::Events, prelude::*};
 use bevy_replicon::{prelude::*, test_app::ServerTestAppExt};
 use serde::{Deserialize, Serialize};
+use test_log::test;
 
 #[test]
 fn event() {

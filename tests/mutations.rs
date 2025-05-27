@@ -1,4 +1,5 @@
 use core::time::Duration;
+use test_log::test;
 
 use bevy::prelude::*;
 use bevy_replicon::{

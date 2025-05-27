@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use bevy_replicon::{prelude::*, scene};
 use serde::{Deserialize, Serialize};
+use test_log::test;
 
 #[test]
 fn replicated_entity() {

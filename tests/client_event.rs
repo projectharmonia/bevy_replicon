@@ -11,6 +11,7 @@ use bevy_replicon::{
     test_app::ServerTestAppExt,
 };
 use serde::{Deserialize, Serialize};
+use test_log::test;
 
 #[test]
 fn channels() {
