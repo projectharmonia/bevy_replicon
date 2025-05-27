@@ -341,7 +341,7 @@ mod tests {
     }
 
     #[test]
-    fn group() {
+    fn bundle() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
@@ -357,7 +357,7 @@ mod tests {
     }
 
     #[test]
-    fn part_of_group() {
+    fn part_of_bundle() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
@@ -373,7 +373,7 @@ mod tests {
     }
 
     #[test]
-    fn group_with_subset() {
+    fn bundle_with_subset() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
@@ -390,7 +390,7 @@ mod tests {
     }
 
     #[test]
-    fn group_with_multiple_subsets() {
+    fn bundle_with_multiple_subsets() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
@@ -408,7 +408,7 @@ mod tests {
     }
 
     #[test]
-    fn groups_with_overlap() {
+    fn bundle_with_overlap() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()

@@ -219,7 +219,7 @@ mod tests {
     }
 
     #[test]
-    fn group() {
+    fn bundle() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
@@ -245,7 +245,7 @@ mod tests {
     }
 
     #[test]
-    fn part_of_group() {
+    fn part_of_bundle() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
@@ -271,7 +271,7 @@ mod tests {
     }
 
     #[test]
-    fn group_with_subset() {
+    fn bundle_with_subset() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
@@ -298,7 +298,7 @@ mod tests {
     }
 
     #[test]
-    fn part_of_group_with_subset() {
+    fn part_of_bundle_with_subset() {
         let mut app = App::new();
         app.init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
