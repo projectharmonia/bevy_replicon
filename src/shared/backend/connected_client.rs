@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// </div>
 ///
-/// See also [`ReplicatedClient`](crate::server::ReplicatedClient).
+/// See also [`AuthorizedClient`](crate::server::AuthorizedClient).
 #[derive(Component, Reflect)]
 #[require(Name::new("Connected client"), NetworkStats)]
 pub struct ConnectedClient {

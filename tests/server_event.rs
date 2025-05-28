@@ -31,7 +31,7 @@ fn channels() {
 
     let event_registry = app.world().resource::<RemoteEventRegistry>();
     assert_eq!(event_registry.server_channel::<NonRemoteEvent>(), None);
-    assert_eq!(event_registry.server_channel::<TestEvent>(), Some(2));
+    assert_eq!(event_registry.server_channel::<TestEvent>(), Some(3));
 }
 
 #[test]
@@ -519,11 +519,14 @@ fn before_started_replication() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            RepliconPlugins.set(ServerPlugin {
-                tick_policy: TickPolicy::EveryFrame,
-                replicate_after_connect: false,
-                ..Default::default()
-            }),
+            RepliconPlugins
+                .set(ServerPlugin {
+                    tick_policy: TickPolicy::EveryFrame,
+                    ..Default::default()
+                })
+                .set(RepliconSharedPlugin {
+                    auth_method: AuthMethod::Custom,
+                }),
         ))
         .add_server_event::<TestEvent>(Channel::Ordered)
         .finish();
@@ -559,11 +562,14 @@ fn independent_before_started_replication() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            RepliconPlugins.set(ServerPlugin {
-                tick_policy: TickPolicy::EveryFrame,
-                replicate_after_connect: false,
-                ..Default::default()
-            }),
+            RepliconPlugins
+                .set(ServerPlugin {
+                    tick_policy: TickPolicy::EveryFrame,
+                    ..Default::default()
+                })
+                .set(RepliconSharedPlugin {
+                    auth_method: AuthMethod::Custom,
+                }),
         ))
         .add_server_event::<TestEvent>(Channel::Ordered)
         .add_server_event::<IndependentEvent>(Channel::Ordered)

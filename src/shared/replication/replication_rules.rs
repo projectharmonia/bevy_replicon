@@ -11,7 +11,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use super::replication_registry::{
     FnsId, ReplicationRegistry, command_fns::MutWrite, rule_fns::RuleFns,
 };
-use crate::shared::replicon_tick::RepliconTick;
+use crate::shared::{protocol::ProtocolHasher, replicon_tick::RepliconTick};
 
 /// Replication functions for [`App`].
 pub trait AppRuleExt {
@@ -436,6 +436,11 @@ impl AppRuleExt for App {
         rule: R,
     ) -> &mut Self {
         debug!("registering rule for '{}'", any::type_name::<R>());
+
+        self.world_mut()
+            .resource_mut::<ProtocolHasher>()
+            .add_replication_rule::<R>();
+
         let rule =
             self.world_mut()
                 .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
@@ -451,6 +456,11 @@ impl AppRuleExt for App {
 
     fn replicate_bundle<B: ReplicationBundle>(&mut self) -> &mut Self {
         debug!("registering rule for bundle '{}'", any::type_name::<B>());
+
+        self.world_mut()
+            .resource_mut::<ProtocolHasher>()
+            .add_replication_rule::<B>();
+
         let rule =
             self.world_mut()
                 .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
@@ -751,7 +761,8 @@ mod tests {
     #[test]
     fn registration() {
         let mut app = App::new();
-        app.init_resource::<ReplicationRules>()
+        app.init_resource::<ProtocolHasher>()
+            .init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .replicate::<ComponentA>()
             .replicate_with((

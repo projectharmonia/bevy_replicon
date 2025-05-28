@@ -22,6 +22,7 @@ use crate::shared::{
         replicon_server::RepliconServer,
     },
     postcard_utils,
+    protocol::ProtocolHasher,
 };
 
 /// An extension trait for [`App`] for creating client events.
@@ -149,6 +150,10 @@ impl ClientEventAppExt for App {
         deserialize: EventDeserializeFn<ServerReceiveCtx, E>,
     ) -> &mut Self {
         debug!("registering event `{}`", any::type_name::<E>());
+
+        self.world_mut()
+            .resource_mut::<ProtocolHasher>()
+            .add_client_event::<E>();
 
         let event_fns = EventFns::new(serialize, deserialize);
         let event = ClientEvent::new(self, channel, event_fns);

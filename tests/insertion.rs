@@ -513,11 +513,14 @@ fn before_started_replication() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            RepliconPlugins.set(ServerPlugin {
-                tick_policy: TickPolicy::EveryFrame,
-                replicate_after_connect: false,
-                ..Default::default()
-            }),
+            RepliconPlugins
+                .set(RepliconSharedPlugin {
+                    auth_method: AuthMethod::Custom,
+                })
+                .set(ServerPlugin {
+                    tick_policy: TickPolicy::EveryFrame,
+                    ..Default::default()
+                }),
         ))
         .replicate::<TestComponent>()
         .finish();
@@ -543,7 +546,7 @@ fn before_started_replication() {
     server_app
         .world_mut()
         .entity_mut(test_client_entity)
-        .insert(ReplicatedClient);
+        .insert(AuthorizedClient);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
@@ -560,11 +563,14 @@ fn after_started_replication() {
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            RepliconPlugins.set(ServerPlugin {
-                tick_policy: TickPolicy::EveryFrame,
-                replicate_after_connect: false,
-                ..Default::default()
-            }),
+            RepliconPlugins
+                .set(RepliconSharedPlugin {
+                    auth_method: AuthMethod::Custom,
+                })
+                .set(ServerPlugin {
+                    tick_policy: TickPolicy::EveryFrame,
+                    ..Default::default()
+                }),
         ))
         .replicate::<TestComponent>()
         .finish();
@@ -576,7 +582,7 @@ fn after_started_replication() {
     server_app
         .world_mut()
         .entity_mut(test_client_entity)
-        .insert(ReplicatedClient);
+        .insert(AuthorizedClient);
 
     server_app.update();
     server_app.exchange_with_client(&mut client_app);

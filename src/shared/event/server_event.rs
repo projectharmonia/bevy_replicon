@@ -31,6 +31,7 @@ use crate::shared::{
         replicon_server::RepliconServer,
     },
     postcard_utils,
+    protocol::ProtocolHasher,
     replication::client_ticks::ClientTicks,
     replicon_tick::RepliconTick,
 };
@@ -173,6 +174,10 @@ impl ServerEventAppExt for App {
         deserialize: EventDeserializeFn<ClientReceiveCtx, E>,
     ) -> &mut Self {
         debug!("registering event `{}`", any::type_name::<E>());
+
+        self.world_mut()
+            .resource_mut::<ProtocolHasher>()
+            .add_server_event::<E>();
 
         let event_fns = EventFns::new(serialize, deserialize);
         let event = ServerEvent::new(self, channel, event_fns);

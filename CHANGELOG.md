@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Authorization system. By default we just verify compatibility between client and server, but it's customizable via `RepliconSharedPlugin::auth_method`.
 - Configurable `SendRate` for deterministic replication. Use `SendRate::Once` to send only the initial value, or `SendRate::Periodic` to only sync the state periodically.
 - `AppRuleExt::replicate_with_priority` to configure replication rule priority.
 - `DisconnectRequest` event to queue a disconnection for a specific client on the server.
@@ -37,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `WriteCtx::commands`. You can now insert and remove components directly through `DeferredEntity`.
 - `RepliconClient::receive` and `RepliconServer::receive` are now private since they should only be called internally by Replicon.
+- `ServerPlugin::replicate_after_connect`. Use `RepliconSharedPlugin::auth_method` with `AuthMethod::Custom` instead.
 - Deprecated methods.
 
 ## [0.33.0] - 2025-04-27
