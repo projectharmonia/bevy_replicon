@@ -147,6 +147,24 @@ mod tests {
     }
 
     #[test]
+    fn mismatch() {
+        let mut hasher1 = ProtocolHasher::default();
+        let mut hasher2 = ProtocolHasher::default();
+
+        for hasher in [&mut hasher1, &mut hasher2] {
+            hasher.add_replication_rule::<StructA>();
+            hasher.add_server_event::<StructB>();
+            hasher.add_server_trigger::<StructC>();
+            hasher.add_client_event::<StructB>();
+            hasher.add_client_trigger::<StructC>();
+        }
+        hasher1.add_custom(0);
+        hasher2.add_custom(1);
+
+        assert_ne!(hasher1.finish(), hasher2.finish());
+    }
+
+    #[test]
     fn full_match() {
         let mut hasher1 = ProtocolHasher::default();
         let mut hasher2 = ProtocolHasher::default();
