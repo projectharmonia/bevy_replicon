@@ -151,12 +151,13 @@ mod tests {
         let mut hasher1 = ProtocolHasher::default();
         let mut hasher2 = ProtocolHasher::default();
 
-        for protocol in [&mut hasher1, &mut hasher2] {
-            protocol.add_replication_rule::<StructA>();
-            protocol.add_server_event::<StructB>();
-            protocol.add_server_trigger::<StructC>();
-            protocol.add_client_event::<StructB>();
-            protocol.add_client_trigger::<StructC>();
+        for hasher in [&mut hasher1, &mut hasher2] {
+            hasher.add_replication_rule::<StructA>();
+            hasher.add_server_event::<StructB>();
+            hasher.add_server_trigger::<StructC>();
+            hasher.add_client_event::<StructB>();
+            hasher.add_client_trigger::<StructC>();
+            hasher.add_custom(0);
         }
 
         assert_eq!(hasher1.finish(), hasher2.finish());
