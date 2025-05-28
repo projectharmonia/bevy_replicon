@@ -31,32 +31,6 @@ fn client_connect_disconnect() {
 }
 
 #[test]
-fn protocol_mismatch() {
-    let mut server_app = App::new();
-    let mut client_app = App::new();
-    server_app
-        .add_plugins((MinimalPlugins, RepliconPlugins))
-        .add_client_event::<TestEvent>(Channel::Ordered)
-        .finish();
-    client_app
-        .init_resource::<TriggerCounter<ProtocolMismatch>>()
-        .add_plugins((MinimalPlugins, RepliconPlugins))
-        .finish();
-
-    server_app.connect_client(&mut client_app);
-
-    let mut clients = server_app
-        .world_mut()
-        .query_filtered::<Entity, With<AuthorizedClient>>();
-    assert_eq!(clients.iter(server_app.world()).len(), 0);
-
-    let counter = client_app
-        .world()
-        .resource::<TriggerCounter<ProtocolMismatch>>();
-    assert_eq!(counter.triggers, 1);
-}
-
-#[test]
 fn server_start_stop() {
     let mut server_app = App::new();
     let mut client_app = App::new();
@@ -94,32 +68,41 @@ fn server_start_stop() {
 }
 
 #[test]
-fn network_id_map() {
-    let mut app = App::new();
-    app.add_plugins((MinimalPlugins, RepliconPlugins)).finish();
+fn protocol_mismatch() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    server_app
+        .add_plugins((MinimalPlugins, RepliconPlugins))
+        .add_client_event::<TestEvent>(Channel::Ordered)
+        .finish();
+    client_app
+        .init_resource::<TriggerCounter<ProtocolMismatch>>()
+        .add_plugins((MinimalPlugins, RepliconPlugins))
+        .finish();
 
-    let client_entity = app.world_mut().spawn(NetworkId::new(0)).id();
-    assert_eq!(app.world().resource::<NetworkIdMap>().len(), 1);
+    server_app.connect_client(&mut client_app);
 
-    app.world_mut().despawn(client_entity);
-    assert!(app.world().resource::<NetworkIdMap>().is_empty());
+    let mut clients = server_app
+        .world_mut()
+        .query_filtered::<Entity, With<AuthorizedClient>>();
+    assert_eq!(clients.iter(server_app.world()).len(), 0);
+
+    let counter = client_app
+        .world()
+        .resource::<TriggerCounter<ProtocolMismatch>>();
+    assert_eq!(counter.triggers, 1);
 }
 
 #[test]
-fn deferred_replication() {
+fn custom_auth() {
     let mut server_app = App::new();
     let mut client_app = App::new();
     for app in [&mut server_app, &mut client_app] {
         app.add_plugins((
             MinimalPlugins,
-            RepliconPlugins
-                .set(RepliconSharedPlugin {
-                    auth_method: AuthMethod::Custom,
-                })
-                .set(ServerPlugin {
-                    tick_policy: TickPolicy::EveryFrame,
-                    ..Default::default()
-                }),
+            RepliconPlugins.set(RepliconSharedPlugin {
+                auth_method: AuthMethod::Custom,
+            }),
         ))
         .finish();
     }
@@ -130,6 +113,33 @@ fn deferred_replication() {
         .world_mut()
         .query_filtered::<&ConnectedClient, Without<AuthorizedClient>>();
     assert_eq!(clients.iter(server_app.world()).count(), 1);
+}
+
+#[test]
+fn disabled_auth() {
+    let mut app = App::new();
+    app.add_plugins((
+        MinimalPlugins,
+        RepliconPlugins.set(RepliconSharedPlugin {
+            auth_method: AuthMethod::Disabled,
+        }),
+    ))
+    .finish();
+
+    let entity = app.world_mut().spawn(ConnectedClient { max_size: 1200 });
+    assert!(entity.contains::<AuthorizedClient>());
+}
+
+#[test]
+fn network_id_map() {
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, RepliconPlugins)).finish();
+
+    let client_entity = app.world_mut().spawn(NetworkId::new(0)).id();
+    assert_eq!(app.world().resource::<NetworkIdMap>().len(), 1);
+
+    app.world_mut().despawn(client_entity);
+    assert!(app.world().resource::<NetworkIdMap>().is_empty());
 }
 
 #[derive(Event, Serialize, Deserialize)]
