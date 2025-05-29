@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `AppRuleExt::replicate_with` now accepts `IntoReplicationRule` trait that allows to define rules with multiple components.
 - Rename `GroupReplication` into `BundleReplication`.
+- Rename `ReplicatedClient` into `AuthorizedClient`.
 - Rename `AppRuleExt::replicate_group` into `AppRuleExt::replicate_bundle`.
 - Rename `replication_registry::despawn_recursive` into `replication_registry::despawn`.
 - Rename `shared::event::trigger` module into `shared::event::remote_targets`.
