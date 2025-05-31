@@ -77,7 +77,7 @@ fn receive_packets(
                         },
                     ))
                     .id();
-                debug!("connecting `{client_entity}` with `{network_id:?}`");
+                debug!("connecting client `{client_entity}` with `{network_id:?}`");
             }
             Err(e) => {
                 if e.kind() != io::ErrorKind::WouldBlock {
@@ -107,7 +107,7 @@ fn receive_packets(
                         _ => {
                             commands.entity(client_entity).despawn();
                             error!(
-                                "disconnecting due to message read error from client `{client_entity}`: {e}"
+                                "disconnecting client `{client_entity}` due to message read error: {e}"
                             );
                         }
                     }
@@ -139,6 +139,7 @@ fn send_packets(
     }
 
     for event in disconnect_events.read() {
+        debug!("disconnecting client `{}` by request", event.client_entity);
         commands.entity(event.client_entity).despawn();
     }
 }
