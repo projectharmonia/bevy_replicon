@@ -228,15 +228,17 @@ mod tests {
     use test_log::test;
 
     use super::*;
-    use crate::shared::replication::{
-        replication_registry::ReplicationRegistry, replication_rules::AppRuleExt,
+    use crate::shared::{
+        protocol::ProtocolHasher,
+        replication::{replication_registry::ReplicationRegistry, replication_rules::AppRuleExt},
     };
 
     #[test]
     #[should_panic]
     fn query_after() {
         let mut app = App::new();
-        app.init_resource::<ReplicationRules>()
+        app.init_resource::<ProtocolHasher>()
+            .init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .replicate::<Transform>()
             .add_systems(Update, |_: ServerWorld, _: Query<&mut Transform>| {});
@@ -248,7 +250,8 @@ mod tests {
     #[should_panic]
     fn query_before() {
         let mut app = App::new();
-        app.init_resource::<ReplicationRules>()
+        app.init_resource::<ProtocolHasher>()
+            .init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .replicate::<Transform>()
             .add_systems(Update, |_: Query<&mut Transform>, _: ServerWorld| {});
@@ -259,7 +262,8 @@ mod tests {
     #[test]
     fn readonly_query() {
         let mut app = App::new();
-        app.init_resource::<ReplicationRules>()
+        app.init_resource::<ProtocolHasher>()
+            .init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .replicate::<Transform>()
             .add_systems(Update, |_: ServerWorld, _: Query<&Transform>| {});
@@ -270,7 +274,8 @@ mod tests {
     #[test]
     fn replicate_after_system() {
         let mut app = App::new();
-        app.init_resource::<ReplicationRules>()
+        app.init_resource::<ProtocolHasher>()
+            .init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .add_systems(Update, |world: ServerWorld| {
                 assert_eq!(world.state.rules.len(), 1);
@@ -311,7 +316,8 @@ mod tests {
     #[test]
     fn not_replicated() {
         let mut app = App::new();
-        app.init_resource::<ReplicationRules>()
+        app.init_resource::<ProtocolHasher>()
+            .init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .replicate::<ComponentA>()
             .add_systems(Update, |world: ServerWorld| {
@@ -327,7 +333,8 @@ mod tests {
     #[test]
     fn component() {
         let mut app = App::new();
-        app.init_resource::<ReplicationRules>()
+        app.init_resource::<ProtocolHasher>()
+            .init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .replicate::<ComponentA>()
             .add_systems(Update, |world: ServerWorld| {
@@ -343,7 +350,8 @@ mod tests {
     #[test]
     fn bundle() {
         let mut app = App::new();
-        app.init_resource::<ReplicationRules>()
+        app.init_resource::<ProtocolHasher>()
+            .init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .replicate_bundle::<(ComponentA, ComponentB)>()
             .add_systems(Update, |world: ServerWorld| {
@@ -359,7 +367,8 @@ mod tests {
     #[test]
     fn part_of_bundle() {
         let mut app = App::new();
-        app.init_resource::<ReplicationRules>()
+        app.init_resource::<ProtocolHasher>()
+            .init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .replicate_bundle::<(ComponentA, ComponentB)>()
             .add_systems(Update, |world: ServerWorld| {
@@ -375,7 +384,8 @@ mod tests {
     #[test]
     fn bundle_with_subset() {
         let mut app = App::new();
-        app.init_resource::<ReplicationRules>()
+        app.init_resource::<ProtocolHasher>()
+            .init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .replicate::<ComponentA>()
             .replicate_bundle::<(ComponentA, ComponentB)>()
@@ -392,7 +402,8 @@ mod tests {
     #[test]
     fn bundle_with_multiple_subsets() {
         let mut app = App::new();
-        app.init_resource::<ReplicationRules>()
+        app.init_resource::<ProtocolHasher>()
+            .init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .replicate::<ComponentA>()
             .replicate::<ComponentB>()
@@ -410,7 +421,8 @@ mod tests {
     #[test]
     fn bundle_with_overlap() {
         let mut app = App::new();
-        app.init_resource::<ReplicationRules>()
+        app.init_resource::<ProtocolHasher>()
+            .init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .replicate_bundle::<(ComponentA, ComponentC)>()
             .replicate_bundle::<(ComponentA, ComponentB)>()

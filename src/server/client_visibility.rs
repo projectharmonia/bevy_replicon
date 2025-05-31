@@ -6,7 +6,7 @@ use bevy::{
 
 /// Entity visibility settings for a client.
 ///
-/// Dynamically marked as required for [`ReplicatedClient`](super::ReplicatedClient)
+/// Dynamically marked as required for [`AuthorizedClient`](super::AuthorizedClient)
 /// if [`ServerPlugin::visibility_policy`](super::ServerPlugin::visibility_policy)
 /// is not set to [`VisibilityPolicy::All`](super::VisibilityPolicy::All).
 ///

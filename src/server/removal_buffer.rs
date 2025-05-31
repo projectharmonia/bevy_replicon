@@ -167,8 +167,12 @@ mod tests {
     use super::*;
     use crate::{
         server,
-        shared::replication::{
-            Replicated, replication_registry::ReplicationRegistry, replication_rules::AppRuleExt,
+        shared::{
+            protocol::ProtocolHasher,
+            replication::{
+                Replicated, replication_registry::ReplicationRegistry,
+                replication_rules::AppRuleExt,
+            },
         },
     };
 
@@ -195,7 +199,8 @@ mod tests {
     #[test]
     fn component() {
         let mut app = App::new();
-        app.init_resource::<ReplicationRules>()
+        app.init_resource::<ProtocolHasher>()
+            .init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .init_resource::<RemovalBuffer>()
             .add_systems(PostUpdate, server::buffer_removals)
@@ -221,7 +226,8 @@ mod tests {
     #[test]
     fn bundle() {
         let mut app = App::new();
-        app.init_resource::<ReplicationRules>()
+        app.init_resource::<ProtocolHasher>()
+            .init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .init_resource::<RemovalBuffer>()
             .add_systems(PostUpdate, server::buffer_removals)
@@ -247,7 +253,8 @@ mod tests {
     #[test]
     fn part_of_bundle() {
         let mut app = App::new();
-        app.init_resource::<ReplicationRules>()
+        app.init_resource::<ProtocolHasher>()
+            .init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .init_resource::<RemovalBuffer>()
             .add_systems(PostUpdate, server::buffer_removals)
@@ -273,7 +280,8 @@ mod tests {
     #[test]
     fn bundle_with_subset() {
         let mut app = App::new();
-        app.init_resource::<ReplicationRules>()
+        app.init_resource::<ProtocolHasher>()
+            .init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .init_resource::<RemovalBuffer>()
             .add_systems(PostUpdate, server::buffer_removals)
@@ -300,7 +308,8 @@ mod tests {
     #[test]
     fn part_of_bundle_with_subset() {
         let mut app = App::new();
-        app.init_resource::<ReplicationRules>()
+        app.init_resource::<ProtocolHasher>()
+            .init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .init_resource::<RemovalBuffer>()
             .add_systems(PostUpdate, server::buffer_removals)
@@ -327,7 +336,8 @@ mod tests {
     #[test]
     fn despawn() {
         let mut app = App::new();
-        app.init_resource::<ReplicationRules>()
+        app.init_resource::<ProtocolHasher>()
+            .init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .init_resource::<RemovalBuffer>()
             .add_systems(PostUpdate, server::buffer_removals)

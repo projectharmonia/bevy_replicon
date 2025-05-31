@@ -6,16 +6,20 @@ pub mod server_mutate_ticks;
 
 use bevy::{prelude::*, reflect::TypeRegistry};
 use bytes::{Buf, Bytes};
-use log::{debug, trace};
+use log::{debug, error, trace};
 use postcard::experimental::max_size::MaxSize;
 
 use crate::shared::{
+    AuthMethod,
     backend::{
         replicon_channels::{ClientChannel, RepliconChannels, ServerChannel},
         replicon_client::RepliconClient,
     },
-    common_conditions::{client_connected, client_just_connected, client_just_disconnected},
-    entity_serde, postcard_utils,
+    common_conditions::*,
+    entity_serde,
+    event::client_trigger::ClientTriggerExt,
+    postcard_utils,
+    protocol::{ProtocolHash, ProtocolMismatch},
     replication::{
         Replicated,
         command_markers::{CommandMarkers, EntityMarkers},
@@ -71,6 +75,17 @@ impl Plugin for ClientPlugin {
                     .run_if(client_connected),
             )
             .add_systems(PreUpdate, reset.in_set(ClientSet::Reset));
+
+        let auth_method = *app.world().resource::<AuthMethod>();
+        debug!("using authorization method `{auth_method:?}`");
+        if auth_method == AuthMethod::ProtocolCheck {
+            app.add_observer(log_protocol_error).add_systems(
+                PreUpdate,
+                send_protocol_hash
+                    .in_set(ClientSet::Receive)
+                    .run_if(client_just_connected),
+            );
+        }
     }
 
     fn finish(&self, app: &mut App) {
@@ -168,6 +183,17 @@ fn reset(
     if let Some(mut stats) = stats {
         *stats = Default::default();
     }
+}
+
+fn send_protocol_hash(mut commands: Commands, protocol: Res<ProtocolHash>) {
+    debug!("sending `{:?}` to the server", *protocol);
+    commands.client_trigger(*protocol);
+}
+
+fn log_protocol_error(_trigger: Trigger<ProtocolMismatch>) {
+    error!(
+        "server reported protocol mismatch; make sure replication rules and events registration order match with the server"
+    );
 }
 
 /// Reads all received messages and applies them.

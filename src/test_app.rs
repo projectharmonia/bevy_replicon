@@ -104,7 +104,11 @@ impl ServerTestAppExt for App {
             .world_mut()
             .insert_resource(TestClientEntity(client_entity));
 
+        // Exchange messages to perform handshake.
+        client_app.update();
+        self.exchange_with_client(client_app);
         self.update();
+        self.exchange_with_client(client_app);
         client_app.update();
     }
 

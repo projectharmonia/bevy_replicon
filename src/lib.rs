@@ -57,11 +57,6 @@ Replication happens only from server to clients. It's necessary to prevent cheat
 If you need to send information from clients to the server, use
 [events](#network-events-and-triggers).
 
-Replication is enabled by default for all connected clients via [`ReplicatedClient`] component.
-It can be disabled by setting [`ServerPlugin::replicate_after_connect`] to `false`. Note that
-some components on connected clients are only present after replication starts.
-See the required components for [`ReplicatedClient`].
-
 For implementation details see [`ServerChannel`](shared::backend::replicon_channels::ServerChannel).
 
 ### Tick rate
@@ -482,6 +477,16 @@ basis.
 
 ## Advanced features
 
+### Authorization
+
+Connected clients are considered authorized when they have the [`AuthorizedClient`] component. Without this
+component, clients can only receive events marked as independent via [`ServerEventAppExt::make_event_independent`]
+or [`ServerTriggerAppExt::make_trigger_independent`]. Additionally, some components on connected clients are only present
+after replication starts. See the required components for [`AuthorizedClient`] for details.
+
+By default, this component is automatically inserted when the client and server [`ProtocolHash`] matches.
+This behavior can be customized via [`RepliconSharedPlugin::auth_method`].
+
 ### Client visibility
 
 You can control which parts of the world are visible for each client by setting visibility policy
@@ -620,7 +625,7 @@ pub mod prelude {
     pub use super::{
         RepliconPlugins,
         shared::{
-            RepliconSharedPlugin, SERVER,
+            AuthMethod, RepliconSharedPlugin, SERVER,
             backend::{
                 DisconnectRequest,
                 connected_client::{ConnectedClient, NetworkStats},
@@ -635,6 +640,7 @@ pub mod prelude {
                 server_event::{SendMode, ServerEventAppExt, ToClients},
                 server_trigger::{ServerTriggerAppExt, ServerTriggerExt},
             },
+            protocol::{ProtocolHash, ProtocolHasher, ProtocolMismatch},
             replication::{
                 Replicated,
                 command_markers::AppMarkerExt,
@@ -651,7 +657,7 @@ pub mod prelude {
 
     #[cfg(feature = "server")]
     pub use super::server::{
-        ReplicatedClient, ServerPlugin, ServerSet, TickPolicy, VisibilityPolicy,
+        AuthorizedClient, ServerPlugin, ServerSet, TickPolicy, VisibilityPolicy,
         client_entity_map::ClientEntityMap, client_visibility::ClientVisibility,
         event::ServerEventPlugin, related_entities::SyncRelatedAppExt,
     };
@@ -680,7 +686,7 @@ pub struct RepliconPlugins;
 impl PluginGroup for RepliconPlugins {
     fn build(self) -> PluginGroupBuilder {
         let mut group = PluginGroupBuilder::start::<Self>();
-        group = group.add(RepliconSharedPlugin);
+        group = group.add(RepliconSharedPlugin::default());
 
         #[cfg(feature = "server")]
         {
