@@ -799,7 +799,7 @@ impl BufferedServerEvents {
     pub(crate) fn send_all(
         &mut self,
         server: &mut RepliconServer,
-        clients: &Query<(Entity, Option<&ClientTicks>)>,
+        clients: &Query<(Entity, Option<&ClientTicks>), With<ConnectedClient>>,
     ) -> Result<()> {
         for mut set in self.buffer.drain(..) {
             for mut event in set.events.drain(..) {

@@ -148,7 +148,7 @@ fn send_or_buffer(
 fn send_buffered(
     mut server: ResMut<RepliconServer>,
     mut buffered_events: ResMut<BufferedServerEvents>,
-    clients: Query<(Entity, Option<&ClientTicks>)>,
+    clients: Query<(Entity, Option<&ClientTicks>), With<ConnectedClient>>,
 ) {
     buffered_events
         .send_all(&mut server, &clients)
