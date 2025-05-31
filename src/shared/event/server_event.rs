@@ -817,7 +817,7 @@ impl BufferedServerEvents {
                                 event.send(server, client_entity, ticks)?;
                             } else {
                                 debug!(
-                                    "ignoring broadcast for channel {} for non-replicated client `{client_entity}`",
+                                    "ignoring broadcast for channel {} for non-authorized client `{client_entity}`",
                                     event.channel_id
                                 );
                             }
@@ -834,7 +834,7 @@ impl BufferedServerEvents {
                                 event.send(server, client_entity, ticks)?;
                             } else {
                                 debug!(
-                                    "ignoring broadcast except `{entity}` for channel {} for non-replicated client `{client_entity}`",
+                                    "ignoring broadcast except `{entity}` for channel {} for non-authorized client `{client_entity}`",
                                     event.channel_id
                                 );
                             }
@@ -847,7 +847,7 @@ impl BufferedServerEvents {
                                     event.send(server, client_entity, ticks)?;
                                 } else {
                                     error!(
-                                        "ignoring direct event for non-replicated client `{client_entity}`, \
+                                        "ignoring direct event for non-authorized client `{client_entity}`, \
                                          mark it as independent to allow this"
                                     );
                                 }
