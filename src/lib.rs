@@ -42,8 +42,9 @@ On server connected clients represented as entities with [`ConnectedClient`] com
 Their data represented as components, such as [`NetworkStats`]. Users can also attach their
 own metadata to them or even replicate these entiteis back to clients.
 
-These entities are spawned and despawned by the messaging backend. To request
-a disconnection, use the [`DisconnectRequest`] event.
+These entities are automatically spawned and despawned by the messaging backend. You can
+also despawn them yourself to trigger a disconnect or use the [`DisconnectRequest`] event
+to disconnect after sending messages.
 
 You can use [`Trigger<OnAdd, ConnectedClient>`] to react to new connections,
 or use backend-provided events if you need the disconnect reason.
