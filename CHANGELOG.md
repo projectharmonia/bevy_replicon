@@ -835,7 +835,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Initial release after separation from [Project Harmonia](https://github.com/projectharmonia/project_harmonia).
 
 [unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.34.0-rc.1...HEAD
-[0.33.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.33.0...v0.34.0-rc.1
+[0.34.0-rc.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.33.0...v0.34.0-rc.1
 [0.33.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.32.2...v0.33.0
 [0.32.2]: https://github.com/projectharmonia/bevy_replicon/compare/v0.32.1...v0.32.2
 [0.32.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.32.0...v0.32.1
