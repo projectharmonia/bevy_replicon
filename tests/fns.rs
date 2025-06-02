@@ -233,7 +233,7 @@ fn write_with_multiple_markers() {
 }
 
 #[test]
-fn remove_with_mutltiple_markers() {
+fn remove_with_multiple_markers() {
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, RepliconPlugins))
         .register_marker::<Marker>()
