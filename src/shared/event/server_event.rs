@@ -186,6 +186,10 @@ impl ServerEventAppExt for App {
     }
 
     fn make_event_independent<E: Event>(&mut self) -> &mut Self {
+        self.world_mut()
+            .resource_mut::<ProtocolHasher>()
+            .make_event_independent::<E>();
+
         let events_id = self
             .world()
             .components()

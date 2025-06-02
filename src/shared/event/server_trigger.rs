@@ -91,6 +91,10 @@ impl ServerTriggerAppExt for App {
     }
 
     fn make_trigger_independent<E: Event>(&mut self) -> &mut Self {
+        self.world_mut()
+            .resource_mut::<ProtocolHasher>()
+            .make_trigger_independent::<E>();
+
         let events_id = self
             .world()
             .components()
