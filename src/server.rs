@@ -177,7 +177,7 @@ impl Plugin for ServerPlugin {
             AuthMethod::ProtocolCheck => {
                 app.add_observer(check_protocol);
             }
-            AuthMethod::Disabled => {
+            AuthMethod::None => {
                 app.register_required_components::<ConnectedClient, AuthorizedClient>();
             }
             AuthMethod::Custom => (),

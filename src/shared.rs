@@ -196,7 +196,7 @@ pub enum AuthMethod {
     /// required component for [`ConnectedClient`].
     ///
     /// Use with caution.
-    Disabled,
+    None,
 
     /// Disable automatic insertion.
     ///

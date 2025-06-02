@@ -121,7 +121,7 @@ fn disabled_auth() {
     app.add_plugins((
         MinimalPlugins,
         RepliconPlugins.set(RepliconSharedPlugin {
-            auth_method: AuthMethod::Disabled,
+            auth_method: AuthMethod::None,
         }),
     ))
     .finish();
