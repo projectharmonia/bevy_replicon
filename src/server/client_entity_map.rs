@@ -19,7 +19,7 @@ be inserted into the client's [`ServerEntityMap`](crate::shared::server_entity_m
 to propagate the mappings ensures any replication messages related to the pre-mapped
 server entities will synchronize with updating the client's [`ServerEntityMap`](crate::shared::server_entity_map::ServerEntityMap).
 
-It's a required component for [`ReplicatedClient`](super::ReplicatedClient). So if you want to map entities before enabling
+It's a required component for [`AuthorizedClient`](super::AuthorizedClient). So if you want to map entities before enabling
 replication, you need to insert this component, already filled with entities.
 
 ### Examples
@@ -64,6 +64,8 @@ client entity.
 
 If client's original entity is not found, a new entity will be spawned on the client,
 just the same as when no client entity is provided.
+
+See also [`RepliconSharedPlugin::auth_method`](crate::shared::RepliconSharedPlugin::auth_method).
 **/
 #[derive(Debug, Default, Deref, Component)]
 pub struct ClientEntityMap(pub(super) Vec<(Entity, Entity)>);

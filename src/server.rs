@@ -21,26 +21,35 @@ use bevy::{
 use bytes::Buf;
 use log::{debug, trace};
 
-use crate::shared::{
-    backend::{
-        connected_client::ConnectedClient,
-        replicon_channels::{ClientChannel, RepliconChannels},
-        replicon_server::RepliconServer,
-    },
-    common_conditions::*,
-    event::server_event::BufferedServerEvents,
-    postcard_utils,
-    replication::{
-        Replicated,
-        client_ticks::{ClientTicks, EntityBuffer},
-        replication_registry::{
-            ReplicationRegistry, component_fns::ComponentFns, ctx::SerializeCtx,
-            rule_fns::UntypedRuleFns,
+use crate::{
+    prelude::ServerTriggerExt,
+    shared::{
+        AuthMethod,
+        backend::{
+            DisconnectRequest,
+            connected_client::ConnectedClient,
+            replicon_channels::{ClientChannel, RepliconChannels},
+            replicon_server::RepliconServer,
         },
-        replication_rules::{ComponentRule, ReplicationRules},
-        track_mutate_messages::TrackMutateMessages,
+        common_conditions::*,
+        event::{
+            client_event::FromClient,
+            server_event::{BufferedServerEvents, SendMode, ToClients},
+        },
+        postcard_utils,
+        protocol::{ProtocolHash, ProtocolMismatch},
+        replication::{
+            Replicated,
+            client_ticks::{ClientTicks, EntityBuffer},
+            replication_registry::{
+                ReplicationRegistry, component_fns::ComponentFns, ctx::SerializeCtx,
+                rule_fns::UntypedRuleFns,
+            },
+            replication_rules::{ComponentRule, ReplicationRules},
+            track_mutate_messages::TrackMutateMessages,
+        },
+        replicon_tick::RepliconTick,
     },
-    replicon_tick::RepliconTick,
 };
 use client_entity_map::ClientEntityMap;
 use client_visibility::{ClientVisibility, Visibility};
@@ -65,16 +74,6 @@ pub struct ServerPlugin {
     ///
     /// In practice mutations will live at least `mutations_timeout`, and at most `2*mutations_timeout`.
     pub mutations_timeout: Duration,
-
-    /// If enabled, replication will be started automatically after connection.
-    ///
-    /// If disabled, replication should be started manually by inserting [`ReplicatedClient`] on the client entity.
-    ///
-    /// Until replication has started, the client and server can still exchange network events that are marked as
-    /// independent via [`ServerEventAppExt::make_event_independent`](crate::shared::event::server_event::ServerEventAppExt::make_event_independent)
-    /// or [`ServerTriggerAppExt::make_event_independent`](crate::shared::event::server_trigger::ServerTriggerAppExt::make_trigger_independent).
-    /// **All other events will be ignored**.
-    pub replicate_after_connect: bool,
 }
 
 impl Default for ServerPlugin {
@@ -83,7 +82,6 @@ impl Default for ServerPlugin {
             tick_policy: TickPolicy::MaxTickRate(30),
             visibility_policy: Default::default(),
             mutations_timeout: Duration::from_secs(10),
-            replicate_after_connect: true,
         }
     }
 }
@@ -162,19 +160,27 @@ impl Plugin for ServerPlugin {
         match self.visibility_policy {
             VisibilityPolicy::All => {}
             VisibilityPolicy::Blacklist => {
-                app.register_required_components_with::<ReplicatedClient, _>(
+                app.register_required_components_with::<AuthorizedClient, _>(
                     ClientVisibility::blacklist,
                 );
             }
             VisibilityPolicy::Whitelist => {
-                app.register_required_components_with::<ReplicatedClient, _>(
+                app.register_required_components_with::<AuthorizedClient, _>(
                     ClientVisibility::whitelist,
                 );
             }
         }
 
-        if self.replicate_after_connect {
-            app.register_required_components::<ConnectedClient, ReplicatedClient>();
+        let auth_method = app.world().resource::<AuthMethod>();
+        debug!("using authorization method `{auth_method:?}`");
+        match auth_method {
+            AuthMethod::ProtocolCheck => {
+                app.add_observer(check_protocol);
+            }
+            AuthMethod::None => {
+                app.register_required_components::<ConnectedClient, AuthorizedClient>();
+            }
+            AuthMethod::Custom => (),
         }
     }
 
@@ -207,6 +213,32 @@ fn handle_disconnects(
 ) {
     debug!("client `{}` disconnected", trigger.target());
     server.remove_client(trigger.target());
+}
+
+fn check_protocol(
+    trigger: Trigger<FromClient<ProtocolHash>>,
+    mut commands: Commands,
+    mut events: EventWriter<DisconnectRequest>,
+    protocol: Res<ProtocolHash>,
+) {
+    if **trigger == *protocol {
+        debug!("marking client `{}` as authorized", trigger.client_entity);
+        commands
+            .entity(trigger.client_entity)
+            .insert(AuthorizedClient);
+    } else {
+        debug!(
+            "disconnecting client `{}` due to protocol mismatch (client: `{:?}`, server: `{:?}`)",
+            trigger.client_entity, **trigger, *protocol
+        );
+        commands.server_trigger(ToClients {
+            mode: SendMode::Direct(trigger.client_entity),
+            event: ProtocolMismatch,
+        });
+        events.write(DisconnectRequest {
+            client_entity: trigger.client_entity,
+        });
+    }
 }
 
 fn cleanup_acks(
@@ -759,15 +791,17 @@ pub enum TickPolicy {
     Manual,
 }
 
-/// Marker that enables replication for client entity.
+/// Marker that enables replication and all events for a client.
 ///
-/// If [`ServerPlugin::replicate_after_connect`] is set, it will be marked as required
-/// for [`ConnectedClient`].
+/// Until authorization happened, the client and server can still exchange network events that are marked as
+/// independent via [`ServerEventAppExt::make_event_independent`](crate::shared::event::server_event::ServerEventAppExt::make_event_independent)
+/// or [`ServerTriggerAppExt::make_trigger_independent`](crate::shared::event::server_trigger::ServerTriggerAppExt::make_trigger_independent).
+/// **All other events will be ignored**.
 ///
-/// Pausing replication by temporarily removing this component is not supported.
+/// See also [`ConnectedClient`] and [`RepliconSharedPlugin::auth_method`](crate::shared::RepliconSharedPlugin::auth_method).
 #[derive(Component, Default)]
 #[require(ClientTicks, ClientEntityMap, Updates, Mutations)]
-pub struct ReplicatedClient;
+pub struct AuthorizedClient;
 
 /// Controls how visibility will be managed via [`ClientVisibility`].
 #[derive(Default, Debug, Clone, Copy)]

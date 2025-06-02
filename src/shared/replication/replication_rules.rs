@@ -1,17 +1,16 @@
-use core::{any, cmp::Reverse};
+use core::cmp::Reverse;
 
 use bevy::{
     ecs::{archetype::Archetype, component::ComponentId},
     platform::collections::HashSet,
     prelude::*,
 };
-use log::debug;
 use serde::{Serialize, de::DeserializeOwned};
 
 use super::replication_registry::{
     FnsId, ReplicationRegistry, command_fns::MutWrite, rule_fns::RuleFns,
 };
-use crate::shared::replicon_tick::RepliconTick;
+use crate::shared::{protocol::ProtocolHasher, replicon_tick::RepliconTick};
 
 /// Replication functions for [`App`].
 pub trait AppRuleExt {
@@ -435,7 +434,10 @@ impl AppRuleExt for App {
         priority: usize,
         rule: R,
     ) -> &mut Self {
-        debug!("registering rule for '{}'", any::type_name::<R>());
+        self.world_mut()
+            .resource_mut::<ProtocolHasher>()
+            .replicate::<R>(priority);
+
         let rule =
             self.world_mut()
                 .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
@@ -450,7 +452,10 @@ impl AppRuleExt for App {
     }
 
     fn replicate_bundle<B: ReplicationBundle>(&mut self) -> &mut Self {
-        debug!("registering rule for bundle '{}'", any::type_name::<B>());
+        self.world_mut()
+            .resource_mut::<ProtocolHasher>()
+            .replicate_bundle::<B>();
+
         let rule =
             self.world_mut()
                 .resource_scope(|world, mut registry: Mut<ReplicationRegistry>| {
@@ -751,7 +756,8 @@ mod tests {
     #[test]
     fn registration() {
         let mut app = App::new();
-        app.init_resource::<ReplicationRules>()
+        app.init_resource::<ProtocolHasher>()
+            .init_resource::<ReplicationRules>()
             .init_resource::<ReplicationRegistry>()
             .replicate::<ComponentA>()
             .replicate_with((

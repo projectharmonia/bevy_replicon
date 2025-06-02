@@ -12,7 +12,9 @@ use super::{
     remote_targets::RemoteTargets,
     server_event::{self, ServerEvent, ToClients},
 };
-use crate::shared::{backend::replicon_channels::Channel, entity_serde, postcard_utils};
+use crate::shared::{
+    backend::replicon_channels::Channel, entity_serde, postcard_utils, protocol::ProtocolHasher,
+};
 
 /// An extension trait for [`App`] for creating server triggers.
 ///
@@ -75,7 +77,9 @@ impl ServerTriggerAppExt for App {
         serialize: EventSerializeFn<ServerSendCtx, E>,
         deserialize: EventDeserializeFn<ClientReceiveCtx, E>,
     ) -> &mut Self {
-        debug!("registering trigger `{}`", any::type_name::<E>());
+        self.world_mut()
+            .resource_mut::<ProtocolHasher>()
+            .add_server_trigger::<E>();
 
         let event_fns = EventFns::new(serialize, deserialize)
             .with_outer(trigger_serialize, trigger_deserialize);
@@ -87,6 +91,10 @@ impl ServerTriggerAppExt for App {
     }
 
     fn make_trigger_independent<E: Event>(&mut self) -> &mut Self {
+        self.world_mut()
+            .resource_mut::<ProtocolHasher>()
+            .make_trigger_independent::<E>();
+
         let events_id = self
             .world()
             .components()

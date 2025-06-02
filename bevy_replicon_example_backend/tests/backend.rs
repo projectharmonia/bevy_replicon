@@ -26,7 +26,9 @@ fn connect_disconnect() {
 
     assert!(server_app.world().resource::<RepliconServer>().is_running());
 
-    let mut clients = server_app.world_mut().query::<&ConnectedClient>();
+    let mut clients = server_app
+        .world_mut()
+        .query::<(&ConnectedClient, &AuthorizedClient)>();
     assert_eq!(clients.iter(server_app.world()).len(), 1);
 
     let replicon_client = client_app.world().resource::<RepliconClient>();
@@ -241,6 +243,8 @@ fn setup(server_app: &mut App, client_app: &mut App) -> io::Result<()> {
     server_app.insert_resource(server_socket);
     client_app.insert_resource(client_socket);
 
+    server_app.update();
+    client_app.update();
     server_app.update();
     client_app.update();
 

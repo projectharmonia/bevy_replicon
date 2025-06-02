@@ -31,6 +31,7 @@ use crate::shared::{
         replicon_server::RepliconServer,
     },
     postcard_utils,
+    protocol::ProtocolHasher,
     replication::client_ticks::ClientTicks,
     replicon_tick::RepliconTick,
 };
@@ -172,7 +173,9 @@ impl ServerEventAppExt for App {
         serialize: EventSerializeFn<ServerSendCtx, E>,
         deserialize: EventDeserializeFn<ClientReceiveCtx, E>,
     ) -> &mut Self {
-        debug!("registering event `{}`", any::type_name::<E>());
+        self.world_mut()
+            .resource_mut::<ProtocolHasher>()
+            .add_server_event::<E>();
 
         let event_fns = EventFns::new(serialize, deserialize);
         let event = ServerEvent::new(self, channel, event_fns);
@@ -183,6 +186,10 @@ impl ServerEventAppExt for App {
     }
 
     fn make_event_independent<E: Event>(&mut self) -> &mut Self {
+        self.world_mut()
+            .resource_mut::<ProtocolHasher>()
+            .make_event_independent::<E>();
+
         let events_id = self
             .world()
             .components()
@@ -812,7 +819,7 @@ impl BufferedServerEvents {
                                 event.send(server, client_entity, ticks)?;
                             } else {
                                 debug!(
-                                    "ignoring broadcast for channel {} for non-replicated client `{client_entity}`",
+                                    "ignoring broadcast for channel {} for non-authorized client `{client_entity}`",
                                     event.channel_id
                                 );
                             }
@@ -829,7 +836,7 @@ impl BufferedServerEvents {
                                 event.send(server, client_entity, ticks)?;
                             } else {
                                 debug!(
-                                    "ignoring broadcast except `{entity}` for channel {} for non-replicated client `{client_entity}`",
+                                    "ignoring broadcast except `{entity}` for channel {} for non-authorized client `{client_entity}`",
                                     event.channel_id
                                 );
                             }
@@ -842,7 +849,7 @@ impl BufferedServerEvents {
                                     event.send(server, client_entity, ticks)?;
                                 } else {
                                     error!(
-                                        "ignoring direct event for non-replicated client `{client_entity}`, \
+                                        "ignoring direct event for non-authorized client `{client_entity}`, \
                                          mark it as independent to allow this"
                                     );
                                 }
