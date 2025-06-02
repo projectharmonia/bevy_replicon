@@ -439,7 +439,7 @@ impl AppRuleExt for App {
 
         self.world_mut()
             .resource_mut::<ProtocolHasher>()
-            .add_replication_rule::<R>();
+            .replicate::<R>(priority);
 
         let rule =
             self.world_mut()
@@ -459,7 +459,7 @@ impl AppRuleExt for App {
 
         self.world_mut()
             .resource_mut::<ProtocolHasher>()
-            .add_replication_rule::<B>();
+            .replicate_bundle::<B>();
 
         let rule =
             self.world_mut()

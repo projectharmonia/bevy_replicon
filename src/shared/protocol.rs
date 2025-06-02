@@ -45,8 +45,12 @@ impl ProtocolHasher {
         value.hash(&mut self.0);
     }
 
-    pub(crate) fn add_replication_rule<R>(&mut self) {
-        self.hash::<R>(ProtocolPart::ReplicationRule);
+    pub(crate) fn replicate<R>(&mut self, priority: usize) {
+        self.hash::<R>(ProtocolPart::Replicate { priority });
+    }
+
+    pub(crate) fn replicate_bundle<B>(&mut self) {
+        self.hash::<B>(ProtocolPart::ReplicateBundle);
     }
 
     pub(crate) fn add_client_event<E>(&mut self) {
@@ -87,7 +91,8 @@ impl Default for ProtocolHasher {
 /// For example, the same type could be used for a client and a server event.
 #[derive(Hash)]
 enum ProtocolPart {
-    ReplicationRule,
+    Replicate { priority: usize },
+    ReplicateBundle,
     ClientEvent,
     ClientTrigger,
     ServerEvent,
@@ -125,12 +130,23 @@ mod tests {
     #[test]
     fn wrong_order() {
         let mut hasher1 = ProtocolHasher::default();
-        hasher1.add_replication_rule::<StructA>();
-        hasher1.add_replication_rule::<StructB>();
+        hasher1.replicate::<StructA>(1);
+        hasher1.replicate::<StructB>(1);
 
         let mut hasher2 = ProtocolHasher::default();
-        hasher2.add_replication_rule::<StructB>();
-        hasher2.add_replication_rule::<StructA>();
+        hasher2.replicate::<StructB>(1);
+        hasher2.replicate::<StructA>(1);
+
+        assert_ne!(hasher1.finish(), hasher2.finish());
+    }
+
+    #[test]
+    fn wrong_priority() {
+        let mut hasher1 = ProtocolHasher::default();
+        hasher1.replicate::<StructA>(1);
+
+        let mut hasher2 = ProtocolHasher::default();
+        hasher2.replicate::<StructA>(0);
 
         assert_ne!(hasher1.finish(), hasher2.finish());
     }
@@ -152,7 +168,7 @@ mod tests {
         let mut hasher2 = ProtocolHasher::default();
 
         for hasher in [&mut hasher1, &mut hasher2] {
-            hasher.add_replication_rule::<StructA>();
+            hasher.replicate::<StructA>(1);
             hasher.add_server_event::<StructB>();
             hasher.add_server_trigger::<StructC>();
             hasher.add_client_event::<StructB>();
@@ -170,7 +186,7 @@ mod tests {
         let mut hasher2 = ProtocolHasher::default();
 
         for hasher in [&mut hasher1, &mut hasher2] {
-            hasher.add_replication_rule::<StructA>();
+            hasher.replicate::<StructA>(1);
             hasher.add_server_event::<StructB>();
             hasher.add_server_trigger::<StructC>();
             hasher.add_client_event::<StructB>();
