@@ -149,8 +149,6 @@ impl ClientEventAppExt for App {
         serialize: EventSerializeFn<ClientSendCtx, E>,
         deserialize: EventDeserializeFn<ServerReceiveCtx, E>,
     ) -> &mut Self {
-        debug!("registering event `{}`", any::type_name::<E>());
-
         self.world_mut()
             .resource_mut::<ProtocolHasher>()
             .add_client_event::<E>();

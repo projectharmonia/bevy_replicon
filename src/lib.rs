@@ -599,6 +599,12 @@ To enable logging, you can temporarily set `RUST_LOG` environment variable to `b
 RUST_LOG=bevy_replicon=debug cargo run
 ```
 
+You can also filter by specific module like this:
+
+```bash
+RUST_LOG=bevy_replicon::shared::protocol=debug cargo run
+```
+
 The exact method depends on the OS shell.
 
 Alternatively you can configure `LogPlugin` from Bevy to make it permanent.

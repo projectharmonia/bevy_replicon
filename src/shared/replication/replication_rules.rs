@@ -1,11 +1,10 @@
-use core::{any, cmp::Reverse};
+use core::cmp::Reverse;
 
 use bevy::{
     ecs::{archetype::Archetype, component::ComponentId},
     platform::collections::HashSet,
     prelude::*,
 };
-use log::debug;
 use serde::{Serialize, de::DeserializeOwned};
 
 use super::replication_registry::{
@@ -435,8 +434,6 @@ impl AppRuleExt for App {
         priority: usize,
         rule: R,
     ) -> &mut Self {
-        debug!("registering rule for '{}'", any::type_name::<R>());
-
         self.world_mut()
             .resource_mut::<ProtocolHasher>()
             .replicate::<R>(priority);
@@ -455,8 +452,6 @@ impl AppRuleExt for App {
     }
 
     fn replicate_bundle<B: ReplicationBundle>(&mut self) -> &mut Self {
-        debug!("registering rule for bundle '{}'", any::type_name::<B>());
-
         self.world_mut()
             .resource_mut::<ProtocolHasher>()
             .replicate_bundle::<B>();

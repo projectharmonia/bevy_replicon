@@ -77,8 +77,6 @@ impl ServerTriggerAppExt for App {
         serialize: EventSerializeFn<ServerSendCtx, E>,
         deserialize: EventDeserializeFn<ClientReceiveCtx, E>,
     ) -> &mut Self {
-        debug!("registering trigger `{}`", any::type_name::<E>());
-
         self.world_mut()
             .resource_mut::<ProtocolHasher>()
             .add_server_trigger::<E>();

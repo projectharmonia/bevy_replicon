@@ -1,5 +1,6 @@
 use core::{
     any,
+    fmt::Debug,
     hash::{BuildHasher, Hash, Hasher},
 };
 
@@ -7,6 +8,7 @@ use bevy::{
     platform::hash::{DefaultHasher, FixedHasher},
     prelude::*,
 };
+use log::debug;
 use serde::{Deserialize, Serialize};
 
 /// Hashes all protocol registrations to calculate [`ProtocolHash`].
@@ -41,31 +43,44 @@ impl ProtocolHasher {
     /// let mut hasher = app.world_mut().resource_mut::<ProtocolHasher>();
     /// hasher.add_custom(env!("CARGO_PKG_VERSION"));
     /// ```
-    pub fn add_custom<T: Hash>(&mut self, value: T) {
+    pub fn add_custom<T: Hash + Debug>(&mut self, value: T) {
+        debug!("adding `{value:?}`");
         value.hash(&mut self.0);
     }
 
     pub(crate) fn replicate<R>(&mut self, priority: usize) {
+        debug!(
+            "adding replication rule `{}` with priority {priority}",
+            any::type_name::<R>()
+        );
         self.hash::<R>(ProtocolPart::Replicate { priority });
     }
 
     pub(crate) fn replicate_bundle<B>(&mut self) {
+        debug!(
+            "adding replication rule for bundle `{}`",
+            any::type_name::<B>()
+        );
         self.hash::<B>(ProtocolPart::ReplicateBundle);
     }
 
     pub(crate) fn add_client_event<E>(&mut self) {
+        debug!("adding client event `{}`", any::type_name::<E>());
         self.hash::<E>(ProtocolPart::ClientEvent);
     }
 
     pub(crate) fn add_client_trigger<E>(&mut self) {
+        debug!("adding client trigger `{}`", any::type_name::<E>());
         self.hash::<E>(ProtocolPart::ClientTrigger);
     }
 
     pub(crate) fn add_server_event<E>(&mut self) {
+        debug!("adding server event `{}`", any::type_name::<E>());
         self.hash::<E>(ProtocolPart::ServerEvent);
     }
 
     pub(crate) fn add_server_trigger<E>(&mut self) {
+        debug!("adding server trigger `{}`", any::type_name::<E>());
         self.hash::<E>(ProtocolPart::ServerTrigger);
     }
 
@@ -112,6 +127,10 @@ pub struct ProtocolHash(u64);
 /// Registered and sent only if [`RepliconSharedPlugin::auth_method`](super::RepliconSharedPlugin::auth_method)
 /// set to [`AuthMethod::ProtocolCheck`](super::AuthMethod::ProtocolCheck). The server will immediately
 /// disconnect after sending it, so there is no delivery guarantee.
+///
+/// If you need to debug the problem, compare the logs for protocol registrations on both sides.
+/// The ordering is important. You can also log only registrations by filtering with `bevy_replicon::shared::protocol`.
+/// For more details, see the [troubleshooting section](../../index.html#troubleshooting) from the quick start guide.
 #[derive(Event, Serialize, Deserialize)]
 pub struct ProtocolMismatch;
 
