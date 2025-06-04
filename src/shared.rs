@@ -10,18 +10,11 @@ pub mod server_entity_map;
 
 use bevy::prelude::*;
 
-use backend::{
-    DisconnectRequest,
-    connected_client::{ConnectedClient, NetworkIdMap, NetworkStats},
-    replicon_channels::{Channel, RepliconChannels},
-};
-use event::{
-    client_trigger::ClientTriggerAppExt, remote_event_registry::RemoteEventRegistry,
-    server_trigger::ServerTriggerAppExt,
-};
-use protocol::{ProtocolHash, ProtocolHasher, ProtocolMismatch};
+use crate::prelude::*;
+use backend::connected_client::NetworkIdMap;
+use event::remote_event_registry::RemoteEventRegistry;
 use replication::{
-    Replicated, command_markers::CommandMarkers, replication_registry::ReplicationRegistry,
+    command_markers::CommandMarkers, replication_registry::ReplicationRegistry,
     replication_rules::ReplicationRules, track_mutate_messages::TrackMutateMessages,
 };
 
@@ -173,10 +166,10 @@ impl Plugin for RepliconSharedPlugin {
 ///
 /// Equal to [`Entity::PLACEHOLDER`].
 ///
-/// See also [`ToClients`](event::server_event::ToClients) and [`FromClient`](event::client_event::FromClient) events.
+/// See also [`ToClients`] and [`FromClient`] events.
 pub const SERVER: Entity = Entity::PLACEHOLDER;
 
-/// Configures the insertion of [`AuthorizedClient`](crate::server::AuthorizedClient).
+/// Configures the insertion of [`AuthorizedClient`].
 ///
 /// Can be set via [`RepliconSharedPlugin::auth_method`].
 #[derive(Resource, Default, Debug, Clone, Copy, PartialEq, Eq)]
@@ -185,22 +178,19 @@ pub enum AuthMethod {
     ///
     /// - If the hash differs from the server's, the client will be notified with
     ///   a [`ProtocolMismatch`] event and disconnected.
-    /// - If the hash matches, the [`AuthorizedClient`](crate::server::AuthorizedClient)
-    ///   component will be inserted.
+    /// - If the hash matches, the [`AuthorizedClient`] component will be inserted.
     #[default]
     ProtocolCheck,
 
     /// Consider all connected clients immediately authorized.
     ///
-    /// [`AuthorizedClient`](crate::server::AuthorizedClient) will be configured as a
-    /// required component for [`ConnectedClient`].
+    /// [`AuthorizedClient`] will be configured as a required component for [`ConnectedClient`].
     ///
     /// Use with caution.
     None,
 
     /// Disable automatic insertion.
     ///
-    /// The user is responsible for manually inserting [`AuthorizedClient`](crate::server::AuthorizedClient)
-    /// on the server.
+    /// The user is responsible for manually inserting [`AuthorizedClient`] on the server.
     Custom,
 }

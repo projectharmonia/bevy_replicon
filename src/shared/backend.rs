@@ -42,11 +42,10 @@ pub struct DisconnectRequest {
 mod tests {
     use test_log::test;
 
-    use super::{
-        replicon_channels::{ClientChannel, RepliconChannels, ServerChannel},
-        replicon_client::{RepliconClient, RepliconClientStatus},
-        replicon_server::RepliconServer,
-        *,
+    use super::*;
+    use crate::{
+        prelude::*,
+        shared::backend::replicon_channels::{ClientChannel, ServerChannel},
     };
 
     #[test]

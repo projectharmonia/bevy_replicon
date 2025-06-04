@@ -14,6 +14,7 @@ use bevy::{
     ptr::{Ptr, PtrMut},
 };
 use bytes::Bytes;
+use client_event_queue::ClientEventQueue;
 use log::{debug, error, warn};
 use postcard::experimental::{max_size::MaxSize, serialized_size};
 use serde::{Serialize, de::DeserializeOwned};
@@ -23,19 +24,10 @@ use super::{
     event_fns::{EventDeserializeFn, EventFns, EventSerializeFn, UntypedEventFns},
     remote_event_registry::RemoteEventRegistry,
 };
-use crate::shared::{
-    ConnectedClient, SERVER,
-    backend::{
-        replicon_channels::{Channel, RepliconChannels},
-        replicon_client::RepliconClient,
-        replicon_server::RepliconServer,
-    },
-    postcard_utils,
-    protocol::ProtocolHasher,
-    replication::client_ticks::ClientTicks,
-    replicon_tick::RepliconTick,
+use crate::{
+    prelude::*,
+    shared::{postcard_utils, replication::client_ticks::ClientTicks},
 };
-use client_event_queue::ClientEventQueue;
 
 /// An extension trait for [`App`] for creating client events.
 pub trait ServerEventAppExt {
@@ -43,9 +35,9 @@ pub trait ServerEventAppExt {
     ///
     /// After emitting [`ToClients<E>`] event on the server, `E` event  will be emitted on clients.
     ///
-    /// If [`ClientEventPlugin`](crate::client::event::ClientEventPlugin) is enabled and
-    /// [`SERVER`] is a recipient of the event, then [`ToClients<E>`] event will be drained
-    /// after sending to clients and `E` event will be emitted on the server as well.
+    /// If [`ClientEventPlugin`] is enabled and [`SERVER`] is a recipient of the event, then
+    /// [`ToClients<E>`] event will be drained after sending to clients and `E` event will be emitted
+    /// on the server as well.
     ///
     /// Calling [`App::add_event`] is not necessary. Can used for regular events that were
     /// previously registered.
@@ -53,9 +45,8 @@ pub trait ServerEventAppExt {
     /// Unlike client events, server events are tied to replication. See [`Self::make_event_independent`]
     /// for more details.
     ///
-    /// See also [`ServerTriggerAppExt::add_server_trigger`](super::server_trigger::ServerTriggerAppExt::add_server_trigger),
-    /// [`Self::add_server_event_with`] and the [corresponding section](../index.html#from-server-to-client)
-    /// from the quick start guide.
+    /// See also [`ServerTriggerAppExt::add_server_trigger`], [`Self::add_server_event_with`] and the
+    /// [corresponding section](../index.html#from-server-to-client) from the quick start guide.
     fn add_server_event<E: Event + Serialize + DeserializeOwned>(
         &mut self,
         channel: Channel,
@@ -81,8 +72,7 @@ pub trait ServerEventAppExt {
     /**
     Same as [`Self::add_server_event`], but uses the specified functions for serialization and deserialization.
 
-    See also [`postcard_utils`] and
-    [`ServerTriggerAppExt::add_server_trigger_with`](super::server_trigger::ServerTriggerAppExt::add_server_trigger_with)
+    See also [`postcard_utils`] and [`ServerTriggerAppExt::add_server_trigger_with`].
 
     # Examples
 

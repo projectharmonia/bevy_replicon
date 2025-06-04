@@ -65,8 +65,7 @@ For implementation details see [`ServerChannel`](shared::backend::replicon_chann
 Typically updates are not sent every frame. Instead, they are sent at a certain interval
 to save traffic.
 
-On server current tick stored in [`RepliconTick`](shared::replicon_tick::RepliconTick) resource.
-Replication runs when this resource changes.
+On server current tick stored in [`RepliconTick`] resource. Replication runs when this resource changes.
 
 You can use [`TickPolicy::Manual`] and then add the [`increment_tick`](server::increment_tick)
 system to [`FixedUpdate`]:
@@ -654,6 +653,7 @@ pub mod prelude {
                 replication_registry::rule_fns::RuleFns,
                 replication_rules::{AppRuleExt, SendRate},
             },
+            replicon_tick::RepliconTick,
         },
     };
 

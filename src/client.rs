@@ -9,31 +9,24 @@ use bytes::{Buf, Bytes};
 use log::{debug, error, trace};
 use postcard::experimental::max_size::MaxSize;
 
-use crate::shared::{
-    AuthMethod,
-    backend::{
-        replicon_channels::{ClientChannel, RepliconChannels, ServerChannel},
-        replicon_client::RepliconClient,
-    },
-    common_conditions::*,
-    entity_serde,
-    event::client_trigger::ClientTriggerExt,
-    postcard_utils,
-    protocol::{ProtocolHash, ProtocolMismatch},
-    replication::{
-        Replicated,
-        command_markers::{CommandMarkers, EntityMarkers},
-        deferred_entity::{DeferredChanges, DeferredEntity},
-        mutate_index::MutateIndex,
-        replication_registry::{
-            ReplicationRegistry,
-            ctx::{DespawnCtx, RemoveCtx, WriteCtx},
+use crate::{
+    prelude::*,
+    shared::{
+        backend::replicon_channels::{ClientChannel, ServerChannel},
+        entity_serde, postcard_utils,
+        replication::{
+            command_markers::{CommandMarkers, EntityMarkers},
+            deferred_entity::{DeferredChanges, DeferredEntity},
+            mutate_index::MutateIndex,
+            replication_registry::{
+                ReplicationRegistry,
+                ctx::{DespawnCtx, RemoveCtx, WriteCtx},
+            },
+            track_mutate_messages::TrackMutateMessages,
+            update_message_flags::UpdateMessageFlags,
         },
-        track_mutate_messages::TrackMutateMessages,
-        update_message_flags::UpdateMessageFlags,
+        server_entity_map::{EntityEntry, ServerEntityMap},
     },
-    replicon_tick::RepliconTick,
-    server_entity_map::{EntityEntry, ServerEntityMap},
 };
 use confirm_history::{ConfirmHistory, EntityReplicated};
 use server_mutate_ticks::{MutateTickReceived, ServerMutateTicks};
@@ -827,7 +820,7 @@ pub(super) struct BufferedMutate {
 /// Statistic will be collected only if the resource is present.
 /// The resource is not added by default.
 ///
-/// See also [`ClientDiagnosticsPlugin`](diagnostics::ClientDiagnosticsPlugin)
+/// See also [`ClientDiagnosticsPlugin`]
 /// for automatic integration with Bevy diagnostics.
 #[derive(Clone, Copy, Default, Resource, Debug)]
 pub struct ClientReplicationStats {

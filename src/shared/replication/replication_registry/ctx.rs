@@ -4,7 +4,7 @@ use bevy::{
     reflect::TypeRegistry,
 };
 
-use crate::shared::{replicon_tick::RepliconTick, server_entity_map::ServerEntityMap};
+use crate::{prelude::*, shared::server_entity_map::ServerEntityMap};
 
 /// Replication context for serialization function.
 #[non_exhaustive]

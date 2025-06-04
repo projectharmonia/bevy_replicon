@@ -1,15 +1,15 @@
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::shared::replicon_tick::RepliconTick;
+use crate::prelude::*;
 
 /// Stores current [`RepliconTick`].
 ///
-/// Used only on the server. The [`ServerPlugin`](super::ServerPlugin) sends replication data
+/// Used only on the server. The [`ServerPlugin`] sends replication data
 /// in [`PostUpdate`] any time this resource changes.
-/// By default, its incremented in [`PostUpdate`] per the [`TickPolicy`](super::TickPolicy).
+/// By default, its incremented in [`PostUpdate`] per the [`TickPolicy`].
 ///
-/// If you set [`TickPolicy::Manual`](super::TickPolicy::Manual), you can increment this resource
+/// If you set [`TickPolicy::Manual`], you can increment this resource
 /// at the start of your game loop (e.g. inside [`FixedMain`](bevy::app::FixedMain)).
 /// This value can be used to represent your simulation step, and is made available to the client in
 /// the custom deserialization, despawn, and component removal functions.

@@ -7,16 +7,14 @@ use bevy::{
 };
 use serde::{Serialize, de::DeserializeOwned};
 
-use super::replication_registry::{
-    FnsId, ReplicationRegistry, command_fns::MutWrite, rule_fns::RuleFns,
-};
-use crate::shared::{protocol::ProtocolHasher, replicon_tick::RepliconTick};
+use super::replication_registry::{FnsId, ReplicationRegistry, command_fns::MutWrite};
+use crate::prelude::*;
 
 /// Replication functions for [`App`].
 pub trait AppRuleExt {
     /// Defines a [`ReplicationRule`] for a single component.
     ///
-    /// If present on an entity with [`Replicated`](super::Replicated) component,
+    /// If present on an entity with [`Replicated`] component,
     /// it will be serialized and deserialized as-is using [`postcard`]
     /// and sent at [`SendRate::EveryTick`]. To customize this, use [`Self::replicate_with`].
     ///
@@ -142,8 +140,7 @@ pub trait AppRuleExt {
 
     </div>
 
-    You can also override how the component will be written,
-    see [`AppMarkerExt`](super::command_markers::AppMarkerExt).
+    You can also override how the component will be written, see [`AppMarkerExt`].
 
     See also [`postcard_utils`](crate::shared::postcard_utils) for serialization helpers.
 
@@ -751,7 +748,6 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::AppRuleExt;
 
     #[test]
     fn registration() {

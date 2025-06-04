@@ -2,7 +2,7 @@ use alloc::collections::VecDeque;
 
 use bevy::prelude::*;
 
-use crate::shared::replicon_tick::RepliconTick;
+use crate::prelude::*;
 
 /// Received ticks for mutate message from server.
 ///

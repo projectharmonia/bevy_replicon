@@ -14,12 +14,7 @@ use petgraph::{
     visit::EdgeRef,
 };
 
-use crate::{
-    server::ServerSet,
-    shared::{
-        backend::replicon_server::RepliconServer, common_conditions::*, replication::Replicated,
-    },
-};
+use crate::prelude::*;
 
 pub trait SyncRelatedAppExt {
     /// Ensures that entities related by `C` are replicated in sync.

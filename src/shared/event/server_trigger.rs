@@ -10,10 +10,11 @@ use super::{
     event_fns::{EventDeserializeFn, EventFns, EventSerializeFn},
     remote_event_registry::RemoteEventRegistry,
     remote_targets::RemoteTargets,
-    server_event::{self, ServerEvent, ToClients},
+    server_event::{self, ServerEvent},
 };
-use crate::shared::{
-    backend::replicon_channels::Channel, entity_serde, postcard_utils, protocol::ProtocolHasher,
+use crate::{
+    prelude::*,
+    shared::{entity_serde, postcard_utils},
 };
 
 /// An extension trait for [`App`] for creating server triggers.
@@ -24,9 +25,8 @@ pub trait ServerTriggerAppExt {
     ///
     /// After triggering [`ToClients<E>`] event on the server, `E` event will be triggered on clients.
     ///
-    /// If [`ClientEventPlugin`](crate::client::event::ClientEventPlugin) is enabled and
-    /// [`SERVER`](crate::shared::SERVER) is a recipient of the event (not to be confused with trigger target),
-    /// then `E` event will be emitted on the server as well.
+    /// If [`ClientEventPlugin`] is enabled and [`SERVER`] is a recipient of the event
+    /// (not to be confused with trigger target), then `E` event will be emitted on the server as well.
     ///
     /// See also [`Self::add_server_trigger_with`] and the [corresponding section](../index.html#from-server-to-client)
     /// from the quick start guide.
@@ -57,7 +57,7 @@ pub trait ServerTriggerAppExt {
 
     /// Same as [`Self::add_server_trigger`], but uses the specified functions for serialization and deserialization.
     ///
-    /// See also [`ServerEventAppExt::add_server_event_with`](super::server_event::ServerEventAppExt::add_server_event_with).
+    /// See also [`ServerEventAppExt::add_server_event_with`].
     fn add_server_trigger_with<E: Event>(
         &mut self,
         channel: Channel,
@@ -65,8 +65,7 @@ pub trait ServerTriggerAppExt {
         deserialize: EventDeserializeFn<ClientReceiveCtx, E>,
     ) -> &mut Self;
 
-    /// Like [`ServerEventAppExt::make_event_independent`](super::server_event::ServerEventAppExt::make_event_independent),
-    /// but for triggers.
+    /// Like [`ServerEventAppExt::make_event_independent`], but for triggers.
     fn make_trigger_independent<E: Event>(&mut self) -> &mut Self;
 }
 
@@ -218,7 +217,7 @@ fn trigger_deserialize<'a, E>(
 /// See also [`ServerTriggerAppExt`].
 pub trait ServerTriggerExt {
     /// Like [`Commands::trigger`], but triggers `E` on server and locally
-    /// if [`SERVER`](crate::shared::SERVER) is a recipient of the event).
+    /// if [`SERVER`] is a recipient of the event).
     fn server_trigger(&mut self, event: ToClients<impl Event>);
 
     /// Like [`Self::server_trigger`], but allows you to specify target entities, similar to
