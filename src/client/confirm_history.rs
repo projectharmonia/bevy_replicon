@@ -2,7 +2,7 @@ use core::fmt::{self, Debug, Formatter};
 
 use bevy::prelude::*;
 
-use crate::shared::replicon_tick::RepliconTick;
+use crate::prelude::*;
 
 /// Received ticks from the server for an entity.
 ///

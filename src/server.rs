@@ -22,24 +22,12 @@ use bytes::Buf;
 use log::{debug, trace};
 
 use crate::{
-    prelude::ServerTriggerExt,
+    prelude::*,
     shared::{
-        AuthMethod,
-        backend::{
-            DisconnectRequest,
-            connected_client::ConnectedClient,
-            replicon_channels::{ClientChannel, RepliconChannels},
-            replicon_server::RepliconServer,
-        },
-        common_conditions::*,
-        event::{
-            client_event::FromClient,
-            server_event::{BufferedServerEvents, SendMode, ToClients},
-        },
+        backend::replicon_channels::ClientChannel,
+        event::server_event::BufferedServerEvents,
         postcard_utils,
-        protocol::{ProtocolHash, ProtocolMismatch},
         replication::{
-            Replicated,
             client_ticks::{ClientTicks, EntityBuffer},
             replication_registry::{
                 ReplicationRegistry, component_fns::ComponentFns, ctx::SerializeCtx,
@@ -48,11 +36,9 @@ use crate::{
             replication_rules::{ComponentRule, ReplicationRules},
             track_mutate_messages::TrackMutateMessages,
         },
-        replicon_tick::RepliconTick,
     },
 };
-use client_entity_map::ClientEntityMap;
-use client_visibility::{ClientVisibility, Visibility};
+use client_visibility::Visibility;
 use related_entities::RelatedEntities;
 use removal_buffer::{RemovalBuffer, RemovalReader};
 use replication_messages::{
@@ -794,11 +780,10 @@ pub enum TickPolicy {
 /// Marker that enables replication and all events for a client.
 ///
 /// Until authorization happened, the client and server can still exchange network events that are marked as
-/// independent via [`ServerEventAppExt::make_event_independent`](crate::shared::event::server_event::ServerEventAppExt::make_event_independent)
-/// or [`ServerTriggerAppExt::make_trigger_independent`](crate::shared::event::server_trigger::ServerTriggerAppExt::make_trigger_independent).
+/// independent via [`ServerEventAppExt::make_event_independent`] or [`ServerTriggerAppExt::make_trigger_independent`].
 /// **All other events will be ignored**.
 ///
-/// See also [`ConnectedClient`] and [`RepliconSharedPlugin::auth_method`](crate::shared::RepliconSharedPlugin::auth_method).
+/// See also [`ConnectedClient`] and [`RepliconSharedPlugin::auth_method`].
 #[derive(Component, Default)]
 #[require(ClientTicks, ClientEntityMap, Updates, Mutations)]
 pub struct AuthorizedClient;

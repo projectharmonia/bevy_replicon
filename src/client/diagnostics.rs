@@ -4,10 +4,7 @@ use bevy::{
     prelude::*,
 };
 
-use super::{ClientReplicationStats, ClientSet};
-use crate::shared::{
-    backend::replicon_client::RepliconClient, common_conditions::client_connected,
-};
+use crate::prelude::*;
 
 /// Plugin to write [`Diagnostics`] based on [`ClientReplicationStats`] every second.
 ///

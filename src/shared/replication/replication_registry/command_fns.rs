@@ -9,11 +9,8 @@ use bevy::{
 };
 use bytes::Bytes;
 
-use super::{
-    ctx::{RemoveCtx, WriteCtx},
-    rule_fns::RuleFns,
-};
-use crate::shared::replication::deferred_entity::DeferredEntity;
+use super::ctx::{RemoveCtx, WriteCtx};
+use crate::{prelude::*, shared::replication::deferred_entity::DeferredEntity};
 
 /// Writing and removal functions for a component, like [`Commands`].
 #[derive(Clone, Copy)]

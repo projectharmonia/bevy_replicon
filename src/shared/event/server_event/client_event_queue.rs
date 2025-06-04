@@ -4,7 +4,7 @@ use core::marker::PhantomData;
 use bevy::prelude::*;
 use bytes::Bytes;
 
-use crate::shared::replicon_tick::RepliconTick;
+use crate::prelude::*;
 
 /// Stores all received events from server that arrived earlier then replication message with their tick.
 ///

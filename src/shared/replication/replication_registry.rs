@@ -8,10 +8,11 @@ use bevy::{ecs::component::ComponentId, prelude::*};
 use serde::{Deserialize, Serialize};
 
 use super::command_markers::CommandMarkerIndex;
+use crate::prelude::*;
 use command_fns::{MutWrite, RemoveFn, UntypedCommandFns, WriteFn};
 use component_fns::ComponentFns;
 use ctx::DespawnCtx;
-use rule_fns::{RuleFns, UntypedRuleFns};
+use rule_fns::UntypedRuleFns;
 
 /// Stores configurable replication functions.
 #[derive(Resource)]

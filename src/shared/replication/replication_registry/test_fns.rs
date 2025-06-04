@@ -5,13 +5,15 @@ use super::{
     FnsId, ReplicationRegistry,
     ctx::{DespawnCtx, RemoveCtx, SerializeCtx, WriteCtx},
 };
-use crate::shared::{
-    replication::{
-        command_markers::{CommandMarkers, EntityMarkers},
-        deferred_entity::{DeferredChanges, DeferredEntity},
+use crate::{
+    prelude::*,
+    shared::{
+        replication::{
+            command_markers::{CommandMarkers, EntityMarkers},
+            deferred_entity::{DeferredChanges, DeferredEntity},
+        },
+        server_entity_map::ServerEntityMap,
     },
-    replicon_tick::RepliconTick,
-    server_entity_map::ServerEntityMap,
 };
 
 /**
@@ -76,7 +78,7 @@ pub trait TestFnsEntityExt {
     /// Deserializes a component using a registered function for it and
     /// writes it into an entity using a write function based on markers.
     ///
-    /// See also [`AppMarkerExt`](crate::shared::replication::command_markers::AppMarkerExt).
+    /// See also [`AppMarkerExt`].
     fn apply_write(
         &mut self,
         bytes: impl Into<Bytes>,
@@ -86,7 +88,7 @@ pub trait TestFnsEntityExt {
 
     /// Removes a component using a registered function for it.
     ///
-    /// See also [`AppMarkerExt`](crate::shared::replication::command_markers::AppMarkerExt).
+    /// See also [`AppMarkerExt`].
     fn apply_remove(&mut self, fns_id: FnsId, message_tick: RepliconTick) -> &mut Self;
 
     /// Despawns an entity using [`ReplicationRegistry::despawn`].

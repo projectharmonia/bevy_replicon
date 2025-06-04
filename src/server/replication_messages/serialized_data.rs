@@ -2,12 +2,14 @@ use core::ops::Range;
 
 use bevy::{prelude::*, ptr::Ptr};
 
-use crate::shared::{
-    entity_serde, postcard_utils,
-    replication::replication_registry::{
-        FnsId, component_fns::ComponentFns, ctx::SerializeCtx, rule_fns::UntypedRuleFns,
+use crate::{
+    prelude::*,
+    shared::{
+        entity_serde, postcard_utils,
+        replication::replication_registry::{
+            FnsId, component_fns::ComponentFns, ctx::SerializeCtx, rule_fns::UntypedRuleFns,
+        },
     },
-    replicon_tick::RepliconTick,
 };
 
 /// Single continuous buffer that stores serialized data for messages.

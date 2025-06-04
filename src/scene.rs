@@ -1,7 +1,7 @@
 use bevy::{ecs::entity::hash_map::EntityHashMap, prelude::*, scene::DynamicEntity};
 use log::debug;
 
-use crate::{Replicated, shared::replication::replication_rules::ReplicationRules};
+use crate::{prelude::*, shared::replication::replication_rules::ReplicationRules};
 
 /**
 Fills scene with all replicated entities and their components.

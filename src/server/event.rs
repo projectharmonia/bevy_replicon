@@ -3,21 +3,22 @@ use bevy::{
     prelude::*,
 };
 
-use super::{ServerSet, server_tick::ServerTick};
-use crate::shared::{
-    backend::{connected_client::ConnectedClient, replicon_server::RepliconServer},
-    common_conditions::*,
-    event::{
-        ctx::{ServerReceiveCtx, ServerSendCtx},
-        remote_event_registry::RemoteEventRegistry,
-        server_event::BufferedServerEvents,
+use super::server_tick::ServerTick;
+use crate::{
+    prelude::*,
+    shared::{
+        event::{
+            ctx::{ServerReceiveCtx, ServerSendCtx},
+            remote_event_registry::RemoteEventRegistry,
+            server_event::BufferedServerEvents,
+        },
+        replication::client_ticks::ClientTicks,
     },
-    replication::client_ticks::ClientTicks,
 };
 
 /// Sending events from the server to clients.
 ///
-/// Requires [`ServerPlugin`](super::ServerPlugin).
+/// Requires [`ServerPlugin`].
 /// Can be disabled for apps that act only as clients.
 pub struct ServerEventPlugin;
 

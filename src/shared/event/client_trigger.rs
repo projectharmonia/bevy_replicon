@@ -6,14 +6,15 @@ use log::debug;
 use serde::{Serialize, de::DeserializeOwned};
 
 use super::{
-    client_event::{self, ClientEvent, FromClient},
+    client_event::{self, ClientEvent},
     ctx::{ClientSendCtx, ServerReceiveCtx},
     event_fns::{EventDeserializeFn, EventFns, EventSerializeFn},
     remote_event_registry::RemoteEventRegistry,
     remote_targets::RemoteTargets,
 };
-use crate::shared::{
-    backend::replicon_channels::Channel, entity_serde, postcard_utils, protocol::ProtocolHasher,
+use crate::{
+    prelude::*,
+    shared::{entity_serde, postcard_utils},
 };
 
 /// An extension trait for [`App`] for creating client triggers.
@@ -24,14 +25,11 @@ pub trait ClientTriggerAppExt {
     ///
     /// After triggering `E` event on the client, [`FromClient<E>`] event will be triggered on the server.
     ///
-    /// If [`ServerEventPlugin`](crate::server::event::ServerEventPlugin) is enabled and
-    /// [`RepliconClient`](crate::shared::backend::replicon_client::RepliconClient) is inactive, the event
-    /// will also be triggered locally as [`FromClient<E>`] event with [`FromClient::client_entity`]
-    /// equal to [`SERVER`](crate::shared::SERVER).
+    /// If [`ServerEventPlugin`] is enabled and [`RepliconClient`] is inactive, the event will also be triggered
+    /// locally as [`FromClient<E>`] event with [`FromClient::client_entity`] equal to [`SERVER`].
     ///
-    /// See also [`ClientEventAppExt::add_client_event`](super::client_event::ClientEventAppExt::add_client_event),
-    /// [`Self::add_client_trigger_with`] and the [corresponding section](../index.html#from-client-to-server)
-    /// from the quick start guide.
+    /// See also [`ClientEventAppExt::add_client_event`], [`Self::add_client_trigger_with`] and the
+    /// [corresponding section](../index.html#from-client-to-server) from the quick start guide.
     fn add_client_trigger<E: Event + Serialize + DeserializeOwned>(
         &mut self,
         channel: Channel,
@@ -59,7 +57,7 @@ pub trait ClientTriggerAppExt {
 
     /// Same as [`Self::add_client_trigger`], but uses the specified functions for serialization and deserialization.
     ///
-    /// See also [`ClientEventAppExt::add_client_event_with`](super::client_event::ClientEventAppExt::add_client_event_with).
+    /// See also [`ClientEventAppExt::add_client_event_with`].
     fn add_client_trigger_with<E: Event>(
         &mut self,
         channel: Channel,
@@ -194,12 +192,10 @@ fn trigger_deserialize<'a, E>(
 ///
 /// See also [`ClientTriggerAppExt`].
 pub trait ClientTriggerExt {
-    /// Like [`Commands::trigger`], but triggers [`FromClient`] on server and locally
-    /// if [`RepliconClient`](crate::shared::backend::replicon_client::RepliconClient) is inactive.
+    /// Like [`Commands::trigger`], but triggers [`FromClient`] on server and locally if [`RepliconClient`] is inactive.
     fn client_trigger(&mut self, event: impl Event);
 
-    /// Like [`Self::client_trigger`], but allows you to specify target entities, similar to
-    /// [`Commands::trigger_targets`].
+    /// Like [`Self::client_trigger`], but allows you to specify target entities, similar to [`Commands::trigger_targets`].
     fn client_trigger_targets(&mut self, event: impl Event, targets: impl RemoteTargets);
 }
 

@@ -1,10 +1,6 @@
 use bevy::prelude::*;
 
-use crate::shared::backend::{
-    connected_client::ConnectedClient,
-    replicon_client::{RepliconClient, RepliconClientStatus},
-    replicon_server::RepliconServer,
-};
+use crate::prelude::*;
 
 /**
 Extension for [`App`] to communicate with other instances like it's a server.

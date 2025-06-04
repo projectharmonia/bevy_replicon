@@ -1,21 +1,23 @@
-use super::{ClientSet, ServerUpdateTick};
-use crate::shared::{
-    backend::replicon_client::RepliconClient,
-    common_conditions::*,
-    event::{
-        ctx::{ClientReceiveCtx, ClientSendCtx},
-        remote_event_registry::RemoteEventRegistry,
-    },
-    server_entity_map::ServerEntityMap,
-};
 use bevy::{
     ecs::system::{FilteredResourcesMutParamBuilder, FilteredResourcesParamBuilder, ParamBuilder},
     prelude::*,
 };
 
+use super::ServerUpdateTick;
+use crate::{
+    prelude::*,
+    shared::{
+        event::{
+            ctx::{ClientReceiveCtx, ClientSendCtx},
+            remote_event_registry::RemoteEventRegistry,
+        },
+        server_entity_map::ServerEntityMap,
+    },
+};
+
 /// Sending events from a client to the server.
 ///
-/// Requires [`ClientPlugin`](super::ClientPlugin).
+/// Requires [`ClientPlugin`].
 /// Can be disabled for apps that act only as servers.
 pub struct ClientEventPlugin;
 

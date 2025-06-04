@@ -14,16 +14,7 @@ use super::{
     event_fns::{EventDeserializeFn, EventFns, EventSerializeFn, UntypedEventFns},
     remote_event_registry::RemoteEventRegistry,
 };
-use crate::shared::{
-    SERVER,
-    backend::{
-        replicon_channels::{Channel, RepliconChannels},
-        replicon_client::RepliconClient,
-        replicon_server::RepliconServer,
-    },
-    postcard_utils,
-    protocol::ProtocolHasher,
-};
+use crate::{prelude::*, shared::postcard_utils};
 
 /// An extension trait for [`App`] for creating client events.
 pub trait ClientEventAppExt {
@@ -31,18 +22,16 @@ pub trait ClientEventAppExt {
     ///
     /// After emitting `E` event on the client, [`FromClient<E>`] event will be emitted on the server.
     ///
-    /// If [`ServerEventPlugin`](crate::server::event::ServerEventPlugin) is enabled and
-    /// [`RepliconClient`] is inactive, the event will be drained right after sending and
-    /// re-emitted locally as [`FromClient<E>`] event with [`FromClient::client_entity`]
+    /// If [`ServerEventPlugin`] is enabled and [`RepliconClient`] is inactive, the event will be drained
+    /// right after sending and re-emitted locally as [`FromClient<E>`] event with [`FromClient::client_entity`]
     /// equal to [`SERVER`].
     ///
     /// Calling [`App::add_event`] is not necessary. Can used for regular events that were
     /// previously registered. But be careful, since on listen servers all events `E` are drained,
     /// which could break other Bevy or third-party plugin systems that listen for `E`.
     ///
-    /// See also [`ClientTriggerAppExt::add_client_trigger`](super::client_trigger::ClientTriggerAppExt::add_client_trigger),
-    /// [`Self::add_client_event_with`] and the [corresponding section](../index.html#from-client-to-server)
-    /// from the quick start guide.
+    /// See also [`ClientTriggerAppExt::add_client_trigger`], [`Self::add_client_event_with`] and the
+    /// [corresponding section](../index.html#from-client-to-server) from the quick start guide.
     fn add_client_event<E: Event + Serialize + DeserializeOwned>(
         &mut self,
         channel: Channel,
@@ -84,8 +73,7 @@ pub trait ClientEventAppExt {
     /**
     Same as [`Self::add_client_event`], but uses the specified functions for serialization and deserialization.
 
-    See also [`postcard_utils`] and
-    [`ClientTriggerAppExt::add_client_trigger_with`](super::client_trigger::ClientTriggerAppExt::add_client_trigger_with)
+    See also [`postcard_utils`] and [`ClientTriggerAppExt::add_client_trigger_with`].
 
     # Examples
 
@@ -469,7 +457,7 @@ impl<E: Event> FromWorld for ClientEventReader<E> {
 pub struct FromClient<T> {
     /// Entity that represents a connected client.
     ///
-    /// See also [`ConnectedClient`](crate::shared::ConnectedClient).
+    /// See also [`ConnectedClient`].
     pub client_entity: Entity,
     /// Transmitted event.
     #[deref]

@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bytes::Bytes;
 use log::{debug, trace, warn};
 
-use super::connected_client::NetworkStats;
+use crate::prelude::*;
 
 /// Stores information about a client independent from the messaging backend.
 ///
@@ -10,20 +10,18 @@ use super::connected_client::NetworkStats;
 /// - When the messaging client changes its status, [`Self::set_status`] should be used to
 ///   reflect this change:
 ///   - [`RepliconClientStatus::Connecting`] and [`RepliconClientStatus::Connected`] should
-///     be set in [`ClientSet::ReceivePackets`](crate::client::ClientSet::ReceivePackets) to
-///     allow the client to process received messages immediately.
-///   - [`RepliconClientStatus::Disconnected`] should be set before
-///     [`ClientSet::Send`](crate::client::ClientSet::Send) to allow the client to process
+///     be set in [`ClientSet::ReceivePackets`] to allow the client to process received
+///     messages immediately.
+///   - [`RepliconClientStatus::Disconnected`] should be set before [`ClientSet::Send`]
+///     to allow the client to process
 ///     all received messages before disconnecting.
 /// - For receiving messages, [`Self::insert_received`] should be to used.
-///   A system to forward backend messages to Replicon should run in
-///   [`ClientSet::ReceivePackets`](crate::client::ClientSet::ReceivePackets).
+///   A system to forward backend messages to Replicon should run in [`ClientSet::ReceivePackets`].
 /// - For sending messages, [`Self::drain_sent`] should be used to drain all sent messages.
-///   A system to forward Replicon messages to the backend should run in
-///   [`ClientSet::SendPackets`](crate::client::ClientSet::SendPackets).
+///   A system to forward Replicon messages to the backend should run in [`ClientSet::SendPackets`].
 /// - Optionally update statistic using [`Self::stats_mut`].
 ///
-/// Inserted as resource by [`ClientPlugin`](crate::client::ClientPlugin).
+/// Inserted as resource by [`ClientPlugin`].
 #[derive(Resource, Default)]
 pub struct RepliconClient {
     /// Client connection status.
@@ -235,9 +233,7 @@ mod tests {
     use test_log::test;
 
     use super::*;
-    use crate::shared::backend::replicon_channels::{
-        ClientChannel, RepliconChannels, ServerChannel,
-    };
+    use crate::shared::backend::replicon_channels::{ClientChannel, ServerChannel};
 
     #[test]
     fn cleanup_on_disconnect() {

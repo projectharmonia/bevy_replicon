@@ -12,9 +12,9 @@ use bevy::{
 };
 use log::{debug, trace};
 
-use crate::shared::replication::{
-    Replicated,
-    replication_rules::{ComponentRule, ReplicationRules},
+use crate::{
+    prelude::*,
+    shared::replication::replication_rules::{ComponentRule, ReplicationRules},
 };
 
 /// A [`SystemParam`] that wraps [`World`], but provides access only for replicated components.
@@ -228,10 +228,7 @@ mod tests {
     use test_log::test;
 
     use super::*;
-    use crate::shared::{
-        protocol::ProtocolHasher,
-        replication::{replication_registry::ReplicationRegistry, replication_rules::AppRuleExt},
-    };
+    use crate::shared::replication::replication_registry::ReplicationRegistry;
 
     #[test]
     #[should_panic]

@@ -4,14 +4,16 @@ use bevy::{ecs::component::Tick, prelude::*};
 use postcard::experimental::{max_size::MaxSize, serialized_size};
 
 use super::{change_ranges::ChangeRanges, serialized_data::SerializedData};
-use crate::shared::{
-    backend::{replicon_channels::ServerChannel, replicon_server::RepliconServer},
-    postcard_utils,
-    replication::{
-        client_ticks::{ClientTicks, EntityBuffer},
-        mutate_index::MutateIndex,
+use crate::{
+    prelude::*,
+    shared::{
+        backend::replicon_channels::ServerChannel,
+        postcard_utils,
+        replication::{
+            client_ticks::{ClientTicks, EntityBuffer},
+            mutate_index::MutateIndex,
+        },
     },
-    replicon_tick::RepliconTick,
 };
 
 /// Component mutations for the current tick.
