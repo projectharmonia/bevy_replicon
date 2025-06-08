@@ -100,7 +100,9 @@ impl ProtocolHasher {
     }
 
     pub(crate) fn finish(self) -> ProtocolHash {
-        ProtocolHash(self.0.finish())
+        let hash = self.0.finish();
+        debug!("calculated hash: {hash}");
+        ProtocolHash(hash)
     }
 }
 
