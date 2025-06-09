@@ -398,16 +398,13 @@ fn send_messages(
             ticks.set_update_tick(server_tick);
             let server_tick = write_tick_cached(&mut server_tick_range, serialized, server_tick)?;
 
-            trace!("sending update message to client `{client_entity}`");
             updates.send(server, client_entity, serialized, server_tick)?;
-        } else {
-            trace!("no updates to send for client `{client_entity}`");
         }
 
         if !mutations.is_empty() || track_mutate_messages {
             let server_tick = write_tick_cached(&mut server_tick_range, serialized, server_tick)?;
 
-            let messages_count = mutations.send(
+            mutations.send(
                 server,
                 client_entity,
                 &mut ticks,
@@ -419,9 +416,6 @@ fn send_messages(
                 time.elapsed(),
                 client.max_size,
             )?;
-            trace!("sending {messages_count} mutate message(s) to client `{client_entity}`");
-        } else {
-            trace!("no mutations to send for client `{client_entity}`");
         }
 
         if let Some(mut visibility) = visibility {
@@ -445,7 +439,12 @@ fn collect_mappings(
         Option<&mut ClientVisibility>,
     )>,
 ) -> Result<()> {
-    for (_, mut message, _, _, mut entity_map, ..) in clients {
+    for (client_entity, mut message, _, _, mut entity_map, ..) in clients {
+        if entity_map.is_empty() {
+            continue;
+        }
+
+        trace!("writing mappings for client `{client_entity}`");
         let len = entity_map.len();
         let mappings = serialized.write_mappings(entity_map.0.drain(..))?;
         message.set_mappings(mappings, len);
@@ -470,22 +469,25 @@ fn collect_despawns(
 ) -> Result<()> {
     for entity in despawn_buffer.drain(..) {
         let entity_range = serialized.write_entity(entity)?;
-        for (_, mut message, .., mut ticks, visibility) in &mut *clients {
+        for (client_entity, mut message, .., mut ticks, visibility) in &mut *clients {
             if let Some(mut visibility) = visibility {
                 if visibility.is_visible(entity) {
+                    trace!("writing despawn for `{entity}` for client `{client_entity}`");
                     message.add_despawn(entity_range.clone());
                 }
                 visibility.remove_despawned(entity);
             } else {
+                trace!("writing despawn for `{entity}` for client `{client_entity}`");
                 message.add_despawn(entity_range.clone());
             }
             ticks.remove_entity(entity);
         }
     }
 
-    for (_, mut message, .., mut ticks, visibility) in clients {
+    for (client_entity, mut message, .., mut ticks, visibility) in clients {
         if let Some(mut visibility) = visibility {
             for entity in visibility.drain_lost() {
+                trace!("writing visibility lost for `{entity}` for client `{client_entity}`");
                 let entity_range = serialized.write_entity(entity)?;
                 message.add_despawn(entity_range);
                 ticks.remove_entity(entity);
@@ -514,8 +516,11 @@ fn collect_removals(
         let entity_range = serialized.write_entity(entity)?;
         let ids_len = remove_ids.len();
         let fn_ids = serialized.write_fn_ids(remove_ids.iter().map(|&(_, fns_id)| fns_id))?;
-        for (_, mut message, .., visibility) in &mut *clients {
+        for (client_entity, mut message, .., visibility) in &mut *clients {
             if visibility.is_none_or(|v| v.is_visible(entity)) {
+                trace!(
+                    "writing removals for `{entity}` with `{remove_ids:?}` for client `{client_entity}`"
+                );
                 message.add_removals(entity_range.clone(), ids_len, fn_ids.clone());
             }
         }
@@ -590,7 +595,9 @@ fn collect_changes(
                     type_registry,
                 };
                 let mut component_range = None;
-                for (_, mut updates, mut mutations, .., client_ticks, _) in &mut *clients {
+                for (client_entity, mut updates, mut mutations, .., client_ticks, _) in
+                    &mut *clients
+                {
                     if updates.entity_visibility() == Visibility::Hidden {
                         continue;
                     }
@@ -620,6 +627,12 @@ fn collect_changes(
                                 component_rule,
                                 component,
                             )?;
+
+                            trace!(
+                                "writing mutation for `{}` with `{:?}` for client `{client_entity}`",
+                                entity.id(),
+                                component_rule.fns_id,
+                            );
                             mutations.add_component(component_range);
                         }
                     } else {
@@ -637,12 +650,18 @@ fn collect_changes(
                             component_rule,
                             component,
                         )?;
+
+                        trace!(
+                            "writing insertion for `{}` with `{:?}` for client `{client_entity}`",
+                            entity.id(),
+                            component_rule.fns_id,
+                        );
                         updates.add_inserted_component(component_range);
                     }
                 }
             }
 
-            for (_, mut updates, mut mutations, .., mut ticks, _) in &mut *clients {
+            for (client_entity, mut updates, mut mutations, .., mut ticks, _) in &mut *clients {
                 let visibility = updates.entity_visibility();
                 if visibility == Visibility::Hidden {
                     continue;
@@ -655,11 +674,22 @@ fn collect_changes(
                 {
                     // If there is any insertion, removal, or it's a new entity for a client, include all mutations
                     // into update message and bump the last acknowledged tick to keep entity updates atomic.
-                    updates.take_added_entity(&mut mutations);
+                    if mutations.entity_added() {
+                        trace!(
+                            "merging mutations for `{}` with updates for client `{client_entity}`",
+                            entity.id()
+                        );
+                        updates.take_added_entity(&mut mutations);
+                    }
                     ticks.set_mutation_tick(entity.id(), change_tick.this_run());
                 }
 
                 if new_entity && !updates.changed_entity_added() {
+                    trace!(
+                        "writing empty `{}` for client `{client_entity}`",
+                        entity.id()
+                    );
+
                     // Force-write new entity even if it doesn't have any components.
                     let entity_range =
                         write_entity_cached(&mut entity_range, serialized, entity.id())?;

@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Split `ReplicationChannel` into `ServerChannel` and `ClientChannel` for clarity.
 - Don't register an additional unreliable client channel for replication. While the server requires two channels, the client only needs one.
 - Print error instead of panic on mapping overwrite in `ServerEntityMap`.
+- Making `trace` logging level less verbose and more informative.
 
 ### Removed
 
