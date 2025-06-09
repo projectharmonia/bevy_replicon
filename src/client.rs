@@ -239,7 +239,7 @@ fn apply_update_message(
     debug_assert!(!flags.is_empty(), "message can't be empty");
 
     let message_tick = postcard_utils::from_buf(message)?;
-    trace!("applying update message for {message_tick:?}");
+    trace!("applying update message with `{flags:?}` for {message_tick:?}");
     world.resource_mut::<ServerUpdateTick>().0 = message_tick;
 
     let last_flag = flags.last();
@@ -379,7 +379,7 @@ fn apply_entity_mapping(
     let client_entity = entity_serde::deserialize_entity(message)?;
 
     if let Ok(mut entity) = world.get_entity_mut(client_entity) {
-        debug!("received mapping from {server_entity:?} to {client_entity:?}");
+        debug!("applying mapping from {server_entity:?} to {client_entity:?}");
         entity.insert(Replicated);
         params.entity_map.insert(server_entity, client_entity);
     } else {
@@ -409,6 +409,7 @@ fn apply_despawn(
         .remove()
         .and_then(|entity| world.get_entity_mut(entity).ok())
     {
+        trace!("applying despawn for `{}`", client_entity.id());
         let ctx = DespawnCtx { message_tick };
         (params.registry.despawn)(&ctx, client_entity);
     }
@@ -453,6 +454,11 @@ fn apply_removals(
             message_tick,
             component_id,
         };
+        trace!(
+            "applying removal for `{}` with `{fns_id:?}`",
+            client_entity.id()
+        );
+
         component_fns.remove(&mut ctx, params.entity_markers, &mut client_entity);
 
         Ok(())
@@ -511,6 +517,10 @@ fn apply_changes(
             entities,
             ignore_mapping: false,
         };
+        trace!(
+            "applying change for `{}` with `{fns_id:?}`",
+            client_entity.id(),
+        );
 
         // SAFETY: `rule_fns` and `component_fns` were created for the same type.
         unsafe {
@@ -662,6 +672,10 @@ fn apply_mutations(
             entities,
             ignore_mapping: false,
         };
+        trace!(
+            "applying mutation for `{}` with `{fns_id:?}`",
+            client_entity.id(),
+        );
 
         // SAFETY: `rule_fns` and `component_fns` were created for the same type.
         unsafe {

@@ -4,7 +4,10 @@ pub mod ctx;
 pub mod rule_fns;
 pub mod test_fns;
 
+use core::any;
+
 use bevy::{ecs::component::ComponentId, prelude::*};
+use log::trace;
 use serde::{Deserialize, Serialize};
 
 use super::command_markers::CommandMarkerIndex;
@@ -109,8 +112,10 @@ impl ReplicationRegistry {
     ) -> (ComponentId, FnsId) {
         let (index, component_id) = self.init_component_fns::<C>(world);
         self.rules.push((rule_fns.into(), index));
+        let fns_id = FnsId(self.rules.len() - 1);
 
-        (component_id, FnsId(self.rules.len() - 1))
+        trace!("registering `{fns_id:?}` for `{}`", any::type_name::<C>());
+        (component_id, fns_id)
     }
 
     /// Initializes [`ComponentFns`] for a component and returns its index and ID.

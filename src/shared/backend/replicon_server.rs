@@ -66,14 +66,16 @@ impl RepliconServer {
             .get_mut(channel_id)
             .unwrap_or_else(|| panic!("server should have a receive channel with id {channel_id}"));
 
-        trace!(
-            "received {} message(s) totaling {} bytes from channel {channel_id}",
-            channel_messages.len(),
-            channel_messages
-                .iter()
-                .map(|(_, bytes)| bytes.len())
-                .sum::<usize>()
-        );
+        if !channel_messages.is_empty() {
+            trace!(
+                "received {} message(s) totaling {} bytes from channel {channel_id}",
+                channel_messages.len(),
+                channel_messages
+                    .iter()
+                    .map(|(_, bytes)| bytes.len())
+                    .sum::<usize>()
+            );
+        }
 
         channel_messages.drain(..)
     }
