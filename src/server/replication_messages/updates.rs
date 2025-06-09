@@ -148,6 +148,7 @@ impl Updates {
 
     /// Takes last mutated entity with its component chunks from the mutate message.
     pub(crate) fn take_added_entity(&mut self, mutations: &mut Mutations) {
+        debug_assert!(mutations.entity_added());
         let last_changes = mutations.last().expect("entity should be written");
 
         if !self.changed_entity_added {
