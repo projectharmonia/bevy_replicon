@@ -70,12 +70,6 @@ impl SerializedData {
         Ok(start..end)
     }
 
-    /// Serializes `entity` by writing its index and generation as separate varints.
-    ///
-    /// The index is first prepended with a bit flag to indicate if the generation
-    /// is serialized or not. It is not serialized if <= 1; note that generations are [`NonZeroU32`](std::num::NonZeroU32)
-    /// and a value of zero is used in [`Option<Entity>`] to signify [`None`], so generation 1 is the first
-    /// generation.
     pub(crate) fn write_entity(&mut self, entity: Entity) -> Result<Range<usize>> {
         let start = self.len();
 
