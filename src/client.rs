@@ -596,9 +596,7 @@ fn confirm_tick(
     });
 }
 
-/// Deserializes and applies component mutations for all entities.
-///
-/// Consumes all remaining bytes in the given message.
+/// Deserializes and applies component mutations for an entity.
 fn apply_mutations(
     world: &mut World,
     params: &mut ReceiveParams,
