@@ -319,7 +319,7 @@ fn client_start(
     commands.set_state(GameState::InGame);
 }
 
-/// Estabializes mappings between spawned client and server entities and starts the game.
+/// Establishes mappings between spawned client and server entities and starts the game.
 ///
 /// Used only for server.
 fn init_client(
