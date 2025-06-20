@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `ClientSet::PrepareSend` and `ServerSet::PrepareSend` system sets. Backends should use these sets to add `PostUpdate` logic that needs to run before sending data on clients and servers.
+
 ## [0.34.0] - 2025-06-15
 
 ### Added

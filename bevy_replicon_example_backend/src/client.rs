@@ -30,7 +30,7 @@ impl Plugin for RepliconExampleClientPlugin {
             PostUpdate,
             (
                 set_disconnected
-                    .before(ClientSet::Send)
+                    .in_set(ClientSet::PrepareSend)
                     .run_if(resource_removed::<ExampleClient>),
                 send_packets
                     .in_set(ClientSet::SendPackets)

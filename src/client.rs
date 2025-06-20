@@ -59,7 +59,12 @@ impl Plugin for ClientPlugin {
             )
             .configure_sets(
                 PostUpdate,
-                (ClientSet::Send, ClientSet::SendPackets).chain(),
+                (
+                    ClientSet::PrepareSend,
+                    ClientSet::Send,
+                    ClientSet::SendPackets,
+                )
+                    .chain(),
             )
             .add_systems(
                 PreUpdate,
@@ -745,6 +750,10 @@ pub enum ClientSet {
     ///
     /// Runs in [`PreUpdate`].
     Diagnostics,
+    /// Systems that prepare for sending data to [`RepliconClient`].
+    ///
+    /// Can be used by backends to add custom logic before sending data.
+    PrepareSend,
     /// Systems that send data to [`RepliconClient`].
     ///
     /// Used by `bevy_replicon`.

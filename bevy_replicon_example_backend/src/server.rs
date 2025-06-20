@@ -30,7 +30,7 @@ impl Plugin for RepliconExampleServerPlugin {
             PostUpdate,
             (
                 set_stopped
-                    .before(ServerSet::Send)
+                    .in_set(ServerSet::PrepareSend)
                     .run_if(resource_removed::<ExampleServer>),
                 send_packets
                     .in_set(ServerSet::SendPackets)
