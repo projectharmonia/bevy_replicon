@@ -251,7 +251,7 @@ fn receive_acks(
             match postcard_utils::from_buf(&mut message) {
                 Ok(mutate_index) => {
                     let mut ticks = clients.get_mut(client_entity).unwrap_or_else(|_| {
-                        panic!("messages from client `{client_entity}` should have been removed on disconnect previously")
+                        panic!("messages from client `{client_entity}` should have been removed on disconnect")
                     });
                     ticks.ack_mutate_message(
                         client_entity,
