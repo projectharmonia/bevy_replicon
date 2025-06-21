@@ -359,7 +359,10 @@ fn apply_mutate_messages(
                     stats.entities_changed += len;
                 }
             }
-            Err(e) => error!("unable to apply mutate message: {e}"),
+            Err(e) => error!(
+                "unable to apply mutate message for tick `{:?}`: {e}",
+                mutate.message_tick
+            ),
         }
 
         if let Some(mutate_ticks) = &mut params.mutate_ticks {
