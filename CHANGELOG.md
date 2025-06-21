@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Log replication errors instead of panicking. We use panics only for things that should never happen, but users could sometimes trigger them by messing with entities, so we now log these errors to simplify debugging in those cases.
+
 ## [0.34.0] - 2025-06-15
 
 ### Added

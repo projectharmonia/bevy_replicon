@@ -114,7 +114,7 @@ pub(super) fn receive_replication(
     world: &mut World,
     mut changes: Local<DeferredChanges>,
     mut entity_markers: Local<EntityMarkers>,
-) -> Result<()> {
+) {
     world.resource_scope(|world, mut client: Mut<RepliconClient>| {
         world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
             world.resource_scope(|world, mut buffered_mutations: Mut<BufferedMutations>| {
@@ -144,7 +144,7 @@ pub(super) fn receive_replication(
                                         &mut params,
                                         &mut client,
                                         &mut buffered_mutations,
-                                    )?;
+                                    );
 
                                     if let Some(stats) = stats {
                                         world.insert_resource(stats);
@@ -152,8 +152,6 @@ pub(super) fn receive_replication(
                                     if let Some(mutate_ticks) = mutate_ticks {
                                         world.insert_resource(mutate_ticks);
                                     }
-
-                                    Ok(())
                                 },
                             )
                         })
@@ -197,9 +195,11 @@ fn apply_replication(
     params: &mut ReceiveParams,
     client: &mut RepliconClient,
     buffered_mutations: &mut BufferedMutations,
-) -> Result<()> {
+) {
     for mut message in client.receive(ServerChannel::Updates) {
-        apply_update_message(world, params, &mut message)?;
+        if let Err(e) = apply_update_message(world, params, &mut message) {
+            error!("unable to apply update message: {e}");
+        }
     }
 
     // Unlike update messages, we read all mutate messages first, sort them by tick
@@ -213,13 +213,14 @@ fn apply_replication(
     if acks_size != 0 {
         let mut acks = Vec::with_capacity(acks_size);
         for message in client.receive(ServerChannel::Mutations) {
-            let mutate_index = buffer_mutate_message(params, buffered_mutations, message)?;
-            postcard_utils::to_extend_mut(&mutate_index, &mut acks)?;
+            if let Err(e) = buffer_mutate_message(params, buffered_mutations, message, &mut acks) {
+                error!("unable to buffer mutate message: {e}");
+            }
         }
         client.send(ClientChannel::MutationAcks, acks);
     }
 
-    apply_mutate_messages(world, params, buffered_mutations, update_tick)
+    apply_mutate_messages(world, params, buffered_mutations, update_tick);
 }
 
 /// Reads and applies an update message.
@@ -254,7 +255,8 @@ fn apply_update_message(
             UpdateMessageFlags::MAPPINGS => {
                 let len = apply_array(array_kind, message, |message| {
                     apply_entity_mapping(world, params, message)
-                })?;
+                })
+                .map_err(|e| format!("unable to apply mappings: {e}"))?;
                 if let Some(stats) = &mut params.stats {
                     stats.mappings += len;
                 }
@@ -262,7 +264,8 @@ fn apply_update_message(
             UpdateMessageFlags::DESPAWNS => {
                 let len = apply_array(array_kind, message, |message| {
                     apply_despawn(world, params, message, message_tick)
-                })?;
+                })
+                .map_err(|e| format!("unable to apply despawns: {e}"))?;
                 if let Some(stats) = &mut params.stats {
                     stats.despawns += len;
                 }
@@ -270,7 +273,8 @@ fn apply_update_message(
             UpdateMessageFlags::REMOVALS => {
                 let len = apply_array(array_kind, message, |message| {
                     apply_removals(world, params, message, message_tick)
-                })?;
+                })
+                .map_err(|e| format!("unable to apply removals: {e}"))?;
                 if let Some(stats) = &mut params.stats {
                     stats.entities_changed += len;
                 }
@@ -279,7 +283,8 @@ fn apply_update_message(
                 debug_assert_eq!(array_kind, ArrayKind::Dynamic);
                 let len = apply_array(array_kind, message, |message| {
                     apply_changes(world, params, message, message_tick)
-                })?;
+                })
+                .map_err(|e| format!("unable to apply changes: {e}"))?;
                 if let Some(stats) = &mut params.stats {
                     stats.entities_changed += len;
                 }
@@ -300,7 +305,8 @@ fn buffer_mutate_message(
     params: &mut ReceiveParams,
     buffered_mutations: &mut BufferedMutations,
     mut message: Bytes,
-) -> Result<MutateIndex> {
+    acks: &mut Vec<u8>,
+) -> Result<()> {
     if let Some(stats) = &mut params.stats {
         stats.messages += 1;
         stats.bytes += message.len();
@@ -313,7 +319,7 @@ fn buffer_mutate_message(
     } else {
         1
     };
-    let mutate_index = postcard_utils::from_buf(&mut message)?;
+    let mutate_index: MutateIndex = postcard_utils::from_buf(&mut message)?;
     trace!("received mutate message for {message_tick:?}");
     buffered_mutations.insert(BufferedMutate {
         update_tick,
@@ -322,7 +328,9 @@ fn buffer_mutate_message(
         message,
     });
 
-    Ok(mutate_index)
+    postcard_utils::to_extend_mut(&mutate_index, acks)?;
+
+    Ok(())
 }
 
 /// Applies mutations from [`BufferedMutations`].
@@ -334,8 +342,7 @@ fn apply_mutate_messages(
     params: &mut ReceiveParams,
     buffered_mutations: &mut BufferedMutations,
     update_tick: ServerUpdateTick,
-) -> Result<()> {
-    let mut result = Ok(());
+) {
     buffered_mutations.0.retain_mut(|mutate| {
         if mutate.update_tick > *update_tick {
             return true;
@@ -352,7 +359,7 @@ fn apply_mutate_messages(
                     stats.entities_changed += len;
                 }
             }
-            Err(e) => result = Err(e),
+            Err(e) => error!("unable to apply mutate message: {e}"),
         }
 
         if let Some(mutate_ticks) = &mut params.mutate_ticks {
@@ -365,8 +372,6 @@ fn apply_mutate_messages(
 
         false
     });
-
-    result
 }
 
 /// Deserializes and applies server mapping from client's pre-spawned entities.
@@ -428,7 +433,7 @@ fn apply_removals(
 
     let mut client_entity = match params.entity_map.server_entry(server_entity) {
         EntityEntry::Occupied(entry) => {
-            DeferredEntity::new(world.entity_mut(entry.get()), params.changes)
+            DeferredEntity::new(world.get_entity_mut(entry.get())?, params.changes)
         }
         EntityEntry::Vacant(entry) => {
             // It's possible to receive a removal when an entity is spawned and has a component removed in the same tick.
@@ -490,7 +495,7 @@ fn apply_changes(
 
     let mut client_entity = match params.entity_map.server_entry(server_entity) {
         EntityEntry::Occupied(entry) => {
-            DeferredEntity::new(world.entity_mut(entry.get()), params.changes)
+            DeferredEntity::new(world.get_entity_mut(entry.get())?, params.changes)
         }
         EntityEntry::Vacant(entry) => {
             let mut client_entity = DeferredEntity::new(world.spawn_empty(), params.changes);
@@ -619,14 +624,20 @@ fn apply_mutations(
     // The latter won't apply any structural changes until `flush`, and `Entities` won't be used afterward.
     let world = unsafe { world_cell.world_mut() };
 
-    let mut client_entity = DeferredEntity::new(world.entity_mut(client_entity), params.changes);
+    let mut client_entity =
+        DeferredEntity::new(world.get_entity_mut(client_entity)?, params.changes);
     params
         .entity_markers
         .read(params.command_markers, &*client_entity);
 
-    let mut history = client_entity
-        .get_mut::<ConfirmHistory>()
-        .expect("all entities from mutate message should have confirmed ticks");
+    let Some(mut history) = client_entity.get_mut::<ConfirmHistory>() else {
+        return Err(format!(
+            "entity `{}` missing history component inserted on the first update message",
+            client_entity.id()
+        )
+        .into());
+    };
+
     let new_tick = message_tick > history.last_tick();
     if new_tick {
         history.set_last_tick(message_tick);
