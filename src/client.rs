@@ -632,10 +632,7 @@ fn apply_mutations(
         history.set_last_tick(message_tick);
     } else {
         if !params.entity_markers.need_history() {
-            trace!(
-                "ignoring outdated mutations for client's {:?}",
-                client_entity.id()
-            );
+            trace!("ignoring outdated mutations for `{}`", client_entity.id());
             message.advance(data_size);
             return Ok(());
         }
@@ -643,7 +640,7 @@ fn apply_mutations(
         let ago = history.last_tick().get().wrapping_sub(message_tick.get());
         if ago >= u64::BITS {
             trace!(
-                "discarding {ago} ticks old mutations for client's {:?}",
+                "discarding {ago} ticks old mutations for `{}`",
                 client_entity.id()
             );
             message.advance(data_size);
