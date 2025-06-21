@@ -782,7 +782,7 @@ pub enum ServerSet {
     Receive,
     /// Systems that prepare for sending data to [`RepliconServer`].
     ///
-    /// Can be used by backends to add custom logic before sending data.
+    /// Can be used by backends to add custom logic before sending data, such as transition to a stopped state.
     PrepareSend,
     /// Systems that send data to [`RepliconServer`].
     ///

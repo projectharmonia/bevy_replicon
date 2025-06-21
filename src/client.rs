@@ -752,7 +752,7 @@ pub enum ClientSet {
     Diagnostics,
     /// Systems that prepare for sending data to [`RepliconClient`].
     ///
-    /// Can be used by backends to add custom logic before sending data.
+    /// Can be used by backends to add custom logic before sending data, such as transition to a disconnected or connecting state.
     PrepareSend,
     /// Systems that send data to [`RepliconClient`].
     ///
