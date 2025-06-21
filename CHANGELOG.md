@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.34.1] - 2025-06-21
+
 ### Changed
 
 - Log replication errors instead of panicking. We use panics only for things that should never happen, but users could sometimes trigger them by messing with entities, so we now log these errors to simplify debugging in those cases.
@@ -840,7 +842,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release after separation from [Project Harmonia](https://github.com/projectharmonia/project_harmonia).
 
-[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.34.0...HEAD
+[unreleased]: https://github.com/projectharmonia/bevy_replicon/compare/v0.34.1...HEAD
+[0.34.1]: https://github.com/projectharmonia/bevy_replicon/compare/v0.34.0...v0.34.1
 [0.34.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.33.0...v0.34.0
 [0.33.0]: https://github.com/projectharmonia/bevy_replicon/compare/v0.32.2...v0.33.0
 [0.32.2]: https://github.com/projectharmonia/bevy_replicon/compare/v0.32.1...v0.32.2
