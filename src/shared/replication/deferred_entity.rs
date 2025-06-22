@@ -57,8 +57,12 @@ impl<'w> DeferredEntity<'w> {
         unsafe { self.entity.world_mut().register_component::<C>() }
     }
 
-    /// Applies all buffered changes.
+    /// Flushes the world and applies all buffered changes.
+    ///
+    /// Flushing is needed to spawn all allocated entities from mappings.
     pub(crate) fn flush(&mut self) {
+        // SAFETY: entity location is unchanged because all changes applied after.
+        unsafe { self.entity.world_mut().flush() };
         self.changes.apply(&mut self.entity);
     }
 }
