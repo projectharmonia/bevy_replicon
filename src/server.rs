@@ -90,7 +90,12 @@ impl Plugin for ServerPlugin {
             )
             .configure_sets(
                 PostUpdate,
-                (ServerSet::Send, ServerSet::SendPackets).chain(),
+                (
+                    ServerSet::PrepareSend,
+                    ServerSet::Send,
+                    ServerSet::SendPackets,
+                )
+                    .chain(),
             )
             .add_observer(handle_connects)
             .add_observer(handle_disconnects)
@@ -775,6 +780,10 @@ pub enum ServerSet {
     ///
     /// Runs in [`PreUpdate`].
     Receive,
+    /// Systems that prepare for sending data to [`RepliconServer`].
+    ///
+    /// Can be used by backends to add custom logic before sending data, such as transition to a stopped state.
+    PrepareSend,
     /// Systems that send data to [`RepliconServer`].
     ///
     /// Used by `bevy_replicon`.
