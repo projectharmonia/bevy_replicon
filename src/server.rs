@@ -15,7 +15,6 @@ use bevy::{
     },
     prelude::*,
     ptr::Ptr,
-    reflect::TypeRegistry,
     time::common_conditions::on_timer,
 };
 use bytes::Buf;
@@ -340,7 +339,7 @@ fn send_replication(
         &mut serialized,
         &mut clients,
         &registry,
-        &type_registry.read(),
+        &type_registry,
         &related_entities,
         &removal_buffer,
         &world,
@@ -547,7 +546,7 @@ fn collect_changes(
         Option<&mut ClientVisibility>,
     )>,
     registry: &ReplicationRegistry,
-    type_registry: &TypeRegistry,
+    type_registry: &AppTypeRegistry,
     related_entities: &RelatedEntities,
     removal_buffer: &RemovalBuffer,
     world: &ServerWorld,

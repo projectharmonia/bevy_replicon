@@ -1,4 +1,4 @@
-use bevy::{prelude::*, reflect::TypeRegistry};
+use bevy::prelude::*;
 
 use crate::shared::server_entity_map::ServerEntityMap;
 
@@ -6,7 +6,7 @@ use crate::shared::server_entity_map::ServerEntityMap;
 #[non_exhaustive]
 pub struct ClientSendCtx<'a> {
     /// Registry of reflected types.
-    pub type_registry: &'a TypeRegistry,
+    pub type_registry: &'a AppTypeRegistry,
 
     /// Maps server entities to client entities and vice versa.
     pub entity_map: &'a ServerEntityMap,
@@ -36,21 +36,21 @@ impl EntityMapper for ClientSendCtx<'_> {
 #[non_exhaustive]
 pub struct ServerReceiveCtx<'a> {
     /// Registry of reflected types.
-    pub type_registry: &'a TypeRegistry,
+    pub type_registry: &'a AppTypeRegistry,
 }
 
 /// Event sending context for server.
 #[non_exhaustive]
 pub struct ServerSendCtx<'a> {
     /// Registry of reflected types.
-    pub type_registry: &'a TypeRegistry,
+    pub type_registry: &'a AppTypeRegistry,
 }
 
 /// Event receiving context for client.
 #[non_exhaustive]
 pub struct ClientReceiveCtx<'a> {
     /// Registry of reflected types.
-    pub type_registry: &'a TypeRegistry,
+    pub type_registry: &'a AppTypeRegistry,
 
     /// Maps server entities to client entities and vice versa.
     pub entity_map: &'a ServerEntityMap,

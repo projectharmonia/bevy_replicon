@@ -1,7 +1,6 @@
 use bevy::{
     ecs::{component::ComponentId, entity::Entities},
     prelude::*,
-    reflect::TypeRegistry,
 };
 
 use crate::{prelude::*, shared::server_entity_map::ServerEntityMap};
@@ -16,7 +15,7 @@ pub struct SerializeCtx<'a> {
     pub server_tick: RepliconTick,
 
     /// Registry of reflected types.
-    pub type_registry: &'a TypeRegistry,
+    pub type_registry: &'a AppTypeRegistry,
 }
 
 /// Replication context for writing and deserialization.
@@ -26,7 +25,7 @@ pub struct WriteCtx<'a> {
     pub entity_map: &'a mut ServerEntityMap,
 
     /// Registry of reflected types.
-    pub type_registry: &'a TypeRegistry,
+    pub type_registry: &'a AppTypeRegistry,
 
     /// ID of the writing component.
     pub component_id: ComponentId,

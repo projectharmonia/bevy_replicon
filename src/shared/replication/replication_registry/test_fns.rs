@@ -104,7 +104,7 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
         let ctx = SerializeCtx {
             server_tick,
             component_id,
-            type_registry: &type_registry.read(),
+            type_registry,
         };
         let ptr = self.get_by_id(component_id).unwrap_or_else(|_| {
             let components = self.world().components();
@@ -137,41 +137,39 @@ impl TestFnsEntityExt for EntityWorldMut<'_> {
         self.world_scope(|world| {
             world.resource_scope(|world, mut entity_map: Mut<ServerEntityMap>| {
                 world.resource_scope(|world, registry: Mut<ReplicationRegistry>| {
-                    world.resource_scope(|world, type_registry: Mut<AppTypeRegistry>| {
-                        let world_cell = world.as_unsafe_world_cell();
-                        let entities = world_cell.entities();
-                        // SAFETY: split into `Entities` and `DeferredEntity`.
-                        // The latter won't apply any structural changes until `flush`, and `Entities` won't be used afterward.
-                        let world = unsafe { world_cell.world_mut() };
+                    let type_registry = world.resource::<AppTypeRegistry>().clone();
+                    let world_cell = world.as_unsafe_world_cell();
+                    let entities = world_cell.entities();
+                    // SAFETY: split into `Entities` and `DeferredEntity`.
+                    // The latter won't apply any structural changes until `flush`, and `Entities` won't be used afterward.
+                    let world = unsafe { world_cell.world_mut() };
 
-                        let mut changes = DeferredChanges::default();
-                        let mut entity =
-                            DeferredEntity::new(world.entity_mut(entity), &mut changes);
+                    let mut changes = DeferredChanges::default();
+                    let mut entity = DeferredEntity::new(world.entity_mut(entity), &mut changes);
 
-                        let (component_id, component_fns, rule_fns) = registry.get(fns_id);
-                        let mut ctx = WriteCtx {
-                            entities,
-                            entity_map: &mut entity_map,
-                            type_registry: &type_registry.read(),
-                            component_id,
-                            message_tick,
-                            ignore_mapping: false,
-                        };
+                    let (component_id, component_fns, rule_fns) = registry.get(fns_id);
+                    let mut ctx = WriteCtx {
+                        entities,
+                        entity_map: &mut entity_map,
+                        type_registry: &type_registry,
+                        component_id,
+                        message_tick,
+                        ignore_mapping: false,
+                    };
 
-                        unsafe {
-                            component_fns
-                                .write(
-                                    &mut ctx,
-                                    rule_fns,
-                                    &entity_markers,
-                                    &mut entity,
-                                    &mut data.into(),
-                                )
-                                .expect("writing data into an entity shouldn't fail");
-                        }
+                    unsafe {
+                        component_fns
+                            .write(
+                                &mut ctx,
+                                rule_fns,
+                                &entity_markers,
+                                &mut entity,
+                                &mut data.into(),
+                            )
+                            .expect("writing data into an entity shouldn't fail");
+                    }
 
-                        entity.flush();
-                    })
+                    entity.flush();
                 })
             })
         });
