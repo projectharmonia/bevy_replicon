@@ -135,7 +135,7 @@ jobs:
       - name: Cache crates
         uses: Swatinem/rust-cache@v2
 
-      - name: Check compilation
+      - name: Test
         run: cargo test --target wasm32-wasip1
         env:
           CARGO_TARGET_WASM32_WASIP1_RUNNER: wasmtime
