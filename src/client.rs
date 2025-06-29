@@ -4,7 +4,7 @@ pub mod diagnostics;
 pub mod event;
 pub mod server_mutate_ticks;
 
-use bevy::{prelude::*, reflect::TypeRegistry};
+use bevy::prelude::*;
 use bytes::{Buf, Bytes};
 use log::{debug, error, trace};
 use postcard::experimental::max_size::MaxSize;
@@ -59,7 +59,12 @@ impl Plugin for ClientPlugin {
             )
             .configure_sets(
                 PostUpdate,
-                (ClientSet::Send, ClientSet::SendPackets).chain(),
+                (
+                    ClientSet::PrepareSend,
+                    ClientSet::Send,
+                    ClientSet::SendPackets,
+                )
+                    .chain(),
             )
             .add_systems(
                 PreUpdate,
@@ -120,41 +125,38 @@ pub(super) fn receive_replication(
             world.resource_scope(|world, mut buffered_mutations: Mut<BufferedMutations>| {
                 world.resource_scope(|world, command_markers: Mut<CommandMarkers>| {
                     world.resource_scope(|world, registry: Mut<ReplicationRegistry>| {
-                        world.resource_scope(|world, type_registry: Mut<AppTypeRegistry>| {
-                            world.resource_scope(
-                                |world, mut replicated_events: Mut<Events<EntityReplicated>>| {
-                                    let mut stats =
-                                        world.remove_resource::<ClientReplicationStats>();
-                                    let mut mutate_ticks =
-                                        world.remove_resource::<ServerMutateTicks>();
-                                    let mut params = ReceiveParams {
-                                        changes: &mut changes,
-                                        entity_markers: &mut entity_markers,
-                                        entity_map: &mut entity_map,
-                                        replicated_events: &mut replicated_events,
-                                        mutate_ticks: mutate_ticks.as_mut(),
-                                        stats: stats.as_mut(),
-                                        command_markers: &command_markers,
-                                        registry: &registry,
-                                        type_registry: &type_registry.read(),
-                                    };
+                        world.resource_scope(
+                            |world, mut replicated_events: Mut<Events<EntityReplicated>>| {
+                                let type_registry = world.resource::<AppTypeRegistry>().clone();
+                                let mut stats = world.remove_resource::<ClientReplicationStats>();
+                                let mut mutate_ticks = world.remove_resource::<ServerMutateTicks>();
+                                let mut params = ReceiveParams {
+                                    changes: &mut changes,
+                                    entity_markers: &mut entity_markers,
+                                    entity_map: &mut entity_map,
+                                    replicated_events: &mut replicated_events,
+                                    mutate_ticks: mutate_ticks.as_mut(),
+                                    stats: stats.as_mut(),
+                                    command_markers: &command_markers,
+                                    registry: &registry,
+                                    type_registry: &type_registry,
+                                };
 
-                                    apply_replication(
-                                        world,
-                                        &mut params,
-                                        &mut client,
-                                        &mut buffered_mutations,
-                                    );
+                                apply_replication(
+                                    world,
+                                    &mut params,
+                                    &mut client,
+                                    &mut buffered_mutations,
+                                );
 
-                                    if let Some(stats) = stats {
-                                        world.insert_resource(stats);
-                                    }
-                                    if let Some(mutate_ticks) = mutate_ticks {
-                                        world.insert_resource(mutate_ticks);
-                                    }
-                                },
-                            )
-                        })
+                                if let Some(stats) = stats {
+                                    world.insert_resource(stats);
+                                }
+                                if let Some(mutate_ticks) = mutate_ticks {
+                                    world.insert_resource(mutate_ticks);
+                                }
+                            },
+                        )
                     })
                 })
             })
@@ -736,7 +738,7 @@ struct ReceiveParams<'a> {
     stats: Option<&'a mut ClientReplicationStats>,
     command_markers: &'a CommandMarkers,
     registry: &'a ReplicationRegistry,
-    type_registry: &'a TypeRegistry,
+    type_registry: &'a AppTypeRegistry,
 }
 
 /// Set with replication and event systems related to client.
@@ -760,6 +762,10 @@ pub enum ClientSet {
     ///
     /// Runs in [`PreUpdate`].
     Diagnostics,
+    /// Systems that prepare for sending data to [`RepliconClient`].
+    ///
+    /// Can be used by backends to add custom logic before sending data, such as transition to a disconnected or connecting state.
+    PrepareSend,
     /// Systems that send data to [`RepliconClient`].
     ///
     /// Used by `bevy_replicon`.

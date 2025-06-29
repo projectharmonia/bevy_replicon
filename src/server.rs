@@ -15,7 +15,6 @@ use bevy::{
     },
     prelude::*,
     ptr::Ptr,
-    reflect::TypeRegistry,
     time::common_conditions::on_timer,
 };
 use bytes::Buf;
@@ -90,7 +89,12 @@ impl Plugin for ServerPlugin {
             )
             .configure_sets(
                 PostUpdate,
-                (ServerSet::Send, ServerSet::SendPackets).chain(),
+                (
+                    ServerSet::PrepareSend,
+                    ServerSet::Send,
+                    ServerSet::SendPackets,
+                )
+                    .chain(),
             )
             .add_observer(handle_connects)
             .add_observer(handle_disconnects)
@@ -335,7 +339,7 @@ fn send_replication(
         &mut serialized,
         &mut clients,
         &registry,
-        &type_registry.read(),
+        &type_registry,
         &related_entities,
         &removal_buffer,
         &world,
@@ -542,7 +546,7 @@ fn collect_changes(
         Option<&mut ClientVisibility>,
     )>,
     registry: &ReplicationRegistry,
-    type_registry: &TypeRegistry,
+    type_registry: &AppTypeRegistry,
     related_entities: &RelatedEntities,
     removal_buffer: &RemovalBuffer,
     world: &ServerWorld,
@@ -775,6 +779,10 @@ pub enum ServerSet {
     ///
     /// Runs in [`PreUpdate`].
     Receive,
+    /// Systems that prepare for sending data to [`RepliconServer`].
+    ///
+    /// Can be used by backends to add custom logic before sending data, such as transition to a stopped state.
+    PrepareSend,
     /// Systems that send data to [`RepliconServer`].
     ///
     /// Used by `bevy_replicon`.

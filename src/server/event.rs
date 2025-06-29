@@ -125,7 +125,7 @@ fn send_or_buffer(
 ) {
     buffered_events.start_tick();
     let mut ctx = ServerSendCtx {
-        type_registry: &type_registry.read(),
+        type_registry: &type_registry,
     };
 
     for event in event_registry.iter_all_server() {
@@ -163,7 +163,7 @@ fn receive(
     event_registry: Res<RemoteEventRegistry>,
 ) {
     let mut ctx = ServerReceiveCtx {
-        type_registry: &type_registry.read(),
+        type_registry: &type_registry,
     };
 
     for event in event_registry.iter_all_client() {

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `ClientSet::PrepareSend` and `ServerSet::PrepareSend` system sets. Backends should use these sets to add `PostUpdate` logic that needs to run before sending data on clients and servers.
+
+### Changed
+
+- All contexts now store `AppTypeRegistry` instead of `TypeRegistry`. To get `TypeRegistry`, call `AppTypeRegistry::read`.
+- `AppTypeRegistry` now available on replication for observers.
+
 ## [0.34.1] - 2025-06-21
 
 ### Changed

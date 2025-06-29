@@ -152,7 +152,7 @@ fn send(
 ) {
     let mut ctx = ClientSendCtx {
         entity_map: &entity_map,
-        type_registry: &type_registry.read(),
+        type_registry: &type_registry,
         invalid_entities: Vec::new(),
     };
 
@@ -181,7 +181,7 @@ fn receive(
     update_tick: Res<ServerUpdateTick>,
 ) {
     let mut ctx = ClientReceiveCtx {
-        type_registry: &type_registry.read(),
+        type_registry: &type_registry,
         entity_map: &entity_map,
         invalid_entities: Vec::new(),
     };
