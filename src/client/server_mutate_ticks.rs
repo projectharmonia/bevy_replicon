@@ -169,7 +169,7 @@ impl TickMessages {
 
         debug_assert!(
             self.received <= self.messages_count,
-            "received messages ({}) should not exceed messages count ({})",
+            "expected at most {} messages, but confirmed {}",
             self.received,
             self.messages_count,
         );
