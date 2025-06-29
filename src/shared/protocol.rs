@@ -1,14 +1,12 @@
 use core::{
     any,
     fmt::Debug,
-    hash::{BuildHasher, Hash, Hasher},
+    hash::{Hash, Hasher},
 };
 
-use bevy::{
-    platform::hash::{DefaultHasher, FixedHasher},
-    prelude::*,
-};
+use bevy::prelude::*;
 use log::debug;
+use rustc_hash::FxHasher;
 use serde::{Deserialize, Serialize};
 
 /// Hashes all protocol registrations to calculate [`ProtocolHash`].
@@ -22,8 +20,8 @@ use serde::{Deserialize, Serialize};
 /// You can include custom data (e.g., a game version) via [`Self::add_custom`].
 ///
 /// Only available during the [`Plugin::build`] stage. Computes [`ProtocolHash`] resource.
-#[derive(Resource)]
-pub struct ProtocolHasher(DefaultHasher);
+#[derive(Resource, Default)]
+pub struct ProtocolHasher(FxHasher);
 
 impl ProtocolHasher {
     /// Adds custom data to the protocol hash calculation.
@@ -103,12 +101,6 @@ impl ProtocolHasher {
         let hash = self.0.finish();
         debug!("calculated hash: {hash}");
         ProtocolHash(hash)
-    }
-}
-
-impl Default for ProtocolHasher {
-    fn default() -> Self {
-        Self(FixedHasher.build_hasher())
     }
 }
 
