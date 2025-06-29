@@ -1,6 +1,7 @@
 use core::{cmp::Ordering, iter, ops::Range, time::Duration};
 
 use bevy::{ecs::component::Tick, prelude::*};
+use log::trace;
 use postcard::experimental::{max_size::MaxSize, serialized_size};
 
 use super::{change_ranges::ChangeRanges, serialized_data::SerializedData};
@@ -208,6 +209,13 @@ impl Mutations {
             // Or create an empty message if tracking mutate messages is enabled.
             self.messages
                 .push((mutate_index, body_size + header_size, chunks_range));
+        }
+
+        if self.messages.len() > 1 {
+            trace!(
+                "splitting into {} messages for client `{client_entity}`",
+                self.messages.len()
+            );
         }
 
         for &(mutate_index, mut message_size, ref chunks_range) in &self.messages {

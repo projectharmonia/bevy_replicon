@@ -168,11 +168,15 @@ fn reset(
     mut update_tick: ResMut<ServerUpdateTick>,
     mut entity_map: ResMut<ServerEntityMap>,
     mut buffered_mutations: ResMut<BufferedMutations>,
+    mutate_ticks: Option<ResMut<ServerMutateTicks>>,
     stats: Option<ResMut<ClientReplicationStats>>,
 ) {
     *update_tick = Default::default();
     entity_map.clear();
     buffered_mutations.clear();
+    if let Some(mut mutate_ticks) = mutate_ticks {
+        mutate_ticks.clear();
+    }
     if let Some(mut stats) = stats {
         *stats = Default::default();
     }
