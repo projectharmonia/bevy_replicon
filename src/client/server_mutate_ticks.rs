@@ -193,6 +193,8 @@ pub struct MutateTickReceived {
 
 #[cfg(test)]
 mod tests {
+    use test_log::test;
+
     use super::*;
 
     #[test]
