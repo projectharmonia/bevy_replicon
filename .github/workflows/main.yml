@@ -120,6 +120,29 @@ jobs:
       - name: Check compilation
         run: cargo check --target thumbv6m-none-eabi --no-default-features --features client,server,bevy/critical-section
 
+  wasi:
+    name: WASI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repo
+        uses: actions/checkout@v4
+
+      - name: Instal stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
+
+      - name: Cache crates
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Wasmtime
+        uses: bytecodealliance/actions/wasmtime/setup@v1
+
+      - name: Test
+        run: cargo test --target wasm32-wasip1
+        env:
+          CARGO_TARGET_WASM32_WASIP1_RUNNER: wasmtime
+
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -157,7 +180,16 @@ jobs:
   codecov:
     name: Upload to Codecov
     if: github.actor != 'dependabot[bot]'
-    needs: [typos, format, lint, no-std-portable-atomic, feature-combinations, doctest, test]
+    needs:
+      [
+        typos,
+        format,
+        lint,
+        no-std-portable-atomic,
+        feature-combinations,
+        doctest,
+        test,
+      ]
     runs-on: ubuntu-latest
     steps:
       - name: Clone repo
