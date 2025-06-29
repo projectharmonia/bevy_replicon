@@ -213,7 +213,7 @@ impl Mutations {
 
         if self.messages.len() > 1 {
             trace!(
-                "splitting into {} parts for client `{client_entity}`",
+                "splitting into {} messages for client `{client_entity}`",
                 self.messages.len()
             );
         }
