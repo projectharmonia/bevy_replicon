@@ -132,6 +132,11 @@ impl ServerMutateTicks {
             }
         }
     }
+
+    pub(super) fn clear(&mut self) {
+        self.ticks.clear();
+        self.last_tick = Default::default();
+    }
 }
 
 impl Default for ServerMutateTicks {
