@@ -320,7 +320,7 @@ fn buffer_mutate_message(
         1
     };
     let mutate_index: MutateIndex = postcard_utils::from_buf(&mut message)?;
-    trace!("received mutate message for {message_tick:?}, part {messages_count}");
+    trace!("received mutate message for {message_tick:?}");
     buffered_mutations.insert(BufferedMutate {
         update_tick,
         message_tick,
