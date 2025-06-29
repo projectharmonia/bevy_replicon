@@ -1,6 +1,7 @@
 use alloc::collections::VecDeque;
 
 use bevy::prelude::*;
+use log::trace;
 
 use crate::prelude::*;
 
@@ -103,14 +104,17 @@ impl ServerMutateTicks {
     /// from the last call or if the number of calls for the same tick exceeds `messages_count`.
     pub fn confirm(&mut self, tick: RepliconTick, messages_count: usize) -> bool {
         let len = self.ticks.len();
+        debug_assert_eq!(len, u64::BITS as usize);
+
         if tick > self.last_tick {
-            let ago = (tick - self.last_tick) as usize;
-            if ago >= len {
+            let delta = (tick - self.last_tick) as usize;
+            trace!("confirming `{tick:?}` which is {delta} ticks since last");
+            if delta >= len {
                 // If the difference exceeds the size, clear all ticks.
                 self.ticks.clear();
                 self.ticks.resize(u64::BITS as usize, Default::default());
             } else {
-                for _ in 0..ago {
+                for _ in 0..delta {
                     self.ticks.pop_back();
                     self.ticks.push_front(Default::default());
                 }
@@ -119,9 +123,10 @@ impl ServerMutateTicks {
             self.last_tick = tick;
             self.ticks[0].confirm(messages_count)
         } else {
-            let ago = (self.last_tick - tick) as usize;
-            if ago < len {
-                self.ticks[ago].confirm(messages_count)
+            let delta = (self.last_tick - tick) as usize;
+            trace!("confirming `{tick:?}` which is {delta} ticks ago");
+            if delta < len {
+                self.ticks[delta].confirm(messages_count)
             } else {
                 false
             }
@@ -152,13 +157,22 @@ struct TickMessages {
 
 impl TickMessages {
     fn confirm(&mut self, messages_count: usize) -> bool {
-        debug_assert!(messages_count != 0);
-        debug_assert!(self.messages_count == 0 || self.messages_count == messages_count);
+        debug_assert_ne!(messages_count, 0);
+        debug_assert!(
+            self.messages_count == 0 || self.messages_count == messages_count,
+            "messages count shouldn't change, expected {}, but got {messages_count}",
+            self.messages_count
+        );
 
         self.messages_count = messages_count;
         self.received += 1;
 
-        debug_assert!(self.received <= self.messages_count);
+        debug_assert!(
+            self.received <= self.messages_count,
+            "received messages ({}) should not exceed messages count ({})",
+            self.received,
+            self.messages_count,
+        );
 
         self.all_received()
     }
