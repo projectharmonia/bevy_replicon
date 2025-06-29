@@ -41,7 +41,7 @@ bitflags = { version = "2.6", features = ["serde"] }
 postcard = { version = "1.1", default-features = false, features = [
   "experimental-derive",
 ] }
-fnv = "1.0"
+fnv = { version = "1.0", default-features = false }
 
 [target.'cfg(not(all(target_has_atomic = "8", target_has_atomic = "16", target_has_atomic = "32", target_has_atomic = "64", target_has_atomic = "ptr")))'.dependencies]
 bytes = { version = "1.10", default-features = false, features = [
