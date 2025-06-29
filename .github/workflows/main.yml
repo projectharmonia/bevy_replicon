@@ -135,6 +135,9 @@ jobs:
       - name: Cache crates
         uses: Swatinem/rust-cache@v2
 
+      - name: Install Wasmtime
+        uses: bytecodealliance/actions/wasmtime/setup@v1
+
       - name: Test
         run: cargo test --target wasm32-wasip1
         env:
