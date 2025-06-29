@@ -210,6 +210,10 @@ impl Mutations {
                 .push((mutate_index, body_size + header_size, chunks_range));
         }
 
+        trace!(
+            "split mutations into {} parts for client `{client_entity}`",
+            self.messages.len()
+        );
         for &(mutate_index, mut message_size, ref chunks_range) in &self.messages {
             if track_mutate_messages {
                 // Update message counter size based on actual value.
