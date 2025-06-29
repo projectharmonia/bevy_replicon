@@ -134,7 +134,9 @@ impl ServerMutateTicks {
     }
 
     pub(super) fn clear(&mut self) {
-        self.ticks.clear();
+        for tick in &mut self.ticks {
+            *tick = Default::default();
+        }
         self.last_tick = Default::default();
     }
 }
