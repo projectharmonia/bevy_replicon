@@ -26,6 +26,9 @@ pub struct ProtocolHasher(FnvHasher);
 impl ProtocolHasher {
     /// Adds custom data to the protocol hash calculation.
     ///
+    /// If you support multiple platforms, avoid hashing types like [`usize`],
+    /// because their size may vary, resulting in different hashes.
+    ///
     /// # Examples
     ///
     /// Include a game version.
