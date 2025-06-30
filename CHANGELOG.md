@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Make `ProtocolHash` deterministic across platforms by using `fnv` instead of `foldhash`.
 - Reset `ServerMutateTicks` on disconnect.
+- Avoid calling `drop` on uninitialized memory for components with `Box` or `Arc` during buffered insertion.
 
 ## [0.34.1] - 2025-06-21
 
