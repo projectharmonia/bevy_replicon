@@ -1,13 +1,11 @@
 use core::{
     any,
     fmt::Debug,
-    hash::{BuildHasher, Hash, Hasher},
+    hash::{Hash, Hasher},
 };
 
-use bevy::{
-    platform::hash::{DefaultHasher, FixedHasher},
-    prelude::*,
-};
+use bevy::prelude::*;
+use fnv::FnvHasher;
 use log::debug;
 use serde::{Deserialize, Serialize};
 
@@ -22,11 +20,14 @@ use serde::{Deserialize, Serialize};
 /// You can include custom data (e.g., a game version) via [`Self::add_custom`].
 ///
 /// Only available during the [`Plugin::build`] stage. Computes [`ProtocolHash`] resource.
-#[derive(Resource)]
-pub struct ProtocolHasher(DefaultHasher);
+#[derive(Resource, Default)]
+pub struct ProtocolHasher(FnvHasher);
 
 impl ProtocolHasher {
     /// Adds custom data to the protocol hash calculation.
+    ///
+    /// If you support multiple platforms, avoid hashing types like [`usize`],
+    /// because their size may vary, resulting in different hashes.
     ///
     /// # Examples
     ///
@@ -53,7 +54,9 @@ impl ProtocolHasher {
             "adding replication rule `{}` with priority {priority}",
             any::type_name::<R>()
         );
-        self.hash::<R>(ProtocolPart::Replicate { priority });
+        self.hash::<R>(ProtocolPart::Replicate {
+            priority: priority as u64,
+        });
     }
 
     pub(crate) fn replicate_bundle<B>(&mut self) {
@@ -106,19 +109,16 @@ impl ProtocolHasher {
     }
 }
 
-impl Default for ProtocolHasher {
-    fn default() -> Self {
-        Self(FixedHasher.build_hasher())
-    }
-}
-
 /// Part of protocol registration.
 ///
 /// Needed to distinguish between different registrations for the same type.
 /// For example, the same type could be used for a client and a server event.
+///
+/// Fixed-sized for deterministic hash across platforms.
 #[derive(Hash)]
+#[repr(u8)]
 enum ProtocolPart {
-    Replicate { priority: usize },
+    Replicate { priority: u64 },
     ReplicateBundle,
     ClientEvent,
     ClientTrigger,
@@ -228,6 +228,20 @@ mod tests {
         }
 
         assert_eq!(hasher1.finish(), hasher2.finish());
+    }
+
+    #[test]
+    fn determinism() {
+        let mut hasher = ProtocolHasher::default();
+
+        hasher.replicate::<StructA>(1);
+        hasher.add_server_event::<StructB>();
+        hasher.add_server_trigger::<StructC>();
+        hasher.add_client_event::<StructB>();
+        hasher.add_client_trigger::<StructC>();
+        hasher.add_custom(0);
+
+        assert_eq!(hasher.finish(), ProtocolHash(11462723744753766090));
     }
 
     struct StructA;
