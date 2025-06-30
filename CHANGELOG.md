@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - All contexts now store `AppTypeRegistry` instead of `TypeRegistry`. To get `TypeRegistry`, call `AppTypeRegistry::read`.
 - `AppTypeRegistry` now available on replication for observers.
 
+### Fixed
+
+- Reset `ServerMutateTicks` on disconnect.
+
 ## [0.34.1] - 2025-06-21
 
 ### Changed
