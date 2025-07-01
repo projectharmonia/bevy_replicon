@@ -3,7 +3,7 @@ use core::{alloc::Layout, ptr::NonNull};
 use bevy::{
     ecs::component::{ComponentId, Mutable},
     prelude::*,
-    ptr::{Aligned, PtrMut},
+    ptr::PtrMut,
 };
 
 /// Like [`EntityWorldMut`], but buffers all structural changes.
@@ -128,9 +128,8 @@ impl DeferredInsertions {
 
         // SAFETY: pointer references a properly allocated memory.
         unsafe {
-            // Using `PtrMut` for debug assertions.
-            let ptr = PtrMut::<Aligned>::new(NonNull::new_unchecked(self.data.as_mut_ptr()));
-            *ptr.byte_add(offset).deref_mut() = component;
+            let ptr = self.data.as_mut_ptr().byte_add(offset) as *mut C;
+            ptr.write(component);
         }
     }
 
@@ -158,6 +157,9 @@ impl DeferredInsertions {
 
 #[cfg(test)]
 mod tests {
+    use alloc::sync::Arc;
+    use core::any::Any;
+
     use super::*;
 
     #[test]
@@ -170,14 +172,24 @@ mod tests {
         entity
             .insert(Unit)
             .insert(Trivial(1))
-            .insert(Droppable(vec![2, 3]).clone());
+            .insert(WithVec(vec![2, 3]))
+            .insert(WithBox(Box::new(Trivial(4))))
+            .insert(WithArc(Arc::new(Trivial(5))));
 
         entity.flush();
         let after_archetypes = entity.world().archetypes().len();
 
         assert!(entity.get::<Unit>().is_some());
         assert_eq!(**entity.get::<Trivial>().unwrap(), 1);
-        assert_eq!(**entity.get::<Droppable>().unwrap(), [2, 3]);
+        assert_eq!(**entity.get::<WithVec>().unwrap(), [2, 3]);
+
+        let with_box = entity.get::<WithBox>().unwrap();
+        assert_eq!(**with_box.downcast_ref::<Trivial>().unwrap(), 4);
+
+        let with_arc = entity.get::<WithArc>().unwrap();
+        assert_eq!(Arc::strong_count(with_arc), 1);
+        assert_eq!(**with_arc.downcast_ref::<Trivial>().unwrap(), 5);
+
         assert_eq!(
             after_archetypes - before_archetypes,
             1,
@@ -187,13 +199,17 @@ mod tests {
         entity
             .remove::<Unit>()
             .remove::<Trivial>()
-            .remove::<Droppable>();
+            .remove::<WithVec>()
+            .remove::<WithBox>()
+            .remove::<WithArc>();
 
         entity.flush();
 
         assert!(!entity.contains::<Unit>());
         assert!(!entity.contains::<Trivial>());
-        assert!(!entity.contains::<Droppable>());
+        assert!(!entity.contains::<WithVec>());
+        assert!(!entity.contains::<WithBox>());
+        assert!(!entity.contains::<WithArc>());
         assert_eq!(
             entity.world().archetypes().len(),
             after_archetypes,
@@ -204,9 +220,15 @@ mod tests {
     #[derive(Component)]
     struct Unit;
 
-    #[derive(Component, Clone, Copy, Deref, Debug)]
+    #[derive(Component, Deref)]
     struct Trivial(usize);
 
-    #[derive(Component, Clone, Deref, Debug)]
-    struct Droppable(Vec<u8>);
+    #[derive(Component, Deref)]
+    struct WithVec(Vec<u8>);
+
+    #[derive(Component, Deref)]
+    struct WithBox(Box<dyn Any + Send + Sync>);
+
+    #[derive(Component, Deref)]
+    struct WithArc(Arc<dyn Any + Send + Sync>);
 }
