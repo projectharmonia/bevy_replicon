@@ -54,7 +54,7 @@ Depending on your game, you may need additional features. We provide an API that
 
 #### Interpolation and/or rollback
 
-- [`bevy_replicon_snap`](https://github.com/Bendzae/bevy_replicon_snap) - adds snapshot interpolation and client-side prediction.
+- [`bevy_rewind`](https://github.com/NiseVoid/bevy_rewind) - server-authoritative rollback networking inspired by Rocket League.
 
 #### Visibility
 
@@ -67,6 +67,7 @@ Depending on your game, you may need additional features. We provide an API that
 
 #### Unmaintained
 
+- [`bevy_replicon_snap`](https://github.com/Bendzae/bevy_replicon_snap) - adds snapshot interpolation and client-side prediction.
 - [`bevy_timewarp`](https://github.com/RJ/bevy_timewarp) - a rollback library that buffers component state. See [this instruction](https://github.com/RJ/bevy_timewarp/blob/main/REPLICON_INTEGRATION.md) about how to integrate.
 
 ## Bevy compatibility
