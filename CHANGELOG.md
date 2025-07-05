@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - All contexts now store `AppTypeRegistry` instead of `TypeRegistry`. To get `TypeRegistry`, call `AppTypeRegistry::read`.
 - `AppTypeRegistry` now available on replication for observers.
 - Rename `FromClient::client_entity` into `FromClient::client`.
+- Rename `DisconnectRequest::client_entity` into `DisconnectRequest::client`.
 
 ## [0.34.3] - 2025-07-01
 

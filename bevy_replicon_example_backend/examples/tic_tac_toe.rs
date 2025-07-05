@@ -340,7 +340,7 @@ fn init_client(
             event: ProtocolMismatch,
         });
         events.write(DisconnectRequest {
-            client_entity: trigger.client,
+            client: trigger.client,
         });
     }
 

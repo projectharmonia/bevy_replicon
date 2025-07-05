@@ -224,7 +224,7 @@ fn check_protocol(
             event: ProtocolMismatch,
         });
         events.write(DisconnectRequest {
-            client_entity: trigger.client,
+            client: trigger.client,
         });
     }
 }

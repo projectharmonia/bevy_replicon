@@ -76,10 +76,10 @@ fn disconnect_request() {
     let mut clients = server_app
         .world_mut()
         .query_filtered::<Entity, With<ConnectedClient>>();
-    let client_entity = clients.single(server_app.world()).unwrap();
+    let client = clients.single(server_app.world()).unwrap();
     server_app
         .world_mut()
-        .send_event(DisconnectRequest { client_entity });
+        .send_event(DisconnectRequest { client });
 
     server_app.update();
     client_app.update();
