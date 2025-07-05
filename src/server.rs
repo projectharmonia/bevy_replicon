@@ -212,21 +212,19 @@ fn check_protocol(
     protocol: Res<ProtocolHash>,
 ) {
     if **trigger == *protocol {
-        debug!("marking client `{}` as authorized", trigger.client_entity);
-        commands
-            .entity(trigger.client_entity)
-            .insert(AuthorizedClient);
+        debug!("marking client `{}` as authorized", trigger.client);
+        commands.entity(trigger.client).insert(AuthorizedClient);
     } else {
         debug!(
             "disconnecting client `{}` due to protocol mismatch (client: `{:?}`, server: `{:?}`)",
-            trigger.client_entity, **trigger, *protocol
+            trigger.client, **trigger, *protocol
         );
         commands.server_trigger(ToClients {
-            mode: SendMode::Direct(trigger.client_entity),
+            mode: SendMode::Direct(trigger.client),
             event: ProtocolMismatch,
         });
         events.write(DisconnectRequest {
-            client_entity: trigger.client_entity,
+            client: trigger.client,
         });
     }
 }

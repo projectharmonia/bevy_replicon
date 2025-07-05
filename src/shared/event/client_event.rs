@@ -23,7 +23,7 @@ pub trait ClientEventAppExt {
     /// After emitting `E` event on the client, [`FromClient<E>`] event will be emitted on the server.
     ///
     /// If [`ServerEventPlugin`] is enabled and [`RepliconClient`] is inactive, the event will be drained
-    /// right after sending and re-emitted locally as [`FromClient<E>`] event with [`FromClient::client_entity`]
+    /// right after sending and re-emitted locally as [`FromClient<E>`] event with [`FromClient::client`]
     /// equal to [`SERVER`].
     ///
     /// Calling [`App::add_event`] is not necessary. Can used for regular events that were
@@ -305,20 +305,17 @@ impl ClientEvent {
         server: &mut RepliconServer,
     ) {
         let client_events: &mut Events<FromClient<E>> = unsafe { client_events.deref_mut() };
-        for (client_entity, mut message) in server.receive(self.channel_id) {
+        for (client, mut message) in server.receive(self.channel_id) {
             match unsafe { self.deserialize::<E, I>(ctx, &mut message) } {
                 Ok(event) => {
                     debug!(
-                        "applying event `{}` from client `{client_entity}`",
+                        "applying event `{}` from client `{client}`",
                         any::type_name::<E>()
                     );
-                    client_events.send(FromClient {
-                        client_entity,
-                        event,
-                    });
+                    client_events.send(FromClient { client, event });
                 }
                 Err(e) => debug!(
-                    "ignoring event `{}` from client `{client_entity}` that failed to deserialize: {e}",
+                    "ignoring event `{}` from client `{client}` that failed to deserialize: {e}",
                     any::type_name::<E>()
                 ),
             }
@@ -350,7 +347,7 @@ impl ClientEvent {
                 any::type_name::<E>()
             );
             client_events.send_batch(events.drain().map(|event| FromClient {
-                client_entity: SERVER,
+                client: SERVER,
                 event,
             }));
         }
@@ -457,10 +454,11 @@ impl<E: Event> FromWorld for ClientEventReader<E> {
 /// Emitted only on server.
 #[derive(Clone, Copy, Event, Deref, DerefMut)]
 pub struct FromClient<T> {
-    /// Entity that represents a connected client.
+    /// Entity representing a connected client or [`SERVER`] that sent the event.
     ///
     /// See also [`ConnectedClient`].
-    pub client_entity: Entity,
+    pub client: Entity,
+
     /// Transmitted event.
     #[deref]
     pub event: T,

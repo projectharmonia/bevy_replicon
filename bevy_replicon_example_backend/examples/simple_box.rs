@@ -157,15 +157,15 @@ fn apply_movement(
     mut boxes: Query<(&BoxOwner, &mut BoxPosition)>,
 ) {
     const MOVE_SPEED: f32 = 300.0;
-    info!("received movement from `{}`", trigger.client_entity);
+    info!("received movement from `{}`", trigger.client);
 
     // Find the sender entity. We don't include the entity as a trigger target to save traffic, since the server knows
     // which entity to apply the input to. We could have a resource that maps connected clients to controlled entities,
     // but we didn't implement it for the sake of simplicity.
     let (_, mut position) = boxes
         .iter_mut()
-        .find(|&(owner, _)| **owner == trigger.client_entity)
-        .unwrap_or_else(|| panic!("`{}` should be connected", trigger.client_entity));
+        .find(|&(owner, _)| **owner == trigger.client)
+        .unwrap_or_else(|| panic!("`{}` should be connected", trigger.client));
 
     **position += *trigger.event * time.delta_secs() * MOVE_SPEED;
 }

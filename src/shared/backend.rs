@@ -35,7 +35,7 @@ use bevy::prelude::*;
 /// messages is not guaranteed.
 #[derive(Event, Clone, Copy, Debug)]
 pub struct DisconnectRequest {
-    pub client_entity: Entity,
+    pub client: Entity,
 }
 
 #[cfg(test)]

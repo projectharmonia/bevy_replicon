@@ -139,8 +139,8 @@ fn send_packets(
     }
 
     for event in disconnect_events.read() {
-        debug!("disconnecting client `{}` by request", event.client_entity);
-        commands.entity(event.client_entity).despawn();
+        debug!("disconnecting client `{}` by request", event.client);
+        commands.entity(event.client).despawn();
     }
 }
 

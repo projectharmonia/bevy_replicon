@@ -78,11 +78,11 @@ pub struct RepliconSharedPlugin {
             // Notify client about the problem. No delivery
             // guarantee since we disconnect after sending.
             commands.server_trigger(ToClients {
-                mode: SendMode::Direct(trigger.client_entity),
+                mode: SendMode::Direct(trigger.client),
                 event: ProtocolMismatch,
             });
             events.write(DisconnectRequest {
-                client_entity: trigger.client_entity,
+                client: trigger.client,
             });
         }
 
@@ -104,7 +104,7 @@ pub struct RepliconSharedPlugin {
 
         // Manually mark client as authorized and insert mappings.
         commands
-            .entity(trigger.client_entity)
+            .entity(trigger.client)
             .insert((AuthorizedClient, entity_map));
 
         // Run other commands to start the game...
