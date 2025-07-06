@@ -194,7 +194,7 @@ impl Updates {
     pub(crate) fn send(
         &self,
         server: &mut RepliconServer,
-        client_entity: Entity,
+        client: Entity,
         serialized: &SerializedData,
         server_tick: Range<usize>,
     ) -> Result<()> {
@@ -284,7 +284,7 @@ impl Updates {
 
         debug_assert_eq!(message.len(), message_size);
 
-        server.send(client_entity, ServerChannel::Updates, message);
+        server.send(client, ServerChannel::Updates, message);
 
         Ok(())
     }

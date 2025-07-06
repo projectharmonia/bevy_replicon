@@ -92,13 +92,13 @@ impl ClientTicks {
     /// Keeps allocated memory in the buffers for reuse.
     pub(crate) fn ack_mutate_message(
         &mut self,
-        client_entity: Entity,
+        client: Entity,
         entity_buffer: &mut EntityBuffer,
         tick: Tick,
         mutate_index: MutateIndex,
     ) {
         let Some(mutate_info) = self.mutations.remove(&mutate_index) else {
-            debug!("received unknown `{mutate_index:?}` from client `{client_entity}`");
+            debug!("received unknown `{mutate_index:?}` from client `{client}`");
             return;
         };
 
@@ -117,7 +117,7 @@ impl ClientTicks {
         entity_buffer.push(mutate_info.entities);
 
         trace!(
-            "acknowledged mutate message with `{:?}` from client `{client_entity}`",
+            "acknowledged mutate message with `{:?}` from client `{client}`",
             mutate_info.tick,
         );
     }

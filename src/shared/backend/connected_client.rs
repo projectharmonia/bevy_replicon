@@ -95,10 +95,8 @@ impl NetworkId {
 fn on_id_add(mut world: DeferredWorld, ctx: HookContext) {
     let network_id = *world.get::<NetworkId>(ctx.entity).unwrap();
     let mut network_map = world.resource_mut::<NetworkIdMap>();
-    if let Some(old_entity) = network_map.0.insert(network_id, ctx.entity) {
-        error!(
-            "backend-provided `{network_id:?}` that was already mapped to client `{old_entity}`"
-        );
+    if let Some(old_client) = network_map.0.insert(network_id, ctx.entity) {
+        error!("backend-provided `{network_id:?}` was already mapped to client `{old_client}`");
     }
 }
 

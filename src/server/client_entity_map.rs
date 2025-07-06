@@ -51,8 +51,8 @@ fn confirm_bullet(
 ) {
     for event in bullet_events.read() {
         let mut entity_map = clients.get_mut(event.client).unwrap();
-        let server_entity = commands.spawn(Bullet).id(); // You can insert more components, they will be sent to the client's entity correctly.
-        entity_map.insert(server_entity, event.0);
+        let bullet = commands.spawn(Bullet).id(); // You can insert more components, they will be sent to the client's entity correctly.
+        entity_map.insert(bullet, event.0);
     }
 }
 ```

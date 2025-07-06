@@ -40,12 +40,11 @@ impl RepliconServer {
     }
 
     /// Removes a disconnected client.
-    pub(crate) fn remove_client(&mut self, client_entity: Entity) {
+    pub(crate) fn remove_client(&mut self, client: Entity) {
         for receive_channel in &mut self.received_messages {
-            receive_channel.retain(|&(entity, _)| entity != client_entity);
+            receive_channel.retain(|&(entity, _)| entity != client);
         }
-        self.sent_messages
-            .retain(|&(entity, ..)| entity != client_entity);
+        self.sent_messages.retain(|&(entity, ..)| entity != client);
     }
 
     /// Receives all available messages from clients over a channel.
@@ -89,7 +88,7 @@ impl RepliconServer {
     /// </div>
     pub fn send<I: Into<usize>, B: Into<Bytes>>(
         &mut self,
-        client_entity: Entity,
+        client: Entity,
         channel_id: I,
         message: B,
     ) {
@@ -103,8 +102,7 @@ impl RepliconServer {
 
         trace!("sending {} bytes over channel {channel_id}", message.len());
 
-        self.sent_messages
-            .push((client_entity, channel_id, message));
+        self.sent_messages.push((client, channel_id, message));
     }
 
     /// Marks the server as running or stopped.
@@ -163,7 +161,7 @@ impl RepliconServer {
     /// </div>
     pub fn insert_received<I: Into<usize>, B: Into<Bytes>>(
         &mut self,
-        client_entity: Entity,
+        client: Entity,
         channel_id: I,
         message: B,
     ) {
@@ -178,7 +176,7 @@ impl RepliconServer {
             .get_mut(channel_id)
             .unwrap_or_else(|| panic!("server should have a receive channel with id {channel_id}"));
 
-        receive_channel.push((client_entity, message.into()));
+        receive_channel.push((client, message.into()));
     }
 }
 
