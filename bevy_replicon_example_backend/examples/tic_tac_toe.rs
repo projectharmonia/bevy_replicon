@@ -352,13 +352,11 @@ fn init_client(
     // By default it's empty, but we can initialize it with the
     // received entities.
     let mut entity_map = ClientEntityMap::default();
-    for (&server_entity, &client_entity) in
-        cells.iter().map(|(entity, _)| entity).zip(&trigger.cells)
-    {
-        entity_map.insert(server_entity, client_entity);
+    for (&server, &client) in cells.iter().map(|(entity, _)| entity).zip(&trigger.cells) {
+        entity_map.insert(server, client);
     }
 
-    // Utilize client entity as a player for convenient lookups by `client_entity`.
+    // Utilize client entity as a player for convenient lookups by `client`.
     commands.entity(trigger.client).insert((
         Player,
         server_symbol.next(),
@@ -464,42 +462,39 @@ fn update_buttons_background(
     }
 }
 
-fn show_turn_text(mut writer: TextUiWriter, text_entity: Single<Entity, With<BottomText>>) {
-    *writer.text(*text_entity, TEXT_SECTION) = "Current turn: ".into();
+fn show_turn_text(mut writer: TextUiWriter, text: Single<Entity, With<BottomText>>) {
+    *writer.text(*text, TEXT_SECTION) = "Current turn: ".into();
 }
 
 fn show_turn_symbol(
     mut writer: TextUiWriter,
     turn_symbol: Res<TurnSymbol>,
-    text_entity: Single<Entity, With<BottomText>>,
+    text: Single<Entity, With<BottomText>>,
 ) {
-    *writer.text(*text_entity, SYMBOL_SECTION) = turn_symbol.glyph().into();
-    *writer.color(*text_entity, SYMBOL_SECTION) = turn_symbol.color().into();
+    *writer.text(*text, SYMBOL_SECTION) = turn_symbol.glyph().into();
+    *writer.color(*text, SYMBOL_SECTION) = turn_symbol.color().into();
 }
 
-fn show_disconnected_text(mut writer: TextUiWriter, text_entity: Single<Entity, With<BottomText>>) {
-    *writer.text(*text_entity, TEXT_SECTION) = "Disconnected".into();
-    writer.text(*text_entity, SYMBOL_SECTION).clear();
+fn show_disconnected_text(mut writer: TextUiWriter, text: Single<Entity, With<BottomText>>) {
+    *writer.text(*text, TEXT_SECTION) = "Disconnected".into();
+    writer.text(*text, SYMBOL_SECTION).clear();
 }
 
-fn show_winner_text(mut writer: TextUiWriter, text_entity: Single<Entity, With<BottomText>>) {
-    *writer.text(*text_entity, TEXT_SECTION) = "Winner: ".into();
+fn show_winner_text(mut writer: TextUiWriter, text: Single<Entity, With<BottomText>>) {
+    *writer.text(*text, TEXT_SECTION) = "Winner: ".into();
 }
 
-fn show_tie_text(mut writer: TextUiWriter, text_entity: Single<Entity, With<BottomText>>) {
-    *writer.text(*text_entity, TEXT_SECTION) = "Tie".into();
-    writer.text(*text_entity, SYMBOL_SECTION).clear();
+fn show_tie_text(mut writer: TextUiWriter, text: Single<Entity, With<BottomText>>) {
+    *writer.text(*text, TEXT_SECTION) = "Tie".into();
+    writer.text(*text, SYMBOL_SECTION).clear();
 }
 
-fn show_connecting_text(mut writer: TextUiWriter, text_entity: Single<Entity, With<BottomText>>) {
-    *writer.text(*text_entity, TEXT_SECTION) = "Connecting".into();
+fn show_connecting_text(mut writer: TextUiWriter, text: Single<Entity, With<BottomText>>) {
+    *writer.text(*text, TEXT_SECTION) = "Connecting".into();
 }
 
-fn show_waiting_client_text(
-    mut writer: TextUiWriter,
-    text_entity: Single<Entity, With<BottomText>>,
-) {
-    *writer.text(*text_entity, TEXT_SECTION) = "Waiting client".into();
+fn show_waiting_client_text(mut writer: TextUiWriter, text: Single<Entity, With<BottomText>>) {
+    *writer.text(*text, TEXT_SECTION) = "Waiting client".into();
 }
 
 /// Returns `true` if the local player can select cells.

@@ -248,22 +248,24 @@ fn receive_acks(
     mut clients: Query<&mut ClientTicks>,
     mut entity_buffer: ResMut<EntityBuffer>,
 ) {
-    for (client_entity, mut message) in server.receive(ClientChannel::MutationAcks) {
+    for (client, mut message) in server.receive(ClientChannel::MutationAcks) {
         while message.has_remaining() {
             match postcard_utils::from_buf(&mut message) {
                 Ok(mutate_index) => {
-                    let mut ticks = clients.get_mut(client_entity).unwrap_or_else(|_| {
-                        panic!("messages from client `{client_entity}` should have been removed on disconnect")
+                    let mut ticks = clients.get_mut(client).unwrap_or_else(|_| {
+                        panic!(
+                            "messages from client `{client}` should have been removed on disconnect"
+                        )
                     });
                     ticks.ack_mutate_message(
-                        client_entity,
+                        client,
                         &mut entity_buffer,
                         change_tick.this_run(),
                         mutate_index,
                     );
                 }
                 Err(e) => {
-                    debug!("unable to deserialize mutate index from client `{client_entity}`: {e}")
+                    debug!("unable to deserialize mutate index from client `{client}`: {e}")
                 }
             }
         }

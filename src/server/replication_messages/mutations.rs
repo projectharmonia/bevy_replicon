@@ -155,7 +155,7 @@ impl Mutations {
     pub(crate) fn send(
         &mut self,
         server: &mut RepliconServer,
-        client_entity: Entity,
+        client: Entity,
         ticks: &mut ClientTicks,
         entity_buffer: &mut EntityBuffer,
         serialized: &SerializedData,
@@ -213,7 +213,7 @@ impl Mutations {
 
         if self.messages.len() > 1 {
             trace!(
-                "splitting into {} messages for client `{client_entity}`",
+                "splitting into {} messages for client `{client}`",
                 self.messages.len()
             );
         }
@@ -241,7 +241,7 @@ impl Mutations {
 
             debug_assert_eq!(message.len(), message_size);
 
-            server.send(client_entity, ServerChannel::Mutations, message);
+            server.send(client, ServerChannel::Mutations, message);
         }
 
         Ok(self.messages.len())

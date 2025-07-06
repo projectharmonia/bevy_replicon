@@ -67,7 +67,7 @@ fn receive_packets(
                     continue;
                 }
                 let network_id = NetworkId::new(addr.port().into());
-                let client_entity = commands
+                let client = commands
                     .spawn((
                         ConnectedClient { max_size: 1200 },
                         network_id,
@@ -77,7 +77,7 @@ fn receive_packets(
                         },
                     ))
                     .id();
-                debug!("connecting client `{client_entity}` with `{network_id:?}`");
+                debug!("connecting client `{client}` with `{network_id:?}`");
             }
             Err(e) => {
                 if e.kind() != io::ErrorKind::WouldBlock {
@@ -90,7 +90,7 @@ fn receive_packets(
     }
 
     let now = Instant::now();
-    for (client_entity, mut connection, config) in &mut clients {
+    for (client, mut connection, config) in &mut clients {
         let config = config.or(global_config.as_deref());
         loop {
             match tcp::read_message(&mut connection.stream) {
@@ -101,13 +101,13 @@ fn receive_packets(
                     match e.kind() {
                         io::ErrorKind::WouldBlock => (),
                         io::ErrorKind::UnexpectedEof => {
-                            commands.entity(client_entity).despawn();
-                            debug!("`client {client_entity}` closed the connection");
+                            commands.entity(client).despawn();
+                            debug!("`client {client}` closed the connection");
                         }
                         _ => {
-                            commands.entity(client_entity).despawn();
+                            commands.entity(client).despawn();
                             error!(
-                                "disconnecting client `{client_entity}` due to message read error: {e}"
+                                "disconnecting client `{client}` due to message read error: {e}"
                             );
                         }
                     }
@@ -117,7 +117,7 @@ fn receive_packets(
         }
 
         while let Some((channel_id, message)) = connection.conditioner.pop(now) {
-            replicon_server.insert_received(client_entity, channel_id, message)
+            replicon_server.insert_received(client, channel_id, message)
         }
     }
 }
@@ -128,13 +128,13 @@ fn send_packets(
     mut replicon_server: ResMut<RepliconServer>,
     mut clients: Query<&mut ExampleConnection>,
 ) {
-    for (client_entity, channel_id, message) in replicon_server.drain_sent() {
+    for (client, channel_id, message) in replicon_server.drain_sent() {
         let mut connection = clients
-            .get_mut(client_entity)
+            .get_mut(client)
             .expect("all connected clients should have streams");
         if let Err(e) = tcp::send_message(&mut connection.stream, channel_id, &message) {
-            commands.entity(client_entity).despawn();
-            error!("disconnecting client `{client_entity}` due to error: {e}");
+            commands.entity(client).despawn();
+            error!("disconnecting client `{client}` due to error: {e}");
         }
     }
 
