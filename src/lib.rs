@@ -262,7 +262,7 @@ app.add_client_event::<ExampleEvent>(Channel::Ordered)
     );
 
 fn send_events(mut events: EventWriter<ExampleEvent>) {
-    events.send_default();
+    events.write_default();
 }
 
 fn receive_events(mut events: EventReader<FromClient<ExampleEvent>>) {
