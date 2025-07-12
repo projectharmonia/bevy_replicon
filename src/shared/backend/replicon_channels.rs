@@ -6,9 +6,20 @@ use log::debug;
 /// Initialized in [`ClientPlugin::finish`](crate::client::ClientPlugin) and
 /// [`ServerPlugin::finish`](crate::server::ServerPlugin).
 ///
+/// The channels are divided into client and server channels.
+/// On a client:
+/// - [`Self::client_channels`] are used for sending.
+/// - [`Self::server_channels`] are used for receiving.
+///
+/// On a server:
+/// - [`Self::server_channels`] are used for sending.
+/// - [`Self::client_channels`] are used for receiving.
+///
+/// If the backend does not distinguish between sending and receiving channels,
+/// create channels for both client and server by chaining them.
+///
 /// Channel IDs are represented by [`usize`], but backends may limit the number of channels.
 /// See [`ServerChannel`] and [`ClientChannel`] for channels that are always reserved.
-///
 /// Other channels are used for events, with one channel per event. For more details, see
 /// [`RemoteEventRegistry`](crate::shared::event::remote_event_registry::RemoteEventRegistry).
 ///
@@ -56,12 +67,17 @@ impl RepliconChannels {
         id
     }
 
-    /// Returns registered server channels.
+    /// Returns the list of registered server channels, which are used for sending data from server to client.
+    ///
+    /// For example, if you register a client event, it won't be reflected here.
     pub fn server_channels(&self) -> &[Channel] {
         &self.server
     }
 
-    /// Returns registered client channels.
+    /// Returns the list of registered client channels,
+    /// which are used for sending data from client to server.
+    ///
+    /// For example, if you register a server event, it won't be reflected here.
     pub fn client_channels(&self) -> &[Channel] {
         &self.client
     }
