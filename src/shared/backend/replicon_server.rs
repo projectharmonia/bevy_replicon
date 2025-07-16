@@ -187,7 +187,7 @@ mod tests {
     use super::*;
     use crate::{
         prelude::*,
-        shared::backend::replicon_channels::{ClientChannel, ServerChannel},
+        shared::backend::channels::{ClientChannel, ServerChannel},
     };
 
     #[test]

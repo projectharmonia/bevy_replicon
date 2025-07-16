@@ -23,7 +23,7 @@ use log::{debug, trace};
 use crate::{
     prelude::*,
     shared::{
-        backend::replicon_channels::ClientChannel,
+        backend::channels::ClientChannel,
         event::server_event::BufferedServerEvents,
         postcard_utils,
         replication::{

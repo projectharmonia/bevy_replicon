@@ -58,7 +58,7 @@ Replication happens only from server to clients. It's necessary to prevent cheat
 If you need to send information from clients to the server, use
 [events](#network-events-and-triggers).
 
-For implementation details see [`ServerChannel`](shared::backend::replicon_channels::ServerChannel).
+For implementation details see [`ServerChannel`](shared::backend::channels::ServerChannel).
 
 ### Tick rate
 
@@ -550,7 +550,7 @@ You can control marker priority or enable processing of old values using [`AppMa
 ### Ticks information
 
 This requires an understanding of how replication works. See the documentation on
-[`ServerChannel`](shared::backend::replicon_channels::ServerChannel) and [this section](#eventual-consistency) for more details.
+[`ServerChannel`](shared::backend::channels::ServerChannel) and [this section](#eventual-consistency) for more details.
 
 To get information about confirmed ticks for individual entities, we provide
 [`ConfirmHistory`](client::confirm_history::ConfirmHistory) along with the [`EntityReplicated`](client::confirm_history::ConfirmHistory)
@@ -634,8 +634,8 @@ pub mod prelude {
             AuthMethod, RepliconSharedPlugin, SERVER,
             backend::{
                 DisconnectRequest,
+                channels::{Channel, RepliconChannels},
                 connected_client::{ConnectedClient, NetworkStats},
-                replicon_channels::{Channel, RepliconChannels},
                 replicon_client::{RepliconClient, RepliconClientStatus},
                 replicon_server::RepliconServer,
             },

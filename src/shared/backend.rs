@@ -2,7 +2,7 @@
 //!
 //! We don't provide any traits to avoid Rust's orphan rule. Instead, backends are expected to:
 //!
-//! - Create channels defined in the [`RepliconChannels`](replicon_channels::RepliconChannels) resource.
+//! - Create channels defined in the [`RepliconChannels`](channels::RepliconChannels) resource.
 //!   This can be done via an extension trait that provides a conversion which the user needs to call manually to get channels for the backend.
 //! - Update the [`RepliconServer`](replicon_server::RepliconServer) and [`RepliconClient`](replicon_client::RepliconClient) resources.
 //! - Spawn and despawn entities with [`ConnectedClient`](connected_client::ConnectedClient) component.
@@ -20,8 +20,8 @@
 //! as a reference. For a real backend integration, see [bevy_replicon_renet](https://github.com/projectharmonia/bevy_replicon_renet),
 //! which we maintain.
 
+pub mod channels;
 pub mod connected_client;
-pub mod replicon_channels;
 pub mod replicon_client;
 pub mod replicon_server;
 
@@ -45,7 +45,7 @@ mod tests {
     use super::*;
     use crate::{
         prelude::*,
-        shared::backend::replicon_channels::{ClientChannel, ServerChannel},
+        shared::backend::channels::{ClientChannel, ServerChannel},
     };
 
     #[test]
