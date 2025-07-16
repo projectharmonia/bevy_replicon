@@ -8,7 +8,7 @@ use crate::{
     prelude::*,
     server::client_visibility::Visibility,
     shared::{
-        backend::replicon_channels::ServerChannel, postcard_utils,
+        backend::channels::ServerChannel, postcard_utils,
         replication::update_message_flags::UpdateMessageFlags,
     },
 };

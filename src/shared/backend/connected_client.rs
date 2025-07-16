@@ -32,7 +32,7 @@ pub struct ConnectedClient {
     /// splitting into multiple packets.
     ///
     /// Used to manually split mutations over packet-size messages to allow applying them partially.
-    /// For more details on replication see [`ServerChannel`](super::replicon_channels::ServerChannel).
+    /// For more details on replication see [`ServerChannel`](super::channels::ServerChannel).
     ///
     /// <div class="warning">
     ///

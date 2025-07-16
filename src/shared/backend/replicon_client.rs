@@ -235,7 +235,7 @@ mod tests {
     use test_log::test;
 
     use super::*;
-    use crate::shared::backend::replicon_channels::{ClientChannel, ServerChannel};
+    use crate::shared::backend::channels::{ClientChannel, ServerChannel};
 
     #[test]
     fn cleanup_on_disconnect() {

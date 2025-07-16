@@ -8,7 +8,7 @@ use super::{change_ranges::ChangeRanges, serialized_data::SerializedData};
 use crate::{
     prelude::*,
     shared::{
-        backend::replicon_channels::ServerChannel,
+        backend::channels::ServerChannel,
         postcard_utils,
         replication::{
             client_ticks::{ClientTicks, EntityBuffer},

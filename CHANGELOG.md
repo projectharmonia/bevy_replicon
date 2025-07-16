@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `AppTypeRegistry` now available on replication for observers.
 - Rename `FromClient::client_entity` into `FromClient::client`.
 - Rename `DisconnectRequest::client_entity` into `DisconnectRequest::client`.
+- Rename `replicon_channels` module into `channels`.
 
 ## [0.34.3] - 2025-07-01
 

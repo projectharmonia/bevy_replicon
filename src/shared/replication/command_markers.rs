@@ -254,7 +254,7 @@ pub struct MarkerConfig {
 
     /// Represents whether a marker needs to process old mutations.
     ///
-    /// Since mutations use [`Channel::Unreliable`](crate::shared::backend::replicon_channels::Channel),
+    /// Since mutations use [`Channel::Unreliable`](crate::shared::backend::channels::Channel),
     /// a client may receive an older mutation for an entity component. By default these mutations are discarded,
     /// but some markers may need them. If this field is set to `true`, old component mutations will
     /// be passed to the writing function for this marker.

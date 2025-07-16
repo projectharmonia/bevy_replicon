@@ -12,7 +12,7 @@ use postcard::experimental::max_size::MaxSize;
 use crate::{
     prelude::*,
     shared::{
-        backend::replicon_channels::{ClientChannel, ServerChannel},
+        backend::channels::{ClientChannel, ServerChannel},
         entity_serde, postcard_utils,
         replication::{
             command_markers::{CommandMarkers, EntityMarkers},

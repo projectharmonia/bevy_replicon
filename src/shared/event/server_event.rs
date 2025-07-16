@@ -140,7 +140,7 @@ pub trait ServerEventAppExt {
     /// has not yet received.
     ///
     /// For more details about replication see the documentation on
-    /// [`ServerChannel`](crate::shared::backend::replicon_channels::ServerChannel).
+    /// [`ServerChannel`](crate::shared::backend::channels::ServerChannel).
     ///
     /// However, if you know your event doesn't rely on that, you can mark it
     /// as independent to always emit it immediately. For example, a chat
