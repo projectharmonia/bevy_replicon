@@ -20,7 +20,8 @@ pub struct DeferredEntity<'w> {
 }
 
 impl<'w> DeferredEntity<'w> {
-    pub(crate) fn new(entity: EntityWorldMut<'w>, changes: &'w mut DeferredChanges) -> Self {
+    /// Wraps entity with a differed buffer.
+    pub fn new(entity: EntityWorldMut<'w>, changes: &'w mut DeferredChanges) -> Self {
         changes.clear();
         Self { entity, changes }
     }
@@ -59,8 +60,9 @@ impl<'w> DeferredEntity<'w> {
 
     /// Flushes the world and applies all buffered changes.
     ///
-    /// Flushing is needed to spawn all allocated entities from mappings.
-    pub(crate) fn flush(&mut self) {
+    /// Needed to be called after processing each entity
+    /// to spawn all allocated entities from mappings.
+    pub fn flush(&mut self) {
         // SAFETY: entity location is unchanged because all changes applied after.
         unsafe { self.entity.world_mut().flush() };
         self.changes.apply(&mut self.entity);
@@ -69,7 +71,7 @@ impl<'w> DeferredEntity<'w> {
 
 /// Buffered changes for [`DeferredEntity`].
 #[derive(Default)]
-pub(crate) struct DeferredChanges {
+pub struct DeferredChanges {
     removals: Vec<ComponentId>,
     insertions: DeferredInsertions,
 }
@@ -166,8 +168,8 @@ mod tests {
     fn buffering() {
         let mut world = World::new();
         let before_archetypes = world.archetypes().len();
-        let mut buffer = DeferredChanges::default();
-        let mut entity = DeferredEntity::new(world.spawn_empty(), &mut buffer);
+        let mut changes = DeferredChanges::default();
+        let mut entity = DeferredEntity::new(world.spawn_empty(), &mut changes);
 
         entity
             .insert(Unit)
