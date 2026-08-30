@@ -1,7 +1,10 @@
 use bevy::{prelude::*, state::app::StatesPlugin};
 use bevy_replicon::{
-    client::UserdataReceived, prelude::*, server::ReplicationUserdata,
-    shared::backend::channels::ServerChannel, test_app::ServerTestAppExt,
+    client::UserdataReceived,
+    prelude::*,
+    server::ReplicationUserdata,
+    shared::backend::channels::{ClientChannel, ServerChannel},
+    test_app::ServerTestAppExt,
 };
 use serde::{Deserialize, Serialize};
 use test_log::test;
@@ -92,13 +95,250 @@ fn mutate_message() {
     assert_eq!(received.0, USERDATA);
 }
 
+#[test]
+fn defer_update_message() {
+    let (mut server_app, mut client_app) = create_apps();
+    client_app
+        .world_mut()
+        .insert_resource(ReplicationApplyPolicy::new(apply_when_ready));
+    server_app.connect_client(&mut client_app);
+
+    set_userdata(&mut server_app, USERDATA);
+    server_app.world_mut().spawn((Replicated, TestComponent));
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    assert_eq!(remote_count(&mut client_app), 0);
+    assert_eq!(
+        client_app.world().resource::<ReceivedUserdata>().0,
+        0,
+        "userdata should be emitted only when its message is applied"
+    );
+
+    client_app.world_mut().resource_mut::<ReadyUserdata>().0 = USERDATA;
+    client_app.update();
+
+    assert_eq!(remote_count(&mut client_app), 1);
+    assert_eq!(
+        client_app.world().resource::<ReceivedUserdata>().0,
+        USERDATA
+    );
+}
+
+#[test]
+fn deferred_update_blocks_later_updates() {
+    let (mut server_app, mut client_app) = create_apps();
+    client_app
+        .world_mut()
+        .insert_resource(ReplicationApplyPolicy::new(apply_when_ready));
+    client_app.world_mut().resource_mut::<ReadyUserdata>().0 = 1;
+    server_app.connect_client(&mut client_app);
+
+    set_userdata(&mut server_app, 2);
+    server_app.world_mut().spawn((Replicated, TestComponent));
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    set_userdata(&mut server_app, 1);
+    server_app.world_mut().spawn((Replicated, TestComponent));
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    assert_eq!(
+        client_app
+            .world()
+            .resource::<ClientMessages>()
+            .received_count(ServerChannel::Updates),
+        2
+    );
+    client_app.update();
+
+    assert_eq!(
+        remote_count(&mut client_app),
+        0,
+        "the ready second update must not pass the deferred first update"
+    );
+
+    client_app.world_mut().resource_mut::<ReadyUserdata>().0 = 2;
+    client_app.update();
+
+    assert_eq!(remote_count(&mut client_app), 2);
+    assert_eq!(
+        client_app.world().resource::<ReceivedUserdata>().0,
+        1,
+        "buffered updates should be applied in wire order"
+    );
+}
+
+#[test]
+fn deferred_mutation_is_acked_before_application() {
+    let (mut server_app, mut client_app) = create_apps();
+    client_app
+        .world_mut()
+        .insert_resource(ReplicationApplyPolicy::new(apply_when_ready));
+    server_app.connect_client(&mut client_app);
+
+    let server_entity = server_app
+        .world_mut()
+        .spawn((Replicated, ValueComponent(0)))
+        .id();
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    server_app
+        .world_mut()
+        .get_mut::<ValueComponent>(server_entity)
+        .unwrap()
+        .0 = 1;
+    set_userdata(&mut server_app, USERDATA);
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    assert_eq!(client_value(&mut client_app), 0);
+    assert_eq!(client_app.world().resource::<ReceivedUserdata>().0, 0);
+    assert!(
+        client_app
+            .world()
+            .resource::<ClientMessages>()
+            .iter_sent()
+            .any(
+                |(channel, bytes)| channel == usize::from(ClientChannel::MutationAcks)
+                    && !bytes.is_empty()
+            ),
+        "a successfully retained mutation should be acknowledged before application"
+    );
+
+    client_app.world_mut().resource_mut::<ReadyUserdata>().0 = USERDATA;
+    client_app.update();
+
+    assert_eq!(client_value(&mut client_app), 1);
+    assert_eq!(
+        client_app.world().resource::<ReceivedUserdata>().0,
+        USERDATA
+    );
+}
+
+#[test]
+fn malformed_mutation_is_not_acked() {
+    let (mut server_app, mut client_app) = create_apps();
+    server_app.connect_client(&mut client_app);
+
+    let server_entity = server_app
+        .world_mut()
+        .spawn((Replicated, ValueComponent(0)))
+        .id();
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    server_app
+        .world_mut()
+        .get_mut::<ValueComponent>(server_entity)
+        .unwrap()
+        .0 = 1;
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    {
+        let mut messages = client_app.world_mut().resource_mut::<ClientMessages>();
+        let malformed = messages
+            .iter_received(ServerChannel::Mutations)
+            .next()
+            .expect("server should send a mutation")
+            .slice(..3);
+        messages
+            .drain_received(ServerChannel::Mutations)
+            .for_each(drop);
+        messages.insert_received(ServerChannel::Mutations, malformed);
+    }
+
+    client_app.update();
+
+    assert!(
+        client_app
+            .world()
+            .resource::<ClientMessages>()
+            .iter_sent()
+            .all(
+                |(channel, bytes)| channel != usize::from(ClientChannel::MutationAcks)
+                    || bytes.is_empty()
+            ),
+        "a mutation that could not be retained must not be acknowledged"
+    );
+}
+
+fn create_apps() -> (App, App) {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            StatesPlugin,
+            RepliconPlugins.set(ServerPlugin::new(PostUpdate)),
+        ))
+        .init_resource::<ReceivedUserdata>()
+        .init_resource::<ReadyUserdata>()
+        .add_observer(receive_userdata)
+        .replicate::<TestComponent>()
+        .replicate::<ValueComponent>()
+        .finish();
+    }
+
+    (server_app, client_app)
+}
+
+fn set_userdata(app: &mut App, value: u32) {
+    let mut userdata = app.world_mut().resource_mut::<ReplicationUserdata>();
+    userdata.clear();
+    userdata.extend_from_slice(&value.to_le_bytes());
+}
+
+fn apply_when_ready(world: &World, message: ReplicationMessageInfo) -> ReplicationApplyDecision {
+    let Some(userdata) = message.userdata else {
+        return ReplicationApplyDecision::Apply;
+    };
+    let value = u32::from_le_bytes(userdata.try_into().expect("test userdata should be a u32"));
+    if value <= world.resource::<ReadyUserdata>().0 {
+        ReplicationApplyDecision::Apply
+    } else {
+        ReplicationApplyDecision::Defer
+    }
+}
+
+fn remote_count(app: &mut App) -> usize {
+    app.world_mut()
+        .query_filtered::<Entity, With<Remote>>()
+        .iter(app.world())
+        .count()
+}
+
+fn client_value(app: &mut App) -> u32 {
+    app.world_mut()
+        .query::<&ValueComponent>()
+        .single(app.world())
+        .unwrap()
+        .0
+}
+
 const USERDATA: u32 = 42;
 
 #[derive(Component, Deserialize, Serialize)]
 struct TestComponent;
 
+#[derive(Component, Deserialize, Serialize)]
+struct ValueComponent(u32);
+
 #[derive(Resource, Default)]
 struct ReceivedUserdata(u32);
+
+#[derive(Resource, Default)]
+struct ReadyUserdata(u32);
 
 fn receive_userdata(received: On<UserdataReceived>, mut storage: ResMut<ReceivedUserdata>) {
     let bytes = received.bytes.as_ref().try_into().unwrap();

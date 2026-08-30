@@ -5,11 +5,11 @@ use log::trace;
 
 use crate::prelude::*;
 
-/// Ticks for received mutate message from server.
+/// Ticks for applied mutate messages from the server.
 ///
-/// For efficiency, we store only the last received tick and
-/// an array indicating whether all mutate messages for the most
-/// recent 64 ticks were received.
+/// For efficiency, we store only the last applied tick and an array indicating whether all mutate
+/// messages for the most recent 64 ticks were applied. A mutate message can be acknowledged before
+/// it is reflected here if [`ReplicationApplyPolicy`] defers it.
 ///
 /// See also [`MutateTickReceived`] and the [ticks information](crate#ticks-information)
 /// in the quick start guide.
@@ -17,23 +17,23 @@ use crate::prelude::*;
 pub struct ServerMutateTicks {
     ticks: VecDeque<TickMessages>,
 
-    /// The last received server tick with mutation.
+    /// The last applied server tick with mutation.
     last_tick: RepliconTick,
 
-    /// The latest server tick reported as fully received.
+    /// The latest server tick reported as fully applied.
     ///
     /// This can never go backwards, it represents a 'frontier' where the state on the
-    /// server is guaranteed to be fully received by the client.
+    /// server is guaranteed to be fully applied by the client.
     last_confirmed_tick: Option<RepliconTick>,
 }
 
 impl ServerMutateTicks {
-    /// Returns the last received tick.
+    /// Returns the last applied tick.
     pub fn last_tick(&self) -> RepliconTick {
         self.last_tick
     }
 
-    /// Returns the last tick reported as fully received.
+    /// Returns the last tick reported as fully applied.
     ///
     /// Returns `None` until a [`MutateTickReceived`] message is emitted, or after
     /// the resource is reset on disconnect.
@@ -41,12 +41,12 @@ impl ServerMutateTicks {
         self.last_confirmed_tick
     }
 
-    /// Returns a mask that represents the received ticks.
+    /// Returns a mask that represents the applied ticks.
     pub fn mask(&self) -> u64 {
         let mut bitmask = 0;
 
         for (i, tick) in self.ticks.iter().enumerate() {
-            if tick.all_received() {
+            if tick.all_applied() {
                 bitmask |= 1 << i;
             }
         }
@@ -54,9 +54,9 @@ impl ServerMutateTicks {
         bitmask
     }
 
-    /// Returns `true` if, for the given tick, all mutation messages were received.
+    /// Returns `true` if, for the given tick, all mutation messages were applied.
     ///
-    /// All ticks older than 64 ticks relative to [`Self::last_tick`] are considered received.
+    /// All ticks older than 64 ticks relative to [`Self::last_tick`] are considered applied.
     pub fn contains(&self, tick: RepliconTick) -> bool {
         if tick.is_newer(self.last_tick) {
             return false;
@@ -64,15 +64,15 @@ impl ServerMutateTicks {
 
         let ago = self.last_tick - tick;
         if let Some(tick) = self.ticks.get(ago as usize) {
-            tick.all_received()
+            tick.all_applied()
         } else {
             true
         }
     }
 
-    /// Returns `true` if, for any tick in the given range, all mutation messages were received.
+    /// Returns `true` if, for any tick in the given range, all mutation messages were applied.
     ///
-    /// All ticks older than 64 ticks relative to [`Self::last_tick`] are considered received.
+    /// All ticks older than 64 ticks relative to [`Self::last_tick`] are considered applied.
     ///
     /// # Panics
     ///
@@ -97,15 +97,13 @@ impl ServerMutateTicks {
         // array are stored in decreasing order.
         let end = (self.last_tick - start_tick) as usize;
         let start = (self.last_tick - end_tick) as usize;
-        self.ticks
-            .range(start..=end)
-            .any(|tick| tick.all_received())
+        self.ticks.range(start..=end).any(|tick| tick.all_applied())
     }
 
-    /// Confirms a message was received for a tick and initializes the number of sent
+    /// Confirms a message was applied for a tick and initializes the number of sent
     /// messages for it.
     ///
-    /// Return `true` if the number of received messages matches `messages_count`.
+    /// Return `true` if the number of applied messages matches `messages_count`.
     ///
     /// # Panics
     ///
@@ -167,16 +165,16 @@ impl Default for ServerMutateTicks {
     }
 }
 
-/// Tracker for mutable messages received for a tick.
+/// Tracker for mutate messages applied for a tick.
 #[derive(Clone, Copy, Debug, Default)]
 struct TickMessages {
     /// Number of sent messages.
     ///
-    /// If zero, we consider the tick as completely non-received.
+    /// If zero, we consider the tick as having no applied messages.
     messages_count: usize,
 
-    /// Number of received messages.
-    received: usize,
+    /// Number of applied messages.
+    applied: usize,
 }
 
 impl TickMessages {
@@ -189,24 +187,24 @@ impl TickMessages {
         );
 
         self.messages_count = messages_count;
-        self.received += 1;
+        self.applied += 1;
 
         debug_assert!(
-            self.received <= self.messages_count,
+            self.applied <= self.messages_count,
             "expected at most {} messages, but confirmed {}",
             self.messages_count,
-            self.received,
+            self.applied,
         );
 
-        self.all_received()
+        self.all_applied()
     }
 
-    fn all_received(&self) -> bool {
-        self.messages_count != 0 && self.messages_count == self.received
+    fn all_applied(&self) -> bool {
+        self.messages_count != 0 && self.messages_count == self.applied
     }
 }
 
-/// A message that indicates that all mutate messages are received for a tick.
+/// A message that indicates that all mutate messages are applied for a tick.
 ///
 /// See also [`ServerMutateTicks`].
 #[derive(Message, Debug, Clone, Copy)]
