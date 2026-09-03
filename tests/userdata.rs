@@ -173,6 +173,49 @@ fn deferred_update_blocks_later_updates() {
 }
 
 #[test]
+fn deferred_updates_cleared_on_disconnect() {
+    let (mut server_app, mut client_app) = create_apps();
+    client_app
+        .world_mut()
+        .insert_resource(ReplicationApplyPolicy::new(apply_when_ready));
+    server_app.connect_client(&mut client_app);
+
+    // Defer a spawn; it stays buffered and unapplied.
+    set_userdata(&mut server_app, USERDATA);
+    server_app.world_mut().spawn((Replicated, TestComponent));
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    assert_eq!(remote_count(&mut client_app), 0);
+
+    // Disconnect runs the client reset, which must drop the deferred message.
+    server_app.disconnect_client(&mut client_app);
+    assert_eq!(remote_count(&mut client_app), 0);
+
+    // Reconnect with a policy that would still defer the stale message (`USERDATA` > 1).
+    // If it survived, it would head-of-line block the fresh state. The userdata is
+    // set before the handshake so handshake updates don't re-attach the stale value.
+    client_app.world_mut().resource_mut::<ReadyUserdata>().0 = 1;
+    set_userdata(&mut server_app, 1);
+    server_app.connect_client(&mut client_app);
+    server_app.world_mut().spawn((Replicated, TestComponent));
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    assert_eq!(
+        remote_count(&mut client_app),
+        2,
+        "stale deferred updates must not survive disconnect"
+    );
+    assert_eq!(
+        client_app.world().resource::<ReceivedUserdata>().0,
+        1,
+        "only fresh userdata should be applied after reconnect"
+    );
+}
+
+#[test]
 fn deferred_mutation_is_acked_before_application() {
     let (mut server_app, mut client_app) = create_apps();
     client_app

@@ -118,6 +118,8 @@ impl Plugin for ClientPlugin {
 /// Mutate messages are sent over [`ServerChannel::Mutations`], which means they may appear
 /// ahead-of or behind update messages from the same server tick. A mutation will only be applied if its
 /// update tick has already appeared in an update message, otherwise it will be buffered while waiting.
+/// Since a deferred update does not advance [`ServerUpdateTick`], mutations waiting for its tick stay
+/// buffered as well, even if the user policy would otherwise apply them.
 /// Since component mutations can arrive in any order, they will only be applied if they correspond to a more
 /// recent server tick than the last acked server tick for each entity.
 ///
@@ -250,6 +252,9 @@ fn apply_replication(
     buffered_mutations: &mut BufferedMutations,
 ) {
     // Update messages are ordered, so a deferred update blocks all later ones.
+    // It also stalls `ServerUpdateTick`, which holds back mutations waiting for a
+    // newer update tick. This is intended: a mutation can only be applied after
+    // the updates for ticks before it have been applied.
     while buffered_updates
         .0
         .front()
@@ -750,6 +755,11 @@ fn receive_userdata(message: &mut Bytes) -> Result<usize> {
 }
 
 fn apply_userdata(world: &mut World, message: &mut Bytes, message_tick: RepliconTick, len: usize) {
+    debug_assert!(
+        len <= message.len(),
+        "buffered userdata length ({len}) should not exceed retained message length ({})",
+        message.len(),
+    );
     world.trigger(UserdataReceived {
         message_tick,
         bytes: message.split_to(len),
@@ -1050,12 +1060,13 @@ pub enum ClientSystems {
 /// calls the policy again on a later run of [`ClientSystems::Receive`]. Without this resource,
 /// messages are applied immediately when their normal replication dependencies are satisfied.
 ///
-/// Update messages preserve their wire order: a deferred update also holds back all later updates.
+/// Update messages preserve their wire order: a deferred update also holds back all later updates
+/// and any mutation waiting for its tick, since [`ServerUpdateTick`] only advances on apply.
 /// Mutation messages reuse Replicon's existing mutation buffer. They are acknowledged after being
 /// parsed and retained, so an acknowledgment can precede application.
 ///
 /// The userdata slice passed to the policy borrows the received [`Bytes`] and is not copied.
-/// Deferred messages are never evicted while the connection remains active because acknowledged
+/// Buffering is unbounded while connected: deferred messages are never evicted because acknowledged
 /// mutations can no longer be reconstructed by the server. The policy should therefore eventually
 /// return [`ReplicationApplyDecision::Apply`]; disconnecting clears all deferred messages.
 #[derive(Resource, Clone, Copy)]
@@ -1136,9 +1147,15 @@ struct BufferedUpdate {
 
 impl BufferedUpdate {
     fn userdata(&self) -> Option<&[u8]> {
-        self.flags
-            .contains(UpdateFlags::USERDATA)
-            .then(|| &self.message[..self.userdata_len])
+        self.flags.contains(UpdateFlags::USERDATA).then(|| {
+            debug_assert!(
+                self.userdata_len <= self.message.len(),
+                "buffered userdata length should not exceed retained message length",
+            );
+            self.message
+                .get(..self.userdata_len)
+                .expect("buffered userdata length should not exceed retained message length")
+        })
     }
 }
 
@@ -1182,9 +1199,15 @@ pub(super) struct BufferedMutate {
 
 impl BufferedMutate {
     fn userdata(&self) -> Option<&[u8]> {
-        self.flags
-            .contains(MutateFlags::USERDATA)
-            .then(|| &self.message[..self.userdata_len])
+        self.flags.contains(MutateFlags::USERDATA).then(|| {
+            debug_assert!(
+                self.userdata_len <= self.message.len(),
+                "buffered userdata length should not exceed retained message length",
+            );
+            self.message
+                .get(..self.userdata_len)
+                .expect("buffered userdata length should not exceed retained message length")
+        })
     }
 }
 
