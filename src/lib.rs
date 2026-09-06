@@ -787,9 +787,8 @@ pub mod prelude {
 
     #[cfg(feature = "client")]
     pub use super::client::{
-        ClientPlugin, ClientReplicationStats, ClientSystems, Remote, ReplicationApplyDecision,
-        ReplicationApplyFn, ReplicationApplyPolicy, ReplicationMessageInfo, ReplicationMessageKind,
-        message::ClientMessagePlugin,
+        ClientPlugin, ClientReplicationStats, ClientSystems, Remote, ReplicationApplyFn,
+        ReplicationApplyPolicy, UserDataBytes, message::ClientMessagePlugin,
     };
 
     #[cfg(feature = "server")]

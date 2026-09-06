@@ -117,6 +117,7 @@ fn defer_update_message() {
         "userdata should be emitted only when its message is applied"
     );
 
+    // The policy accepts the userdata, so the update is applied.
     client_app.world_mut().resource_mut::<ReadyUserdata>().0 = USERDATA;
     client_app.update();
 
@@ -267,10 +268,16 @@ fn deferred_mutation_is_acked_before_application() {
 }
 
 #[test]
-fn malformed_mutation_is_not_acked() {
+fn deferred_update_holds_back_mutation() {
     let (mut server_app, mut client_app) = create_apps();
+    client_app
+        .world_mut()
+        .insert_resource(ReplicationApplyPolicy::new(apply_when_ready));
+    client_app.world_mut().resource_mut::<ReadyUserdata>().0 = 1;
     server_app.connect_client(&mut client_app);
 
+    // Defer the spawn update; it stays buffered and unapplied.
+    set_userdata(&mut server_app, 2);
     let server_entity = server_app
         .world_mut()
         .spawn((Replicated, ValueComponent(0)))
@@ -278,8 +285,11 @@ fn malformed_mutation_is_not_acked() {
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
     client_app.update();
-    server_app.exchange_with_client(&mut client_app);
+    assert_eq!(remote_count(&mut client_app), 0);
 
+    // The policy accepts this mutation's userdata, but its update is still deferred,
+    // so it must stay buffered until the update is applied.
+    set_userdata(&mut server_app, 1);
     server_app
         .world_mut()
         .get_mut::<ValueComponent>(server_entity)
@@ -287,32 +297,39 @@ fn malformed_mutation_is_not_acked() {
         .0 = 1;
     server_app.update();
     server_app.exchange_with_client(&mut client_app);
-
-    {
-        let mut messages = client_app.world_mut().resource_mut::<ClientMessages>();
-        let malformed = messages
-            .iter_received(ServerChannel::Mutations)
-            .next()
-            .expect("server should send a mutation")
-            .slice(..3);
-        messages
-            .drain_received(ServerChannel::Mutations)
-            .for_each(drop);
-        messages.insert_received(ServerChannel::Mutations, malformed);
-    }
-
     client_app.update();
 
+    assert_eq!(
+        remote_count(&mut client_app),
+        0,
+        "a mutation must not pass its deferred update"
+    );
+    assert_eq!(
+        client_app.world().resource::<ReceivedUserdata>().0,
+        0,
+        "nothing should be applied while the update is deferred"
+    );
     assert!(
         client_app
             .world()
             .resource::<ClientMessages>()
             .iter_sent()
-            .all(
-                |(channel, bytes)| channel != usize::from(ClientChannel::MutationAcks)
-                    || bytes.is_empty()
+            .any(
+                |(channel, bytes)| channel == usize::from(ClientChannel::MutationAcks)
+                    && !bytes.is_empty()
             ),
-        "a mutation that could not be retained must not be acknowledged"
+        "a retained mutation should be acknowledged even while waiting for its update"
+    );
+
+    client_app.world_mut().resource_mut::<ReadyUserdata>().0 = 2;
+    client_app.update();
+
+    assert_eq!(remote_count(&mut client_app), 1);
+    assert_eq!(client_value(&mut client_app), 1);
+    assert_eq!(
+        client_app.world().resource::<ReceivedUserdata>().0,
+        1,
+        "messages should be applied in wire order once the update is ready"
     );
 }
 
@@ -342,16 +359,16 @@ fn set_userdata(app: &mut App, value: u32) {
     userdata.extend_from_slice(&value.to_le_bytes());
 }
 
-fn apply_when_ready(world: &World, message: ReplicationMessageInfo) -> ReplicationApplyDecision {
-    let Some(userdata) = message.userdata else {
-        return ReplicationApplyDecision::Apply;
+fn apply_when_ready(
+    world: &World,
+    _message_tick: RepliconTick,
+    userdata: Option<UserDataBytes>,
+) -> bool {
+    let Some(userdata) = userdata else {
+        return true;
     };
     let value = u32::from_le_bytes(userdata.try_into().expect("test userdata should be a u32"));
-    if value <= world.resource::<ReadyUserdata>().0 {
-        ReplicationApplyDecision::Apply
-    } else {
-        ReplicationApplyDecision::Defer
-    }
+    value <= world.resource::<ReadyUserdata>().0
 }
 
 fn remote_count(app: &mut App) -> usize {

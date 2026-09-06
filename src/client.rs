@@ -263,7 +263,7 @@ fn apply_replication(
         let mut update = buffered_updates
             .0
             .pop_front()
-            .expect("front was checked above");
+            .unwrap();
         apply_update_or_log(world, params, &mut update);
     }
 
@@ -354,18 +354,19 @@ fn receive_update_message(
         stats.bytes += message.len();
     }
 
-    let flags: UpdateFlags = postcard_utils::from_buf(&mut message)?;
+    let mut flags: UpdateFlags = postcard_utils::from_buf(&mut message)?;
     let message_tick = postcard_utils::from_buf(&mut message)?;
-    let userdata_len = if flags.contains(UpdateFlags::USERDATA) {
-        receive_userdata(&mut message)?
+    let userdata = if flags.contains(UpdateFlags::USERDATA) {
+        flags.remove(UpdateFlags::USERDATA);
+        Some(receive_userdata(&mut message)?)
     } else {
-        0
+        None
     };
 
     Ok(BufferedUpdate {
         flags,
         message_tick,
-        userdata_len,
+        userdata,
         message,
     })
 }
@@ -382,19 +383,12 @@ fn apply_update_message(
     );
     world.resource_mut::<ServerUpdateTick>().0 = update.message_tick;
 
-    if update.flags.contains(UpdateFlags::USERDATA) {
-        apply_userdata(
-            world,
-            &mut update.message,
-            update.message_tick,
-            update.userdata_len,
-        );
+    if let Some(bytes) = update.userdata.take() {
+        apply_userdata(world, update.message_tick, bytes);
     }
 
-    let mut flags = update.flags;
-    flags.remove(UpdateFlags::USERDATA);
-    let last_flag = flags.last();
-    for (_, flag) in flags.iter_names() {
+    let last_flag = update.flags.last();
+    for (_, flag) in update.flags.iter_names() {
         let array_kind = if flag != last_flag {
             ArrayKind::Sized
         } else {
@@ -462,21 +456,22 @@ fn buffer_mutate_message(
         stats.bytes += message.len();
     }
 
-    let flags: MutateFlags = postcard_utils::from_buf(&mut message)?;
+    let mut flags: MutateFlags = postcard_utils::from_buf(&mut message)?;
     let mutate_index: MutateIndex = postcard_utils::from_buf(&mut message)?;
     let update_tick = postcard_utils::from_buf(&mut message)?;
     let message_tick = postcard_utils::from_buf(&mut message)?;
-    let userdata_len = if flags.contains(MutateFlags::USERDATA) {
-        receive_userdata(&mut message)?
+    let userdata = if flags.contains(MutateFlags::USERDATA) {
+        flags.remove(MutateFlags::USERDATA);
+        Some(receive_userdata(&mut message)?)
     } else {
-        0
+        None
     };
     trace!("received mutate message for {message_tick:?}");
     buffered_mutations.insert(BufferedMutate {
         flags,
         update_tick,
         message_tick,
-        userdata_len,
+        userdata,
         message,
     });
     // An ACK means the mutation has been successfully parsed and durably retained.
@@ -497,18 +492,11 @@ fn apply_mutate_message(
         mutate.flags, mutate.message_tick
     );
 
-    if mutate.flags.contains(MutateFlags::USERDATA) {
-        apply_userdata(
-            world,
-            &mut mutate.message,
-            mutate.message_tick,
-            mutate.userdata_len,
-        );
+    if let Some(bytes) = mutate.userdata.take() {
+        apply_userdata(world, mutate.message_tick, bytes);
     }
 
-    let mut flags = mutate.flags;
-    flags.remove(MutateFlags::USERDATA);
-    for (_, flag) in flags.iter_names() {
+    for (_, flag) in mutate.flags.iter_names() {
         match flag {
             MutateFlags::MESSAGES_COUNT => {
                 confirm_mutate_tick(world, params.mutate_ticks, mutate)
@@ -740,9 +728,9 @@ fn apply_changes(
     Ok(())
 }
 
-/// Reads the userdata length while leaving its bytes at the front of the message.
-fn receive_userdata(message: &mut Bytes) -> Result<usize> {
-    let len = postcard_utils::from_buf(message)?;
+/// Splits the userdata prefix off the front of the message.
+fn receive_userdata(message: &mut Bytes) -> Result<Bytes> {
+    let len: usize = postcard_utils::from_buf(message)?;
     if len > message.len() {
         return Err(format!(
             "userdata length ({len}) exceeds remaining message length ({})",
@@ -751,57 +739,30 @@ fn receive_userdata(message: &mut Bytes) -> Result<usize> {
         .into());
     }
 
-    Ok(len)
+    Ok(message.split_to(len))
 }
 
-fn apply_userdata(world: &mut World, message: &mut Bytes, message_tick: RepliconTick, len: usize) {
-    debug_assert!(
-        len <= message.len(),
-        "buffered userdata length ({len}) should not exceed retained message length ({})",
-        message.len(),
-    );
+fn apply_userdata(world: &mut World, message_tick: RepliconTick, bytes: Bytes) {
     world.trigger(UserdataReceived {
         message_tick,
-        bytes: message.split_to(len),
+        bytes,
     });
 }
 
 fn should_apply_update(world: &World, update: &BufferedUpdate) -> bool {
-    should_apply(
-        world,
-        ReplicationMessageKind::Update,
-        update.message_tick,
-        update.userdata(),
-    )
+    should_apply(world, update.message_tick, update.userdata.as_deref())
 }
 
 fn should_apply_mutate(world: &World, mutate: &BufferedMutate) -> bool {
-    should_apply(
-        world,
-        ReplicationMessageKind::Mutation,
-        mutate.message_tick,
-        mutate.userdata(),
-    )
+    should_apply(world, mutate.message_tick, mutate.userdata.as_deref())
 }
 
-fn should_apply(
-    world: &World,
-    kind: ReplicationMessageKind,
-    message_tick: RepliconTick,
-    userdata: Option<&[u8]>,
-) -> bool {
+fn should_apply(world: &World, message_tick: RepliconTick, userdata: Option<&[u8]>) -> bool {
     let Some(policy) = world.get_resource::<ReplicationApplyPolicy>().copied() else {
         return true;
     };
 
-    policy.decide(
-        world,
-        ReplicationMessageInfo {
-            kind,
-            message_tick,
-            userdata,
-        },
-    ) == ReplicationApplyDecision::Apply
+    policy.decide(world, message_tick, userdata)
 }
 
 fn apply_array(
@@ -1056,21 +1017,19 @@ pub enum ClientSystems {
 /// Controls when received replication messages may be applied to the client world.
 ///
 /// Insert this resource to inspect a message's tick and borrowed userdata before Replicon applies
-/// the rest of the message. Returning [`ReplicationApplyDecision::Defer`] retains the message and
-/// calls the policy again on a later run of [`ClientSystems::Receive`]. Without this resource,
-/// messages are applied immediately when their normal replication dependencies are satisfied.
+/// the rest of the message. Returning `false` buffers the message, and will only apply it when the
+/// policy returns `true`. Without this resource, messages are applied immediately.
 ///
 /// Update messages preserve their wire order: a deferred update also holds back all later updates
 /// and any mutation waiting for its tick, since [`ServerUpdateTick`] only advances on apply.
 /// Mutation messages reuse Replicon's existing mutation buffer. They are acknowledged after being
 /// parsed and retained, so an acknowledgment can precede application.
-///
-/// The userdata slice passed to the policy borrows the received [`Bytes`] and is not copied.
-/// Buffering is unbounded while connected: deferred messages are never evicted because acknowledged
-/// mutations can no longer be reconstructed by the server. The policy should therefore eventually
-/// return [`ReplicationApplyDecision::Apply`]; disconnecting clears all deferred messages.
+
 #[derive(Resource, Clone, Copy)]
 pub struct ReplicationApplyPolicy(ReplicationApplyFn);
+
+/// Borrowed bytes of user-defined data sent from the server.
+pub type UserDataBytes<'a> = &'a [u8];
 
 impl ReplicationApplyPolicy {
     /// Creates a policy from the given function.
@@ -1078,45 +1037,26 @@ impl ReplicationApplyPolicy {
         Self(policy)
     }
 
-    fn decide(self, world: &World, message: ReplicationMessageInfo) -> ReplicationApplyDecision {
-        (self.0)(world, message)
+    fn decide(
+        self,
+        world: &World,
+        message_tick: RepliconTick,
+        userdata: Option<UserDataBytes>,
+    ) -> bool {
+        (self.0)(world, message_tick, userdata)
     }
 }
 
 /// Function used by [`ReplicationApplyPolicy`].
 ///
+/// Takes the tick serialized in the message envelope and the raw userdata bytes,
+/// if the server attached any to this message.
+///
+/// Returns `true` to apply the message during the current receive system, `false` to retain
+/// it and ask the policy again during a later receive system.
+///
 /// State needed by the policy can be stored in resources and read from `world`.
-pub type ReplicationApplyFn =
-    for<'a> fn(&World, ReplicationMessageInfo<'a>) -> ReplicationApplyDecision;
-
-/// Result returned by [`ReplicationApplyPolicy`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ReplicationApplyDecision {
-    /// Apply the message during the current receive pass.
-    Apply,
-    /// Retain the message and ask the policy again during a later receive pass.
-    Defer,
-}
-
-/// Borrowed metadata for a received replication message.
-#[derive(Debug, Clone, Copy)]
-pub struct ReplicationMessageInfo<'a> {
-    /// Channel-level kind of replication message.
-    pub kind: ReplicationMessageKind,
-    /// Replicon tick serialized in the message envelope.
-    pub message_tick: RepliconTick,
-    /// Raw user-defined bytes, if the server attached any to this message.
-    pub userdata: Option<&'a [u8]>,
-}
-
-/// Channel-level kind of a received replication message.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ReplicationMessageKind {
-    /// Reliable, ordered update containing insertions, removals, spawns, or despawns.
-    Update,
-    /// Unordered mutation message.
-    Mutation,
-}
+pub type ReplicationApplyFn = for<'a> fn(&World, RepliconTick, Option<UserDataBytes<'a>>) -> bool;
 
 /// Last applied tick for update messages from the server.
 ///
@@ -1139,24 +1079,13 @@ impl BufferedUpdates {
 
 /// Partially-deserialized update message waiting for the user policy.
 struct BufferedUpdate {
+    /// Sections remaining in [`Self::message`].
     flags: UpdateFlags,
     message_tick: RepliconTick,
-    userdata_len: usize,
+    /// Userdata split off the front of the received message, if present.
+    userdata: Option<Bytes>,
+    /// Message bytes after the envelope (flags, tick and userdata) has been consumed.
     message: Bytes,
-}
-
-impl BufferedUpdate {
-    fn userdata(&self) -> Option<&[u8]> {
-        self.flags.contains(UpdateFlags::USERDATA).then(|| {
-            debug_assert!(
-                self.userdata_len <= self.message.len(),
-                "buffered userdata length should not exceed retained message length",
-            );
-            self.message
-                .get(..self.userdata_len)
-                .expect("buffered userdata length should not exceed retained message length")
-        })
-    }
 }
 
 /// Cached buffered mutate messages, used to synchronize mutations with update messages.
@@ -1190,25 +1119,11 @@ pub(super) struct BufferedMutate {
     /// The tick this mutations corresponds to.
     message_tick: RepliconTick,
 
-    /// Length of userdata stored at the beginning of `message`.
-    userdata_len: usize,
+    /// Userdata split off the front of the received message, if present.
+    userdata: Option<Bytes>,
 
-    /// Mutations data.
+    /// Message bytes after the envelope (flags, indices, ticks and userdata) has been consumed.
     message: Bytes,
-}
-
-impl BufferedMutate {
-    fn userdata(&self) -> Option<&[u8]> {
-        self.flags.contains(MutateFlags::USERDATA).then(|| {
-            debug_assert!(
-                self.userdata_len <= self.message.len(),
-                "buffered userdata length should not exceed retained message length",
-            );
-            self.message
-                .get(..self.userdata_len)
-                .expect("buffered userdata length should not exceed retained message length")
-        })
-    }
 }
 
 /// Replication stats during message processing.
