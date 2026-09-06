@@ -260,10 +260,7 @@ fn apply_replication(
         .front()
         .is_some_and(|update| should_apply_update(world, update))
     {
-        let mut update = buffered_updates
-            .0
-            .pop_front()
-            .unwrap();
+        let mut update = buffered_updates.0.pop_front().unwrap();
         apply_update_or_log(world, params, &mut update);
     }
 
