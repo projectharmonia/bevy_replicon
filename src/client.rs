@@ -44,6 +44,7 @@ impl Plugin for ClientPlugin {
             .init_resource::<ServerUpdateTick>()
             .init_resource::<ServerMutateTicks>()
             .init_resource::<BufferedMutations>()
+            .init_resource::<BufferedRemoteDespawns>()
             .add_message::<EntityReplicated>()
             .add_message::<MutateTickReceived>()
             .configure_sets(
@@ -187,8 +188,20 @@ fn cleanup_storage(remove: On<Remove, Remote>, mut storage: If<ResMut<Replicatio
 // The server can despawn an entity without sending a replication message,
 // so we need to manually remove the entity from the `ServerEntityMap`
 // when it is despawned on the client.
-fn cleanup_entity_map(despawn: On<Despawn, Remote>, mut entity_map: If<ResMut<ServerEntityMap>>) {
-    entity_map.remove_by_client(despawn.entity);
+// During receive, only despawns caused by the authoritative handler are captured.
+fn cleanup_entity_map(
+    despawn: On<Despawn, Remote>,
+    entity_map: Option<ResMut<ServerEntityMap>>,
+    mut despawns: ResMut<BufferedRemoteDespawns>,
+) {
+    if let Some(mut entity_map) = entity_map {
+        entity_map.remove_by_client(despawn.entity);
+    } else if despawns
+        .capturing_root
+        .is_some_and(|root| root != despawn.entity)
+    {
+        despawns.entities.push(despawn.entity);
+    }
 }
 
 fn reset(
@@ -464,10 +477,21 @@ fn apply_despawn(
         params.signature_map.remove(client_entity);
         params.storage.entities.remove(&client_entity);
 
+        world
+            .resource_mut::<BufferedRemoteDespawns>()
+            .capturing_root = Some(client_entity);
         if let Ok(client_entity) = world.get_entity_mut(client_entity) {
             debug!("applying despawn for `{}`", client_entity.id());
             let ctx = DespawnCtx { message_tick };
             (params.registry.despawn)(&ctx, client_entity);
+        }
+
+        let mut despawns = world.resource_mut::<BufferedRemoteDespawns>();
+        despawns.capturing_root = None;
+        for client_entity in despawns.entities.drain(..) {
+            params.entity_map.remove_by_client(client_entity);
+            params.signature_map.remove(client_entity);
+            params.storage.entities.remove(&client_entity);
         }
     }
 
@@ -930,6 +954,13 @@ impl BufferedMutations {
             .partition_point(|other| mutate.message_tick.is_older(other.message_tick));
         self.0.insert(index, mutate);
     }
+}
+
+/// Remote entities despawned by an authoritative despawn handler.
+#[derive(Resource, Default)]
+struct BufferedRemoteDespawns {
+    capturing_root: Option<Entity>,
+    entities: Vec<Entity>,
 }
 
 /// Partially-deserialized mutate message that is waiting for its tick to appear in an update message.
