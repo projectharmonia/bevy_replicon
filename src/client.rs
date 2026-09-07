@@ -399,6 +399,7 @@ fn apply_mutate_message(
         mutate.flags, mutate.message_tick
     );
 
+    let mut messages_count = None;
     for (_, flag) in mutate.flags.iter_names() {
         match flag {
             MutateFlags::USERDATA => {
@@ -406,8 +407,10 @@ fn apply_mutate_message(
                     .map_err(|e| format!("unable to apply userdata: {e}"))?;
             }
             MutateFlags::MESSAGES_COUNT => {
-                confirm_mutate_tick(world, params.mutate_ticks, mutate)
-                    .map_err(|e| format!("unable to confirm mutate tick: {e}"))?;
+                messages_count = Some(
+                    postcard_utils::from_buf(&mut mutate.message)
+                        .map_err(|e| format!("unable to confirm mutate tick: {e}"))?,
+                );
             }
             MutateFlags::MUTATIONS => {
                 let len = apply_array(ArrayKind::Dynamic, &mut mutate.message, |message| {
@@ -420,6 +423,15 @@ fn apply_mutate_message(
             }
             _ => unreachable!("iteration should yield only named flags"),
         }
+    }
+
+    if let Some(messages_count) = messages_count {
+        confirm_mutate_tick(
+            world,
+            params.mutate_ticks,
+            mutate.message_tick,
+            messages_count,
+        );
     }
 
     Ok(())
@@ -710,17 +722,13 @@ fn confirm_tick(
 fn confirm_mutate_tick(
     world: &mut World,
     mutate_ticks: &mut ServerMutateTicks,
-    mutate: &mut BufferedMutate,
-) -> Result<()> {
-    let count = postcard_utils::from_buf(&mut mutate.message)?;
-    if mutate_ticks.confirm(mutate.message_tick, count) {
-        mutate_ticks.set_last_confirmed_tick(mutate.message_tick);
-        world.write_message(MutateTickReceived {
-            tick: mutate.message_tick,
-        });
+    tick: RepliconTick,
+    messages_count: usize,
+) {
+    if mutate_ticks.confirm(tick, messages_count) {
+        mutate_ticks.set_last_confirmed_tick(tick);
+        world.write_message(MutateTickReceived { tick });
     }
-
-    Ok(())
 }
 
 /// Deserializes and applies component mutations for an entity.
