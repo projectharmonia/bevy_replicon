@@ -31,7 +31,12 @@ impl ServerEntityMap {
             }
         }
 
-        self.client_to_server.insert(client_entity, server_entity);
+        if let Some(existing_server_entity) =
+            self.client_to_server.insert(client_entity, server_entity)
+            && existing_server_entity != server_entity
+        {
+            self.server_to_client.remove(&existing_server_entity);
+        }
     }
 
     /// Returns server to client mappings.
@@ -167,6 +172,7 @@ mod tests {
     fn mapping() {
         const SERVER_ENTITY: Entity = Entity::from_raw_u32(0).unwrap();
         const CLIENT_ENTITY: Entity = Entity::from_raw_u32(1).unwrap();
+        const REPLACEMENT_SERVER_ENTITY: Entity = Entity::from_raw_u32(2).unwrap();
 
         let mut map = ServerEntityMap::default();
         assert_eq!(map.server_entry(SERVER_ENTITY).get(), None);
@@ -200,8 +206,17 @@ mod tests {
         );
         assert_eq!(map.server_entry(SERVER_ENTITY).get(), Some(CLIENT_ENTITY));
 
-        assert_eq!(map.remove_by_client(CLIENT_ENTITY), Some(SERVER_ENTITY));
-        assert_eq!(map.server_entry(SERVER_ENTITY).get(), None);
-        assert!(!map.to_server().contains_key(&CLIENT_ENTITY));
+        map.insert(REPLACEMENT_SERVER_ENTITY, CLIENT_ENTITY);
+        assert!(!map.to_client().contains_key(&SERVER_ENTITY));
+        assert_eq!(
+            map.to_client().get(&REPLACEMENT_SERVER_ENTITY),
+            Some(&CLIENT_ENTITY)
+        );
+        assert_eq!(
+            map.remove_by_client(CLIENT_ENTITY),
+            Some(REPLACEMENT_SERVER_ENTITY)
+        );
+        assert!(map.to_client().is_empty());
+        assert!(map.to_server().is_empty());
     }
 }

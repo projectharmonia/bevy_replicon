@@ -209,6 +209,52 @@ fn signature() {
 }
 
 #[test]
+fn signature_replacement() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            StatesPlugin,
+            RepliconPlugins.set(ServerPlugin::new(PostUpdate)),
+        ))
+        .finish();
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    let client_entity = client_app.world_mut().spawn(Signature::from(0)).id();
+    let old_server_entity = server_app
+        .world_mut()
+        .spawn((Replicated, Signature::from(0)))
+        .id();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    server_app.world_mut().despawn(old_server_entity);
+    let new_server_entity = server_app
+        .world_mut()
+        .spawn((Replicated, Signature::from(0)))
+        .id();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    assert!(client_app.world().get::<Remote>(client_entity).is_some());
+
+    let entity_map = client_app.world().resource::<ServerEntityMap>();
+    assert!(!entity_map.to_client().contains_key(&old_server_entity));
+    assert_eq!(
+        entity_map.to_server().get(&client_entity),
+        Some(&new_server_entity)
+    );
+}
+
+#[test]
 fn signature_with_hierarchy() {
     let mut server_app = App::new();
     let mut client_app = App::new();
