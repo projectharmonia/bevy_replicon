@@ -44,7 +44,7 @@ impl Plugin for ClientPlugin {
             .init_resource::<ServerUpdateTick>()
             .init_resource::<ServerMutateTicks>()
             .init_resource::<BufferedMutations>()
-            .init_resource::<DespawnCascade>()
+            .init_resource::<ReplicatedDespawns>()
             .add_message::<EntityReplicated>()
             .add_message::<MutateTickReceived>()
             .configure_sets(
@@ -188,18 +188,15 @@ fn cleanup_storage(remove: On<Remove, Remote>, mut storage: If<ResMut<Replicatio
 // The server can despawn an entity without sending a replication message,
 // so we need to manually remove the entity from the `ServerEntityMap`
 // when it is despawned on the client.
-// While despawns are applied from a message, the map is unavailable, so
-// cascaded despawns are collected into `DespawnCascade` for cleanup after
-// the batch.
 fn cleanup_entity_map(
     despawn: On<Despawn, Remote>,
     entity_map: Option<ResMut<ServerEntityMap>>,
-    mut cascade: ResMut<DespawnCascade>,
+    mut despawns: ResMut<ReplicatedDespawns>,
 ) {
     if let Some(mut entity_map) = entity_map {
         entity_map.remove_by_client(despawn.entity);
     } else {
-        cascade.push(despawn.entity);
+        despawns.push(despawn.entity);
     }
 }
 
@@ -209,7 +206,7 @@ fn reset(
     mut update_tick: ResMut<ServerUpdateTick>,
     mut entity_map: ResMut<ServerEntityMap>,
     mut buffered_mutations: ResMut<BufferedMutations>,
-    mut cascade: ResMut<DespawnCascade>,
+    mut despawns: ResMut<ReplicatedDespawns>,
     mutate_ticks: Option<ResMut<ServerMutateTicks>>,
     replication_stats: Option<ResMut<ClientReplicationStats>>,
 ) {
@@ -218,7 +215,7 @@ fn reset(
     *update_tick = Default::default();
     entity_map.clear();
     buffered_mutations.clear();
-    cascade.clear();
+    despawns.clear();
     if let Some(mut mutate_ticks) = mutate_ticks {
         mutate_ticks.clear();
     }
@@ -341,7 +338,7 @@ fn apply_update_message(
                 .map_err(|e| format!("unable to apply despawns: {e}"))?;
                 // Despawns can cascade to other remote entities (e.g. children),
                 // which won't have their own despawn message.
-                for client_entity in world.resource_mut::<DespawnCascade>().drain(..) {
+                for client_entity in world.resource_mut::<ReplicatedDespawns>().drain(..) {
                     params.entity_map.remove_by_client(client_entity);
                     params.signature_map.remove(client_entity);
                     params.storage.entities.remove(&client_entity);
@@ -480,11 +477,7 @@ fn apply_despawn(
     // with the last replication message, but the server might not yet have received confirmation
     // from the client and could include the deletion in the this message.
     let server_entity = postcard_utils::entity_from_buf(message)?;
-    if let Some(client_entity) = params.entity_map.server_entry(server_entity).remove() {
-        // Requires manual removal since these resources are removed from the world and inaccessible to observers.
-        params.signature_map.remove(client_entity);
-        params.storage.entities.remove(&client_entity);
-
+    if let Some(&client_entity) = params.entity_map.to_server().get(&server_entity) {
         if let Ok(client_entity) = world.get_entity_mut(client_entity) {
             debug!("applying despawn for `{}`", client_entity.id());
             let ctx = DespawnCtx { message_tick };
@@ -953,10 +946,16 @@ impl BufferedMutations {
     }
 }
 
-/// Entities that were despawned during replication message processing
-/// and that need futured cleanup from the [`ServerEntityMap`] and [`SignatureMap`].
+/// Entities that were despawned during replication message processing.
+///
+///
+/// When despawns are applied from a message, resources like
+/// [`ServerEntityMap`] or [`SignatureMap`] are unavailable.
+///
+/// So despawns are collected into this resource and cleaned up
+/// after applying all despawns.
 #[derive(Resource, Default, Deref, DerefMut)]
-struct DespawnCascade(Vec<Entity>);
+struct ReplicatedDespawns(Vec<Entity>);
 
 /// Partially-deserialized mutate message that is waiting for its tick to appear in an update message.
 ///
