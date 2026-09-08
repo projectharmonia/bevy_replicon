@@ -44,6 +44,7 @@ impl Plugin for ClientPlugin {
             .init_resource::<ServerUpdateTick>()
             .init_resource::<ServerMutateTicks>()
             .init_resource::<BufferedMutations>()
+            .init_resource::<DespawnCascade>()
             .add_message::<EntityReplicated>()
             .add_message::<MutateTickReceived>()
             .configure_sets(
@@ -187,8 +188,19 @@ fn cleanup_storage(remove: On<Remove, Remote>, mut storage: If<ResMut<Replicatio
 // The server can despawn an entity without sending a replication message,
 // so we need to manually remove the entity from the `ServerEntityMap`
 // when it is despawned on the client.
-fn cleanup_entity_map(despawn: On<Despawn, Remote>, mut entity_map: If<ResMut<ServerEntityMap>>) {
-    entity_map.remove_by_client(despawn.entity);
+// While despawns are applied from a message, the map is unavailable, so
+// cascaded despawns are collected into `DespawnCascade` for cleanup after
+// the batch.
+fn cleanup_entity_map(
+    despawn: On<Despawn, Remote>,
+    entity_map: Option<ResMut<ServerEntityMap>>,
+    mut cascade: ResMut<DespawnCascade>,
+) {
+    if let Some(mut entity_map) = entity_map {
+        entity_map.remove_by_client(despawn.entity);
+    } else {
+        cascade.0.push(despawn.entity);
+    }
 }
 
 fn reset(
@@ -197,6 +209,7 @@ fn reset(
     mut update_tick: ResMut<ServerUpdateTick>,
     mut entity_map: ResMut<ServerEntityMap>,
     mut buffered_mutations: ResMut<BufferedMutations>,
+    mut cascade: ResMut<DespawnCascade>,
     mutate_ticks: Option<ResMut<ServerMutateTicks>>,
     replication_stats: Option<ResMut<ClientReplicationStats>>,
 ) {
@@ -205,6 +218,7 @@ fn reset(
     *update_tick = Default::default();
     entity_map.clear();
     buffered_mutations.clear();
+    cascade.clear();
     if let Some(mut mutate_ticks) = mutate_ticks {
         mutate_ticks.clear();
     }
@@ -321,10 +335,19 @@ fn apply_update_message(
                 }
             }
             UpdateFlags::DESPAWNS => {
-                let len = apply_array(array_kind, message, |message| {
+                let result = apply_array(array_kind, message, |message| {
                     apply_despawn(world, params, message, message_tick)
                 })
-                .map_err(|e| format!("unable to apply despawns: {e}"))?;
+                .map_err(|e| format!("unable to apply despawns: {e}"));
+                // Despawns can cascade to other remote entities (e.g. children),
+                // which won't have their own despawn message.
+                let mut cascade = world.resource_mut::<DespawnCascade>();
+                for client_entity in cascade.drain(..) {
+                    params.entity_map.remove_by_client(client_entity);
+                    params.signature_map.remove(client_entity);
+                    params.storage.entities.remove(&client_entity);
+                }
+                let len = result?;
                 if let Some(stats) = &mut params.stats {
                     stats.despawns += len;
                 }
@@ -931,6 +954,13 @@ impl BufferedMutations {
         self.0.insert(index, mutate);
     }
 }
+
+/// Remote entities despawned as part of an authoritative despawn cascade.
+///
+/// Collected by [`cleanup_entity_map`] while despawns are applied from a
+/// message and cleaned up after each despawn batch.
+#[derive(Resource, Default, Deref, DerefMut)]
+struct DespawnCascade(Vec<Entity>);
 
 /// Partially-deserialized mutate message that is waiting for its tick to appear in an update message.
 ///

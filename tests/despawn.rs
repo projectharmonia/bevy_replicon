@@ -121,6 +121,144 @@ fn with_relations() {
 }
 
 #[test]
+fn recursive_despawn_cleans_paused_child_mapping() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            StatesPlugin,
+            RepliconPlugins.set(ServerPlugin::new(PostUpdate)),
+        ))
+        .replicate::<ChildOf>()
+        .finish();
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    let server_parent = server_app.world_mut().spawn(Replicated).id();
+    let server_child = server_app
+        .world_mut()
+        .spawn((Replicated, ChildOf(server_parent)))
+        .id();
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    let client_child = *client_app
+        .world()
+        .resource::<ServerEntityMap>()
+        .to_client()
+        .get(&server_child)
+        .unwrap();
+
+    server_app
+        .world_mut()
+        .entity_mut(server_child)
+        .remove::<Replicated>();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    assert!(client_app.world().get_entity(client_child).is_ok());
+    {
+        let entity_map = client_app.world().resource::<ServerEntityMap>();
+        assert_eq!(
+            entity_map.to_client().get(&server_child),
+            Some(&client_child)
+        );
+        assert_eq!(
+            entity_map.to_server().get(&client_child),
+            Some(&server_child)
+        );
+    }
+
+    server_app.world_mut().despawn(server_parent);
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    assert!(client_app.world().get_entity(client_child).is_err());
+
+    let entity_map = client_app.world().resource::<ServerEntityMap>();
+    assert!(!entity_map.to_client().contains_key(&server_child));
+    assert!(!entity_map.to_server().contains_key(&client_child));
+}
+
+#[test]
+fn recursive_despawn_cleans_paused_custom_relation_mapping() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            StatesPlugin,
+            RepliconPlugins.set(ServerPlugin::new(PostUpdate)),
+        ))
+        .replicate::<MemberOf>()
+        .finish();
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    let server_parent = server_app.world_mut().spawn(Replicated).id();
+    let server_child = server_app
+        .world_mut()
+        .spawn((Replicated, MemberOf(server_parent)))
+        .id();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    let client_parent = *client_app
+        .world()
+        .resource::<ServerEntityMap>()
+        .to_client()
+        .get(&server_parent)
+        .unwrap();
+    let client_child = *client_app
+        .world()
+        .resource::<ServerEntityMap>()
+        .to_client()
+        .get(&server_child)
+        .unwrap();
+    assert_eq!(
+        client_app.world().get::<MemberOf>(client_child).unwrap().0,
+        client_parent,
+        "hierarchy should replicate through the custom relationship"
+    );
+
+    server_app
+        .world_mut()
+        .entity_mut(server_child)
+        .remove::<Replicated>();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    assert!(client_app.world().get_entity(client_child).is_ok());
+
+    server_app.world_mut().despawn(server_parent);
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    assert!(client_app.world().get_entity(client_child).is_err());
+
+    let entity_map = client_app.world().resource::<ServerEntityMap>();
+    assert!(!entity_map.to_client().contains_key(&server_child));
+    assert!(!entity_map.to_server().contains_key(&client_child));
+}
+
+#[test]
 fn after_pause() {
     let mut server_app = App::new();
     let mut client_app = App::new();
@@ -465,6 +603,14 @@ fn with_visibility_gain_and_signature() {
 
 #[derive(Component, Deserialize, Serialize)]
 struct TestComponent;
+
+#[derive(Component, Deserialize, Serialize)]
+#[relationship(relationship_target = Members)]
+struct MemberOf(Entity);
+
+#[derive(Component)]
+#[relationship_target(relationship = MemberOf, linked_spawn)]
+struct Members(Vec<Entity>);
 
 #[derive(Resource, Deserialize, Serialize)]
 struct TestResource;
