@@ -212,11 +212,12 @@ mod tests {
             map.to_client().get(&REPLACEMENT_SERVER_ENTITY),
             Some(&CLIENT_ENTITY)
         );
+
         assert_eq!(
             map.remove_by_client(CLIENT_ENTITY),
             Some(REPLACEMENT_SERVER_ENTITY)
         );
-        assert!(map.to_client().is_empty());
-        assert!(map.to_server().is_empty());
+        assert_eq!(map.server_entry(SERVER_ENTITY).get(), None);
+        assert!(!map.to_server().contains_key(&CLIENT_ENTITY));
     }
 }
