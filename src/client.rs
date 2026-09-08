@@ -336,8 +336,7 @@ fn apply_update_message(
                     apply_despawn(world, params, message, message_tick)
                 })
                 .map_err(|e| format!("unable to apply despawns: {e}"))?;
-                // Despawns can cascade to other remote entities (e.g. children),
-                // which won't have their own despawn message.
+                // Update resources that are removed from the world.
                 for client_entity in world.resource_mut::<ReplicatedDespawns>().drain(..) {
                     params.entity_map.remove_by_client(client_entity);
                     params.signature_map.remove(client_entity);
