@@ -174,6 +174,77 @@ fn after_pause() {
 }
 
 #[test]
+fn after_pause_with_hierarchy() {
+    let mut server_app = App::new();
+    let mut client_app = App::new();
+    for app in [&mut server_app, &mut client_app] {
+        app.add_plugins((
+            MinimalPlugins,
+            StatesPlugin,
+            RepliconPlugins.set(ServerPlugin::new(PostUpdate)),
+        ))
+        .replicate::<ChildOf>()
+        .finish();
+    }
+
+    server_app.connect_client(&mut client_app);
+
+    let server_parent = server_app.world_mut().spawn(Replicated).id();
+    let server_child = server_app
+        .world_mut()
+        .spawn((Replicated, ChildOf(server_parent)))
+        .id();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    let client_child = *client_app
+        .world()
+        .resource::<ServerEntityMap>()
+        .to_client()
+        .get(&server_child)
+        .unwrap();
+
+    // Pause replication for child.
+    server_app
+        .world_mut()
+        .entity_mut(server_child)
+        .remove::<Replicated>();
+
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+    server_app.exchange_with_client(&mut client_app);
+
+    assert!(client_app.world().get_entity(client_child).is_ok());
+    let entity_map = client_app.world().resource::<ServerEntityMap>();
+    assert_eq!(
+        entity_map.to_client().get(&server_child),
+        Some(&client_child)
+    );
+    assert_eq!(
+        entity_map.to_server().get(&client_child),
+        Some(&server_child)
+    );
+
+    server_app.world_mut().despawn(server_parent);
+    server_app.update();
+    server_app.exchange_with_client(&mut client_app);
+    client_app.update();
+
+    assert!(client_app.world().get_entity(client_child).is_err());
+
+    let entity_map = client_app.world().resource::<ServerEntityMap>();
+    assert!(!entity_map.to_client().contains_key(&server_child));
+    assert!(
+        !entity_map.to_server().contains_key(&client_child),
+        "mapping should be removed even if the entity was paused"
+    );
+}
+
+#[test]
 fn signature() {
     let mut server_app = App::new();
     let mut client_app = App::new();
