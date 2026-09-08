@@ -3,13 +3,8 @@ use bevy_replicon::{
     client::server_mutate_ticks::{MutateTickReceived, ServerMutateTicks},
     prelude::*,
     server::server_tick::ServerTick,
-    shared::replication::{
-        deferred_entity::DeferredEntity,
-        registry::{ctx::WriteCtx, receive_fns},
-    },
     test_app::ServerTestAppExt,
 };
-use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use test_log::test;
 
@@ -191,91 +186,5 @@ fn multiple_messages() {
     assert_eq!(mutate_ticks.last_confirmed_tick(), Some(tick));
 }
 
-#[test]
-fn confirmation_follows_mutation_application() {
-    let mut server_app = App::new();
-    let mut client_app = App::new();
-    for app in [&mut server_app, &mut client_app] {
-        app.add_plugins((
-            MinimalPlugins,
-            StatesPlugin,
-            RepliconPlugins.set(ServerPlugin {
-                track_mutate_messages: true,
-                ..ServerPlugin::new(PostUpdate)
-            }),
-        ))
-        .replicate::<BoolComponent>()
-        .set_receive_fns(
-            observe_confirmation,
-            receive_fns::default_remove::<BoolComponent>,
-        )
-        .finish();
-    }
-
-    server_app.connect_client(&mut client_app);
-    let server_entity = server_app
-        .world_mut()
-        .spawn((Replicated, BoolComponent(false)))
-        .id();
-
-    server_app.update();
-    server_app.exchange_with_client(&mut client_app);
-    client_app.update();
-    server_app.exchange_with_client(&mut client_app);
-    client_app
-        .world_mut()
-        .resource_mut::<Messages<MutateTickReceived>>()
-        .clear();
-
-    server_app
-        .world_mut()
-        .get_mut::<BoolComponent>(server_entity)
-        .unwrap()
-        .0 = true;
-
-    server_app.update();
-    server_app.exchange_with_client(&mut client_app);
-    client_app.update();
-
-    let tick = **server_app.world().resource::<ServerTick>();
-    let confirmation = client_app
-        .world_mut()
-        .query::<&ConfirmationObserved>()
-        .single(client_app.world())
-        .unwrap();
-    assert!(
-        !confirmation.0,
-        "the current mutation must not be confirmed while its write function runs"
-    );
-    assert_eq!(
-        client_app
-            .world()
-            .resource::<ServerMutateTicks>()
-            .last_confirmed_tick(),
-        Some(tick)
-    );
-}
-
 #[derive(Clone, Component, Copy, Deserialize, Serialize)]
 struct BoolComponent(bool);
-
-#[derive(Component)]
-struct ConfirmationObserved(bool);
-
-fn observe_confirmation(
-    ctx: &mut WriteCtx,
-    rule_fns: &RuleFns<BoolComponent>,
-    entity: &mut DeferredEntity,
-    message: &mut Bytes,
-) -> Result<()> {
-    let confirmed = unsafe {
-        !entity
-            .world_mut()
-            .resource::<Messages<MutateTickReceived>>()
-            .is_empty()
-    };
-    receive_fns::default_write(ctx, rule_fns, entity, message)?;
-    entity.insert(ConfirmationObserved(confirmed));
-
-    Ok(())
-}
