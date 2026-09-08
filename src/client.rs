@@ -256,12 +256,11 @@ fn apply_replication(
     // newer update tick. This is intended: a mutation can only be applied after
     // the updates for ticks before it have been applied.
     while buffered_updates
-        .0
         .front()
         .is_some_and(|update| should_apply_update(world, update))
     {
-        let mut update = buffered_updates.0.pop_front().unwrap();
-        apply_update_or_log(world, params, &mut update);
+        let mut update = buffered_updates.pop_front().unwrap();
+        try_apply_update(world, params, &mut update);
     }
 
     for message in messages.drain_received(ServerChannel::Updates) {
@@ -273,13 +272,11 @@ fn apply_replication(
             }
         };
 
-        // The common case stays allocation-free: apply directly unless this update
-        // or an earlier ordered update needs to wait.
-        if buffered_updates.0.is_empty() && should_apply_update(world, &update) {
-            apply_update_or_log(world, params, &mut update);
+        if buffered_updates.is_empty() && should_apply_update(world, &update) {
+            try_apply_update(world, params, &mut update);
         } else {
             trace!("buffering update message for {:?}", update.message_tick);
-            buffered_updates.0.push_back(update);
+            buffered_updates.push_back(update);
         }
     }
 
@@ -297,12 +294,10 @@ fn apply_replication(
                 error!("unable to buffer mutate message: {e}");
             }
         }
-        if !acks.is_empty() {
-            messages.send(ClientChannel::MutationAcks, acks);
-        }
+        messages.send(ClientChannel::MutationAcks, acks);
     }
 
-    buffered_mutations.0.retain_mut(|mutate| {
+    buffered_mutations.retain_mut(|mutate| {
         if mutate.update_tick.is_newer(*update_tick) {
             return true;
         }
@@ -326,7 +321,7 @@ fn apply_replication(
     });
 }
 
-fn apply_update_or_log(world: &mut World, params: &mut ReceiveParams, update: &mut BufferedUpdate) {
+fn try_apply_update(world: &mut World, params: &mut ReceiveParams, update: &mut BufferedUpdate) {
     if let Err(e) = apply_update_message(world, params, update) {
         error!(
             "unable to apply update message for tick `{:?}`: {e}",
@@ -351,10 +346,9 @@ fn receive_update_message(
         stats.bytes += message.len();
     }
 
-    let mut flags: UpdateFlags = postcard_utils::from_buf(&mut message)?;
+    let flags: UpdateFlags = postcard_utils::from_buf(&mut message)?;
     let message_tick = postcard_utils::from_buf(&mut message)?;
     let userdata = if flags.contains(UpdateFlags::USERDATA) {
-        flags.remove(UpdateFlags::USERDATA);
         Some(receive_userdata(&mut message)?)
     } else {
         None
@@ -380,10 +374,6 @@ fn apply_update_message(
     );
     world.resource_mut::<ServerUpdateTick>().0 = update.message_tick;
 
-    if let Some(bytes) = update.userdata.take() {
-        apply_userdata(world, update.message_tick, bytes);
-    }
-
     let last_flag = update.flags.last();
     for (_, flag) in update.flags.iter_names() {
         let array_kind = if flag != last_flag {
@@ -393,6 +383,13 @@ fn apply_update_message(
         };
 
         match flag {
+            UpdateFlags::USERDATA => {
+                let bytes = update
+                    .userdata
+                    .take()
+                    .expect("userdata should be present because the USERDATA flag is set");
+                apply_userdata(world, update.message_tick, bytes);
+            }
             UpdateFlags::MAPPINGS => {
                 let len = apply_array(array_kind, &mut update.message, |message| {
                     apply_entity_mapping(world, params, message)
@@ -453,12 +450,11 @@ fn buffer_mutate_message(
         stats.bytes += message.len();
     }
 
-    let mut flags: MutateFlags = postcard_utils::from_buf(&mut message)?;
+    let flags: MutateFlags = postcard_utils::from_buf(&mut message)?;
     let mutate_index: MutateIndex = postcard_utils::from_buf(&mut message)?;
     let update_tick = postcard_utils::from_buf(&mut message)?;
     let message_tick = postcard_utils::from_buf(&mut message)?;
     let userdata = if flags.contains(MutateFlags::USERDATA) {
-        flags.remove(MutateFlags::USERDATA);
         Some(receive_userdata(&mut message)?)
     } else {
         None
@@ -489,12 +485,15 @@ fn apply_mutate_message(
         mutate.flags, mutate.message_tick
     );
 
-    if let Some(bytes) = mutate.userdata.take() {
-        apply_userdata(world, mutate.message_tick, bytes);
-    }
-
     for (_, flag) in mutate.flags.iter_names() {
         match flag {
+            MutateFlags::USERDATA => {
+                let bytes = mutate
+                    .userdata
+                    .take()
+                    .expect("userdata should be present because the USERDATA flag is set");
+                apply_userdata(world, mutate.message_tick, bytes);
+            }
             MutateFlags::MESSAGES_COUNT => {
                 confirm_mutate_tick(world, params.mutate_ticks, mutate)
                     .map_err(|e| format!("unable to confirm mutate tick: {e}"))?;
@@ -1065,14 +1064,8 @@ pub type ReplicationApplyFn = for<'a> fn(&World, RepliconTick, Option<UserDataBy
 pub struct ServerUpdateTick(RepliconTick);
 
 /// Cached ordered update messages deferred by [`ReplicationApplyPolicy`].
-#[derive(Resource, Default)]
+#[derive(Resource, Default, Deref, DerefMut)]
 struct BufferedUpdates(VecDeque<BufferedUpdate>);
-
-impl BufferedUpdates {
-    fn clear(&mut self) {
-        self.0.clear();
-    }
-}
 
 /// Partially-deserialized update message waiting for the user policy.
 struct BufferedUpdate {
@@ -1086,19 +1079,13 @@ struct BufferedUpdate {
 }
 
 /// Cached buffered mutate messages, used to synchronize mutations with update messages.
-#[derive(Resource, Default)]
+#[derive(Resource, Default, Deref, DerefMut)]
 pub(crate) struct BufferedMutations(Vec<BufferedMutate>);
 
 impl BufferedMutations {
-    fn clear(&mut self) {
-        self.0.clear();
-    }
-
     /// Inserts a new buffered message, maintaining sorting by their message tick in descending order.
     fn insert(&mut self, mutate: BufferedMutate) {
-        let index = self
-            .0
-            .partition_point(|other| mutate.message_tick.is_older(other.message_tick));
+        let index = self.partition_point(|other| mutate.message_tick.is_older(other.message_tick));
         self.0.insert(index, mutate);
     }
 }
