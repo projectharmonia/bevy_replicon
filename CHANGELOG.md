@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changes
 
 - ClientVisilibity::get is now public and be used to access the `FiltersMask` bitmask of an entity.
+- Confirm mutate ticks after the message is applied.
+
+### Fixed
+
+- Cleanup entities with paused replication inside hierarchies on despawn.
+- Correctly update entity mappings when the server despawns an entity, but reuses its signature for a different entity.
 
 ## [0.44.0] - 2026-09-01
 
