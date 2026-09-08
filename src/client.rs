@@ -199,7 +199,7 @@ fn cleanup_entity_map(
     if let Some(mut entity_map) = entity_map {
         entity_map.remove_by_client(despawn.entity);
     } else {
-        cascade.0.push(despawn.entity);
+        cascade.push(despawn.entity);
     }
 }
 
@@ -335,19 +335,17 @@ fn apply_update_message(
                 }
             }
             UpdateFlags::DESPAWNS => {
-                let result = apply_array(array_kind, message, |message| {
+                let len = apply_array(array_kind, message, |message| {
                     apply_despawn(world, params, message, message_tick)
                 })
-                .map_err(|e| format!("unable to apply despawns: {e}"));
+                .map_err(|e| format!("unable to apply despawns: {e}"))?;
                 // Despawns can cascade to other remote entities (e.g. children),
                 // which won't have their own despawn message.
-                let mut cascade = world.resource_mut::<DespawnCascade>();
-                for client_entity in cascade.drain(..) {
+                for client_entity in world.resource_mut::<DespawnCascade>().drain(..) {
                     params.entity_map.remove_by_client(client_entity);
                     params.signature_map.remove(client_entity);
                     params.storage.entities.remove(&client_entity);
                 }
-                let len = result?;
                 if let Some(stats) = &mut params.stats {
                     stats.despawns += len;
                 }
@@ -955,10 +953,8 @@ impl BufferedMutations {
     }
 }
 
-/// Remote entities despawned as part of an authoritative despawn cascade.
-///
-/// Collected by [`cleanup_entity_map`] while despawns are applied from a
-/// message and cleaned up after each despawn batch.
+/// Entities that were despawned during replication message processing
+/// and that need futured cleanup from the [`ServerEntityMap`] and [`SignatureMap`].
 #[derive(Resource, Default, Deref, DerefMut)]
 struct DespawnCascade(Vec<Entity>);
 
