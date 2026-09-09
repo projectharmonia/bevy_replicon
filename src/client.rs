@@ -1070,10 +1070,14 @@ struct BufferedUpdates(VecDeque<BufferedUpdate>);
 struct BufferedUpdate {
     /// Sections remaining in [`Self::message`].
     flags: UpdateFlags,
+
+    /// Tick associated with the message.
     message_tick: RepliconTick,
+
     /// Userdata split off the front of the received message, if present.
     userdata: Option<Bytes>,
-    /// Message bytes after the envelope (flags, tick and userdata) has been consumed.
+
+    /// Remaining unparsed message bytes after the buffered metadata.
     message: Bytes,
 }
 
@@ -1105,7 +1109,7 @@ pub(super) struct BufferedMutate {
     /// Userdata split off the front of the received message, if present.
     userdata: Option<Bytes>,
 
-    /// Message bytes after the envelope (flags, indices, ticks and userdata) has been consumed.
+    /// Remaining unparsed message bytes after the buffered metadata.
     message: Bytes,
 }
 
