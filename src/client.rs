@@ -264,7 +264,7 @@ fn apply_replication(
     }
 
     for message in messages.drain_received(ServerChannel::Updates) {
-        let mut update = match receive_update_message(params, message) {
+        let mut update = match buffer_update_message(params, message) {
             Ok(update) => update,
             Err(e) => {
                 error!("unable to receive update message: {e}");
@@ -337,10 +337,7 @@ fn try_apply_update(world: &mut World, params: &mut ReceiveParams, update: &mut 
 /// Partially deserializes a received update message.
 ///
 /// For details see [`replication_messages`](crate::server::replication_messages).
-fn receive_update_message(
-    params: &mut ReceiveParams,
-    mut message: Bytes,
-) -> Result<BufferedUpdate> {
+fn buffer_update_message(params: &mut ReceiveParams, mut message: Bytes) -> Result<BufferedUpdate> {
     if let Some(stats) = &mut params.stats {
         stats.messages += 1;
         stats.bytes += message.len();
@@ -349,7 +346,7 @@ fn receive_update_message(
     let flags: UpdateFlags = postcard_utils::from_buf(&mut message)?;
     let message_tick = postcard_utils::from_buf(&mut message)?;
     let userdata = if flags.contains(UpdateFlags::USERDATA) {
-        Some(receive_userdata(&mut message)?)
+        Some(read_userdata(&mut message)?)
     } else {
         None
     };
@@ -455,7 +452,7 @@ fn buffer_mutate_message(
     let update_tick = postcard_utils::from_buf(&mut message)?;
     let message_tick = postcard_utils::from_buf(&mut message)?;
     let userdata = if flags.contains(MutateFlags::USERDATA) {
-        Some(receive_userdata(&mut message)?)
+        Some(read_userdata(&mut message)?)
     } else {
         None
     };
@@ -725,7 +722,7 @@ fn apply_changes(
 }
 
 /// Splits the userdata prefix off the front of the message.
-fn receive_userdata(message: &mut Bytes) -> Result<Bytes> {
+fn read_userdata(message: &mut Bytes) -> Result<Bytes> {
     let len: usize = postcard_utils::from_buf(message)?;
     if len > message.len() {
         return Err(format!(
