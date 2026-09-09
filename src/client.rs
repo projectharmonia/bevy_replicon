@@ -1043,11 +1043,13 @@ pub enum ClientSystems {
 /// ```
 #[derive(Event, Debug, Clone)]
 pub struct ShouldApplyReplication {
-    /// Tick serialized in the message envelope.
+    /// Tick associated with the message.
     pub message_tick: RepliconTick,
     /// Userdata split off the front of the message, if the server attached any.
     pub userdata: Option<Bytes>,
-    /// Whether to apply the message during the current receive. Set to `false` to defer it.
+    /// Whether to apply the message during the current receive.
+    ///
+    /// You can set to `false` to defer it.
     pub should_apply: bool,
 }
 
