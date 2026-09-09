@@ -464,6 +464,7 @@ fn buffer_mutate_message(
         userdata,
         message,
     });
+
     // An ACK means the mutation has been successfully parsed and durably retained.
     // Application can happen later when both its update and `ShouldApplyReplication` observers are ready.
     postcard_utils::to_extend_mut(&mutate_index, acks)?;
