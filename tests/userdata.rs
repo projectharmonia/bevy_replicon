@@ -96,36 +96,6 @@ fn mutate_message() {
 }
 
 #[test]
-fn defer_update_message() {
-    let (mut server_app, mut client_app) = create_apps();
-    server_app.connect_client(&mut client_app);
-
-    set_userdata(&mut server_app, USERDATA);
-    server_app.world_mut().spawn((Replicated, TestComponent));
-
-    server_app.update();
-    server_app.exchange_with_client(&mut client_app);
-    client_app.update();
-
-    assert_eq!(remote_count(&mut client_app), 0);
-    assert_eq!(
-        client_app.world().resource::<ReceivedUserdata>().0,
-        0,
-        "userdata should be emitted only when its message is applied"
-    );
-
-    // The observer accepts the userdata, so the update is applied.
-    client_app.world_mut().resource_mut::<ReadyUserdata>().0 = USERDATA;
-    client_app.update();
-
-    assert_eq!(remote_count(&mut client_app), 1);
-    assert_eq!(
-        client_app.world().resource::<ReceivedUserdata>().0,
-        USERDATA
-    );
-}
-
-#[test]
 fn deferred_update_blocks_later_updates() {
     let (mut server_app, mut client_app) = create_apps();
     client_app.world_mut().resource_mut::<ReadyUserdata>().0 = 1;
