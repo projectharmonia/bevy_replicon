@@ -205,7 +205,7 @@ fn deferred_mutation() {
     client_app.update();
 
     assert_eq!(remote.iter(client_app.world()).len(), 0);
-    assert_eq!(**client_app.world().resource::<ReceivedUserdata>(), Some(0));
+    assert_eq!(**client_app.world().resource::<ReceivedUserdata>(), None);
 
     let messages = client_app.world().resource::<ClientMessages>();
     assert!(
@@ -220,7 +220,7 @@ fn deferred_mutation() {
 
     assert_eq!(
         **client_app.world().resource::<ReceivedUserdata>(),
-        Some(1),
+        Some(0),
         "messages should be applied in wire order once the update is ready"
     );
     assert_eq!(remote.iter(client_app.world()).len(), 1);
