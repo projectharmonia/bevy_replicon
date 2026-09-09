@@ -321,19 +321,6 @@ fn apply_replication(
     });
 }
 
-fn try_apply_update(world: &mut World, params: &mut ReceiveParams, update: &mut BufferedUpdate) {
-    if let Err(e) = apply_update_message(world, params, update) {
-        error!(
-            "unable to apply update message for tick `{:?}`: {e}",
-            update.message_tick
-        );
-
-        // SAFETY: components in the scratch were pushed using this world.
-        unsafe { params.scratch.manual_drop(world.components()) };
-        params.entity_buffer.free(world);
-    }
-}
-
 /// Partially deserializes a received update message.
 ///
 /// For details see [`replication_messages`](crate::server::replication_messages).
@@ -357,6 +344,19 @@ fn buffer_update_message(params: &mut ReceiveParams, mut message: Bytes) -> Resu
         userdata,
         message,
     })
+}
+
+fn try_apply_update(world: &mut World, params: &mut ReceiveParams, update: &mut BufferedUpdate) {
+    if let Err(e) = apply_update_message(world, params, update) {
+        error!(
+            "unable to apply update message for tick `{:?}`: {e}",
+            update.message_tick
+        );
+
+        // SAFETY: components in the scratch were pushed using this world.
+        unsafe { params.scratch.manual_drop(world.components()) };
+        params.entity_buffer.free(world);
+    }
 }
 
 /// Applies a partially deserialized update message.
