@@ -9,7 +9,7 @@ use crate::prelude::*;
 ///
 /// For efficiency, we store only the last applied tick and an array indicating whether all mutate
 /// messages for the most recent 64 ticks were applied. A mutate message can be acknowledged before
-/// it is reflected here if a [`ShouldApplyReplication`](super::ShouldApplyReplication) observer defers it.
+/// it is reflected here if a [`ShouldApplyReplication`] observer defers it.
 ///
 /// See also [`MutateTickReceived`] and the [ticks information](crate#ticks-information)
 /// in the quick start guide.

@@ -1099,7 +1099,7 @@ struct TrackMutateMessages(bool);
 /// When this resource is non-empty, its contents are sent with every replication
 /// update and mutate message. When the client applies the message, the bytes are triggered as a
 /// [`UserdataReceived`](crate::client::UserdataReceived) before the rest of its contents. A
-/// [`ShouldApplyReplication`](crate::client::ShouldApplyReplication) observer can inspect the bytes first
+/// [`ShouldApplyReplication`] observer can inspect the bytes first
 /// and defer the entire message.
 ///
 /// This could be useful to store the game tick for prediction/interpolaton.
