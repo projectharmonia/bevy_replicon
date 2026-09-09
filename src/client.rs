@@ -1027,7 +1027,7 @@ pub enum ClientSystems {
 ///
 /// ```
 /// # use bevy::prelude::*;
-/// # use bevy_replicon::{client::ShouldApplyReplication, prelude::*};
+/// # use bevy_replicon::prelude::*;
 /// #[derive(Resource, Default)]
 /// struct Ready(u32);
 ///
