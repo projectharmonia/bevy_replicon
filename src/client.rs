@@ -384,7 +384,7 @@ fn apply_update_message(
                 let bytes = update
                     .userdata
                     .take()
-                    .expect("userdata should be present because the USERDATA flag is set");
+                    .expect("userdata should be extracted while buffering the message");
                 apply_userdata(world, update.message_tick, bytes);
             }
             UpdateFlags::MAPPINGS => {
@@ -488,7 +488,7 @@ fn apply_mutate_message(
                 let bytes = mutate
                     .userdata
                     .take()
-                    .expect("userdata should be present because the USERDATA flag is set");
+                    .expect("userdata should be extracted while buffering the message");
                 apply_userdata(world, mutate.message_tick, bytes);
             }
             MutateFlags::MESSAGES_COUNT => {
