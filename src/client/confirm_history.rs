@@ -6,14 +6,14 @@ use crate::prelude::*;
 
 /// Confirmed ticks from the server for an entity.
 ///
-/// For efficiency, we store only the last received tick and
-/// a bitmask indicating whether the most recent 64 ticks were received.
+/// For efficiency, we store only the last applied tick and
+/// a bitmask indicating whether the most recent 64 ticks were applied.
 ///
-/// The tick is considered confirmed when an entity receives any insertion, removal, or mutation
+/// The tick is considered confirmed when an entity applies any insertion, removal, or mutation
 /// (because entity updates are atomic). However, if there were no changes for this entity,
 /// this component will not be updated. Therefore, when the tick is not reported as confirmed, you need
 /// to check [`ServerMutateTicks::contains`](super::server_mutate_ticks::ServerMutateTicks::contains)
-/// to see whether all update messages for this tick have been received. If so, the entity is confirmed
+/// to see whether all mutate messages for this tick have been applied. If so, the entity is confirmed
 /// for this tick - there were simply no changes for it.
 ///
 /// See also [`EntityReplicated`] and the [ticks information](crate#ticks-information)
@@ -23,7 +23,7 @@ pub struct ConfirmHistory {
     /// Previously confirmed ticks, including the last tick at position 0.
     mask: u64,
 
-    /// The last received server tick for an entity.
+    /// The last applied server tick for an entity.
     last_tick: RepliconTick,
 }
 
@@ -39,19 +39,19 @@ impl ConfirmHistory {
         Self { mask: 1, last_tick }
     }
 
-    /// Returns the last received tick for an entity.
+    /// Returns the last applied tick for an entity.
     pub fn last_tick(&self) -> RepliconTick {
         self.last_tick
     }
 
-    /// Returns a mask that represents the received ticks.
+    /// Returns a mask that represents the applied ticks.
     pub fn mask(&self) -> u64 {
         self.mask
     }
 
     /// Returns `true` if this tick is confirmed for an entity.
     ///
-    /// All ticks older then 64 ticks since [`Self::last_tick`] are considered received.
+    /// All ticks older then 64 ticks since [`Self::last_tick`] are considered applied.
     pub fn contains(&self, tick: RepliconTick) -> bool {
         if tick.is_newer(self.last_tick) {
             return false;
@@ -64,7 +64,7 @@ impl ConfirmHistory {
     /// Returns `true` if any tick in the given range was confirmed for the entity with
     /// this component.
     ///
-    /// All ticks older then 64 ticks since [`Self::last_tick`] are considered received.
+    /// All ticks older then 64 ticks since [`Self::last_tick`] are considered applied.
     ///
     /// # Panics
     ///
@@ -108,7 +108,7 @@ impl ConfirmHistory {
         }
     }
 
-    /// Marks previous tick as received.
+    /// Marks a previous tick as applied.
     ///
     /// # Panics
     ///
@@ -119,7 +119,7 @@ impl ConfirmHistory {
         self.mask |= 1 << ago;
     }
 
-    /// Sets the last received tick and shifts the mask.
+    /// Sets the last applied tick and shifts the mask.
     ///
     /// # Panics
     ///
@@ -134,12 +134,12 @@ impl ConfirmHistory {
     }
 }
 
-/// A message that indicates that an entity received update for a tick.
+/// A message that indicates that an entity applied an update for a tick.
 ///
 /// See also [`ConfirmHistory`].
 #[derive(Message, Debug, Clone, Copy)]
 pub struct EntityReplicated {
-    /// Entity that received an update.
+    /// Entity that applied an update.
     pub entity: Entity,
 
     /// Message tick.

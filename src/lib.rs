@@ -649,7 +649,11 @@ with receive markers.
 ### Replication userdata
 
 It's possible to attach arbitrary bytes to replication messages by writing to the [`ReplicationUserdata`](server::ReplicationUserdata)
-resource. When the client receives a replication message containing userdata, [`UserdataReceived`](client::UserdataReceived) is triggered.
+resource. When the client applies a replication message containing userdata, [`UserdataReceived`](client::UserdataReceived) is triggered.
+
+Observe [`ShouldApplyReplication`] on the client to inspect the
+message tick and userdata first. Observers can set `should_apply` to `false` to defer application
+until an external timeline is ready.
 
 ### Ticks information
 
@@ -657,18 +661,18 @@ This requires an understanding of how replication works. See the documentation o
 [`ServerChannel`](shared::backend::channels::ServerChannel) and [this section](#eventual-consistency) for more details.
 
 To get information about confirmed ticks for individual entities, we provide
-[`ConfirmHistory`](client::confirm_history::ConfirmHistory). This component is updated when any replication for its entity is received.
+[`ConfirmHistory`](client::confirm_history::ConfirmHistory). This component is updated when replication for its entity is applied.
 For convenience, we also emit the [`EntityReplicated`](client::confirm_history::EntityReplicated) to ergonomically react on it.
 
 However, an entity might not have any mutations at a given tick. You can check this by inspecting whether all mutate messages have
-been received for this tick via [`ServerMutateTicks`](client::server_mutate_ticks::ServerMutateTicks). Since this requires including
+been applied for this tick via [`ServerMutateTicks`](client::server_mutate_ticks::ServerMutateTicks). Since this requires including
 the number of mutate messages in each mutate message, you need to enable this by setting [`ServerPlugin::track_mutate_messages`].
 For convenience, we also emit the [`MutateTickReceived`](client::server_mutate_ticks::MutateTickReceived) to ergonomically react on it.
 
 So, a tick for an entity is confirmed if one of the following is true:
-- [`ConfirmHistory`](client::confirm_history::ConfirmHistory) reports that the tick is received.
-- [`ServerMutateTicks`](client::server_mutate_ticks::ServerMutateTicks) reports that for at least one of the next ticks, all update
-  messages have been received.
+- [`ConfirmHistory`](client::confirm_history::ConfirmHistory) reports that the tick is applied.
+- [`ServerMutateTicks`](client::server_mutate_ticks::ServerMutateTicks) reports that for at least one of the next ticks, all mutate
+  messages have been applied.
 
 ### Optimizing entity serialization
 
@@ -782,7 +786,8 @@ pub mod prelude {
 
     #[cfg(feature = "client")]
     pub use super::client::{
-        ClientPlugin, ClientReplicationStats, ClientSystems, Remote, message::ClientMessagePlugin,
+        ClientPlugin, ClientReplicationStats, ClientSystems, Remote, ShouldApplyReplication,
+        message::ClientMessagePlugin,
     };
 
     #[cfg(feature = "server")]

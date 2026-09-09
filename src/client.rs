@@ -4,6 +4,8 @@ pub mod diagnostics;
 pub mod message;
 pub mod server_mutate_ticks;
 
+use alloc::collections::VecDeque;
+
 use bevy::prelude::*;
 use bytes::{Buf, Bytes};
 use log::{Level, debug, error, log_enabled, trace};
@@ -43,6 +45,7 @@ impl Plugin for ClientPlugin {
             .init_resource::<ServerEntityMap>()
             .init_resource::<ServerUpdateTick>()
             .init_resource::<ServerMutateTicks>()
+            .init_resource::<BufferedUpdates>()
             .init_resource::<BufferedMutations>()
             .init_resource::<ReplicatedDespawns>()
             .add_message::<EntityReplicated>()
@@ -116,12 +119,16 @@ impl Plugin for ClientPlugin {
 /// Mutate messages are sent over [`ServerChannel::Mutations`], which means they may appear
 /// ahead-of or behind update messages from the same server tick. A mutation will only be applied if its
 /// update tick has already appeared in an update message, otherwise it will be buffered while waiting.
+/// Since a deferred update does not advance [`ServerUpdateTick`], mutations waiting for its tick stay
+/// buffered as well, even if [`ShouldApplyReplication`] observers would otherwise apply them.
 /// Since component mutations can arrive in any order, they will only be applied if they correspond to a more
 /// recent server tick than the last acked server tick for each entity.
 ///
 /// Buffered mutate messages are processed last.
 ///
-/// Acknowledgments for received mutate messages are sent back to the server.
+/// Acknowledgments for accepted mutate messages are sent back to the server after they are
+/// successfully parsed and retained. An acknowledgment therefore does not imply that a mutation
+/// has already been applied.
 ///
 /// See also [`ReplicationMessages`](crate::server::replication_messages::ReplicationMessages).
 pub(super) fn receive_replication(
@@ -137,6 +144,7 @@ pub(super) fn receive_replication(
     let mut signature_map = world.remove_resource::<SignatureMap>().unwrap();
     let mut storage = world.remove_resource::<ReplicationStorage>().unwrap();
     let mut mutate_ticks = world.remove_resource::<ServerMutateTicks>().unwrap();
+    let mut buffered_updates = world.remove_resource::<BufferedUpdates>().unwrap();
     let mut buffered_mutations = world.remove_resource::<BufferedMutations>().unwrap();
     let receive_markers = world.remove_resource::<ReceiveMarkers>().unwrap();
     let registry = world.remove_resource::<ReplicationRegistry>().unwrap();
@@ -162,7 +170,13 @@ pub(super) fn receive_replication(
         type_registry: &type_registry,
     };
 
-    apply_replication(world, &mut params, &mut messages, &mut buffered_mutations);
+    apply_replication(
+        world,
+        &mut params,
+        &mut messages,
+        &mut buffered_updates,
+        &mut buffered_mutations,
+    );
 
     if let Some(stats) = stats {
         world.insert_resource(stats);
@@ -173,6 +187,7 @@ pub(super) fn receive_replication(
     world.insert_resource(signature_map);
     world.insert_resource(storage);
     world.insert_resource(mutate_ticks);
+    world.insert_resource(buffered_updates);
     world.insert_resource(buffered_mutations);
     world.insert_resource(receive_markers);
     world.insert_resource(registry);
@@ -205,6 +220,7 @@ fn reset(
     mut stats: ResMut<ClientStats>,
     mut update_tick: ResMut<ServerUpdateTick>,
     mut entity_map: ResMut<ServerEntityMap>,
+    mut buffered_updates: ResMut<BufferedUpdates>,
     mut buffered_mutations: ResMut<BufferedMutations>,
     mut despawns: ResMut<ReplicatedDespawns>,
     mutate_ticks: Option<ResMut<ServerMutateTicks>>,
@@ -214,6 +230,7 @@ fn reset(
     *stats = Default::default();
     *update_tick = Default::default();
     entity_map.clear();
+    buffered_updates.clear();
     buffered_mutations.clear();
     despawns.clear();
     if let Some(mut mutate_ticks) = mutate_ticks {
@@ -242,15 +259,35 @@ fn apply_replication(
     world: &mut World,
     params: &mut ReceiveParams,
     messages: &mut ClientMessages,
+    buffered_updates: &mut BufferedUpdates,
     buffered_mutations: &mut BufferedMutations,
 ) {
-    for mut message in messages.drain_received(ServerChannel::Updates) {
-        if let Err(e) = apply_update_message(world, params, &mut message) {
-            error!("unable to apply update message: {e}");
+    // Update messages are ordered, so a deferred update blocks all later ones.
+    // It also stalls `ServerUpdateTick`, which holds back mutations waiting for a
+    // newer update tick. This is intended: a mutation can only be applied after
+    // the updates for ticks before it have been applied.
+    while buffered_updates
+        .front()
+        .is_some_and(|update| should_apply_update(world, update))
+    {
+        let mut update = buffered_updates.pop_front().unwrap();
+        try_apply_update(world, params, &mut update);
+    }
 
-            // SAFETY: components in the scratch were pushed using this world.
-            unsafe { params.scratch.manual_drop(world.components()) };
-            params.entity_buffer.free(world);
+    for message in messages.drain_received(ServerChannel::Updates) {
+        let mut update = match buffer_update_message(params, message) {
+            Ok(update) => update,
+            Err(e) => {
+                error!("unable to receive update message: {e}");
+                continue;
+            }
+        };
+
+        if buffered_updates.is_empty() && should_apply_update(world, &update) {
+            try_apply_update(world, params, &mut update);
+        } else {
+            trace!("buffering update message for {:?}", update.message_tick);
+            buffered_updates.push_back(update);
         }
     }
 
@@ -271,8 +308,12 @@ fn apply_replication(
         messages.send(ClientChannel::MutationAcks, acks);
     }
 
-    buffered_mutations.0.retain_mut(|mutate| {
+    buffered_mutations.retain_mut(|mutate| {
         if mutate.update_tick.is_newer(*update_tick) {
+            return true;
+        }
+
+        if !should_apply_mutate(world, mutate) {
             return true;
         }
 
@@ -291,26 +332,58 @@ fn apply_replication(
     });
 }
 
-/// Reads and applies an update message.
+/// Partially deserializes a received update message.
 ///
 /// For details see [`replication_messages`](crate::server::replication_messages).
-fn apply_update_message(
-    world: &mut World,
-    params: &mut ReceiveParams,
-    message: &mut Bytes,
-) -> Result<()> {
+fn buffer_update_message(params: &mut ReceiveParams, mut message: Bytes) -> Result<BufferedUpdate> {
     if let Some(stats) = &mut params.stats {
         stats.messages += 1;
         stats.bytes += message.len();
     }
 
-    let flags: UpdateFlags = postcard_utils::from_buf(message)?;
-    let message_tick = postcard_utils::from_buf(message)?;
-    trace!("applying update message with `{flags:?}` for {message_tick:?}");
-    world.resource_mut::<ServerUpdateTick>().0 = message_tick;
+    let flags: UpdateFlags = postcard_utils::from_buf(&mut message)?;
+    let message_tick = postcard_utils::from_buf(&mut message)?;
+    let userdata = if flags.contains(UpdateFlags::USERDATA) {
+        Some(read_userdata(&mut message)?)
+    } else {
+        None
+    };
 
-    let last_flag = flags.last();
-    for (_, flag) in flags.iter_names() {
+    Ok(BufferedUpdate {
+        flags,
+        message_tick,
+        userdata,
+        message,
+    })
+}
+
+fn try_apply_update(world: &mut World, params: &mut ReceiveParams, update: &mut BufferedUpdate) {
+    if let Err(e) = apply_update_message(world, params, update) {
+        error!(
+            "unable to apply update message for tick `{:?}`: {e}",
+            update.message_tick
+        );
+
+        // SAFETY: components in the scratch were pushed using this world.
+        unsafe { params.scratch.manual_drop(world.components()) };
+        params.entity_buffer.free(world);
+    }
+}
+
+/// Applies a partially deserialized update message.
+fn apply_update_message(
+    world: &mut World,
+    params: &mut ReceiveParams,
+    update: &mut BufferedUpdate,
+) -> Result<()> {
+    trace!(
+        "applying update message with `{:?}` for {:?}",
+        update.flags, update.message_tick
+    );
+    world.resource_mut::<ServerUpdateTick>().0 = update.message_tick;
+
+    let last_flag = update.flags.last();
+    for (_, flag) in update.flags.iter_names() {
         let array_kind = if flag != last_flag {
             ArrayKind::Sized
         } else {
@@ -319,11 +392,17 @@ fn apply_update_message(
 
         match flag {
             UpdateFlags::USERDATA => {
-                process_userdata(world, message, message_tick)
-                    .map_err(|e| format!("unable to process userdata: {e}"))?;
+                let bytes = update
+                    .userdata
+                    .take()
+                    .expect("userdata should be extracted while buffering the message");
+                world.trigger(UserdataReceived {
+                    message_tick: update.message_tick,
+                    bytes,
+                });
             }
             UpdateFlags::MAPPINGS => {
-                let len = apply_array(array_kind, message, |message| {
+                let len = apply_array(array_kind, &mut update.message, |message| {
                     apply_entity_mapping(world, params, message)
                 })
                 .map_err(|e| format!("unable to apply mappings: {e}"))?;
@@ -332,8 +411,8 @@ fn apply_update_message(
                 }
             }
             UpdateFlags::DESPAWNS => {
-                let len = apply_array(array_kind, message, |message| {
-                    apply_despawn(world, params, message, message_tick)
+                let len = apply_array(array_kind, &mut update.message, |message| {
+                    apply_despawn(world, params, message, update.message_tick)
                 })
                 .map_err(|e| format!("unable to apply despawns: {e}"))?;
                 // Update resources that are removed from the world.
@@ -347,8 +426,8 @@ fn apply_update_message(
                 }
             }
             UpdateFlags::REMOVALS => {
-                let len = apply_array(array_kind, message, |message| {
-                    apply_removals(world, params, message, message_tick)
+                let len = apply_array(array_kind, &mut update.message, |message| {
+                    apply_removals(world, params, message, update.message_tick)
                 })
                 .map_err(|e| format!("unable to apply removals: {e}"))?;
                 if let Some(stats) = &mut params.stats {
@@ -357,8 +436,8 @@ fn apply_update_message(
             }
             UpdateFlags::CHANGES => {
                 debug_assert_eq!(array_kind, ArrayKind::Dynamic);
-                let len = apply_array(array_kind, message, |message| {
-                    apply_changes(world, params, message, message_tick)
+                let len = apply_array(array_kind, &mut update.message, |message| {
+                    apply_changes(world, params, message, update.message_tick)
                 })
                 .map_err(|e| format!("unable to apply changes: {e}"))?;
                 if let Some(stats) = &mut params.stats {
@@ -390,17 +469,25 @@ fn buffer_mutate_message(
 
     let flags: MutateFlags = postcard_utils::from_buf(&mut message)?;
     let mutate_index: MutateIndex = postcard_utils::from_buf(&mut message)?;
-    postcard_utils::to_extend_mut(&mutate_index, acks)?;
-
     let update_tick = postcard_utils::from_buf(&mut message)?;
     let message_tick = postcard_utils::from_buf(&mut message)?;
+    let userdata = if flags.contains(MutateFlags::USERDATA) {
+        Some(read_userdata(&mut message)?)
+    } else {
+        None
+    };
     trace!("received mutate message for {message_tick:?}");
     buffered_mutations.insert(BufferedMutate {
         flags,
         update_tick,
         message_tick,
+        userdata,
         message,
     });
+
+    // An ACK means the mutation has been successfully parsed and durably retained.
+    // Application can happen later when both its update and `ShouldApplyReplication` observers are ready.
+    postcard_utils::to_extend_mut(&mutate_index, acks)?;
 
     Ok(())
 }
@@ -420,8 +507,14 @@ fn apply_mutate_message(
     for (_, flag) in mutate.flags.iter_names() {
         match flag {
             MutateFlags::USERDATA => {
-                process_userdata(world, &mut mutate.message, mutate.message_tick)
-                    .map_err(|e| format!("unable to apply userdata: {e}"))?;
+                let bytes = mutate
+                    .userdata
+                    .take()
+                    .expect("userdata should be extracted while buffering the message");
+                world.trigger(UserdataReceived {
+                    message_tick: mutate.message_tick,
+                    bytes,
+                });
             }
             MutateFlags::MESSAGES_COUNT => {
                 messages_count = Some(
@@ -660,12 +753,9 @@ fn apply_changes(
     Ok(())
 }
 
-fn process_userdata(
-    world: &mut World,
-    message: &mut Bytes,
-    message_tick: RepliconTick,
-) -> Result<()> {
-    let len = postcard_utils::from_buf(message)?;
+/// Splits the userdata prefix off the front of the message.
+fn read_userdata(message: &mut Bytes) -> Result<Bytes> {
+    let len: usize = postcard_utils::from_buf(message)?;
     if len > message.len() {
         return Err(format!(
             "userdata length ({len}) exceeds remaining message length ({})",
@@ -673,12 +763,26 @@ fn process_userdata(
         )
         .into());
     }
-    world.trigger(UserdataReceived {
-        message_tick,
-        bytes: message.split_to(len),
-    });
 
-    Ok(())
+    Ok(message.split_to(len))
+}
+
+fn should_apply_update(world: &mut World, update: &BufferedUpdate) -> bool {
+    should_apply(world, update.message_tick, update.userdata.as_ref())
+}
+
+fn should_apply_mutate(world: &mut World, mutate: &BufferedMutate) -> bool {
+    should_apply(world, mutate.message_tick, mutate.userdata.as_ref())
+}
+
+fn should_apply(world: &mut World, message_tick: RepliconTick, userdata: Option<&Bytes>) -> bool {
+    let mut event = ShouldApplyReplication {
+        message_tick,
+        userdata: userdata.cloned(),
+        should_apply: true,
+    };
+    world.trigger_ref(&mut event);
+    event.should_apply
 }
 
 fn apply_array(
@@ -926,29 +1030,86 @@ pub enum ClientSystems {
     Reset,
 }
 
-/// Last received tick for update messages from the server.
+/// Triggered on the client before applying a received replication message.
+///
+/// Observe this event to inspect a message's tick and userdata before Replicon applies
+/// the rest of the message. Set [`Self::should_apply`] to `false` to buffer the message;
+/// it will be re-triggered on later receives until an observer leaves it as `true`.
+/// If it is not set to false, messages will be applied immediately.
+///
+/// Update messages preserve their wire order: a deferred update also holds back all later updates
+/// and any mutation waiting for its tick, since [`ServerUpdateTick`] only advances on apply.
+/// Mutation messages reuse Replicon's existing mutation buffer. They are acknowledged after being
+/// parsed and retained, so an acknowledgment can precede application.
+///
+/// # Example
+///
+/// Defer messages carrying userdata greater than a threshold:
+///
+/// ```
+/// # use bevy::prelude::*;
+/// # use bevy_replicon::prelude::*;
+/// #[derive(Resource, Default)]
+/// struct Ready(u32);
+///
+/// fn defer_large_userdata(mut trigger: On<ShouldApplyReplication>, ready: Res<Ready>) {
+///     let Some(userdata) = trigger.userdata.as_ref() else {
+///         return;
+///     };
+///     let value = u32::from_le_bytes(userdata.as_ref().try_into().unwrap());
+///     if value > ready.0 {
+///         trigger.should_apply = false;
+///     }
+/// }
+/// ```
+#[derive(Event, Debug, Clone)]
+pub struct ShouldApplyReplication {
+    /// Tick associated with the message.
+    pub message_tick: RepliconTick,
+    /// Userdata split off the front of the message, if the server attached any.
+    pub userdata: Option<Bytes>,
+    /// Whether to apply the message during the current receive.
+    ///
+    /// You can set to `false` to defer it.
+    pub should_apply: bool,
+}
+
+/// Last applied tick for update messages from the server.
 ///
 /// In other words, the last [`RepliconTick`] with a removal, insertion, spawn or despawn.
-/// This value is not updated when mutation messages are received from the server.
+/// This value is not updated when mutation messages are received or applied.
 ///
 /// See also [`ServerMutateTicks`].
 #[derive(Resource, Deref, Default, Reflect, Debug, Clone, Copy)]
 pub struct ServerUpdateTick(RepliconTick);
 
+/// Cached ordered update messages deferred by [`ShouldApplyReplication`] observers.
+#[derive(Resource, Default, Deref, DerefMut)]
+struct BufferedUpdates(VecDeque<BufferedUpdate>);
+
+/// Partially-deserialized update message waiting for [`ShouldApplyReplication`] observers to apply it.
+struct BufferedUpdate {
+    /// Sections remaining in [`Self::message`].
+    flags: UpdateFlags,
+
+    /// Tick associated with the message.
+    message_tick: RepliconTick,
+
+    /// Userdata split off the front of the received message, if present.
+    userdata: Option<Bytes>,
+
+    /// Remaining unparsed message bytes after the buffered metadata.
+    message: Bytes,
+}
+
 /// Cached buffered mutate messages, used to synchronize mutations with update messages.
-#[derive(Resource, Default)]
+#[derive(Resource, Default, Deref, DerefMut)]
 pub(crate) struct BufferedMutations(Vec<BufferedMutate>);
 
 impl BufferedMutations {
-    fn clear(&mut self) {
-        self.0.clear();
-    }
-
     /// Inserts a new buffered message, maintaining sorting by their message tick in descending order.
     fn insert(&mut self, mutate: BufferedMutate) {
-        let index = self
-            .0
-            .partition_point(|other| mutate.message_tick.is_older(other.message_tick));
+        let index = self.partition_point(|other| mutate.message_tick.is_older(other.message_tick));
         self.0.insert(index, mutate);
     }
 }
@@ -977,7 +1138,10 @@ pub(super) struct BufferedMutate {
     /// The tick this mutations corresponds to.
     message_tick: RepliconTick,
 
-    /// Mutations data.
+    /// Userdata split off the front of the received message, if present.
+    userdata: Option<Bytes>,
+
+    /// Remaining unparsed message bytes after the buffered metadata.
     message: Bytes,
 }
 
@@ -1026,7 +1190,7 @@ pub struct ClientReplicationStats {
 #[reflect(Component)]
 pub struct Remote;
 
-/// Triggered when user-defined bytes are received in a replication message.
+/// Triggered when user-defined bytes are applied from a replication message.
 ///
 /// This is emitted for data sent through [`ReplicationUserdata`](crate::server::ReplicationUserdata).
 #[derive(Event)]
