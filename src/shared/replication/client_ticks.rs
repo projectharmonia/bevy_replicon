@@ -25,8 +25,8 @@ pub(crate) type DiffCursors = SmallVec<[(ComponentIndex, DiffIndex); 3]>;
 pub(crate) struct ClientTicks {
     /// Last acknowledged tick for each visible entity with its components.
     ///
-    /// Used to track what the client has acknowledged as accepted and retained. With a client-side
-    /// application policy, this can be newer than the state already applied to its world.
+    /// Used to track what the client has acknowledged as accepted and retained. With client-side
+    /// deferred application, this can be newer than the state already applied to its world.
     pub(crate) entities: EntityHashMap<EntityTicks>,
 
     /// The last tick in which a replicated entity had an insertion, removal, or gained/lost a component from the

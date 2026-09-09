@@ -119,7 +119,7 @@ impl Plugin for ClientPlugin {
 /// ahead-of or behind update messages from the same server tick. A mutation will only be applied if its
 /// update tick has already appeared in an update message, otherwise it will be buffered while waiting.
 /// Since a deferred update does not advance [`ServerUpdateTick`], mutations waiting for its tick stay
-/// buffered as well, even if the user policy would otherwise apply them.
+/// buffered as well, even if [`ShouldApplyReplication`] observers would otherwise apply them.
 /// Since component mutations can arrive in any order, they will only be applied if they correspond to a more
 /// recent server tick than the last acked server tick for each entity.
 ///
@@ -468,7 +468,7 @@ fn buffer_mutate_message(
         message,
     });
     // An ACK means the mutation has been successfully parsed and durably retained.
-    // Application can happen later when both its update and the user policy are ready.
+    // Application can happen later when both its update and `ShouldApplyReplication` observers are ready.
     postcard_utils::to_extend_mut(&mutate_index, acks)?;
 
     Ok(())
@@ -745,20 +745,22 @@ fn apply_userdata(world: &mut World, message_tick: RepliconTick, bytes: Bytes) {
     });
 }
 
-fn should_apply_update(world: &World, update: &BufferedUpdate) -> bool {
-    should_apply(world, update.message_tick, update.userdata.as_deref())
+fn should_apply_update(world: &mut World, update: &BufferedUpdate) -> bool {
+    should_apply(world, update.message_tick, update.userdata.as_ref())
 }
 
-fn should_apply_mutate(world: &World, mutate: &BufferedMutate) -> bool {
-    should_apply(world, mutate.message_tick, mutate.userdata.as_deref())
+fn should_apply_mutate(world: &mut World, mutate: &BufferedMutate) -> bool {
+    should_apply(world, mutate.message_tick, mutate.userdata.as_ref())
 }
 
-fn should_apply(world: &World, message_tick: RepliconTick, userdata: Option<&[u8]>) -> bool {
-    let Some(policy) = world.get_resource::<ReplicationApplyPolicy>().copied() else {
-        return true;
+fn should_apply(world: &mut World, message_tick: RepliconTick, userdata: Option<&Bytes>) -> bool {
+    let mut event = ShouldApplyReplication {
+        message_tick,
+        userdata: userdata.cloned(),
+        should_apply: true,
     };
-
-    policy.decide(world, message_tick, userdata)
+    world.trigger_ref(&mut event);
+    event.should_apply
 }
 
 fn apply_array(
@@ -1010,49 +1012,47 @@ pub enum ClientSystems {
     Reset,
 }
 
-/// Controls when received replication messages may be applied to the client world.
+/// Triggered on the client before applying a received replication message.
 ///
-/// Insert this resource to inspect a message's tick and borrowed userdata before Replicon applies
-/// the rest of the message. Returning `false` buffers the message, and will only apply it when the
-/// policy returns `true`. Without this resource, messages are applied immediately.
+/// Observe this event to inspect a message's tick and userdata before Replicon applies
+/// the rest of the message. Set [`Self::should_apply`] to `false` to buffer the message;
+/// it will be re-triggered on later receives until an observer leaves it as `true`.
+/// If it is not set to false, messages will be applied immediately.
 ///
 /// Update messages preserve their wire order: a deferred update also holds back all later updates
 /// and any mutation waiting for its tick, since [`ServerUpdateTick`] only advances on apply.
 /// Mutation messages reuse Replicon's existing mutation buffer. They are acknowledged after being
 /// parsed and retained, so an acknowledgment can precede application.
-
-#[derive(Resource, Clone, Copy)]
-pub struct ReplicationApplyPolicy(ReplicationApplyFn);
-
-/// Borrowed bytes of user-defined data sent from the server.
-pub type UserDataBytes<'a> = &'a [u8];
-
-impl ReplicationApplyPolicy {
-    /// Creates a policy from the given function.
-    pub const fn new(policy: ReplicationApplyFn) -> Self {
-        Self(policy)
-    }
-
-    fn decide(
-        self,
-        world: &World,
-        message_tick: RepliconTick,
-        userdata: Option<UserDataBytes>,
-    ) -> bool {
-        (self.0)(world, message_tick, userdata)
-    }
+///
+/// # Example
+///
+/// Defer messages carrying userdata greater than a threshold:
+///
+/// ```
+/// # use bevy::prelude::*;
+/// # use bevy_replicon::{client::ShouldApplyReplication, prelude::*};
+/// #[derive(Resource, Default)]
+/// struct Ready(u32);
+///
+/// fn defer_large_userdata(mut trigger: On<ShouldApplyReplication>, ready: Res<Ready>) {
+///     let Some(userdata) = trigger.userdata.as_ref() else {
+///         return;
+///     };
+///     let value = u32::from_le_bytes(userdata.as_ref().try_into().unwrap());
+///     if value > ready.0 {
+///         trigger.should_apply = false;
+///     }
+/// }
+/// ```
+#[derive(Event, Debug, Clone)]
+pub struct ShouldApplyReplication {
+    /// Tick serialized in the message envelope.
+    pub message_tick: RepliconTick,
+    /// Userdata split off the front of the message, if the server attached any.
+    pub userdata: Option<Bytes>,
+    /// Whether to apply the message during the current receive. Set to `false` to defer it.
+    pub should_apply: bool,
 }
-
-/// Function used by [`ReplicationApplyPolicy`].
-///
-/// Takes the tick serialized in the message envelope and the raw userdata bytes,
-/// if the server attached any to this message.
-///
-/// Returns `true` to apply the message during the current receive system, `false` to retain
-/// it and ask the policy again during a later receive system.
-///
-/// State needed by the policy can be stored in resources and read from `world`.
-pub type ReplicationApplyFn = for<'a> fn(&World, RepliconTick, Option<UserDataBytes<'a>>) -> bool;
 
 /// Last applied tick for update messages from the server.
 ///
@@ -1063,11 +1063,11 @@ pub type ReplicationApplyFn = for<'a> fn(&World, RepliconTick, Option<UserDataBy
 #[derive(Resource, Deref, Default, Reflect, Debug, Clone, Copy)]
 pub struct ServerUpdateTick(RepliconTick);
 
-/// Cached ordered update messages deferred by [`ReplicationApplyPolicy`].
+/// Cached ordered update messages deferred by [`ShouldApplyReplication`] observers.
 #[derive(Resource, Default, Deref, DerefMut)]
 struct BufferedUpdates(VecDeque<BufferedUpdate>);
 
-/// Partially-deserialized update message waiting for the user policy.
+/// Partially-deserialized update message waiting for [`ShouldApplyReplication`] observers to apply it.
 struct BufferedUpdate {
     /// Sections remaining in [`Self::message`].
     flags: UpdateFlags,

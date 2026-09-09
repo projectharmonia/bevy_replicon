@@ -98,9 +98,6 @@ fn mutate_message() {
 #[test]
 fn defer_update_message() {
     let (mut server_app, mut client_app) = create_apps();
-    client_app
-        .world_mut()
-        .insert_resource(ReplicationApplyPolicy::new(apply_when_ready));
     server_app.connect_client(&mut client_app);
 
     set_userdata(&mut server_app, USERDATA);
@@ -117,7 +114,7 @@ fn defer_update_message() {
         "userdata should be emitted only when its message is applied"
     );
 
-    // The policy accepts the userdata, so the update is applied.
+    // The observer accepts the userdata, so the update is applied.
     client_app.world_mut().resource_mut::<ReadyUserdata>().0 = USERDATA;
     client_app.update();
 
@@ -131,9 +128,6 @@ fn defer_update_message() {
 #[test]
 fn deferred_update_blocks_later_updates() {
     let (mut server_app, mut client_app) = create_apps();
-    client_app
-        .world_mut()
-        .insert_resource(ReplicationApplyPolicy::new(apply_when_ready));
     client_app.world_mut().resource_mut::<ReadyUserdata>().0 = 1;
     server_app.connect_client(&mut client_app);
 
@@ -176,9 +170,6 @@ fn deferred_update_blocks_later_updates() {
 #[test]
 fn deferred_updates_cleared_on_disconnect() {
     let (mut server_app, mut client_app) = create_apps();
-    client_app
-        .world_mut()
-        .insert_resource(ReplicationApplyPolicy::new(apply_when_ready));
     server_app.connect_client(&mut client_app);
 
     // Defer a spawn; it stays buffered and unapplied.
@@ -219,9 +210,6 @@ fn deferred_updates_cleared_on_disconnect() {
 #[test]
 fn deferred_mutation_is_acked_before_application() {
     let (mut server_app, mut client_app) = create_apps();
-    client_app
-        .world_mut()
-        .insert_resource(ReplicationApplyPolicy::new(apply_when_ready));
     server_app.connect_client(&mut client_app);
 
     let server_entity = server_app
@@ -270,9 +258,6 @@ fn deferred_mutation_is_acked_before_application() {
 #[test]
 fn deferred_update_holds_back_mutation() {
     let (mut server_app, mut client_app) = create_apps();
-    client_app
-        .world_mut()
-        .insert_resource(ReplicationApplyPolicy::new(apply_when_ready));
     client_app.world_mut().resource_mut::<ReadyUserdata>().0 = 1;
     server_app.connect_client(&mut client_app);
 
@@ -287,7 +272,7 @@ fn deferred_update_holds_back_mutation() {
     client_app.update();
     assert_eq!(remote_count(&mut client_app), 0);
 
-    // The policy accepts this mutation's userdata, but its update is still deferred,
+    // The observer accepts this mutation's userdata, but its update is still deferred,
     // so it must stay buffered until the update is applied.
     set_userdata(&mut server_app, 1);
     server_app
@@ -349,6 +334,7 @@ fn create_apps() -> (App, App) {
         .replicate::<ValueComponent>()
         .finish();
     }
+    client_app.add_observer(apply_when_ready);
 
     (server_app, client_app)
 }
@@ -359,16 +345,19 @@ fn set_userdata(app: &mut App, value: u32) {
     userdata.extend_from_slice(&value.to_le_bytes());
 }
 
-fn apply_when_ready(
-    world: &World,
-    _message_tick: RepliconTick,
-    userdata: Option<UserDataBytes>,
-) -> bool {
-    let Some(userdata) = userdata else {
-        return true;
+fn apply_when_ready(mut trigger: On<ShouldApplyReplication>, ready: Res<ReadyUserdata>) {
+    let Some(userdata) = trigger.userdata.as_ref() else {
+        return;
     };
-    let value = u32::from_le_bytes(userdata.try_into().expect("test userdata should be a u32"));
-    value <= world.resource::<ReadyUserdata>().0
+    let value = u32::from_le_bytes(
+        userdata
+            .as_ref()
+            .try_into()
+            .expect("test userdata should be a u32"),
+    );
+    if value > ready.0 {
+        trigger.should_apply = false;
+    }
 }
 
 fn remote_count(app: &mut App) -> usize {

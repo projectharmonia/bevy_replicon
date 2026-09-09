@@ -651,10 +651,9 @@ with receive markers.
 It's possible to attach arbitrary bytes to replication messages by writing to the [`ReplicationUserdata`](server::ReplicationUserdata)
 resource. When the client applies a replication message containing userdata, [`UserdataReceived`](client::UserdataReceived) is triggered.
 
-Insert [`ReplicationApplyPolicy`] on the client to inspect the
-message tick and borrowed userdata first. The policy can defer application until an external timeline
-is ready. Update messages remain ordered, and deferred mutation messages are acknowledged once retained
-even though their world changes and application notifications happen later.
+Observe [`ShouldApplyReplication`] on the client to inspect the
+message tick and userdata first. Observers can set `should_apply` to `false` to defer application
+until an external timeline is ready.
 
 ### Ticks information
 
@@ -787,8 +786,8 @@ pub mod prelude {
 
     #[cfg(feature = "client")]
     pub use super::client::{
-        ClientPlugin, ClientReplicationStats, ClientSystems, Remote, ReplicationApplyFn,
-        ReplicationApplyPolicy, UserDataBytes, message::ClientMessagePlugin,
+        ClientPlugin, ClientReplicationStats, ClientSystems, Remote, ShouldApplyReplication,
+        message::ClientMessagePlugin,
     };
 
     #[cfg(feature = "server")]
