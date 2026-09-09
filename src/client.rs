@@ -47,6 +47,7 @@ impl Plugin for ClientPlugin {
             .init_resource::<ServerMutateTicks>()
             .init_resource::<BufferedUpdates>()
             .init_resource::<BufferedMutations>()
+            .init_resource::<ReplicatedDespawns>()
             .add_message::<EntityReplicated>()
             .add_message::<MutateTickReceived>()
             .configure_sets(
@@ -202,8 +203,16 @@ fn cleanup_storage(remove: On<Remove, Remote>, mut storage: If<ResMut<Replicatio
 // The server can despawn an entity without sending a replication message,
 // so we need to manually remove the entity from the `ServerEntityMap`
 // when it is despawned on the client.
-fn cleanup_entity_map(despawn: On<Despawn, Remote>, mut entity_map: If<ResMut<ServerEntityMap>>) {
-    entity_map.remove_by_client(despawn.entity);
+fn cleanup_entity_map(
+    despawn: On<Despawn, Remote>,
+    entity_map: Option<ResMut<ServerEntityMap>>,
+    mut despawns: ResMut<ReplicatedDespawns>,
+) {
+    if let Some(mut entity_map) = entity_map {
+        entity_map.remove_by_client(despawn.entity);
+    } else {
+        despawns.push(despawn.entity);
+    }
 }
 
 fn reset(
@@ -213,6 +222,7 @@ fn reset(
     mut entity_map: ResMut<ServerEntityMap>,
     mut buffered_updates: ResMut<BufferedUpdates>,
     mut buffered_mutations: ResMut<BufferedMutations>,
+    mut despawns: ResMut<ReplicatedDespawns>,
     mutate_ticks: Option<ResMut<ServerMutateTicks>>,
     replication_stats: Option<ResMut<ClientReplicationStats>>,
 ) {
@@ -222,6 +232,7 @@ fn reset(
     entity_map.clear();
     buffered_updates.clear();
     buffered_mutations.clear();
+    despawns.clear();
     if let Some(mut mutate_ticks) = mutate_ticks {
         mutate_ticks.clear();
     }
@@ -404,6 +415,12 @@ fn apply_update_message(
                     apply_despawn(world, params, message, update.message_tick)
                 })
                 .map_err(|e| format!("unable to apply despawns: {e}"))?;
+                // Update resources that are removed from the world.
+                for client_entity in world.resource_mut::<ReplicatedDespawns>().drain(..) {
+                    params.entity_map.remove_by_client(client_entity);
+                    params.signature_map.remove(client_entity);
+                    params.storage.entities.remove(&client_entity);
+                }
                 if let Some(stats) = &mut params.stats {
                     stats.despawns += len;
                 }
@@ -486,6 +503,7 @@ fn apply_mutate_message(
         mutate.flags, mutate.message_tick
     );
 
+    let mut messages_count = None;
     for (_, flag) in mutate.flags.iter_names() {
         match flag {
             MutateFlags::USERDATA => {
@@ -499,8 +517,10 @@ fn apply_mutate_message(
                 });
             }
             MutateFlags::MESSAGES_COUNT => {
-                confirm_mutate_tick(world, params.mutate_ticks, mutate)
-                    .map_err(|e| format!("unable to confirm mutate tick: {e}"))?;
+                messages_count = Some(
+                    postcard_utils::from_buf(&mut mutate.message)
+                        .map_err(|e| format!("unable to confirm mutate tick: {e}"))?,
+                );
             }
             MutateFlags::MUTATIONS => {
                 let len = apply_array(ArrayKind::Dynamic, &mut mutate.message, |message| {
@@ -513,6 +533,15 @@ fn apply_mutate_message(
             }
             _ => unreachable!("iteration should yield only named flags"),
         }
+    }
+
+    if let Some(messages_count) = messages_count {
+        confirm_mutate_tick(
+            world,
+            params.mutate_ticks,
+            mutate.message_tick,
+            messages_count,
+        );
     }
 
     Ok(())
@@ -552,16 +581,12 @@ fn apply_despawn(
     // with the last replication message, but the server might not yet have received confirmation
     // from the client and could include the deletion in the this message.
     let server_entity = postcard_utils::entity_from_buf(message)?;
-    if let Some(client_entity) = params.entity_map.server_entry(server_entity).remove() {
-        // Requires manual removal since these resources are removed from the world and inaccessible to observers.
-        params.signature_map.remove(client_entity);
-        params.storage.entities.remove(&client_entity);
-
-        if let Ok(client_entity) = world.get_entity_mut(client_entity) {
-            debug!("applying despawn for `{}`", client_entity.id());
-            let ctx = DespawnCtx { message_tick };
-            (params.registry.despawn)(&ctx, client_entity);
-        }
+    if let Some(&client_entity) = params.entity_map.to_server().get(&server_entity)
+        && let Ok(client_entity) = world.get_entity_mut(client_entity)
+    {
+        debug!("applying despawn for `{}`", client_entity.id());
+        let ctx = DespawnCtx { message_tick };
+        (params.registry.despawn)(&ctx, client_entity);
     }
 
     Ok(())
@@ -814,17 +839,13 @@ fn confirm_tick(
 fn confirm_mutate_tick(
     world: &mut World,
     mutate_ticks: &mut ServerMutateTicks,
-    mutate: &mut BufferedMutate,
-) -> Result<()> {
-    let count = postcard_utils::from_buf(&mut mutate.message)?;
-    if mutate_ticks.confirm(mutate.message_tick, count) {
-        mutate_ticks.set_last_confirmed_tick(mutate.message_tick);
-        world.write_message(MutateTickReceived {
-            tick: mutate.message_tick,
-        });
+    tick: RepliconTick,
+    messages_count: usize,
+) {
+    if mutate_ticks.confirm(tick, messages_count) {
+        mutate_ticks.set_last_confirmed_tick(tick);
+        world.write_message(MutateTickReceived { tick });
     }
-
-    Ok(())
 }
 
 /// Deserializes and applies component mutations for an entity.
@@ -1092,6 +1113,17 @@ impl BufferedMutations {
         self.0.insert(index, mutate);
     }
 }
+
+/// Entities that were despawned during replication message processing.
+///
+///
+/// When despawns are applied from a message, resources like
+/// [`ServerEntityMap`] or [`SignatureMap`] are unavailable.
+///
+/// So despawns are collected into this resource and cleaned up
+/// after applying all despawns.
+#[derive(Resource, Default, Deref, DerefMut)]
+struct ReplicatedDespawns(Vec<Entity>);
 
 /// Partially-deserialized mutate message that is waiting for its tick to appear in an update message.
 ///
