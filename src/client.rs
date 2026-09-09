@@ -385,7 +385,10 @@ fn apply_update_message(
                     .userdata
                     .take()
                     .expect("userdata should be extracted while buffering the message");
-                apply_userdata(world, update.message_tick, bytes);
+                world.trigger(UserdataReceived {
+                    message_tick: update.message_tick,
+                    bytes,
+                });
             }
             UpdateFlags::MAPPINGS => {
                 let len = apply_array(array_kind, &mut update.message, |message| {
@@ -490,7 +493,10 @@ fn apply_mutate_message(
                     .userdata
                     .take()
                     .expect("userdata should be extracted while buffering the message");
-                apply_userdata(world, mutate.message_tick, bytes);
+                world.trigger(UserdataReceived {
+                    message_tick: mutate.message_tick,
+                    bytes,
+                });
             }
             MutateFlags::MESSAGES_COUNT => {
                 confirm_mutate_tick(world, params.mutate_ticks, mutate)
@@ -734,13 +740,6 @@ fn read_userdata(message: &mut Bytes) -> Result<Bytes> {
     }
 
     Ok(message.split_to(len))
-}
-
-fn apply_userdata(world: &mut World, message_tick: RepliconTick, bytes: Bytes) {
-    world.trigger(UserdataReceived {
-        message_tick,
-        bytes,
-    });
 }
 
 fn should_apply_update(world: &mut World, update: &BufferedUpdate) -> bool {
