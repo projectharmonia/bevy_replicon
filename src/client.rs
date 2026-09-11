@@ -579,9 +579,9 @@ fn apply_despawn(
 ) -> Result<()> {
     // The entity might have already been despawned because of hierarchy or
     // with the last replication message, but the server might not yet have received confirmation
-    // from the client and could include the deletion in the this message.
+    // from the client and could include the deletion in this message.
     let server_entity = postcard_utils::entity_from_buf(message)?;
-    if let Some(&client_entity) = params.entity_map.to_server().get(&server_entity)
+    if let Some(&client_entity) = params.entity_map.to_client().get(&server_entity)
         && let Ok(client_entity) = world.get_entity_mut(client_entity)
     {
         debug!("applying despawn for `{}`", client_entity.id());
